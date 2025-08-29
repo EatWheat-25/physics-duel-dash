@@ -1,13 +1,25 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import React, { useState } from "react";
+import HomePage from "@/components/HomePage";
+import BattlePage from "@/components/BattlePage";
+import { getRandomQuestions } from "@/data/questions";
 
 const Index = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
+  const [page, setPage] = useState<"home" | "battle">("home");
+  const [rank, setRank] = useState("Bronze");
+  const [progress, setProgress] = useState(40);
+  const [battleQuestions] = useState(() => getRandomQuestions(5));
+
+  return page === "home" ? (
+    <HomePage 
+      startGame={() => setPage("battle")} 
+      rank={rank}
+      progress={progress}
+    />
+  ) : (
+    <BattlePage 
+      goHome={() => setPage("home")} 
+      questions={battleQuestions}
+    />
   );
 };
 

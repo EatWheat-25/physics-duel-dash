@@ -52,6 +52,16 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				battle: {
+					bg: 'hsl(var(--battle-bg))',
+					primary: 'hsl(var(--battle-primary))',
+					secondary: 'hsl(var(--battle-secondary))',
+					success: 'hsl(var(--battle-success))',
+					danger: 'hsl(var(--battle-danger))',
+					warning: 'hsl(var(--battle-warning))',
+					card: 'hsl(var(--battle-card))',
+					'card-glow': 'hsl(var(--battle-card-glow))'
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
