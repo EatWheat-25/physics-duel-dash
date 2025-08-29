@@ -4,56 +4,15 @@ import { UserRankData, RankHistory, getRankByPoints, getPointsForWin, getPointsF
 // Mock initial user data
 const initialUserData: UserRankData = {
   username: "PhysicsWarrior",
-  currentPoints: 1250, // Gold rank
-  currentRank: 'Gold',
-  winStreak: 5,
-  totalMatches: 28,
-  wins: 20,
-  losses: 8,
-  accuracy: 87,
+  currentPoints: 0, // Bronze rank
+  currentRank: 'Bronze',
+  winStreak: 0,
+  totalMatches: 0,
+  wins: 0,
+  losses: 0,
+  accuracy: 0,
   avatar: undefined,
-  history: [
-    {
-      id: '1',
-      date: new Date(Date.now() - 86400000), // 1 day ago
-      outcome: 'win',
-      pointsChange: 27,
-      previousRank: 'Gold',
-      newRank: 'Gold',
-    },
-    {
-      id: '2',
-      date: new Date(Date.now() - 172800000), // 2 days ago
-      outcome: 'win',
-      pointsChange: 25,
-      previousRank: 'Gold',
-      newRank: 'Gold',
-    },
-    {
-      id: '3',
-      date: new Date(Date.now() - 259200000), // 3 days ago
-      outcome: 'loss',
-      pointsChange: -15,
-      previousRank: 'Gold',
-      newRank: 'Gold',
-    },
-    {
-      id: '4',
-      date: new Date(Date.now() - 345600000), // 4 days ago
-      outcome: 'win',
-      pointsChange: 25,
-      previousRank: 'Silver',
-      newRank: 'Gold',
-    },
-    {
-      id: '5',
-      date: new Date(Date.now() - 432000000), // 5 days ago
-      outcome: 'win',
-      pointsChange: 25,
-      previousRank: 'Silver',
-      newRank: 'Silver',
-    },
-  ]
+  history: []
 };
 
 export const useRanking = () => {
