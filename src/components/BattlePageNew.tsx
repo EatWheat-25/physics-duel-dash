@@ -8,9 +8,10 @@ import { Question } from '@/data/questions';
 interface BattlePageProps {
   onGoBack: () => void;
   questions: Question[];
+  onBattleEnd: (won: boolean) => void;
 }
 
-const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions }) => {
+const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions, onBattleEnd }) => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [tugPosition, setTugPosition] = useState(0); // -4 to 4
   const [gameOver, setGameOver] = useState(false);
@@ -35,8 +36,10 @@ const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions }) => {
 
     // Check for game end
     if (Math.abs(newPosition) >= maxSteps) {
-      setWinner(newPosition >= maxSteps ? 'player' : 'opponent');
+      const playerWon = newPosition >= maxSteps;
+      setWinner(playerWon ? 'player' : 'opponent');
       setGameOver(true);
+      onBattleEnd(playerWon);
     }
 
     // Auto advance after feedback
@@ -47,8 +50,13 @@ const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions }) => {
         setShowFeedback(false);
       } else if (Math.abs(newPosition) < maxSteps) {
         // No more questions, determine winner by position
-        setWinner(newPosition > 0 ? 'player' : newPosition < 0 ? 'opponent' : null);
+        const playerWon = newPosition > 0;
+        const isDraw = newPosition === 0;
+        setWinner(isDraw ? null : (playerWon ? 'player' : 'opponent'));
         setGameOver(true);
+        if (!isDraw) {
+          onBattleEnd(playerWon);
+        }
       }
     }, 2000);
   };

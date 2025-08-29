@@ -2,29 +2,17 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Settings, LogOut, Edit, Play, Users, Target } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
+import RankBadge from './RankBadge';
+import RankProgressBar from './RankProgressBar';
+import RankHistory from './RankHistory';
+import { UserRankData } from '@/types/ranking';
 
 interface DashboardProps {
   onStartBattle: () => void;
-  user: {
-    username: string;
-    rank: string;
-    progress: number;
-    winStreak: number;
-    totalMatches: number;
-    accuracy: number;
-    avatar?: string;
-  };
+  userData: UserRankData;
 }
 
-const rankEmojis = {
-  Bronze: '🥉',
-  Silver: '🥈',
-  Gold: '🥇',
-  Platinum: '💎',
-  Diamond: '💠',
-};
-
-const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, user }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, userData }) => {
   return (
     <div className="min-h-screen relative">
       <AnimatedBackground />
@@ -59,55 +47,48 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, user }) => {
         >
           {/* Profile Card */}
           <div className="valorant-card p-6">
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-4 mb-6">
               <div className="w-16 h-16 rounded-full bg-gradient-to-r from-primary to-accent flex items-center justify-center text-2xl font-bold">
-                {user.avatar || user.username.charAt(0).toUpperCase()}
+                {userData.avatar || userData.username.charAt(0).toUpperCase()}
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold">{user.username}</h2>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-xl font-bold">{userData.username}</h2>
                   <button className="p-1 rounded-md hover:bg-white/20 transition-colors">
                     <Edit className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="rank-badge">
-                  {rankEmojis[user.rank as keyof typeof rankEmojis]} {user.rank}
-                </div>
+                <RankBadge rank={userData.currentRank} size="md" />
               </div>
             </div>
 
             {/* Rank Progress */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Rank Progress</span>
-                <span>{user.progress}%</span>
-              </div>
-              <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-primary to-accent"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${user.progress}%` }}
-                  transition={{ duration: 1, delay: 0.5 }}
-                  style={{ boxShadow: 'var(--shadow-cyan-glow)' }}
-                />
-              </div>
-            </div>
+            <RankProgressBar currentPoints={userData.currentPoints} showAnimation={true} />
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="stat-card">
-              <div className="stat-number">{user.winStreak}</div>
+              <div className="stat-number">{userData.winStreak}</div>
               <div className="text-xs text-muted-foreground uppercase tracking-wider">Win Streak</div>
             </div>
             <div className="stat-card">
-              <div className="stat-number">{user.totalMatches}</div>
+              <div className="stat-number">{userData.totalMatches}</div>
               <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Matches</div>
             </div>
-            <div className="stat-card col-span-2">
-              <div className="stat-number">{user.accuracy}%</div>
+            <div className="stat-card">
+              <div className="stat-number">{userData.wins}</div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">Wins</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number">{userData.accuracy}%</div>
               <div className="text-xs text-muted-foreground uppercase tracking-wider">Accuracy</div>
             </div>
+          </div>
+
+          {/* Rank History */}
+          <div className="valorant-card p-4">
+            <RankHistory history={userData.history} />
           </div>
         </motion.div>
 
