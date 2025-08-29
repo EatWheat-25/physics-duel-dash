@@ -1,23 +1,30 @@
 import React, { useState } from "react";
-import HomePage from "@/components/HomePage";
-import BattlePage from "@/components/BattlePage";
+import Dashboard from "@/components/Dashboard";
+import BattlePageNew from "@/components/BattlePageNew";
 import { getRandomQuestions } from "@/data/questions";
 
 const Index = () => {
-  const [page, setPage] = useState<"home" | "battle">("home");
-  const [rank, setRank] = useState("Bronze");
-  const [progress, setProgress] = useState(40);
-  const [battleQuestions] = useState(() => getRandomQuestions(5));
+  const [page, setPage] = useState<"dashboard" | "battle">("dashboard");
+  const [battleQuestions] = useState(() => getRandomQuestions(8));
 
-  return page === "home" ? (
-    <HomePage 
-      startGame={() => setPage("battle")} 
-      rank={rank}
-      progress={progress}
+  // Mock user data
+  const user = {
+    username: "PhysicsWarrior",
+    rank: "Gold",
+    progress: 73,
+    winStreak: 5,
+    totalMatches: 28,
+    accuracy: 87,
+  };
+
+  return page === "dashboard" ? (
+    <Dashboard 
+      onStartBattle={() => setPage("battle")} 
+      user={user}
     />
   ) : (
-    <BattlePage 
-      goHome={() => setPage("home")} 
+    <BattlePageNew 
+      onGoBack={() => setPage("dashboard")} 
       questions={battleQuestions}
     />
   );
