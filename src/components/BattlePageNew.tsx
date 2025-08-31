@@ -5,10 +5,20 @@ import TugOfWarBar from './TugOfWarBar';
 import AnimatedBackground from './AnimatedBackground';
 import { Question } from '@/data/questions';
 
+interface MatchStats {
+  totalQuestions: number;
+  correctAnswers: number;
+  wrongAnswers: number;
+  playerScore: number;
+  opponentScore: number;
+  pointsEarned: number;
+  won: boolean;
+}
+
 interface BattlePageProps {
   onGoBack: () => void;
   questions: Question[];
-  onBattleEnd: (won: boolean) => void;
+  onBattleEnd: (won: boolean, matchStats: MatchStats) => void;
 }
 
 const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions, onBattleEnd }) => {
@@ -19,6 +29,8 @@ const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions, onBattl
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [winner, setWinner] = useState<'player' | 'opponent' | null>(null);
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [wrongAnswers, setWrongAnswers] = useState(0);
 
   const maxSteps = 4;
 
@@ -30,6 +42,13 @@ const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions, onBattl
     setIsCorrect(correct);
     setShowFeedback(true);
 
+    // Update stats
+    if (correct) {
+      setCorrectAnswers(prev => prev + 1);
+    } else {
+      setWrongAnswers(prev => prev + 1);
+    }
+
     // Update tug position
     const newPosition = correct ? tugPosition + 1 : tugPosition - 1;
     setTugPosition(newPosition);
@@ -39,7 +58,22 @@ const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions, onBattl
       const playerWon = newPosition >= maxSteps;
       setWinner(playerWon ? 'player' : 'opponent');
       setGameOver(true);
-      onBattleEnd(playerWon);
+      
+      // Create match stats
+      const finalStats: MatchStats = {
+        totalQuestions: currentQuestion + 1,
+        correctAnswers: correct ? correctAnswers + 1 : correctAnswers,
+        wrongAnswers: correct ? wrongAnswers : wrongAnswers + 1,
+        playerScore: Math.max(0, newPosition + maxSteps),
+        opponentScore: Math.max(0, maxSteps - newPosition),
+        pointsEarned: 0, // Will be calculated in parent
+        won: playerWon
+      };
+      
+      setTimeout(() => {
+        onBattleEnd(playerWon, finalStats);
+      }, 2000);
+      return;
     }
 
     // Auto advance after feedback
@@ -54,8 +88,21 @@ const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions, onBattl
         const isDraw = newPosition === 0;
         setWinner(isDraw ? null : (playerWon ? 'player' : 'opponent'));
         setGameOver(true);
+        
         if (!isDraw) {
-          onBattleEnd(playerWon);
+          const finalStats: MatchStats = {
+            totalQuestions: questions.length,
+            correctAnswers: correct ? correctAnswers + 1 : correctAnswers,
+            wrongAnswers: correct ? wrongAnswers : wrongAnswers + 1,
+            playerScore: Math.max(0, newPosition + maxSteps),
+            opponentScore: Math.max(0, maxSteps - newPosition),
+            pointsEarned: 0, // Will be calculated in parent
+            won: playerWon
+          };
+          
+          setTimeout(() => {
+            onBattleEnd(playerWon, finalStats);
+          }, 2000);
         }
       }
     }, 2000);
