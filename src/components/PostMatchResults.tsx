@@ -125,39 +125,76 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
         
         {/* Victory/Defeat Banner */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={showBanner ? { opacity: 1, y: 0 } : {}}
-          transition={{ type: "spring", stiffness: 150, damping: 25 }}
-          className="text-center space-y-4"
+          initial={{ opacity: 0, scale: 0.5, y: -50 }}
+          animate={showBanner ? { opacity: 1, scale: 1, y: 0 } : {}}
+          transition={{ type: "spring", stiffness: 120, damping: 15, duration: 0.8 }}
+          className="text-center space-y-8 py-8"
         >
-          <div className={`flex items-center justify-center gap-4`}>
-            <motion.div
-              animate={showBanner ? { rotate: [0, 5, -5, 0] } : {}}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              {matchStats.won ? 
-                <Trophy className="text-battle-success" size={32} /> : 
-                <Target className="text-battle-danger" size={32} />
-              }
-            </motion.div>
+          <div className="relative">
             <motion.div 
-              className={`text-4xl md:text-5xl font-light tracking-wide ${matchStats.won ? 'text-battle-success' : 'text-battle-danger'}`}
+              className={`text-6xl md:text-8xl lg:text-9xl font-black tracking-wider ${matchStats.won ? 'text-battle-success' : 'text-battle-danger'}`}
               animate={showBanner ? {
+                scale: [1, 1.05, 1],
                 filter: [
-                  'drop-shadow(0 0 8px currentColor)',
-                  'drop-shadow(0 0 16px currentColor)',
-                  'drop-shadow(0 0 8px currentColor)'
+                  'drop-shadow(0 0 20px currentColor) drop-shadow(0 0 40px currentColor)',
+                  'drop-shadow(0 0 30px currentColor) drop-shadow(0 0 60px currentColor)',
+                  'drop-shadow(0 0 20px currentColor) drop-shadow(0 0 40px currentColor)'
                 ]
               } : {}}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              style={{
+                textShadow: `0 0 20px currentColor, 0 0 40px currentColor, 0 0 60px currentColor`
+              }}
             >
               {matchStats.won ? "VICTORY" : "DEFEAT"}
             </motion.div>
+            
+            {/* Animated Icon */}
+            <motion.div
+              className="absolute -top-4 -right-4 md:-top-8 md:-right-8"
+              initial={{ scale: 0, rotate: -180 }}
+              animate={showBanner ? { 
+                scale: [0, 1.2, 1], 
+                rotate: [0, 360, 720],
+                filter: [
+                  'drop-shadow(0 0 10px currentColor)',
+                  'drop-shadow(0 0 20px currentColor)',
+                  'drop-shadow(0 0 10px currentColor)'
+                ]
+              } : {}}
+              transition={{ 
+                scale: { duration: 0.8, ease: "backOut" },
+                rotate: { duration: 1.5, ease: "easeOut" },
+                filter: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+              }}
+            >
+              {matchStats.won ? 
+                <Trophy className="text-battle-success" size={48} /> : 
+                <Target className="text-battle-danger" size={48} />
+              }
+            </motion.div>
+
+            {/* Particle burst effect */}
+            <motion.div
+              className="absolute inset-0 pointer-events-none"
+              animate={showBanner ? {
+                scale: [0, 2, 4],
+                opacity: [0, 1, 0]
+              } : {}}
+              transition={{ duration: 1.5, ease: "easeOut" }}
+            >
+              <div className={`w-full h-full rounded-full ${matchStats.won ? 'bg-battle-success/20' : 'bg-battle-danger/20'} blur-xl`} />
+            </motion.div>
           </div>
           
-          <div className={`text-sm font-medium tracking-wider uppercase opacity-80 ${highlight.color}`}>
+          <motion.div 
+            className={`text-lg font-bold tracking-widest uppercase ${highlight.color}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={showBanner ? { opacity: 1, y: 0 } : {}}
+            transition={{ delay: 0.8, duration: 0.6 }}
+          >
             {highlight.text}
-          </div>
+          </motion.div>
         </motion.div>
 
         {/* Points Earned */}
