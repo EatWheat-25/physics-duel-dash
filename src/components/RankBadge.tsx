@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { RANKS, RankName } from '@/types/ranking';
+import { RANKS, RankName, getRankByPoints } from '@/types/ranking';
 
 interface RankBadgeProps {
   rank: RankName;
@@ -15,7 +15,7 @@ const RankBadge: React.FC<RankBadgeProps> = ({
   size = 'md',
   className = '' 
 }) => {
-  const rankData = RANKS[rank];
+  const rankData = RANKS.find(r => r.tier === rank.tier && r.subRank === rank.subRank) || RANKS[0];
   
   const sizeClasses = {
     sm: 'text-xs px-2 py-1',
@@ -64,7 +64,7 @@ const RankBadge: React.FC<RankBadgeProps> = ({
         {rankData.emoji}
       </motion.span>
       <span className="text-white drop-shadow-lg">
-        {rankData.name}
+        {rankData.displayName}
       </span>
     </motion.div>
   );

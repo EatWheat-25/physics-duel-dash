@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { getRankProgress, getRankByPoints, RANKS } from '@/types/ranking';
+import { getRankProgress, getRankByPoints, getNextRank } from '@/types/ranking';
 
 interface RankProgressBarProps {
   currentPoints: number;
@@ -10,9 +10,7 @@ interface RankProgressBarProps {
 const RankProgressBar: React.FC<RankProgressBarProps> = ({ currentPoints, showAnimation = false }) => {
   const progress = getRankProgress(currentPoints);
   const currentRank = getRankByPoints(currentPoints);
-  const nextRankIndex = Object.keys(RANKS).indexOf(currentRank.name) + 1;
-  const nextRank = nextRankIndex < Object.keys(RANKS).length ? 
-    Object.values(RANKS)[nextRankIndex] : null;
+  const nextRank = getNextRank(currentRank);
 
   return (
     <div className="space-y-2">
@@ -55,8 +53,8 @@ const RankProgressBar: React.FC<RankProgressBarProps> = ({ currentPoints, showAn
       </div>
       
       <div className="flex justify-between text-xs text-muted-foreground">
-        <span>{currentRank.name}</span>
-        {nextRank && <span>{nextRank.name}</span>}
+        <span>{currentRank.displayName}</span>
+        {nextRank && <span>{nextRank.displayName}</span>}
       </div>
       
       <div className="text-center">

@@ -4,8 +4,8 @@ import { UserRankData, RankHistory, getRankByPoints, getPointsForWin, getPointsF
 // Mock initial user data
 const initialUserData: UserRankData = {
   username: "PhysicsWarrior",
-  currentPoints: 0, // Bronze rank
-  currentRank: 'Bronze',
+  currentPoints: 0, // Bronze 1
+  currentRank: { tier: 'Bronze', subRank: 1 },
   winStreak: 0,
   totalMatches: 0,
   wins: 0,
@@ -20,7 +20,7 @@ export const useRanking = () => {
 
   const updateAfterBattle = useCallback((won: boolean) => {
     setUserData(prevData => {
-      const pointsChange = won ? getPointsForWin(prevData.winStreak) : getPointsForLoss();
+      const pointsChange = won ? getPointsForWin() : getPointsForLoss();
       const newPoints = Math.max(0, prevData.currentPoints + pointsChange);
       const newRank = getRankByPoints(newPoints);
       const previousRank = prevData.currentRank;
@@ -37,13 +37,13 @@ export const useRanking = () => {
         outcome: won ? 'win' : 'loss',
         pointsChange,
         previousRank,
-        newRank: newRank.name,
+        newRank: { tier: newRank.tier, subRank: newRank.subRank },
       };
 
       return {
         ...prevData,
         currentPoints: newPoints,
-        currentRank: newRank.name,
+        currentRank: { tier: newRank.tier, subRank: newRank.subRank },
         winStreak: newWinStreak,
         totalMatches: newTotalMatches,
         wins: newWins,
@@ -56,7 +56,7 @@ export const useRanking = () => {
 
   const rankUp = useCallback(() => {
     // This will be called when a rank animation completes
-    console.log(`Congratulations! You've reached ${userData.currentRank}!`);
+    console.log(`Congratulations! You've reached ${userData.currentRank.tier} ${userData.currentRank.subRank}!`);
   }, [userData.currentRank]);
 
   return {

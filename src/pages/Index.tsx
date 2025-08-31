@@ -29,7 +29,7 @@ const Index = () => {
 
   const handleBattleEnd = (won: boolean, stats: MatchStats) => {
     const previousRank = userData.currentRank;
-    const pointsGained = won ? getPointsForWin(userData.winStreak) : getPointsForLoss();
+    const pointsGained = won ? getPointsForWin() : getPointsForLoss();
     
     // Create final match stats with points
     const finalStats: MatchStats = {
@@ -47,8 +47,8 @@ const Index = () => {
       const newPoints = Math.max(0, userData.currentPoints + pointsGained);
       const newRank = getRankByPoints(newPoints);
       
-      if (previousRank !== newRank.name && won) {
-        setRankUpData({ newRank: newRank.name, pointsGained });
+      if ((previousRank.tier !== newRank.tier || previousRank.subRank !== newRank.subRank) && won) {
+        setRankUpData({ newRank: { tier: newRank.tier, subRank: newRank.subRank }, pointsGained });
         setShowRankUpModal(true);
       }
     }, 100);
