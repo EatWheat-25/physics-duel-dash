@@ -93,24 +93,24 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
   // Floating particles component
   const FloatingParticles = () => (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {[...Array(20)].map((_, i) => (
+      {[...Array(12)].map((_, i) => (
         <motion.div
           key={i}
-          className="absolute w-1 h-1 bg-battle-primary rounded-full opacity-60"
+          className="absolute w-1 h-1 bg-battle-primary/40 rounded-full"
           initial={{ 
-            x: Math.random() * window.innerWidth, 
-            y: window.innerHeight + 10,
-            scale: Math.random() * 0.5 + 0.5 
+            x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1200), 
+            y: (typeof window !== 'undefined' ? window.innerHeight : 800) + 10,
+            scale: Math.random() * 0.3 + 0.2 
           }}
           animate={{
             y: -10,
-            x: Math.random() * window.innerWidth,
-            opacity: [0.6, 1, 0]
+            x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1200),
+            opacity: [0.2, 0.6, 0]
           }}
           transition={{
-            duration: Math.random() * 3 + 2,
+            duration: Math.random() * 4 + 3,
             repeat: Infinity,
-            delay: Math.random() * 2
+            delay: Math.random() * 3
           }}
         />
       ))}
@@ -118,119 +118,117 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-background/90 flex items-center justify-center p-4 relative">
+    <div className="min-h-screen bg-background flex items-center justify-center p-8 relative">
       <FloatingParticles />
       
-      <div className="max-w-5xl w-full space-y-6 relative z-10">
+      <div className="max-w-4xl w-full space-y-12 relative z-10">
         
         {/* Victory/Defeat Banner */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: -30 }}
-          animate={showBanner ? { opacity: 1, scale: 1, y: 0 } : {}}
-          transition={{ type: "spring", stiffness: 150, damping: 20 }}
-          className="text-center"
+          initial={{ opacity: 0, y: -20 }}
+          animate={showBanner ? { opacity: 1, y: 0 } : {}}
+          transition={{ type: "spring", stiffness: 150, damping: 25 }}
+          className="text-center space-y-4"
         >
-          <motion.div 
-            className={`text-5xl md:text-7xl font-bold mb-2 ${matchStats.won ? 'text-battle-success' : 'text-battle-danger'}`}
-            animate={showBanner ? {
-              textShadow: [
-                '0 0 20px currentColor',
-                '0 0 40px currentColor',
-                '0 0 20px currentColor'
-              ]
-            } : {}}
-            transition={{ duration: 2, repeat: Infinity }}
-            style={{
-              filter: 'drop-shadow(0 0 10px currentColor)'
-            }}
-          >
-            {matchStats.won ? "VICTORY" : "DEFEAT"}
-          </motion.div>
+          <div className={`flex items-center justify-center gap-4`}>
+            <motion.div
+              animate={showBanner ? { rotate: [0, 5, -5, 0] } : {}}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              {matchStats.won ? 
+                <Trophy className="text-battle-success" size={32} /> : 
+                <Target className="text-battle-danger" size={32} />
+              }
+            </motion.div>
+            <motion.div 
+              className={`text-4xl md:text-5xl font-light tracking-wide ${matchStats.won ? 'text-battle-success' : 'text-battle-danger'}`}
+              animate={showBanner ? {
+                filter: [
+                  'drop-shadow(0 0 8px currentColor)',
+                  'drop-shadow(0 0 16px currentColor)',
+                  'drop-shadow(0 0 8px currentColor)'
+                ]
+              } : {}}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              {matchStats.won ? "VICTORY" : "DEFEAT"}
+            </motion.div>
+          </div>
           
-          <div className={`flex items-center justify-center gap-2 text-lg font-semibold ${highlight.color}`}>
-            <highlight.icon size={20} />
+          <div className={`text-sm font-medium tracking-wider uppercase opacity-80 ${highlight.color}`}>
             {highlight.text}
           </div>
         </motion.div>
 
         {/* Points Earned */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={showPoints ? { opacity: 1, y: 0 } : {}}
-          transition={{ type: "spring", stiffness: 200, damping: 15 }}
-          className="text-center"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={showPoints ? { opacity: 1, scale: 1 } : {}}
+          transition={{ type: "spring", stiffness: 200, damping: 20 }}
+          className="flex justify-center"
         >
-          <motion.div 
-            className="valorant-card p-6 inline-block"
-            whileHover={{ scale: 1.05 }}
+          <div 
+            className={`inline-flex items-center gap-3 px-8 py-4 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm ${
+              matchStats.pointsEarned >= 0 ? 'shadow-[0_0_20px_hsl(var(--battle-primary)/0.3)]' : 'shadow-[0_0_20px_hsl(var(--battle-danger)/0.3)]'
+            }`}
           >
             <div 
-              className={`text-4xl font-bold mb-1 ${matchStats.pointsEarned >= 0 ? 'text-battle-primary' : 'text-battle-danger'}`}
-              style={{
-                textShadow: '0 0 15px currentColor',
-                filter: 'drop-shadow(0 0 8px currentColor)'
-              }}
+              className={`text-2xl font-bold ${matchStats.pointsEarned >= 0 ? 'text-battle-primary' : 'text-battle-danger'}`}
             >
               {pointsCounter > 0 ? '+' : ''}{pointsCounter}
             </div>
-            <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">XP Points {matchStats.won ? 'Earned' : 'Lost'}</div>
-          </motion.div>
+            <div className="text-sm text-muted-foreground font-medium">XP Points</div>
+          </div>
         </motion.div>
 
         {/* Rank Progress Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={showPoints ? { opacity: 1, y: 0 } : {}}
-          transition={{ delay: 0.3 }}
-          className="valorant-card p-6 relative overflow-hidden"
+          transition={{ delay: 0.4 }}
+          className="space-y-6"
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between px-4">
+            <div className="flex items-center gap-4">
               <RankBadge rank={userData.currentRank} size="md" />
               <div>
-                <div className="text-xl font-bold">{currentRank.displayName}</div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-lg font-semibold">{currentRank.displayName}</div>
+                <div className="text-xs text-muted-foreground">
                   {userData.currentPoints} / {currentRank.maxPoints === 99999 ? '∞' : currentRank.maxPoints} XP
                 </div>
               </div>
             </div>
             
             {nextRank && (
-              <>
-                <ArrowRight className="text-muted-foreground mx-3" size={24} />
-                
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="text-xl font-bold">{nextRank.displayName}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {nextRank.minPoints} XP
-                    </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className="text-lg font-semibold">{nextRank.displayName}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {nextRank.minPoints} XP
                   </div>
-                  <RankBadge rank={{ tier: nextRank.tier, subRank: nextRank.subRank }} size="md" />
                 </div>
-              </>
+                <RankBadge rank={{ tier: nextRank.tier, subRank: nextRank.subRank }} size="md" />
+              </div>
             )}
           </div>
 
           {/* Progress Bar */}
           {nextRank && (
-            <div className="relative">
-              <div className="h-4 bg-white/10 rounded-full overflow-hidden border border-white/20">
+            <div className="relative px-4">
+              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
                 <motion.div
-                  className="h-full rounded-full relative"
+                  className="h-full rounded-full"
                   style={{
-                    background: `linear-gradient(90deg, ${currentRank.color}, ${currentRank.color}cc)`,
-                    boxShadow: `inset 0 0 10px ${currentRank.color}60, 0 0 15px ${currentRank.color}40`,
+                    background: `linear-gradient(90deg, hsl(var(--battle-primary)), hsl(var(--battle-primary)/0.8))`,
+                    boxShadow: `0 0 10px hsl(var(--battle-primary)/0.4)`,
                   }}
                   initial={{ width: `${previousProgressInRank}%` }}
                   animate={animateProgress ? { width: `${progressInCurrentRank}%` } : {}}
                   transition={{ duration: 1.5, ease: "easeOut" }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-60" />
-                </motion.div>
+                />
               </div>
               
-              <div className="flex justify-between text-xs text-muted-foreground mt-2">
+              <div className="flex justify-between text-xs text-muted-foreground mt-3">
                 <span>{Math.round(progressInCurrentRank)}% to next rank</span>
                 <span>{nextRank.minPoints - userData.currentPoints} XP needed</span>
               </div>
@@ -282,126 +280,102 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
           </AnimatePresence>
         </motion.div>
 
-        {/* Performance Stats Grid */}
+        {/* Performance Stats - Single Clean Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={showStats ? { opacity: 1, y: 0 } : {}}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+          className="bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 p-8"
         >
-          {/* Accuracy */}
-          <div className="valorant-card p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Target className="text-battle-primary" size={20} />
-              <h3 className="text-lg font-bold">ACCURACY</h3>
-            </div>
-
-            <div className="flex items-center justify-center mb-4">
-              <div className="relative w-24 h-24">
-                <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="hsl(var(--muted) / 0.3)"
-                    strokeWidth="2"
-                  />
-                  <motion.path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="hsl(var(--battle-success))"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    initial={{ strokeDasharray: "0 100" }}
-                    animate={animateProgress ? { strokeDasharray: `${accuracy} 100` } : {}}
-                    transition={{ duration: 1.5, ease: "easeOut" }}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-battle-success">{accuracy}%</div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+            
+            {/* Accuracy Circle */}
+            <div className="text-center">
+              <div className="flex items-center justify-center mb-6">
+                <div className="relative w-32 h-32">
+                  <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
+                    <path
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      fill="none"
+                      stroke="hsl(var(--muted-foreground) / 0.2)"
+                      strokeWidth="1.5"
+                    />
+                    <motion.path
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      fill="none"
+                      stroke="hsl(var(--battle-success))"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      initial={{ strokeDasharray: "0 100" }}
+                      animate={animateProgress ? { strokeDasharray: `${accuracy} 100` } : {}}
+                      transition={{ duration: 1.5, ease: "easeOut" }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-battle-success">{accuracy}%</div>
+                      <div className="text-xs text-muted-foreground">Accuracy</div>
+                    </div>
                   </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-center gap-4">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-battle-success">{matchStats.correctAnswers}</div>
+                  <div className="text-xs text-muted-foreground">Correct</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-battle-danger">{matchStats.wrongAnswers}</div>
+                  <div className="text-xs text-muted-foreground">Wrong</div>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="text-center p-2 bg-battle-success/10 rounded-lg">
-                <div className="text-lg font-bold text-battle-success">{matchStats.correctAnswers}</div>
-                <div className="text-xs text-muted-foreground">CORRECT</div>
-              </div>
-              <div className="text-center p-2 bg-battle-danger/10 rounded-lg">
-                <div className="text-lg font-bold text-battle-danger">{matchStats.wrongAnswers}</div>
-                <div className="text-xs text-muted-foreground">WRONG</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Match Stats */}
-          <div className="valorant-card p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Zap className="text-battle-warning" size={20} />
-              <h3 className="text-lg font-bold">MATCH STATS</h3>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-2 bg-white/5 rounded-lg">
-                <span className="text-muted-foreground text-sm">Total Questions</span>
-                <span className="font-bold">{matchStats.totalQuestions}</span>
+            {/* Match Details */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Total Questions</span>
+                <span className="font-semibold">{matchStats.totalQuestions}</span>
               </div>
               
-              <div className="flex justify-between items-center p-2 bg-battle-primary/10 rounded-lg">
-                <span className="text-muted-foreground text-sm">Your Score</span>
-                <span className="font-bold text-battle-primary">{matchStats.playerScore}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Your Score</span>
+                <span className="font-semibold text-battle-primary">{matchStats.playerScore}</span>
               </div>
               
-              <div className="flex justify-between items-center p-2 bg-battle-danger/10 rounded-lg">
-                <span className="text-muted-foreground text-sm">Opponent Score</span>
-                <span className="font-bold text-battle-danger">{matchStats.opponentScore}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Opponent Score</span>
+                <span className="font-semibold text-battle-danger">{matchStats.opponentScore}</span>
               </div>
 
               <div className="pt-2 border-t border-white/10">
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground text-sm">Score Difference</span>
-                  <span className={`font-bold ${matchStats.playerScore > matchStats.opponentScore ? 'text-battle-success' : 'text-battle-danger'}`}>
-                    {matchStats.playerScore > matchStats.opponentScore ? '+' : ''}{matchStats.playerScore - matchStats.opponentScore}
+                  <span className="text-sm text-muted-foreground">Score Difference</span>
+                  <span className={`font-semibold ${matchStats.playerScore > matchStats.opponentScore ? 'text-battle-success' : 'text-battle-danger'}`}>
+                    {matchStats.playerScore > matchStats.opponentScore ? '+' : ''}{Math.abs(matchStats.playerScore - matchStats.opponentScore)}
                   </span>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Highlights */}
-          <div className="valorant-card p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="text-battle-success" size={20} />
-              <h3 className="text-lg font-bold">HIGHLIGHTS</h3>
-            </div>
-
+            {/* Game Highlights */}
             <div className="space-y-3">
-              <div className={`p-3 rounded-lg border-l-4 ${highlight.color.replace('text-', 'border-')} bg-white/5`}>
-                <div className={`flex items-center gap-2 font-bold ${highlight.color}`}>
-                  <highlight.icon size={16} />
-                  {highlight.text}
-                </div>
+              <div className={`flex items-center gap-3 p-4 rounded-2xl bg-white/5 border-l-4 ${highlight.color.replace('text-', 'border-')}`}>
+                <highlight.icon size={18} className={highlight.color} />
+                <span className={`font-semibold text-sm ${highlight.color}`}>{highlight.text}</span>
               </div>
 
               {matchStats.wrongAnswers === 0 && (
-                <div className="p-3 rounded-lg bg-battle-success/10 border border-battle-success/30">
-                  <div className="text-battle-success font-semibold text-sm">Perfect Game!</div>
-                  <div className="text-xs text-muted-foreground">No mistakes made</div>
-                </div>
-              )}
-
-              {matchStats.pointsEarned > 20 && matchStats.won && (
-                <div className="p-3 rounded-lg bg-battle-primary/10 border border-battle-primary/30">
-                  <div className="text-battle-primary font-semibold text-sm">High Scorer!</div>
-                  <div className="text-xs text-muted-foreground">Earned {matchStats.pointsEarned} XP</div>
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-battle-success/10">
+                  <Star size={18} className="text-battle-success" />
+                  <span className="text-battle-success font-semibold text-sm">Perfect Game!</span>
                 </div>
               )}
 
               {hasRankedUp && (
-                <div className="p-3 rounded-lg bg-battle-warning/10 border border-battle-warning/30">
-                  <div className="text-battle-warning font-semibold text-sm">Promotion!</div>
-                  <div className="text-xs text-muted-foreground">Advanced to {currentRank.displayName}</div>
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-battle-warning/10">
+                  <Sparkles size={18} className="text-battle-warning" />
+                  <span className="text-battle-warning font-semibold text-sm">Rank Up!</span>
                 </div>
               )}
             </div>
@@ -412,26 +386,26 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={showStats ? { opacity: 1, y: 0 } : {}}
-          transition={{ delay: 0.2 }}
-          className="flex gap-4 justify-center"
+          transition={{ delay: 0.6 }}
+          className="flex gap-4 justify-center pt-4"
         >
-          <Button
-            onClick={onContinue}
-            className="valorant-button px-6 py-3 text-sm"
-          >
-            <Trophy size={18} className="mr-2" />
-            RETURN TO DASHBOARD
-          </Button>
-          
           {onPlayAgain && (
             <Button
               onClick={onPlayAgain}
-              className="valorant-button-accent px-6 py-3 text-sm"
+              className="px-8 py-4 rounded-2xl bg-battle-primary/20 border border-battle-primary/40 text-battle-primary font-semibold text-sm uppercase tracking-wider transition-all duration-300 hover:bg-battle-primary/30 hover:shadow-[0_0_20px_hsl(var(--battle-primary)/0.4)] hover:-translate-y-0.5"
             >
               <Zap size={18} className="mr-2" />
               PLAY AGAIN
             </Button>
           )}
+          
+          <Button
+            onClick={onContinue}
+            className="px-8 py-4 rounded-2xl bg-white/10 border border-white/20 text-foreground font-semibold text-sm uppercase tracking-wider transition-all duration-300 hover:bg-white/20 hover:-translate-y-0.5"
+          >
+            <Trophy size={18} className="mr-2" />
+            RETURN TO DASHBOARD
+          </Button>
         </motion.div>
       </div>
     </div>
