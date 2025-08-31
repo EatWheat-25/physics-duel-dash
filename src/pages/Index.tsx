@@ -78,6 +78,7 @@ const Index = () => {
           matchStats={matchStats}
           userData={userData}
           onContinue={() => setPage("dashboard")}
+          onPlayAgain={() => setPage("battle")}
         />
       )}
       
