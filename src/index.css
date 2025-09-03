@@ -43,6 +43,16 @@ All colors MUST be HSL.
     --cyber-purple: 260 75% 50%;     /* #784BA0 */
     --cyber-navy: 221 39% 11%;       /* #0A0F1C */
     
+    /* Battle Colors */
+    --battle-primary: 214 100% 50%;     /* #007BFF - Blue for Player/Ally */
+    --battle-danger: 0 84% 60%;         /* #E53E3E - Red for Opponent */
+    --battle-bg: 221 39% 11%;           /* Dark background */
+    --battle-secondary: 0 0% 50%;       /* Neutral gray */
+    --battle-success: 120 60% 50%;      /* Green for success */
+    --battle-warning: 45 100% 50%;      /* Orange for warning */
+    --battle-card: 221 39% 15%;         /* Card background */
+    --battle-card-glow: 194 100% 50%;   /* Cyan glow */
+    
     /* Rank Colors */
     --rank-bronze: 25 95% 63%;       /* #FF9F45 */
     --rank-silver: 0 0% 75%;         /* #C0C0C0 */
