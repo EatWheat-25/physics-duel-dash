@@ -19,9 +19,9 @@ const RankBadge: React.FC<RankBadgeProps> = ({
   const isSigma = rank.tier === 'Sigma';
   
   const sizeClasses = {
-    sm: 'text-xs px-2 py-1',
-    md: 'text-sm px-3 py-1.5',
-    lg: 'text-lg px-4 py-2'
+    sm: 'text-xs px-3 py-1.5',
+    md: 'text-sm px-4 py-2',
+    lg: 'text-lg px-6 py-3'
   };
 
   const emojiSizes = {
@@ -32,14 +32,14 @@ const RankBadge: React.FC<RankBadgeProps> = ({
 
   return (
     <motion.div
-      className={`inline-flex items-center gap-2 rounded-full font-bold uppercase tracking-wider border ${
-        isSigma ? 'border-purple-400/50' : 'border-white/20'
-      } ${sizeClasses[size]} ${className}`}
+      className={`inline-flex items-center gap-2 rounded-full font-bold uppercase tracking-widest glassmorphism ${sizeClasses[size]} ${className}`}
       style={{
-        background: rankData.gradient,
+        background: `linear-gradient(135deg, ${rankData.gradient}, rgba(0, 229, 255, 0.1))`,
         boxShadow: isSigma 
-          ? `0 0 30px ${rankData.glowColor}, 0 0 60px ${rankData.glowColor}` 
-          : `0 0 20px ${rankData.glowColor}`,
+          ? `var(--shadow-purple), 0 0 40px ${rankData.glowColor}80` 
+          : `var(--shadow-cyber-glow), 0 0 20px ${rankData.glowColor}60`,
+        border: `1px solid ${rankData.glowColor}40`,
+        textShadow: '0 0 10px rgba(0, 0, 0, 0.8)'
       }}
       initial={showAnimation ? { scale: 0, rotate: -180 } : {}}
       animate={showAnimation ? { scale: 1, rotate: 0 } : {}}
@@ -52,12 +52,12 @@ const RankBadge: React.FC<RankBadgeProps> = ({
       whileHover={{
         scale: 1.05,
         boxShadow: isSigma 
-          ? `0 0 40px ${rankData.glowColor}, 0 0 80px ${rankData.glowColor}` 
-          : `0 0 30px ${rankData.glowColor}`,
+          ? `var(--shadow-purple), 0 0 60px ${rankData.glowColor}` 
+          : `var(--shadow-intense), 0 0 40px ${rankData.glowColor}80`,
       }}
     >
       <motion.span 
-        className={`${emojiSizes[size]} ${isSigma ? 'filter drop-shadow-lg' : ''}`}
+        className={`${emojiSizes[size]} filter drop-shadow-lg`}
         animate={showAnimation || isSigma ? {
           rotate: [0, 10, -10, 0],
           scale: [1, 1.2, 1],
@@ -71,14 +71,18 @@ const RankBadge: React.FC<RankBadgeProps> = ({
       >
         {rankData.emoji}
       </motion.span>
-      <span className={`drop-shadow-lg ${isSigma ? 'text-white font-extrabold' : 'text-white'}`}>
+      <span className={`drop-shadow-lg ${isSigma ? 'font-extrabold' : ''}`}>
         {rankData.displayName}
       </span>
       {isSigma && (
         <motion.div
-          className="w-1 h-1 bg-yellow-400 rounded-full"
+          className="w-2 h-2 rounded-full"
+          style={{ 
+            background: 'hsl(var(--rank-sigma))',
+            boxShadow: '0 0 10px hsl(var(--rank-sigma))'
+          }}
           animate={{
-            scale: [1, 2, 1],
+            scale: [1, 1.5, 1],
             opacity: [0.5, 1, 0.5],
           }}
           transition={{
