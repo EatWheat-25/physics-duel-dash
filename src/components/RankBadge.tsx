@@ -34,12 +34,11 @@ const RankBadge: React.FC<RankBadgeProps> = ({
     <motion.div
       className={`inline-flex items-center gap-2 rounded-full font-bold uppercase tracking-widest glassmorphism ${sizeClasses[size]} ${className}`}
       style={{
-        background: `linear-gradient(135deg, ${rankData.gradient}, rgba(0, 229, 255, 0.1))`,
+        background: `linear-gradient(135deg, ${rankData.gradient}, rgba(195, 100, 255, 0.1))`,
         boxShadow: isSigma 
-          ? `var(--shadow-purple), 0 0 40px ${rankData.glowColor}80` 
-          : `var(--shadow-cyber-glow), 0 0 20px ${rankData.glowColor}60`,
-        border: `1px solid ${rankData.glowColor}40`,
-        textShadow: '0 0 10px rgba(0, 0, 0, 0.8)'
+          ? `var(--shadow-soft), 0 0 25px ${rankData.glowColor}60` 
+          : `var(--shadow-soft), 0 0 15px ${rankData.glowColor}40`,
+        border: `1px solid ${rankData.glowColor}30`
       }}
       initial={showAnimation ? { scale: 0, rotate: -180 } : {}}
       animate={showAnimation ? { scale: 1, rotate: 0 } : {}}
@@ -52,8 +51,8 @@ const RankBadge: React.FC<RankBadgeProps> = ({
       whileHover={{
         scale: 1.05,
         boxShadow: isSigma 
-          ? `var(--shadow-purple), 0 0 60px ${rankData.glowColor}` 
-          : `var(--shadow-intense), 0 0 40px ${rankData.glowColor}80`,
+          ? `var(--shadow-medium), 0 0 35px ${rankData.glowColor}80` 
+          : `var(--shadow-medium), 0 0 25px ${rankData.glowColor}60`,
       }}
     >
       <motion.span 
