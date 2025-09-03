@@ -28,7 +28,7 @@ const PhysicsLevelSelector: React.FC<PhysicsLevelSelectorProps> = ({
         </p>
       </motion.div>
 
-      <div className="grid gap-6 max-w-4xl mx-auto">
+      <div className="grid gap-8 max-w-2xl mx-auto">
         {PHYSICS_LEVELS.map((level, index) => {
           const unlockedChapters = getUnlockedChapters(level.id, userData.currentPoints);
           const totalChapters = level.chapters.length;
@@ -38,104 +38,82 @@ const PhysicsLevelSelector: React.FC<PhysicsLevelSelectorProps> = ({
           return (
             <motion.div
               key={level.id}
-              initial={{ opacity: 0, x: index % 2 === 0 ? -50 : 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.2 }}
-              className="valorant-card p-6 relative overflow-hidden"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className="valorant-card p-8 relative overflow-hidden text-center"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-primary to-accent flex items-center justify-center text-2xl">
-                    <BookOpen className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold mb-1">{level.title}</h3>
-                    <p className="text-muted-foreground mb-2">{level.description}</p>
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="flex items-center gap-1">
-                        <Trophy className="w-4 h-4" />
-                        {unlockedChapters.length}/{totalChapters} Chapters
-                      </span>
-                      <span className="text-primary">
-                        {availableQuestions} Questions Available
-                      </span>
-                    </div>
-                  </div>
+              {/* Level Icon & Title */}
+              <div className="mb-6">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-r from-primary to-accent flex items-center justify-center text-3xl mx-auto mb-4">
+                  <BookOpen className="w-10 h-10" />
                 </div>
-                
-                <motion.button 
-                  className="valorant-button-accent px-6 py-3 flex items-center gap-2"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => onPlayLevel(level.id)}
-                  disabled={availableQuestions === 0}
-                >
-                  <Play className="w-5 h-5" />
-                  Play
-                </motion.button>
+                <h3 className="text-2xl font-bold mb-2">{level.title}</h3>
+                <p className="text-muted-foreground mb-4">{level.description}</p>
+              </div>
+
+              {/* Stats */}
+              <div className="flex justify-center gap-6 mb-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-primary" />
+                  <span>{unlockedChapters.length}/{totalChapters} Chapters</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-accent"></span>
+                  <span className="text-primary">{availableQuestions} Questions</span>
+                </div>
               </div>
 
               {/* Progress Bar */}
-              <div className="mt-4">
+              <div className="mb-6">
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Chapter Progress</span>
-                  <span className="text-primary">{progressPercentage.toFixed(0)}% Unlocked</span>
+                  <span className="text-muted-foreground">Unlocked</span>
+                  <span className="text-primary font-semibold">{progressPercentage.toFixed(0)}%</span>
                 </div>
-                <div className="w-full bg-secondary/30 rounded-full h-2">
+                <div className="w-full bg-secondary/30 rounded-full h-3">
                   <motion.div
                     className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
                     initial={{ width: 0 }}
                     animate={{ width: `${progressPercentage}%` }}
-                    transition={{ duration: 1, delay: index * 0.2 + 0.5 }}
+                    transition={{ duration: 1.2, delay: index * 0.2 + 0.3 }}
                   />
                 </div>
               </div>
 
-              {/* Current Rank Progress Info */}
-              <div className="mt-4 p-3 rounded-lg bg-secondary/20">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Available at your rank:</span>
-                  <span className="text-accent font-semibold">{userData.currentRank.tier} {userData.currentRank.subRank}</span>
+              {/* Rank Info */}
+              <div className="mb-6 p-4 rounded-lg bg-secondary/20">
+                <div className="flex items-center justify-center gap-2 text-sm mb-1">
+                  <span className="text-muted-foreground">Your Rank:</span>
+                  <span className="text-accent font-bold">{userData.currentRank.tier} {userData.currentRank.subRank}</span>
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {unlockedChapters.length === 0 ? (
-                    `Unlock first chapters at Bronze 1 (${A1_CHAPTERS[0]?.requiredRankPoints || 0} pts)`
-                  ) : unlockedChapters.length < totalChapters ? (
-                    `Next unlock: ${level.chapters[unlockedChapters.length]?.title} at ${level.chapters[unlockedChapters.length]?.requiredRankPoints} pts`
+                    `Start at Bronze 1 to unlock chapters`
+                  ) : progressPercentage === 100 ? (
+                    'Full syllabus unlocked!'
                   ) : (
-                    'All chapters unlocked! Full syllabus access.'
+                    `${Math.round(progressPercentage)}% of syllabus available`
                   )}
                 </div>
               </div>
 
-              {/* Chapter Preview */}
-              <div className="mt-4 flex gap-2 flex-wrap">
-                {level.chapters.slice(0, 6).map((chapter, chapterIndex) => {
-                  const isUnlocked = userData.currentPoints >= chapter.requiredRankPoints;
-                  return (
-                    <div
-                      key={chapter.id}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs ${
-                        isUnlocked 
-                          ? 'bg-primary/20 text-primary' 
-                          : 'bg-secondary/20 text-muted-foreground'
-                      }`}
-                    >
-                      {isUnlocked ? (
-                        <span>{chapter.icon}</span>
-                      ) : (
-                        <Lock className="w-3 h-3" />
-                      )}
-                      {chapter.title}
-                    </div>
-                  );
-                })}
-                {level.chapters.length > 6 && (
-                  <div className="px-2 py-1 rounded-md text-xs bg-secondary/20 text-muted-foreground">
-                    +{level.chapters.length - 6} more
-                  </div>
-                )}
-              </div>
+              {/* Play Button */}
+              <motion.button 
+                className="valorant-button-accent px-8 py-4 text-lg font-bold flex items-center gap-3 mx-auto"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => onPlayLevel(level.id)}
+                disabled={availableQuestions === 0}
+              >
+                <Play className="w-6 h-6" />
+                Play {level.id} Physics
+              </motion.button>
+
+              {availableQuestions === 0 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Rank up to unlock questions
+                </p>
+              )}
             </motion.div>
           );
         })}
