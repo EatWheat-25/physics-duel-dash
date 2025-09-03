@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Settings, LogOut, Edit, Play, Users, Target } from 'lucide-react';
+import { Settings, LogOut, Edit, Play, Users, Target, BookOpen, Zap } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
 import RankBadge from './RankBadge';
 import RankProgressBar from './RankProgressBar';
@@ -9,10 +9,11 @@ import { UserRankData } from '@/types/ranking';
 
 interface DashboardProps {
   onStartBattle: () => void;
+  onSelectPhysicsMode: () => void;
   userData: UserRankData;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, userData }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMode, userData }) => {
   return (
     <div className="min-h-screen relative">
       <AnimatedBackground />
@@ -100,15 +101,32 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, userData }) => {
           className="flex-1 flex flex-col items-center justify-center space-y-8"
         >
           <div className="text-center space-y-4">
-            <h2 className="text-4xl font-bold mb-2">Ready for Battle?</h2>
+            <h2 className="text-4xl font-bold mb-2">Choose Your Path</h2>
             <p className="text-muted-foreground text-lg max-w-md">
-              Test your A-Level Physics knowledge in intense 1v1 battles. 
-              Push the tug-of-war bar to victory!
+              Master A-Level Physics through competitive battles or structured learning
             </p>
           </div>
 
-          {/* Play Options */}
-          <div className="space-y-4 w-full max-w-md">
+          {/* Game Mode Options */}
+          <div className="space-y-4 w-full max-w-2xl">
+            {/* Physics Study Mode */}
+            <motion.button
+              onClick={onSelectPhysicsMode}
+              className="valorant-button w-full py-6 text-lg flex items-center justify-center gap-3 bg-gradient-to-r from-primary to-accent"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <BookOpen className="w-6 h-6" />
+              <div className="text-left">
+                <div className="font-bold">Physics Study Mode</div>
+                <div className="text-sm opacity-80">A1 & A2 • Chapter Progression • Rank-based Unlocks</div>
+              </div>
+              {userData.currentRank.tier === 'Sigma' && (
+                <Zap className="w-6 h-6 text-yellow-400 animate-pulse" />
+              )}
+            </motion.button>
+
+            {/* Battle Mode */}
             <motion.button
               onClick={onStartBattle}
               className="valorant-button w-full py-6 text-lg flex items-center justify-center gap-3"
@@ -116,7 +134,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, userData }) => {
               whileTap={{ scale: 0.98 }}
             >
               <Play className="w-6 h-6" />
-              1v1 Battle
+              <div className="text-left">
+                <div className="font-bold">1v1 Battle Arena</div>
+                <div className="text-sm opacity-80">Competitive • Quick Match • Ranked</div>
+              </div>
             </motion.button>
 
             <div className="grid grid-cols-2 gap-4">

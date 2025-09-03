@@ -1,4 +1,4 @@
-export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond';
+export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond' | 'Sigma';
 export type SubRank = 1 | 2 | 3;
 
 export interface RankName {
@@ -79,30 +79,48 @@ const createRanks = (): Rank[] => {
       gradient: 'linear-gradient(135deg, hsl(180 100% 70%), hsl(180 100% 80%))',
       glowColor: 'hsl(180 100% 70% / 0.4)',
     },
+    {
+      tier: 'Sigma',
+      emoji: '⚡',
+      color: 'hsl(280 100% 80%)',
+      gradient: 'linear-gradient(135deg, hsl(280 100% 80%), hsl(320 100% 90%), hsl(280 100% 80%))',
+      glowColor: 'hsl(280 100% 80% / 0.6)',
+    },
   ];
 
   const ranks: Rank[] = [];
   
   tiers.forEach((tierData, tierIndex) => {
-    for (let subRank = 1; subRank <= 3; subRank++) {
-      const rankIndex = tierIndex * 3 + (subRank - 1);
+    if (tierData.tier === 'Sigma') {
+      // Sigma is a special single rank at 1000+ points
       ranks.push({
         tier: tierData.tier,
-        subRank: subRank as SubRank,
-        minPoints: rankIndex * 100,
-        maxPoints: (rankIndex + 1) * 100 - 1,
+        subRank: 1 as SubRank,
+        minPoints: 1500, // 15 ranks * 100 points = 1500 (Diamond 3 max)
+        maxPoints: 99999,
         emoji: tierData.emoji,
         color: tierData.color,
         gradient: tierData.gradient,
         glowColor: tierData.glowColor,
-        displayName: `${tierData.tier} ${subRank}`,
+        displayName: 'SIGMA',
       });
+    } else {
+      for (let subRank = 1; subRank <= 3; subRank++) {
+        const rankIndex = tierIndex * 3 + (subRank - 1);
+        ranks.push({
+          tier: tierData.tier,
+          subRank: subRank as SubRank,
+          minPoints: rankIndex * 100,
+          maxPoints: (rankIndex + 1) * 100 - 1,
+          emoji: tierData.emoji,
+          color: tierData.color,
+          gradient: tierData.gradient,
+          glowColor: tierData.glowColor,
+          displayName: `${tierData.tier} ${subRank}`,
+        });
+      }
     }
   });
-
-  // Set Diamond 3 as max rank
-  const lastRank = ranks[ranks.length - 1];
-  lastRank.maxPoints = 99999;
 
   return ranks;
 };

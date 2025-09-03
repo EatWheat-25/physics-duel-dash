@@ -1,11 +1,15 @@
-import React, { useState } from "react";
-import Dashboard from "@/components/Dashboard";
-import BattlePageNew from "@/components/BattlePageNew";
-import PostMatchResults from "@/components/PostMatchResults";
-import RankUpModal from "@/components/RankUpModal";
-import { getRandomQuestions } from "@/data/questions";
-import { useRanking } from "@/hooks/useRanking";
-import { RankName, getRankByPoints, getPointsForWin, getPointsForLoss } from "@/types/ranking";
+import React, { useState } from 'react';
+import Dashboard from '@/components/Dashboard';
+import BattlePageNew from '@/components/BattlePageNew';
+import PostMatchResults from '@/components/PostMatchResults';
+import RankUpModal from '@/components/RankUpModal';
+import PhysicsLevelSelector from '@/components/PhysicsLevelSelector';
+import ChapterSelector from '@/components/ChapterSelector';
+import { useRanking } from '@/hooks/useRanking';
+import { getRandomQuestions } from '@/data/questions';
+import { Question } from '@/data/questions';
+import { Chapter, getQuestionsFromChapters } from '@/types/physics';
+import { RankName, getRankByPoints, getPointsForWin, getPointsForLoss } from '@/types/ranking';
 
 interface MatchStats {
   totalQuestions: number;
@@ -17,15 +21,18 @@ interface MatchStats {
   won: boolean;
 }
 
+type PageState = 'dashboard' | 'battle' | 'results' | 'physics-levels' | 'chapters';
+
 const Index = () => {
-  const [page, setPage] = useState<"dashboard" | "battle" | "results">("dashboard");
-  const [battleQuestions] = useState(() => getRandomQuestions(8));
+  const [currentPage, setCurrentPage] = useState<PageState>('dashboard');
+  const [battleQuestions] = useState<Question[]>(getRandomQuestions(5));
   const [matchStats, setMatchStats] = useState<MatchStats | null>(null);
-  const { userData, updateAfterBattle } = useRanking();
-  
-  // Rank up modal state
   const [showRankUpModal, setShowRankUpModal] = useState(false);
   const [rankUpData, setRankUpData] = useState<{ newRank: RankName; pointsGained: number } | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<'A1' | 'A2' | null>(null);
+  const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
+  
+  const { userData, updateAfterBattle } = useRanking();
 
   const handleBattleEnd = (won: boolean, stats: MatchStats) => {
     const previousRank = userData.currentRank;
@@ -53,35 +60,75 @@ const Index = () => {
       }
     }, 100);
     
-    setPage("results");
+    setCurrentPage('results');
+  };
+
+  const handleSelectLevel = (levelId: 'A1' | 'A2') => {
+    setSelectedLevel(levelId);
+    setCurrentPage('chapters');
+  };
+
+  const handleSelectChapter = (chapter: Chapter) => {
+    setSelectedChapter(chapter);
+    // For now, just start a battle with chapter questions
+    // TODO: Implement chapter-specific study mode
+    setCurrentPage('battle');
   };
 
   return (
-    <>
-      {page === "dashboard" && (
+    <div className="min-h-screen">
+      {currentPage === 'dashboard' && (
         <Dashboard 
-          onStartBattle={() => setPage("battle")} 
+          onStartBattle={() => setCurrentPage('battle')} 
+          onSelectPhysicsMode={() => setCurrentPage('physics-levels')}
           userData={userData}
         />
       )}
       
-      {page === "battle" && (
-        <BattlePageNew 
-          onGoBack={() => setPage("dashboard")} 
+      {currentPage === 'physics-levels' && (
+        <div className="min-h-screen relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-background via-background/95 to-background/90" />
+          <div className="relative z-10 p-6">
+            <PhysicsLevelSelector
+              userData={userData}
+              onSelectLevel={handleSelectLevel}
+              onBack={() => setCurrentPage('dashboard')}
+            />
+          </div>
+        </div>
+      )}
+      
+      {currentPage === 'chapters' && selectedLevel && (
+        <div className="min-h-screen relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-background via-background/95 to-background/90" />
+          <div className="relative z-10 p-6">
+            <ChapterSelector
+              levelId={selectedLevel}
+              userData={userData}
+              onSelectChapter={handleSelectChapter}
+              onBack={() => setCurrentPage('physics-levels')}
+            />
+          </div>
+        </div>
+      )}
+      
+      {currentPage === 'battle' && (
+        <BattlePageNew
+          onGoBack={() => setCurrentPage('dashboard')}
           questions={battleQuestions}
           onBattleEnd={handleBattleEnd}
         />
       )}
       
-      {page === "results" && matchStats && (
+      {currentPage === 'results' && matchStats && (
         <PostMatchResults
           matchStats={matchStats}
           userData={userData}
-          onContinue={() => setPage("dashboard")}
-          onPlayAgain={() => setPage("battle")}
+          onPlayAgain={() => setCurrentPage('battle')}
+          onContinue={() => setCurrentPage('dashboard')}
         />
       )}
-      
+
       {/* Rank Up Modal */}
       {rankUpData && (
         <RankUpModal
@@ -94,7 +141,7 @@ const Index = () => {
           pointsGained={rankUpData.pointsGained}
         />
       )}
-    </>
+    </div>
   );
 };
 
