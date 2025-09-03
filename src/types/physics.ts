@@ -20,7 +20,7 @@ export interface Chapter {
 }
 
 export interface PhysicsLevel {
-  id: 'A1' | 'A2';
+  id: 'A1' | 'A2_ONLY' | 'A2';
   title: string;
   description: string;
   chapters: Chapter[];
@@ -348,6 +348,12 @@ export const PHYSICS_LEVELS: PhysicsLevel[] = [
     chapters: A1_CHAPTERS
   },
   {
+    id: 'A2_ONLY',
+    title: 'A2 Physics Only',
+    description: 'Advanced A2 Level physics content only',
+    chapters: A2_CHAPTERS
+  },
+  {
     id: 'A2',
     title: 'A2 Physics (A Level Full)',
     description: 'Complete A Level physics including A1 + A2 content',
@@ -355,7 +361,7 @@ export const PHYSICS_LEVELS: PhysicsLevel[] = [
   }
 ];
 
-export const getUnlockedChapters = (level: 'A1' | 'A2', currentPoints: number): Chapter[] => {
+export const getUnlockedChapters = (level: 'A1' | 'A2_ONLY' | 'A2', currentPoints: number): Chapter[] => {
   const physicsLevel = PHYSICS_LEVELS.find(l => l.id === level);
   if (!physicsLevel) return [];
   
@@ -377,7 +383,7 @@ export const getUnlockedChapters = (level: 'A1' | 'A2', currentPoints: number): 
   );
 };
 
-export const getNewlyUnlockedChapters = (level: 'A1' | 'A2', oldPoints: number, newPoints: number): Chapter[] => {
+export const getNewlyUnlockedChapters = (level: 'A1' | 'A2_ONLY' | 'A2', oldPoints: number, newPoints: number): Chapter[] => {
   const physicsLevel = PHYSICS_LEVELS.find(l => l.id === level);
   if (!physicsLevel) return [];
   
@@ -400,7 +406,7 @@ export const getQuestionsFromChapters = (chapters: Chapter[], count: number = 5)
 };
 
 // Get questions based on rank progression (automatic chapter filtering)
-export const getQuestionsByRank = (level: 'A1' | 'A2', currentPoints: number, count: number = 5): Question[] => {
+export const getQuestionsByRank = (level: 'A1' | 'A2_ONLY' | 'A2', currentPoints: number, count: number = 5): Question[] => {
   const unlockedChapters = getUnlockedChapters(level, currentPoints);
   return getQuestionsFromChapters(unlockedChapters, count);
 };

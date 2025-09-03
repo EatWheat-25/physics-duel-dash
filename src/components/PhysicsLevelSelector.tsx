@@ -6,7 +6,7 @@ import { UserRankData } from '@/types/ranking';
 
 interface PhysicsLevelSelectorProps {
   userData: UserRankData;
-  onPlayLevel: (levelId: 'A1' | 'A2') => void;
+  onPlayLevel: (levelId: 'A1' | 'A2_ONLY' | 'A2') => void;
   onBack: () => void;
 }
 
