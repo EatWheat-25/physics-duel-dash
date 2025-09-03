@@ -31,6 +31,7 @@ const Index = () => {
   const [rankUpData, setRankUpData] = useState<{ newRank: RankName; pointsGained: number } | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<'A1' | 'A2' | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
+  const [battleContext, setBattleContext] = useState<'regular' | 'physics-study'>('regular');
   
   const { userData, updateAfterBattle } = useRanking();
 
@@ -63,8 +64,9 @@ const Index = () => {
     setCurrentPage('results');
   };
 
-  const handleSelectLevel = (levelId: 'A1' | 'A2') => {
-    setSelectedLevel(levelId);
+  const handleSelectLevel = (levelId: 'A1' | 'A2_ONLY' | 'A2') => {
+    setSelectedLevel(levelId as 'A1' | 'A2');
+    setBattleContext('physics-study');
     // Get questions based on current rank and start battle directly
     const questions = getQuestionsByRank(levelId, userData.currentPoints, 5);
     if (questions.length > 0) {
@@ -86,6 +88,7 @@ const Index = () => {
         <Dashboard 
           onStartBattle={() => {
             setBattleQuestions(getRandomQuestions(5));
+            setBattleContext('regular');
             setCurrentPage('battle');
           }} 
           onSelectPhysicsMode={() => setCurrentPage('physics-levels')}
@@ -122,7 +125,7 @@ const Index = () => {
       
       {currentPage === 'battle' && (
         <BattlePageNew
-          onGoBack={() => setCurrentPage('dashboard')}
+          onGoBack={() => setCurrentPage(battleContext === 'physics-study' ? 'physics-levels' : 'dashboard')}
           questions={battleQuestions}
           onBattleEnd={handleBattleEnd}
         />
