@@ -348,16 +348,16 @@ export const PHYSICS_LEVELS: PhysicsLevel[] = [
     chapters: A1_CHAPTERS
   },
   {
-    id: 'A2_ONLY',
-    title: 'A2 Physics Only',
-    description: 'Advanced A2 Level physics content only',
-    chapters: A2_CHAPTERS
-  },
-  {
     id: 'A2',
     title: 'A2 Physics (A Level Full)',
     description: 'Complete A Level physics including A1 + A2 content',
     chapters: [...A1_CHAPTERS, ...A2_CHAPTERS]
+  },
+  {
+    id: 'A2_ONLY',
+    title: 'A2 Physics Only',
+    description: 'Advanced A2 Level physics content only',
+    chapters: A2_CHAPTERS
   }
 ];
 
