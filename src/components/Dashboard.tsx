@@ -45,13 +45,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMod
         </div>
       </nav>
 
-      <div className="relative z-10 flex gap-8 p-6 max-w-7xl mx-auto">
+      <div className="relative z-10 flex flex-col lg:flex-row gap-8 p-6 max-w-7xl mx-auto">
         {/* Left Panel - Profile & Stats */}
         <motion.div 
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.2 }}
-          className="w-80 space-y-6"
+          className="w-full lg:w-80 space-y-6"
         >
           {/* Profile Card */}
           <div className="cyber-card p-6">
