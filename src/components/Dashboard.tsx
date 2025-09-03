@@ -45,76 +45,73 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMod
         </div>
       </nav>
 
-      <div className="relative z-10 flex flex-col lg:flex-row gap-8 p-6 max-w-7xl mx-auto">
-        {/* Left Panel - Profile & Stats */}
+      <div className="relative z-10 flex flex-col md:flex-row gap-6 p-6 max-w-7xl mx-auto">
+        {/* Compact Left Sidebar - Player Summary */}
         <motion.div 
-          initial={{ opacity: 0, x: -50 }}
+          initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.2 }}
-          className="w-full lg:w-80 space-y-6"
+          className="w-full md:w-80 md:max-w-80"
         >
-          {/* Profile Card */}
-          <div className="cyber-card p-6">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold relative">
-                <div 
-                  className="absolute inset-0 rounded-full"
-                  style={{ 
-                    background: 'var(--gradient-cyber)',
-                    boxShadow: 'var(--shadow-cyber-glow)'
-                  }}
-                />
-                <span className="relative z-10" style={{ textShadow: '0 0 10px rgba(0, 0, 0, 0.8)' }}>
+          {/* Compact Player Summary Card */}
+          <div className="glassmorphism rounded-2xl p-4 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 max-h-64">
+            {/* Avatar + Username + Rank */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold bg-gradient-to-br from-primary/20 to-primary/40 border border-primary/20">
+                <span className="text-primary">
                   {userData.avatar || userData.username.charAt(0).toUpperCase()}
                 </span>
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h2 className="text-xl font-bold">{userData.username}</h2>
-                  <button className="p-1 rounded-md hover:bg-white/20 transition-colors">
-                    <Edit className="w-4 h-4" />
-                  </button>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-semibold truncate">{userData.username}</h3>
+                <div className="mt-1">
+                  <RankBadge rank={userData.currentRank} size="sm" />
                 </div>
-                <RankBadge rank={userData.currentRank} size="md" />
               </div>
             </div>
 
-            {/* Rank Progress */}
-            <RankProgressBar currentPoints={userData.currentPoints} showAnimation={true} />
-          </div>
+            {/* Thin Progress Bar */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <span>Progress</span>
+                <span>{userData.currentPoints} / 100</span>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${userData.currentPoints}%` }}
+                  transition={{ duration: 1, delay: 0.5 }}
+                />
+              </div>
+            </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="stat-card">
-              <div className="stat-number">{userData.winStreak}</div>
-              <div className="stat-label">Win Streak</div>
+            {/* Mini Stats Row */}
+            <div className="flex items-center justify-between text-center">
+              <div className="flex-1">
+                <div className="text-lg font-bold">{userData.winStreak}</div>
+                <div className="text-xs text-muted-foreground">Streak</div>
+              </div>
+              <div className="w-px h-8 bg-border mx-2" />
+              <div className="flex-1">
+                <div className="text-lg font-bold">{userData.totalMatches}</div>
+                <div className="text-xs text-muted-foreground">Matches</div>
+              </div>
+              <div className="w-px h-8 bg-border mx-2" />
+              <div className="flex-1">
+                <div className="text-lg font-bold">{userData.accuracy}%</div>
+                <div className="text-xs text-muted-foreground">Accuracy</div>
+              </div>
             </div>
-            <div className="stat-card">
-              <div className="stat-number">{userData.totalMatches}</div>
-              <div className="stat-label">Total Matches</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-number">{userData.wins}</div>
-              <div className="stat-label">Wins</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-number">{userData.accuracy}%</div>
-              <div className="stat-label">Accuracy</div>
-            </div>
-          </div>
-
-          {/* Rank History */}
-          <div className="cyber-card p-4">
-            <RankHistory history={userData.history} />
           </div>
         </motion.div>
 
-        {/* Right Panel - Main Content */}
+        {/* Right Panel - Choose Your Path */}
         <motion.div 
-          initial={{ opacity: 0, x: 50 }}
+          initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4 }}
-          className="flex-1 flex flex-col items-center justify-center space-y-8"
+          className="flex-1 flex flex-col justify-center space-y-8"
         >
           <div className="text-center space-y-4">
             <h2 className="text-5xl font-bold mb-4" style={{
