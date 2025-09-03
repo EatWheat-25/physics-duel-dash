@@ -398,3 +398,9 @@ export const getQuestionsFromChapters = (chapters: Chapter[], count: number = 5)
   const shuffled = [...allQuestions].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, Math.min(count, allQuestions.length));
 };
+
+// Get questions based on rank progression (automatic chapter filtering)
+export const getQuestionsByRank = (level: 'A1' | 'A2', currentPoints: number, count: number = 5): Question[] => {
+  const unlockedChapters = getUnlockedChapters(level, currentPoints);
+  return getQuestionsFromChapters(unlockedChapters, count);
+};

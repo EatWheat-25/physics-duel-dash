@@ -8,7 +8,7 @@ import ChapterSelector from '@/components/ChapterSelector';
 import { useRanking } from '@/hooks/useRanking';
 import { getRandomQuestions } from '@/data/questions';
 import { Question } from '@/data/questions';
-import { Chapter, getQuestionsFromChapters } from '@/types/physics';
+import { Chapter, getQuestionsFromChapters, getQuestionsByRank } from '@/types/physics';
 import { RankName, getRankByPoints, getPointsForWin, getPointsForLoss } from '@/types/ranking';
 
 interface MatchStats {
@@ -25,7 +25,7 @@ type PageState = 'dashboard' | 'battle' | 'results' | 'physics-levels' | 'chapte
 
 const Index = () => {
   const [currentPage, setCurrentPage] = useState<PageState>('dashboard');
-  const [battleQuestions] = useState<Question[]>(getRandomQuestions(5));
+  const [battleQuestions, setBattleQuestions] = useState<Question[]>(getRandomQuestions(5));
   const [matchStats, setMatchStats] = useState<MatchStats | null>(null);
   const [showRankUpModal, setShowRankUpModal] = useState(false);
   const [rankUpData, setRankUpData] = useState<{ newRank: RankName; pointsGained: number } | null>(null);
@@ -65,7 +65,12 @@ const Index = () => {
 
   const handleSelectLevel = (levelId: 'A1' | 'A2') => {
     setSelectedLevel(levelId);
-    setCurrentPage('chapters');
+    // Get questions based on current rank and start battle directly
+    const questions = getQuestionsByRank(levelId, userData.currentPoints, 5);
+    if (questions.length > 0) {
+      setBattleQuestions(questions);
+      setCurrentPage('battle');
+    }
   };
 
   const handleSelectChapter = (chapter: Chapter) => {
@@ -79,7 +84,10 @@ const Index = () => {
     <div className="min-h-screen">
       {currentPage === 'dashboard' && (
         <Dashboard 
-          onStartBattle={() => setCurrentPage('battle')} 
+          onStartBattle={() => {
+            setBattleQuestions(getRandomQuestions(5));
+            setCurrentPage('battle');
+          }} 
           onSelectPhysicsMode={() => setCurrentPage('physics-levels')}
           userData={userData}
         />
@@ -91,7 +99,7 @@ const Index = () => {
           <div className="relative z-10 p-6">
             <PhysicsLevelSelector
               userData={userData}
-              onSelectLevel={handleSelectLevel}
+              onPlayLevel={handleSelectLevel}
               onBack={() => setCurrentPage('dashboard')}
             />
           </div>

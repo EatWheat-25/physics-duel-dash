@@ -1,18 +1,18 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Trophy, Lock, ChevronRight } from 'lucide-react';
-import { PHYSICS_LEVELS, getUnlockedChapters } from '@/types/physics';
+import { BookOpen, Trophy, Lock, Play } from 'lucide-react';
+import { PHYSICS_LEVELS, getUnlockedChapters, getQuestionsByRank, A1_CHAPTERS } from '@/types/physics';
 import { UserRankData } from '@/types/ranking';
 
 interface PhysicsLevelSelectorProps {
   userData: UserRankData;
-  onSelectLevel: (levelId: 'A1' | 'A2') => void;
+  onPlayLevel: (levelId: 'A1' | 'A2') => void;
   onBack: () => void;
 }
 
 const PhysicsLevelSelector: React.FC<PhysicsLevelSelectorProps> = ({
   userData,
-  onSelectLevel,
+  onPlayLevel,
   onBack
 }) => {
   return (
@@ -33,6 +33,7 @@ const PhysicsLevelSelector: React.FC<PhysicsLevelSelectorProps> = ({
           const unlockedChapters = getUnlockedChapters(level.id, userData.currentPoints);
           const totalChapters = level.chapters.length;
           const progressPercentage = (unlockedChapters.length / totalChapters) * 100;
+          const availableQuestions = getQuestionsByRank(level.id, userData.currentPoints, 999).length;
 
           return (
             <motion.div
@@ -40,8 +41,7 @@ const PhysicsLevelSelector: React.FC<PhysicsLevelSelectorProps> = ({
               initial={{ opacity: 0, x: index % 2 === 0 ? -50 : 50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.2 }}
-              className="valorant-card p-6 hover:scale-[1.02] transition-transform cursor-pointer"
-              onClick={() => onSelectLevel(level.id)}
+              className="valorant-card p-6 relative overflow-hidden"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -57,16 +57,30 @@ const PhysicsLevelSelector: React.FC<PhysicsLevelSelectorProps> = ({
                         {unlockedChapters.length}/{totalChapters} Chapters
                       </span>
                       <span className="text-primary">
-                        {progressPercentage.toFixed(0)}% Unlocked
+                        {availableQuestions} Questions Available
                       </span>
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="w-6 h-6 text-muted-foreground" />
+                
+                <motion.button 
+                  className="valorant-button-accent px-6 py-3 flex items-center gap-2"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => onPlayLevel(level.id)}
+                  disabled={availableQuestions === 0}
+                >
+                  <Play className="w-5 h-5" />
+                  Play
+                </motion.button>
               </div>
 
               {/* Progress Bar */}
               <div className="mt-4">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-muted-foreground">Chapter Progress</span>
+                  <span className="text-primary">{progressPercentage.toFixed(0)}% Unlocked</span>
+                </div>
                 <div className="w-full bg-secondary/30 rounded-full h-2">
                   <motion.div
                     className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
@@ -74,6 +88,23 @@ const PhysicsLevelSelector: React.FC<PhysicsLevelSelectorProps> = ({
                     animate={{ width: `${progressPercentage}%` }}
                     transition={{ duration: 1, delay: index * 0.2 + 0.5 }}
                   />
+                </div>
+              </div>
+
+              {/* Current Rank Progress Info */}
+              <div className="mt-4 p-3 rounded-lg bg-secondary/20">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-muted-foreground">Available at your rank:</span>
+                  <span className="text-accent font-semibold">{userData.currentRank.tier} {userData.currentRank.subRank}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {unlockedChapters.length === 0 ? (
+                    `Unlock first chapters at Bronze 1 (${A1_CHAPTERS[0]?.requiredRankPoints || 0} pts)`
+                  ) : unlockedChapters.length < totalChapters ? (
+                    `Next unlock: ${level.chapters[unlockedChapters.length]?.title} at ${level.chapters[unlockedChapters.length]?.requiredRankPoints} pts`
+                  ) : (
+                    'All chapters unlocked! Full syllabus access.'
+                  )}
                 </div>
               </div>
 
