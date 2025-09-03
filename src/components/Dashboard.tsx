@@ -25,10 +25,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMod
           animate={{ opacity: 1, x: 0 }}
           className="text-3xl font-bold"
           style={{
-            background: 'var(--gradient-primary)',
+            background: 'var(--gradient-cyber)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
+            backgroundClip: 'text',
+            textShadow: '0 0 20px rgba(0, 229, 255, 0.3)'
           }}
         >
           A-LEVEL BATTLE ARENA
@@ -59,11 +60,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMod
                 <div 
                   className="absolute inset-0 rounded-full"
                   style={{ 
-                    background: 'var(--gradient-primary)',
-                    boxShadow: 'var(--shadow-glow)'
+                    background: 'var(--gradient-cyber)',
+                    boxShadow: 'var(--shadow-cyber-glow)'
                   }}
                 />
-                <span className="relative z-10 text-white font-bold">
+                <span className="relative z-10" style={{ textShadow: '0 0 10px rgba(0, 0, 0, 0.8)' }}>
                   {userData.avatar || userData.username.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -117,7 +118,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMod
         >
           <div className="text-center space-y-4">
             <h2 className="text-5xl font-bold mb-4" style={{
-              background: 'var(--gradient-primary)',
+              background: 'var(--gradient-cyber)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text'
@@ -176,14 +177,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMod
                 <Target className="w-6 h-6" />
                 Practice Mode
               </motion.button>
-            <motion.button 
-              className="glassmorphism flex items-center justify-center gap-3 py-6 px-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-300 hover:bg-white/50 hover:shadow-md"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Users className="w-6 h-6" />
-              Guest Play
-            </motion.button>
+              <motion.button 
+                className="glassmorphism flex items-center justify-center gap-3 py-6 px-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-300 hover:bg-white/10"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Users className="w-6 h-6" />
+                Guest Play
+              </motion.button>
             </div>
           </div>
         </motion.div>

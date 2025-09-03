@@ -8,67 +8,66 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Light Modern Gaming Theme - Clean & Professional */
-    --background: 220 20% 97%;  /* Light grayish-blue #F8F9FB */
-    --foreground: 220 20% 15%;  /* Dark text */
+    /* Neon Cyber Gaming Theme - Valorant x Duolingo inspired */
+    --background: 221 39% 11%;  /* Deep navy/charcoal #0A0F1C */
+    --foreground: 0 0% 100%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 20% 15%;
+    --card: 221 39% 11%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 15%;
+    --popover: 221 39% 15%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 195 100% 55%;  /* Turquoise #00B8E6 */
-    --primary-foreground: 0 0% 100%;
+    --primary: 194 100% 50%;  /* Electric cyan #00E5FF */
+    --primary-foreground: 221 39% 11%;
 
-    --secondary: 220 15% 90%;
-    --secondary-foreground: 220 20% 15%;
+    --secondary: 221 39% 15%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 15% 90%;
-    --muted-foreground: 220 15% 45%;
+    --muted: 221 39% 15%;
+    --muted-foreground: 220 9% 65%;
 
-    --accent: 320 60% 65%;  /* Soft magenta #E063A7 */
+    --accent: 320 68% 62%;  /* Neon magenta #FF3CAC */
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 70% 60%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 85%;
-    --input: 0 0% 100%;
-    --ring: 195 100% 55%;
+    --border: 221 39% 20%;
+    --input: 221 39% 15%;
+    --ring: 194 100% 50%;
 
-    /* Light Theme Colors */
-    --light-turquoise: 195 100% 55%;    /* #00B8E6 */
-    --light-sky: 200 100% 70%;          /* #33CCFF */
-    --light-pink: 320 60% 65%;          /* #E063A7 */
-    --light-purple: 270 60% 70%;        /* #B084FC */
-    --light-lavender: 260 30% 85%;      /* #E0D4F7 */
+    /* Cyber Neon Colors */
+    --cyber-cyan: 194 100% 50%;      /* #00E5FF */
+    --cyber-pink: 320 68% 62%;       /* #FF3CAC */
+    --cyber-purple: 260 75% 50%;     /* #784BA0 */
+    --cyber-navy: 221 39% 11%;       /* #0A0F1C */
     
-    /* Updated Rank Colors - Lighter & Softer */
-    --rank-bronze: 25 80% 70%;          /* #FFB570 */
-    --rank-silver: 220 15% 75%;         /* #D9E2EC */
-    --rank-gold: 45 90% 70%;            /* #FFE380 */
-    --rank-diamond: 185 85% 75%;        /* #4DDFF6 */
-    --rank-sigma: 270 85% 75%;          /* #C084FC */
+    /* Rank Colors */
+    --rank-bronze: 25 95% 63%;       /* #FF9F45 */
+    --rank-silver: 0 0% 75%;         /* #C0C0C0 */
+    --rank-gold: 51 100% 50%;        /* #FFD700 */
+    --rank-diamond: 185 100% 50%;    /* #00FFF7 */
+    --rank-sigma: 280 100% 56%;      /* #A020F0 */
     
-    /* Light Glassmorphism Effects */
-    --glass-bg: hsla(0, 0%, 100%, 0.7);
-    --glass-border: hsla(220, 15%, 85%, 0.5);
-    --glass-glow: 0 4px 20px hsla(220, 20%, 70%, 0.1);
+    /* Glassmorphism & Glow Effects */
+    --glass-bg: hsla(221, 39%, 11%, 0.4);
+    --glass-border: hsla(194, 100%, 50%, 0.2);
+    --glass-glow: 0 0 40px hsla(194, 100%, 50%, 0.15);
     
-    /* Light Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(195 100% 55%), hsl(200 100% 70%));
-    --gradient-secondary: linear-gradient(135deg, hsl(320 60% 65%), hsl(270 60% 70%));
-    --gradient-bg: linear-gradient(135deg, hsl(220 20% 97%) 0%, hsl(260 30% 95%) 100%);
-    --gradient-card: linear-gradient(135deg, hsla(0, 0%, 100%, 0.8), hsla(0, 0%, 100%, 0.6));
-    --gradient-subtle: linear-gradient(135deg, hsla(195, 100%, 95%, 0.5), hsla(270, 60%, 95%, 0.3));
+    /* Neon Gradients */
+    --gradient-cyber: linear-gradient(135deg, hsl(194 100% 50%), hsl(320 68% 62%));
+    --gradient-neon: linear-gradient(135deg, hsl(320 68% 62%), hsl(260 75% 50%));
+    --gradient-bg: radial-gradient(ellipse at top, hsl(221 39% 15%) 0%, hsl(221 39% 11%) 100%);
+    --gradient-card: linear-gradient(135deg, hsla(221, 39%, 15%, 0.8), hsla(221, 39%, 20%, 0.4));
+    --gradient-glow: linear-gradient(135deg, hsla(194, 100%, 50%, 0.1), hsla(320, 68%, 62%, 0.1));
     
-    /* Soft Shadows */
-    --shadow-soft: 0 4px 20px hsla(220, 20%, 50%, 0.08);
-    --shadow-medium: 0 8px 30px hsla(220, 20%, 40%, 0.12);
-    --shadow-strong: 0 12px 40px hsla(220, 20%, 30%, 0.15);
-    --shadow-glow: 0 0 30px hsla(195, 100%, 55%, 0.2);
-    --shadow-pink-glow: 0 0 30px hsla(320, 60%, 65%, 0.2);
+    /* Enhanced Shadows */
+    --shadow-cyber-glow: 0 0 30px hsla(194, 100%, 50%, 0.4), 0 0 60px hsla(194, 100%, 50%, 0.1);
+    --shadow-neon-glow: 0 0 30px hsla(320, 68%, 62%, 0.4), 0 0 60px hsla(320, 68%, 62%, 0.1);
+    --shadow-glass: 0 8px 32px hsla(221, 39%, 11%, 0.6);
+    --shadow-intense: 0 0 100px hsla(194, 100%, 50%, 0.3);
+    --shadow-purple: 0 0 40px hsla(280, 100%, 56%, 0.5);
 
     --radius: 1rem;
 
@@ -144,12 +143,12 @@ All colors MUST be HSL.
 }
 
 @layer components {
-  /* Light Modern Gaming Components */
+  /* Cyber Gaming Components */
   .cyber-card {
     @apply rounded-2xl border backdrop-blur-xl;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--glass-glow), var(--shadow-glass);
     backdrop-filter: blur(20px);
     position: relative;
   }
@@ -162,41 +161,62 @@ All colors MUST be HSL.
     right: 0;
     bottom: 0;
     border-radius: inherit;
-    background: var(--gradient-subtle);
+    background: var(--gradient-glow);
     z-index: -1;
   }
 
   .cyber-button {
-    @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-300 relative overflow-hidden;
-    background: var(--gradient-primary);
-    box-shadow: var(--shadow-soft);
-    color: white;
-    border: 1px solid hsla(195, 100%, 55%, 0.2);
+    @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-500 relative overflow-hidden;
+    background: var(--gradient-cyber);
+    box-shadow: var(--shadow-cyber-glow);
+    text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+    border: 1px solid hsla(194, 100%, 50%, 0.3);
+  }
+
+  .cyber-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, hsla(194, 100%, 80%, 0.2), transparent);
+    transition: left 0.5s;
+  }
+
+  .cyber-button:hover::before {
+    left: 100%;
   }
 
   .cyber-button:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-glow);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: var(--shadow-intense);
+    animation: pulse-glow 2s infinite;
   }
 
   .cyber-button-neon {
-    @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-300 relative overflow-hidden;
-    background: var(--gradient-secondary);
-    box-shadow: var(--shadow-soft);
-    color: white;
-    border: 1px solid hsla(320, 60%, 65%, 0.2);
+    @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-500 relative overflow-hidden;
+    background: var(--gradient-neon);
+    box-shadow: var(--shadow-neon-glow);
+    text-shadow: 0 0 10px rgba(255, 60, 172, 0.5);
+    border: 1px solid hsla(320, 68%, 62%, 0.3);
   }
 
   .cyber-button-neon:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-pink-glow);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 0 80px hsla(320, 68%, 62%, 0.4);
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: var(--shadow-cyber-glow); }
+    50% { box-shadow: var(--shadow-intense); }
   }
 
   .glassmorphism {
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--glass-glow);
   }
 
   /* Enhanced Input */
@@ -209,11 +229,11 @@ All colors MUST be HSL.
 
   .cyber-input:focus {
     outline: none;
-    border-color: hsl(195 100% 55%);
-    box-shadow: var(--shadow-glow);
+    border-color: hsl(194 100% 50%);
+    box-shadow: var(--shadow-cyber-glow);
   }
 
-  /* Soft Light Grid Background */
+  /* Animated Cyber Grid Background */
   .cyber-grid {
     position: fixed;
     top: 0;
@@ -221,18 +241,18 @@ All colors MUST be HSL.
     width: 100%;
     height: 100%;
     pointer-events: none;
-    opacity: 0.02;
+    opacity: 0.03;
     z-index: 0;
     background-image: 
-      linear-gradient(rgba(195, 100, 255, 0.1) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(195, 100, 255, 0.1) 1px, transparent 1px);
-    background-size: 60px 60px;
-    animation: grid-move 30s linear infinite;
+      linear-gradient(rgba(0, 229, 255, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 229, 255, 0.1) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: grid-move 20s linear infinite;
   }
 
   @keyframes grid-move {
     0% { transform: translate(0, 0); }
-    100% { transform: translate(60px, 60px); }
+    100% { transform: translate(50px, 50px); }
   }
 
   /* Floating Particles */
@@ -253,13 +273,13 @@ All colors MUST be HSL.
   }
 
   .particle-cyan {
-    background: radial-gradient(circle, hsl(195 100% 85% / 0.6), hsl(195 100% 85% / 0));
-    box-shadow: 0 0 15px hsl(195 100% 70% / 0.3);
+    background: radial-gradient(circle, hsl(194 100% 50% / 0.8), hsl(194 100% 50% / 0));
+    box-shadow: 0 0 20px hsl(194 100% 50% / 0.5);
   }
 
   .particle-pink {
-    background: radial-gradient(circle, hsl(270 60% 85% / 0.6), hsl(270 60% 85% / 0));
-    box-shadow: 0 0 15px hsl(270 60% 70% / 0.3);
+    background: radial-gradient(circle, hsl(320 68% 62% / 0.8), hsl(320 68% 62% / 0));
+    box-shadow: 0 0 20px hsl(320 68% 62% / 0.5);
   }
 
   @keyframes float-particle {
@@ -284,15 +304,21 @@ All colors MUST be HSL.
   /* Progress Bar Enhancements */
   .cyber-progress {
     @apply relative h-3 rounded-full overflow-hidden;
-    background: hsl(220 15% 90%);
+    background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    box-shadow: inset 0 1px 3px hsla(220, 20%, 50%, 0.1);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
   }
 
   .cyber-progress-fill {
     @apply h-full transition-all duration-1000 ease-out;
-    background: var(--gradient-primary);
-    box-shadow: 0 0 15px hsl(195 100% 55% / 0.3);
+    background: var(--gradient-cyber);
+    box-shadow: 0 0 20px hsl(194 100% 50% / 0.4);
+    animation: progress-glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes progress-glow {
+    from { box-shadow: 0 0 10px hsl(194 100% 50% / 0.4); }
+    to { box-shadow: 0 0 30px hsl(194 100% 50% / 0.8); }
   }
 
   /* Stats Card Enhancement */
@@ -302,15 +328,16 @@ All colors MUST be HSL.
 
   .stat-number {
     @apply text-3xl font-bold;
-    background: var(--gradient-primary);
+    background: var(--gradient-cyber);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    filter: drop-shadow(0 0 10px hsl(194 100% 50% / 0.3));
   }
 
   .stat-label {
     @apply text-xs uppercase tracking-widest font-medium;
-    color: hsl(220 15% 45%);
+    color: hsl(220 9% 65%);
   }
 
   /* Legacy classes for backward compatibility */

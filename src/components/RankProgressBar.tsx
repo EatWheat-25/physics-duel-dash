@@ -17,7 +17,7 @@ const RankProgressBar: React.FC<RankProgressBarProps> = ({ currentPoints, showAn
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground font-medium">Rank Progress</span>
         <span className="font-bold" style={{
-          background: 'var(--gradient-primary)',
+          background: 'var(--gradient-cyber)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text'
@@ -41,19 +41,19 @@ const RankProgressBar: React.FC<RankProgressBarProps> = ({ currentPoints, showAn
           }}
         />
         
-        {/* Soft shine effect */}
+        {/* Enhanced shine effect */}
         <motion.div
-          className="absolute top-0 left-0 h-full w-12 opacity-40"
+          className="absolute top-0 left-0 h-full w-12 opacity-60"
           style={{
-            background: 'linear-gradient(90deg, transparent, rgba(195, 100, 255, 0.4), transparent)',
+            background: 'linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.6), transparent)',
           }}
           animate={{
             x: [-48, 320],
           }}
           transition={{
-            duration: 3,
+            duration: 2.5,
             repeat: Infinity,
-            repeatDelay: 5,
+            repeatDelay: 4,
             ease: "easeInOut"
           }}
         />
@@ -69,14 +69,14 @@ const RankProgressBar: React.FC<RankProgressBarProps> = ({ currentPoints, showAn
           className="text-xs font-bold tracking-wider"
           style={{ 
             color: currentRank.color,
-            textShadow: `0 0 5px ${currentRank.color}20`
+            textShadow: `0 0 10px ${currentRank.color}40`
           }}
           animate={showAnimation ? {
             scale: [1, 1.05, 1],
             textShadow: [
-              `0 0 0px ${currentRank.color}20`, 
-              `0 0 8px ${currentRank.color}40`, 
-              `0 0 3px ${currentRank.color}20`
+              `0 0 0px ${currentRank.color}40`, 
+              `0 0 15px ${currentRank.color}80`, 
+              `0 0 5px ${currentRank.color}40`
             ]
           } : {}}
           transition={{ duration: 1.2, delay: 1.8 }}
