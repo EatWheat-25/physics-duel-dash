@@ -350,47 +350,6 @@ All colors MUST be HSL.
     color: hsl(220 9% 65%);
   }
 
-  /* Dashboard Tiles */
-  .dashboard-tile {
-    @apply glassmorphism rounded-2xl p-6 flex flex-col items-center justify-center text-center transition-all duration-300 hover:bg-white/10 min-h-[180px] w-full;
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-glow);
-  }
-
-  .dashboard-tile:hover {
-    box-shadow: var(--shadow-cyber-glow);
-    border-color: hsl(194 100% 50% / 0.4);
-  }
-
-  .dashboard-tile-primary {
-    @apply dashboard-tile;
-    background: linear-gradient(135deg, hsla(194, 100%, 50%, 0.1), hsla(194, 100%, 50%, 0.05));
-    border-color: hsl(194 100% 50% / 0.3);
-  }
-
-  .dashboard-tile-primary:hover {
-    background: linear-gradient(135deg, hsla(194, 100%, 50%, 0.2), hsla(194, 100%, 50%, 0.1));
-    box-shadow: var(--shadow-intense);
-  }
-
-  .dashboard-tile-accent {
-    @apply dashboard-tile;
-    background: linear-gradient(135deg, hsla(320, 68%, 62%, 0.1), hsla(320, 68%, 62%, 0.05));
-    border-color: hsl(320 68% 62% / 0.3);
-  }
-
-  .dashboard-tile-accent:hover {
-    background: linear-gradient(135deg, hsla(320, 68%, 62%, 0.2), hsla(320, 68%, 62%, 0.1));
-    box-shadow: var(--shadow-neon-glow);
-  }
-
-  .dashboard-tile-small {
-    @apply glassmorphism rounded-xl p-4 flex items-center justify-center text-center transition-all duration-300 hover:bg-white/10 min-h-[120px] w-full;
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
-  }
-
   /* Legacy classes for backward compatibility */
   .valorant-card {
     @apply cyber-card;

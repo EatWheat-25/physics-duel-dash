@@ -106,162 +106,83 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMod
           </div>
         </motion.div>
 
-        {/* Right Panel - Tile Dashboard */}
+        {/* Right Panel - Choose Your Path */}
         <motion.div 
           initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4 }}
-          className="flex-1"
+          className="flex-1 flex flex-col justify-center space-y-8"
         >
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-fr">
-            {/* Top Row - Quick Actions */}
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
+          <div className="text-center space-y-4">
+            <h2 className="text-5xl font-bold mb-4" style={{
+              background: 'var(--gradient-cyber)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>
+              Choose Your Path
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-md">
+              Master A-Level Physics through competitive battles or structured learning
+            </p>
+          </div>
+
+          {/* Game Mode Options */}
+          <div className="space-y-6 w-full max-w-2xl">
+            {/* Physics Study Mode */}
+            <motion.button
+              onClick={onSelectPhysicsMode}
+              className="cyber-button w-full py-8 text-lg flex items-center justify-between px-8"
+              whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Edit className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Profile</span>
+              <div className="flex items-center gap-4">
+                <BookOpen className="w-8 h-8" />
+                <div className="text-left">
+                  <div className="font-bold text-xl">Physics Study Mode</div>
+                  <div className="text-sm opacity-80 font-normal">A1 & A2 • Chapter Progression • Rank-based Unlocks</div>
+                </div>
+              </div>
+              {userData.currentRank.tier === 'Sigma' && (
+                <Zap className="w-8 h-8 animate-pulse" style={{ color: 'hsl(var(--rank-sigma))' }} />
+              )}
             </motion.button>
 
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Settings className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Settings</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Trophy className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Recent Matches</span>
-            </motion.button>
-
-            <motion.button 
+            {/* Battle Mode */}
+            <motion.button
               onClick={onStartBattle}
-              className="dashboard-tile-primary"
-              whileHover={{ scale: 1.02, y: -2 }}
+              className="cyber-button-neon w-full py-8 text-lg flex items-center justify-between px-8"
+              whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Swords className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Quick Play</span>
+              <div className="flex items-center gap-4">
+                <Swords className="w-8 h-8" />
+                <div className="text-left">
+                  <div className="font-bold text-xl">1v1 Battle Arena</div>
+                  <div className="text-sm opacity-80 font-normal">Competitive • Quick Match • Ranked</div>
+                </div>
+              </div>
+              <Trophy className="w-8 h-8" />
             </motion.button>
 
-            {/* Study Tiles */}
-            <motion.button 
-              onClick={onSelectPhysicsMode}
-              className="dashboard-tile-accent"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <BookOpen className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">A1 Ranked</span>
-            </motion.button>
-
-            <motion.button 
-              onClick={onSelectPhysicsMode}
-              className="dashboard-tile-accent"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <BookOpen className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">A2 Ranked</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Target className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Topic Drills</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Zap className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Weak Areas</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Play className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Custom Quiz</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <BookOpen className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Formulas</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Trophy className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Daily Challenge</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Trophy className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Leaderboards</span>
-            </motion.button>
-
-            {/* Battle/Social Tiles */}
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Swords className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Create Room</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Play className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Join Code</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Users className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Friends</span>
-            </motion.button>
-
-            <motion.button 
-              className="dashboard-tile-small"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <span className="text-xs font-medium">Help</span>
-            </motion.button>
+            <div className="grid grid-cols-2 gap-6">
+              <motion.button 
+                className="cyber-button-neon flex items-center justify-center gap-3 py-6"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Target className="w-6 h-6" />
+                Practice Mode
+              </motion.button>
+              <motion.button 
+                className="glassmorphism flex items-center justify-center gap-3 py-6 px-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-300 hover:bg-white/10"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Users className="w-6 h-6" />
+                Guest Play
+              </motion.button>
+            </div>
           </div>
         </motion.div>
       </div>
