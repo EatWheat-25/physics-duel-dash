@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Trophy, Lock, Play } from 'lucide-react';
+import { BookOpen, Trophy, Lock, Play, ArrowLeft } from 'lucide-react';
 import { PHYSICS_LEVELS, getUnlockedChapters, getQuestionsByRank, A1_CHAPTERS } from '@/types/physics';
 import { UserRankData } from '@/types/ranking';
 
@@ -17,6 +17,19 @@ const PhysicsLevelSelector: React.FC<PhysicsLevelSelectorProps> = ({
 }) => {
   return (
     <div className="space-y-6">
+      {/* Back Button - Top Left */}
+      <motion.button
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        onClick={onBack}
+        className="valorant-button-accent flex items-center gap-2 px-4 py-2 mb-4"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back
+      </motion.button>
+
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -117,15 +130,6 @@ const PhysicsLevelSelector: React.FC<PhysicsLevelSelectorProps> = ({
             </motion.div>
           );
         })}
-      </div>
-
-      <div className="text-center">
-        <button
-          onClick={onBack}
-          className="valorant-button-accent px-6 py-2"
-        >
-          Back to Dashboard
-        </button>
       </div>
     </div>
   );
