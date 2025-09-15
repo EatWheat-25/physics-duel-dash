@@ -15,18 +15,30 @@ interface MatchStats {
   won: boolean;
 }
 
+interface StepMatchStats {
+  totalQuestions: number;
+  totalSteps: number;
+  playerMarks: number;
+  opponentMarks: number;
+  totalPossibleMarks: number;
+  accuracy: number;
+  won: boolean;
+}
+
 interface PostMatchResultsProps {
   matchStats: MatchStats;
   userData: UserRankData;
   onContinue: () => void;
   onPlayAgain?: () => void;
+  stepStats?: StepMatchStats;
 }
 
 const PostMatchResults: React.FC<PostMatchResultsProps> = ({
   matchStats,
   userData,
   onContinue,
-  onPlayAgain
+  onPlayAgain,
+  stepStats
 }) => {
   const [showBanner, setShowBanner] = useState(false);
   const [showPoints, setShowPoints] = useState(false);

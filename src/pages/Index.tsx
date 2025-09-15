@@ -12,6 +12,9 @@ import { Chapter, getQuestionsFromChapters, getQuestionsByRank } from '@/types/p
 import { MathQuestion, getMathQuestionsByRank } from '@/types/math';
 import { RankName, getRankByPoints, getPointsForWin, getPointsForLoss } from '@/types/ranking';
 import { toast } from '@/hooks/use-toast';
+import { StepBasedQuestion, convertLegacyQuestion } from '@/types/stepQuestion';
+import { getStepMathQuestions } from '@/data/stepMathQuestions';
+import StepBattlePage from '@/components/StepBattlePage';
 
 interface MatchStats {
   totalQuestions: number;
@@ -23,12 +26,24 @@ interface MatchStats {
   won: boolean;
 }
 
-type PageState = 'dashboard' | 'battle' | 'results' | 'physics-levels' | 'chapters';
+interface StepMatchStats {
+  totalQuestions: number;
+  totalSteps: number;
+  playerMarks: number;
+  opponentMarks: number;
+  totalPossibleMarks: number;
+  accuracy: number;
+  won: boolean;
+}
+
+type PageState = 'dashboard' | 'battle' | 'step-battle' | 'results' | 'physics-levels' | 'chapters';
 
 const Index = () => {
   const [currentPage, setCurrentPage] = useState<PageState>('dashboard');
   const [battleQuestions, setBattleQuestions] = useState<Question[]>(getRandomQuestions(5));
+  const [stepBattleQuestions, setStepBattleQuestions] = useState<StepBasedQuestion[]>([]);
   const [matchStats, setMatchStats] = useState<MatchStats | null>(null);
+  const [stepMatchStats, setStepMatchStats] = useState<StepMatchStats | null>(null);
   const [showRankUpModal, setShowRankUpModal] = useState(false);
   const [rankUpData, setRankUpData] = useState<{ newRank: RankName; pointsGained: number } | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<'A1' | 'A2' | null>(null);
@@ -66,6 +81,32 @@ const Index = () => {
     setCurrentPage('results');
   };
 
+  const handleStepBattleEnd = (won: boolean, stats: StepMatchStats) => {
+    // Calculate points based on accuracy for step battles
+    const accuracyBonus = Math.floor(stats.accuracy / 10); // 1 point per 10% accuracy
+    const basePoints = won ? getPointsForWin() : getPointsForLoss();
+    const pointsEarned = won ? basePoints + accuracyBonus : Math.max(-10, basePoints); // Cap loss at -10
+    
+    setStepMatchStats(stats);
+    
+    // Update ranking with step battle results
+    updateAfterBattle(won);
+    
+    // Check for rank up (similar to regular battle)
+    const previousRank = userData.currentRank;
+    setTimeout(() => {
+      const newPoints = Math.max(0, userData.currentPoints + pointsEarned);
+      const newRank = getRankByPoints(newPoints);
+      
+      if ((previousRank.tier !== newRank.tier || previousRank.subRank !== newRank.subRank) && won) {
+        setRankUpData({ newRank: { tier: newRank.tier, subRank: newRank.subRank }, pointsGained: pointsEarned });
+        setShowRankUpModal(true);
+      }
+    }, 100);
+    
+    setCurrentPage('results');
+  };
+
   const handleSelectLevel = (levelId: 'A1' | 'A2_ONLY' | 'A2') => {
     setSelectedLevel(levelId as 'A1' | 'A2');
     setBattleContext('physics-study');
@@ -85,27 +126,48 @@ const Index = () => {
   };
 
   const handleStartMathBattle = (level: 'A1' | 'A2_ONLY' | 'A2') => {
+    console.log(`Starting Step-based Math battle for level: ${level}`);
     setBattleContext('math-battle');
-    // Get math questions based on current rank and level
-    const mathQuestions = getMathQuestionsByRank(level, userData.currentPoints, 5);
-    if (mathQuestions.length > 0) {
-      // Convert MathQuestion to Question format for compatibility with battle system
-      const convertedQuestions: Question[] = mathQuestions.map(mq => ({
-        q: mq.q,
-        options: mq.options,
-        answer: mq.answer
-      }));
-      setBattleQuestions(convertedQuestions);
-      setCurrentPage('battle');
+    
+    // Get step-based math questions based on level
+    let stepQuestions: StepBasedQuestion[] = [];
+    
+    if (level === 'A1') {
+      // A1 level: differentiation, integration, quadratic functions
+      stepQuestions = [
+        ...getStepMathQuestions('differentiation', 'A1', 1),
+        ...getStepMathQuestions('integration', 'A1', 1),
+        ...getStepMathQuestions('quadratic-functions', 'A1', 1)
+      ];
+    } else if (level === 'A2_ONLY') {
+      // A2 only: parametric equations and advanced topics
+      stepQuestions = getStepMathQuestions('parametric-equations', 'A2', 2);
     } else {
-      // Show toast when no questions are available
-      const levelName = level === 'A1' ? 'A1' : level === 'A2_ONLY' ? 'A2 Only' : 'A2';
-      const requiredPoints = level === 'A2_ONLY' ? 0 : level === 'A2' ? 0 : 0;
-      toast({
-        title: `${levelName} Not Available`,
-        description: `No questions available for ${levelName} at your current rank. Current points: ${userData.currentPoints}`,
-        variant: "destructive"
-      });
+      // A2 full: mix of A1 and A2 questions
+      stepQuestions = [
+        ...getStepMathQuestions('differentiation', 'A1', 1),
+        ...getStepMathQuestions('parametric-equations', 'A2', 1)
+      ];
+    }
+    
+    if (stepQuestions.length > 0) {
+      setStepBattleQuestions(stepQuestions);
+      setCurrentPage('step-battle');
+    } else {
+      // Fallback to legacy math questions converted to step format
+      const mathQuestions = getMathQuestionsByRank(level, userData.currentPoints, 5);
+      
+      if (mathQuestions.length > 0) {
+        const convertedStepQuestions = mathQuestions.map(convertLegacyQuestion);
+        setStepBattleQuestions(convertedStepQuestions);
+        setCurrentPage('step-battle');
+      } else {
+        toast({
+          title: `${level} Not Available`,
+          description: `No questions available for ${level} at your current rank.`,
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -176,13 +238,34 @@ const Index = () => {
           onBattleEnd={handleBattleEnd}
         />
       )}
+
+      {currentPage === 'step-battle' && (
+        <StepBattlePage 
+          onGoBack={() => setCurrentPage('dashboard')}
+          questions={stepBattleQuestions}
+          onBattleEnd={handleStepBattleEnd}
+        />
+      )}
       
-      {currentPage === 'results' && matchStats && (
+      {currentPage === 'results' && (matchStats || stepMatchStats) && (
         <PostMatchResults
-          matchStats={matchStats}
+          matchStats={matchStats || {
+            totalQuestions: stepMatchStats?.totalQuestions || 0,
+            correctAnswers: Math.round((stepMatchStats?.accuracy || 0) / 100 * (stepMatchStats?.totalSteps || 0)),
+            wrongAnswers: (stepMatchStats?.totalSteps || 0) - Math.round((stepMatchStats?.accuracy || 0) / 100 * (stepMatchStats?.totalSteps || 0)),
+            playerScore: stepMatchStats?.playerMarks || 0,
+            opponentScore: stepMatchStats?.opponentMarks || 0,
+            pointsEarned: stepMatchStats?.won ? getPointsForWin() : getPointsForLoss(),
+            won: stepMatchStats?.won || false
+          }}
           userData={userData}
           onPlayAgain={() => setCurrentPage('battle')}
-          onContinue={() => setCurrentPage('dashboard')}
+          onContinue={() => {
+            setCurrentPage('dashboard');
+            setMatchStats(null);
+            setStepMatchStats(null);
+          }}
+          stepStats={stepMatchStats}
         />
       )}
 
