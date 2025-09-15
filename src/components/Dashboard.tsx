@@ -9,13 +9,12 @@ import { UserRankData } from '@/types/ranking';
 
 interface DashboardProps {
   onStartBattle: () => void;
-  onSelectPhysicsMode: () => void;
   onStartMathBattle: (level: 'A1' | 'A2_ONLY' | 'A2') => void;
   onStartPhysicsBattle: (level: 'A1' | 'A2_ONLY' | 'A2') => void;
   userData: UserRankData;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMode, onStartMathBattle, onStartPhysicsBattle, userData }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle, onStartPhysicsBattle, userData }) => {
   return (
     <div className="min-h-screen relative">
       <CyberBackground />
@@ -131,24 +130,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMod
 
           {/* Game Mode Options */}
           <div className="space-y-6 w-full max-w-2xl">
-            {/* Physics Study Mode */}
-            <motion.button
-              onClick={onSelectPhysicsMode}
-              className="cyber-button w-full py-8 text-lg flex items-center justify-between px-8"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="flex items-center gap-4">
-                <BookOpen className="w-8 h-8" />
-                <div className="text-left">
-                  <div className="font-bold text-xl">Physics Study Mode</div>
-                  <div className="text-sm opacity-80 font-normal">A1 & A2 • Chapter Progression • Rank-based Unlocks</div>
-                </div>
-              </div>
-              {userData.currentRank.tier === 'Sigma' && (
-                <Zap className="w-8 h-8 animate-pulse" style={{ color: 'hsl(var(--rank-sigma))' }} />
-              )}
-            </motion.button>
 
             {/* Math 1v1 Battles Section */}
             <motion.div

@@ -118,7 +118,6 @@ const Index = () => {
             setBattleContext('regular');
             setCurrentPage('battle');
           }} 
-          onSelectPhysicsMode={() => setCurrentPage('physics-levels')}
           onStartMathBattle={handleStartMathBattle}
           onStartPhysicsBattle={handleStartPhysicsBattle}
           userData={userData}
