@@ -11,6 +11,7 @@ import { Question } from '@/data/questions';
 import { Chapter, getQuestionsFromChapters, getQuestionsByRank } from '@/types/physics';
 import { MathQuestion, getMathQuestionsByRank } from '@/types/math';
 import { RankName, getRankByPoints, getPointsForWin, getPointsForLoss } from '@/types/ranking';
+import { toast } from '@/hooks/use-toast';
 
 interface MatchStats {
   totalQuestions: number;
@@ -96,6 +97,15 @@ const Index = () => {
       }));
       setBattleQuestions(convertedQuestions);
       setCurrentPage('battle');
+    } else {
+      // Show toast when no questions are available
+      const levelName = level === 'A1' ? 'A1' : level === 'A2_ONLY' ? 'A2 Only' : 'A2';
+      const requiredPoints = level === 'A2_ONLY' ? 0 : level === 'A2' ? 0 : 0;
+      toast({
+        title: `${levelName} Not Available`,
+        description: `No questions available for ${levelName} at your current rank. Current points: ${userData.currentPoints}`,
+        variant: "destructive"
+      });
     }
   };
 

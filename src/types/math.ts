@@ -232,7 +232,7 @@ export const A2_MATH_CHAPTERS: MathChapter[] = [
     description: 'Parametric curves, calculus with parametric equations',
     level: 'A2',
     order: 6,
-    requiredRankPoints: 600, // Silver 3
+    requiredRankPoints: 0, // Make A2_ONLY accessible from start
     icon: '🌀',
     questions: [
       {
