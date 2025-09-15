@@ -16,7 +16,7 @@ const RankBadge: React.FC<RankBadgeProps> = ({
   className = '' 
 }) => {
   const rankData = RANKS.find(r => r.tier === rank.tier && r.subRank === rank.subRank) || RANKS[0];
-  const isSigma = rank.tier === 'Sigma';
+  const isTopRank = rank.tier === 'Pocket Calculator';
   
   const sizeClasses = {
     sm: 'text-xs px-3 py-1.5',
@@ -35,7 +35,7 @@ const RankBadge: React.FC<RankBadgeProps> = ({
       className={`inline-flex items-center gap-2 rounded-full font-bold uppercase tracking-widest glassmorphism ${sizeClasses[size]} ${className}`}
       style={{
         background: `linear-gradient(135deg, ${rankData.gradient}, rgba(0, 229, 255, 0.1))`,
-        boxShadow: isSigma 
+        boxShadow: isTopRank 
           ? `var(--shadow-purple), 0 0 40px ${rankData.glowColor}80` 
           : `var(--shadow-cyber-glow), 0 0 20px ${rankData.glowColor}60`,
         border: `1px solid ${rankData.glowColor}40`,
@@ -51,30 +51,30 @@ const RankBadge: React.FC<RankBadgeProps> = ({
       }}
       whileHover={{
         scale: 1.05,
-        boxShadow: isSigma 
+        boxShadow: isTopRank 
           ? `var(--shadow-purple), 0 0 60px ${rankData.glowColor}` 
           : `var(--shadow-intense), 0 0 40px ${rankData.glowColor}80`,
       }}
     >
       <motion.span 
         className={`${emojiSizes[size]} filter drop-shadow-lg`}
-        animate={showAnimation || isSigma ? {
+        animate={showAnimation || isTopRank ? {
           rotate: [0, 10, -10, 0],
           scale: [1, 1.2, 1],
         } : {}}
         transition={{
-          duration: isSigma ? 3 : 2,
-          repeat: (showAnimation || isSigma) ? (isSigma ? Infinity : 2) : 0,
+          duration: isTopRank ? 3 : 2,
+          repeat: (showAnimation || isTopRank) ? (isTopRank ? Infinity : 2) : 0,
           delay: 0.5,
-          repeatType: isSigma ? "reverse" : "loop"
+          repeatType: isTopRank ? "reverse" : "loop"
         }}
       >
         {rankData.emoji}
       </motion.span>
-      <span className={`drop-shadow-lg ${isSigma ? 'font-extrabold' : ''}`}>
+      <span className={`drop-shadow-lg ${isTopRank ? 'font-extrabold' : ''}`}>
         {rankData.displayName}
       </span>
-      {isSigma && (
+      {isTopRank && (
         <motion.div
           className="w-2 h-2 rounded-full"
           style={{ 

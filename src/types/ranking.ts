@@ -1,4 +1,4 @@
-export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond' | 'Sigma';
+export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Diamond' | 'Unbeatable' | 'Pocket Calculator';
 export type SubRank = 1 | 2 | 3;
 
 export interface RankName {
@@ -41,7 +41,7 @@ export interface UserRankData {
   avatar?: string;
 }
 
-// Create all ranks with sub-ranks
+// Create all ranks with sub-ranks (removed Platinum, added Unbeatable & Pocket Calculator)
 const createRanks = (): Rank[] => {
   const tiers: { tier: RankTier; emoji: string; color: string; gradient: string; glowColor: string }[] = [
     {
@@ -66,13 +66,6 @@ const createRanks = (): Rank[] => {
       glowColor: 'hsl(45 100% 60% / 0.4)',
     },
     {
-      tier: 'Platinum',
-      emoji: '💠',
-      color: 'hsl(200 80% 60%)',
-      gradient: 'linear-gradient(135deg, hsl(200 80% 60%), hsl(200 90% 70%))',
-      glowColor: 'hsl(200 80% 60% / 0.4)',
-    },
-    {
       tier: 'Diamond',
       emoji: '💎',
       color: 'hsl(180 100% 70%)',
@@ -80,8 +73,15 @@ const createRanks = (): Rank[] => {
       glowColor: 'hsl(180 100% 70% / 0.4)',
     },
     {
-      tier: 'Sigma',
-      emoji: '⚡',
+      tier: 'Unbeatable',
+      emoji: '🔥',
+      color: 'hsl(0 100% 65%)',
+      gradient: 'linear-gradient(135deg, hsl(0 100% 65%), hsl(20 100% 70%))',
+      glowColor: 'hsl(0 100% 65% / 0.5)',
+    },
+    {
+      tier: 'Pocket Calculator',
+      emoji: '🧮',
       color: 'hsl(280 100% 80%)',
       gradient: 'linear-gradient(135deg, hsl(280 100% 80%), hsl(320 100% 90%), hsl(280 100% 80%))',
       glowColor: 'hsl(280 100% 80% / 0.6)',
@@ -91,18 +91,18 @@ const createRanks = (): Rank[] => {
   const ranks: Rank[] = [];
   
   tiers.forEach((tierData, tierIndex) => {
-    if (tierData.tier === 'Sigma') {
-      // Sigma is a special single rank at 1000+ points
+    if (tierData.tier === 'Pocket Calculator') {
+      // Pocket Calculator is elite rank for top 1,000 players only
       ranks.push({
         tier: tierData.tier,
         subRank: 1 as SubRank,
-        minPoints: 1500, // 15 ranks * 100 points = 1500 (Diamond 3 max)
+        minPoints: 1500, // 15 ranks * 100 points = 1500 (Unbeatable 3 max)
         maxPoints: 99999,
         emoji: tierData.emoji,
         color: tierData.color,
         gradient: tierData.gradient,
         glowColor: tierData.glowColor,
-        displayName: 'SIGMA',
+        displayName: 'POCKET CALCULATOR',
       });
     } else {
       for (let subRank = 1; subRank <= 3; subRank++) {
