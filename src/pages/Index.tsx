@@ -9,6 +9,7 @@ import { useRanking } from '@/hooks/useRanking';
 import { getRandomQuestions } from '@/data/questions';
 import { Question } from '@/data/questions';
 import { Chapter, getQuestionsFromChapters, getQuestionsByRank } from '@/types/physics';
+import { MathQuestion, getMathQuestionsByRank } from '@/types/math';
 import { RankName, getRankByPoints, getPointsForWin, getPointsForLoss } from '@/types/ranking';
 
 interface MatchStats {
@@ -31,7 +32,7 @@ const Index = () => {
   const [rankUpData, setRankUpData] = useState<{ newRank: RankName; pointsGained: number } | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<'A1' | 'A2' | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
-  const [battleContext, setBattleContext] = useState<'regular' | 'physics-study'>('regular');
+  const [battleContext, setBattleContext] = useState<'regular' | 'physics-study' | 'math-battle'>('regular');
   
   const { userData, updateAfterBattle } = useRanking();
 
@@ -82,6 +83,22 @@ const Index = () => {
     setCurrentPage('battle');
   };
 
+  const handleStartMathBattle = (level: 'A1' | 'A2_ONLY' | 'A2') => {
+    setBattleContext('math-battle');
+    // Get math questions based on current rank and level
+    const mathQuestions = getMathQuestionsByRank(level, userData.currentPoints, 5);
+    if (mathQuestions.length > 0) {
+      // Convert MathQuestion to Question format for compatibility with battle system
+      const convertedQuestions: Question[] = mathQuestions.map(mq => ({
+        q: mq.q,
+        options: mq.options,
+        answer: mq.answer
+      }));
+      setBattleQuestions(convertedQuestions);
+      setCurrentPage('battle');
+    }
+  };
+
   return (
     <div className="min-h-screen">
       {currentPage === 'dashboard' && (
@@ -92,6 +109,7 @@ const Index = () => {
             setCurrentPage('battle');
           }} 
           onSelectPhysicsMode={() => setCurrentPage('physics-levels')}
+          onStartMathBattle={handleStartMathBattle}
           userData={userData}
         />
       )}
@@ -125,7 +143,15 @@ const Index = () => {
       
       {currentPage === 'battle' && (
         <BattlePageNew
-          onGoBack={() => setCurrentPage(battleContext === 'physics-study' ? 'physics-levels' : 'dashboard')}
+          onGoBack={() => {
+            if (battleContext === 'physics-study') {
+              setCurrentPage('physics-levels');
+            } else if (battleContext === 'math-battle') {
+              setCurrentPage('dashboard');
+            } else {
+              setCurrentPage('dashboard');
+            }
+          }}
           questions={battleQuestions}
           onBattleEnd={handleBattleEnd}
         />
