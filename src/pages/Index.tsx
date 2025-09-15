@@ -99,6 +99,16 @@ const Index = () => {
     }
   };
 
+  const handleStartPhysicsBattle = (level: 'A1' | 'A2_ONLY' | 'A2') => {
+    setBattleContext('regular');
+    // Get physics questions based on current rank and level
+    const physicsQuestions = getQuestionsByRank(level, userData.currentPoints, 5);
+    if (physicsQuestions.length > 0) {
+      setBattleQuestions(physicsQuestions);
+      setCurrentPage('battle');
+    }
+  };
+
   return (
     <div className="min-h-screen">
       {currentPage === 'dashboard' && (
@@ -110,6 +120,7 @@ const Index = () => {
           }} 
           onSelectPhysicsMode={() => setCurrentPage('physics-levels')}
           onStartMathBattle={handleStartMathBattle}
+          onStartPhysicsBattle={handleStartPhysicsBattle}
           userData={userData}
         />
       )}

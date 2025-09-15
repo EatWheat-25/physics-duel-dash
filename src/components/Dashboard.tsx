@@ -11,10 +11,11 @@ interface DashboardProps {
   onStartBattle: () => void;
   onSelectPhysicsMode: () => void;
   onStartMathBattle: (level: 'A1' | 'A2_ONLY' | 'A2') => void;
+  onStartPhysicsBattle: (level: 'A1' | 'A2_ONLY' | 'A2') => void;
   userData: UserRankData;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMode, onStartMathBattle, userData }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMode, onStartMathBattle, onStartPhysicsBattle, userData }) => {
   return (
     <div className="min-h-screen relative">
       <CyberBackground />
@@ -206,22 +207,62 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onSelectPhysicsMod
               </div>
             </motion.div>
 
-            {/* Battle Mode */}
-            <motion.button
-              onClick={onStartBattle}
-              className="cyber-button-neon w-full py-8 text-lg flex items-center justify-between px-8"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            {/* Physics 1v1 Battles Section */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="glassmorphism rounded-2xl p-6 space-y-4"
             >
-              <div className="flex items-center gap-4">
-                <Swords className="w-8 h-8" />
-                <div className="text-left">
-                  <div className="font-bold text-xl">Physics 1v1 Battle Arena</div>
-                  <div className="text-sm opacity-80 font-normal">Competitive • Quick Match • Ranked</div>
-                </div>
+              <div className="text-center mb-4">
+                <h3 className="text-2xl font-bold text-foreground mb-2">Physics 1v1 Battles</h3>
+                <p className="text-sm text-muted-foreground">Challenge opponents in physics battles</p>
               </div>
-              <Trophy className="w-8 h-8" />
-            </motion.button>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* A1 Only */}
+                <motion.button
+                  onClick={() => onStartPhysicsBattle('A1')}
+                  className="cyber-button-neon flex flex-col items-center gap-3 py-6 px-4"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="text-2xl">⚡</div>
+                  <div className="text-center">
+                    <div className="font-bold text-sm">A1 Only</div>
+                    <div className="text-xs opacity-80">AS Level Physics</div>
+                  </div>
+                </motion.button>
+
+                {/* A1 + A2 Mixed */}
+                <motion.button
+                  onClick={() => onStartPhysicsBattle('A2')}
+                  className="cyber-button-neon flex flex-col items-center gap-3 py-6 px-4"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="text-2xl">🔬</div>
+                  <div className="text-center">
+                    <div className="font-bold text-sm">A1 + A2 Mixed</div>
+                    <div className="text-xs opacity-80">Full A Level</div>
+                  </div>
+                </motion.button>
+
+                {/* A2 Only */}
+                <motion.button
+                  onClick={() => onStartPhysicsBattle('A2_ONLY')}
+                  className="cyber-button-neon flex flex-col items-center gap-3 py-6 px-4"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="text-2xl">⚛️</div>
+                  <div className="text-center">
+                    <div className="font-bold text-sm">A2 Only</div>
+                    <div className="text-xs opacity-80">Advanced Physics</div>
+                  </div>
+                </motion.button>
+              </div>
+            </motion.div>
 
             <div className="grid grid-cols-2 gap-6">
               <motion.button 
