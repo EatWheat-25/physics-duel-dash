@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Trophy, Target, Users, Settings, Star } from "lucide-react";
+import { Play, Trophy, Target, Users, Settings, Star, User, Bell, ChevronRight } from "lucide-react";
 
 interface HomePageProps {
   startGame: () => void;
@@ -44,7 +44,7 @@ const gameModes = [
 ];
 
 const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
-  const [selectedMode, setSelectedMode] = useState("All-Maths");
+  const [selectedMode, setSelectedMode] = useState("PLAY");
 
   const getRankEmoji = (rank: string) => {
     switch (rank) {
@@ -58,156 +58,220 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
     }
   };
 
+  const mainMenuItems = [
+    { id: "PLAY", label: "PLAY", active: true },
+    { id: "CAREER", label: "CAREER", active: false },
+    { id: "BATTLEPASS", label: "PROGRESSION", active: false },
+    { id: "COLLECTION", label: "ACHIEVEMENTS", active: false },
+    { id: "AGENTS", label: "RANKINGS", active: false },
+    { id: "STORE", label: "STORE", active: false }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-background/90 text-foreground overflow-hidden">
-      {/* Cyber Background Effects */}
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-20 left-10 w-64 h-64 bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-80 h-80 bg-accent/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+    <div className="min-h-screen bg-background text-foreground overflow-hidden relative">
+      {/* Top Bar */}
+      <div className="absolute top-0 right-0 z-50 p-4 flex items-center gap-4">
+        <div className="flex items-center gap-2 text-sm">
+          <Star className="w-4 h-4 text-yellow-500" />
+          <span>1/2</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <Trophy className="w-4 h-4 text-primary" />
+          <span>0</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <Target className="w-4 h-4 text-accent" />
+          <span>40</span>
+        </div>
+        <button className="p-2 hover:bg-muted/20 rounded">
+          <Settings className="w-5 h-5" />
+        </button>
       </div>
 
-      <div className="relative z-10 min-h-screen flex">
-        {/* Left Sidebar - Player Info & Navigation */}
-        <motion.div 
-          initial={{ x: -300, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          className="w-80 border-r border-border/50 bg-card/30 backdrop-blur-sm p-6 flex flex-col"
-        >
-          {/* Header */}
-          <div className="mb-8">
+      {/* Background Effects */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-accent/10 rounded-full blur-3xl"></div>
+      </div>
+
+      <div className="flex min-h-screen">
+        {/* Left Navigation Menu */}
+        <div className="w-80 bg-card/20 backdrop-blur-sm border-r border-border/30 flex flex-col">
+          {/* Logo Area */}
+          <div className="p-6 border-b border-border/20">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               BATTLE ARENA
             </h1>
-            <p className="text-muted-foreground text-sm">A-Level Mathematics</p>
+            <p className="text-muted-foreground text-sm">A-LEVEL MATHEMATICS</p>
           </div>
 
-          {/* Player Card */}
-          <div className="cyber-card p-6 mb-6">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-primary to-accent flex items-center justify-center text-xl">
-                {getRankEmoji(rank)}
-              </div>
-              <div>
-                <h3 className="font-bold text-lg">Player</h3>
-                <p className="text-muted-foreground text-sm">{rank} Rank</p>
-              </div>
-            </div>
-            
+          {/* Main Navigation */}
+          <div className="flex-1 p-6">
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Progress</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="w-full bg-muted/20 rounded-full h-2">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 1.2, delay: 0.5 }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Next: {ranks[ranks.indexOf(rank) + 1] || "Max Rank"}
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="cyber-card p-3 text-center">
-              <Trophy className="w-5 h-5 mx-auto mb-1 text-primary" />
-              <p className="text-xs text-muted-foreground">Wins</p>
-              <p className="font-bold">127</p>
-            </div>
-            <div className="cyber-card p-3 text-center">
-              <Target className="w-5 h-5 mx-auto mb-1 text-accent" />
-              <p className="text-xs text-muted-foreground">Accuracy</p>
-              <p className="font-bold">89%</p>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <div className="mt-auto space-y-2">
-            <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/20 transition-colors">
-              <Users className="w-5 h-5" />
-              <span>Friends</span>
-            </button>
-            <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/20 transition-colors">
-              <Settings className="w-5 h-5" />
-              <span>Settings</span>
-            </button>
-          </div>
-        </motion.div>
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col">
-          {/* Header */}
-          <motion.div 
-            initial={{ y: -50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="p-8 border-b border-border/50"
-          >
-            <h2 className="text-4xl font-bold mb-2">SELECT GAME MODE</h2>
-            <p className="text-muted-foreground">Choose your battlefield and prove your mathematical prowess</p>
-          </motion.div>
-
-          {/* Game Modes Grid */}
-          <div className="flex-1 p-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              {gameModes.map((mode, index) => (
-                <motion.div
-                  key={mode.id}
-                  initial={{ y: 50, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.3 + index * 0.1 }}
-                  className={`cyber-card p-6 cursor-pointer transition-all duration-300 hover:scale-105 ${
-                    selectedMode === mode.id ? 'ring-2 ring-primary shadow-lg shadow-primary/25' : ''
+              {mainMenuItems.map((item, index) => (
+                <motion.button
+                  key={item.id}
+                  initial={{ x: -50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  onClick={() => setSelectedMode(item.id)}
+                  className={`w-full text-left p-4 text-2xl font-bold tracking-wider transition-all duration-300 relative group ${
+                    selectedMode === item.id 
+                      ? 'text-primary' 
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
-                  onClick={() => setSelectedMode(mode.id)}
-                  whileHover={{ y: -5 }}
                 >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="text-3xl">{mode.icon}</div>
-                    <div className={`px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r ${mode.color} text-white`}>
-                      {mode.difficulty}
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-8 transition-all duration-300 ${
+                      selectedMode === item.id ? 'bg-primary' : 'bg-transparent'
+                    }`} />
+                    {item.label}
                   </div>
-                  
-                  <h3 className="text-xl font-bold mb-1">{mode.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-2">{mode.subtitle}</p>
-                  <p className="text-sm mb-4">{mode.description}</p>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <Users className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">{mode.players}</span>
-                    </div>
-                    <Star className="w-4 h-4 text-yellow-500" />
-                  </div>
-                </motion.div>
+                  {selectedMode === item.id && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute right-4 top-1/2 -translate-y-1/2"
+                    >
+                      <ChevronRight className="w-6 h-6 text-primary" />
+                    </motion.div>
+                  )}
+                </motion.button>
               ))}
             </div>
+          </div>
+        </div>
 
-            {/* Play Button */}
+        {/* Central Content Area */}
+        <div className="flex-1 relative">
+          {/* Hero Section */}
+          <div className="h-full flex flex-col justify-center p-12 relative">
             <motion.div
-              initial={{ y: 30, opacity: 0 }}
+              initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-              className="flex justify-center"
+              transition={{ duration: 0.8 }}
+              className="max-w-2xl"
             >
+              <h2 className="text-6xl font-bold mb-6 leading-tight">
+                MATHEMATICAL
+                <br />
+                <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  WARFARE
+                </span>
+              </h2>
+              <p className="text-xl text-muted-foreground mb-8 max-w-lg">
+                Challenge opponents in tactical mathematics battles. 
+                Master equations, dominate rankings.
+              </p>
+              
               <motion.button
                 onClick={startGame}
-                className="cyber-button flex items-center gap-4 px-12 py-4 text-xl font-bold"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                className="cyber-button flex items-center gap-4 px-8 py-4 text-xl font-bold"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
                 <Play className="w-6 h-6" />
                 START BATTLE
               </motion.button>
             </motion.div>
+
+            {/* Geometric Decoration */}
+            <div className="absolute right-12 top-1/2 -translate-y-1/2 opacity-10">
+              <div className="w-64 h-64 border border-primary rotate-45"></div>
+              <div className="w-48 h-48 border border-accent rotate-12 absolute top-8 left-8"></div>
+            </div>
           </div>
+        </div>
+
+        {/* Right Panels */}
+        <div className="w-96 p-6 space-y-6">
+          {/* Rank Progress Panel */}
+          <motion.div
+            initial={{ x: 50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="cyber-card p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">CURRENT RANK</h3>
+              <div className="text-sm text-muted-foreground">
+                {progress}% TO GO
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-16 h-16 rounded bg-gradient-to-r from-primary to-accent flex items-center justify-center text-2xl">
+                {getRankEmoji(rank)}
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{rank.toUpperCase()}</div>
+                <div className="text-sm text-muted-foreground">
+                  Next: {ranks[ranks.indexOf(rank) + 1]?.toUpperCase() || "MAX RANK"}
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full bg-muted/20 rounded h-2 mb-2">
+              <motion.div
+                className="h-full bg-gradient-to-r from-primary to-accent rounded"
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 1.2, delay: 0.8 }}
+              />
+            </div>
+          </motion.div>
+
+          {/* Game Modes Panel */}
+          <motion.div
+            initial={{ x: 50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="cyber-card p-6"
+          >
+            <h3 className="text-lg font-bold mb-4">SELECT MODE</h3>
+            <div className="space-y-3">
+              {gameModes.map((mode, index) => (
+                <div
+                  key={mode.id}
+                  className="flex items-center justify-between p-3 rounded bg-muted/10 hover:bg-muted/20 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-xl">{mode.icon}</div>
+                    <div>
+                      <div className="font-bold text-sm">{mode.title}</div>
+                      <div className="text-xs text-muted-foreground">{mode.subtitle}</div>
+                    </div>
+                  </div>
+                  <div className={`px-2 py-1 rounded text-xs font-bold bg-gradient-to-r ${mode.color} text-white`}>
+                    {mode.difficulty}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Stats Panel */}
+          <motion.div
+            initial={{ x: 50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+            className="cyber-card p-6"
+          >
+            <h3 className="text-lg font-bold mb-4">PERFORMANCE</h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Total Wins</span>
+                <span className="font-bold">127</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Win Rate</span>
+                <span className="font-bold text-primary">89%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Best Streak</span>
+                <span className="font-bold text-accent">12</span>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </div>
     </div>
