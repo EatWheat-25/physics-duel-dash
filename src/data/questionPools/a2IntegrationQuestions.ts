@@ -509,7 +509,7 @@ export const A2_INTEGRATION_QUESTIONS: GameQuestion[] = [
         explanation: 'As t→∞, e^(-t) approaches 0 faster than any polynomial grows, so limit is 0. At t=0: -e^0(2) = -2. Answer: 0 - (-2) = 2'
       }
     ]
-  }
+  },
 
   // Continue with more questions to reach 100+ total...
   // This is a sample showing the structure and quality expected
