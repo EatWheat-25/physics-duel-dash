@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, LogOut, Play, Users, Target, BookOpen, Trophy, Star, ChevronRight, User, Bell } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import CyberBackground from './CyberBackground';
 import RankBadge from './RankBadge';
 import { UserRankData } from '@/types/ranking';
@@ -131,12 +132,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
           {selectedTab === "PLAY" && (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
-                <h2 className="text-6xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                <h2 className="text-6xl font-bold mb-8 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                   READY TO BATTLE
                 </h2>
-                <p className="text-xl text-muted-foreground">
-                  Select a game mode from the navigation menu
+                <p className="text-xl text-muted-foreground mb-12">
+                  Choose your subject and dominate the arena
                 </p>
+                <Link to="/subject-selection">
+                  <motion.button
+                    className="cyber-button flex items-center gap-4 px-12 py-6 text-2xl font-bold"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Play className="w-8 h-8" />
+                    START BATTLE
+                  </motion.button>
+                </Link>
               </div>
             </div>
           )}

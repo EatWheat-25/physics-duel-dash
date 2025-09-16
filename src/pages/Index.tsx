@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Dashboard from '@/components/Dashboard';
 import BattlePageNew from '@/components/BattlePageNew';
 import PostMatchResults from '@/components/PostMatchResults';
@@ -39,6 +40,7 @@ interface StepMatchStats {
 type PageState = 'dashboard' | 'battle' | 'step-battle' | 'results' | 'physics-levels' | 'chapters';
 
 const Index = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentPage, setCurrentPage] = useState<PageState>('dashboard');
   const [battleQuestions, setBattleQuestions] = useState<Question[]>(getRandomQuestions(5));
   const [stepBattleQuestions, setStepBattleQuestions] = useState<StepBasedQuestion[]>([]);
@@ -51,6 +53,22 @@ const Index = () => {
   const [battleContext, setBattleContext] = useState<'regular' | 'physics-study' | 'math-battle'>('regular');
   
   const { userData, updateAfterBattle } = useRanking();
+
+  // Handle URL parameters for mode and level selection
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    const level = searchParams.get('level') as 'A1' | 'A2_ONLY' | 'A2';
+    
+    if (mode && level) {
+      if (mode === 'math') {
+        handleStartMathBattle(level);
+      } else if (mode === 'physics') {
+        handleStartPhysicsBattle(level);
+      }
+      // Clear the URL parameters after processing
+      setSearchParams({});
+    }
+  }, [searchParams]);
 
   const handleBattleEnd = (won: boolean, stats: MatchStats) => {
     const previousRank = userData.currentRank;
