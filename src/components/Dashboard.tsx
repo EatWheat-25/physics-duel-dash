@@ -1,10 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, LogOut, Edit, Play, Users, Target, BookOpen, Zap, Swords, Trophy } from 'lucide-react';
+import { Settings, LogOut, Play, Users, Target, BookOpen, Trophy, Star, ChevronRight, User, Bell } from 'lucide-react';
 import CyberBackground from './CyberBackground';
 import RankBadge from './RankBadge';
-import RankProgressBar from './RankProgressBar';
-import RankHistory from './RankHistory';
 import { UserRankData } from '@/types/ranking';
 
 interface DashboardProps {
@@ -15,256 +13,266 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle, onStartPhysicsBattle, userData }) => {
-  return (
-    <div className="min-h-screen relative">
-      <CyberBackground />
-      
-      {/* Top Navigation */}
-      <nav className="relative z-10 flex justify-between items-center p-6">
-        <motion.h1 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="text-3xl font-bold"
-          style={{
-            background: 'var(--gradient-cyber)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            textShadow: '0 0 20px rgba(0, 229, 255, 0.3)'
-          }}
-        >
-          A-LEVEL BATTLE ARENA
-        </motion.h1>
-        
-        <div className="flex items-center gap-4">
-          <button className="p-3 rounded-xl glassmorphism hover:bg-white/10 transition-all duration-300 group">
-            <Settings className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-          </button>
-          <button className="p-3 rounded-xl glassmorphism hover:bg-red-500/20 transition-all duration-300">
-            <LogOut className="w-5 h-5" />
-          </button>
-        </div>
-      </nav>
+  const [selectedTab, setSelectedTab] = useState("PLAY");
 
-      <div className="relative z-10 flex flex-col md:flex-row gap-6 p-6 max-w-7xl mx-auto">
-        {/* Compact Left Sidebar - Player Summary */}
-        <motion.div 
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
-          className="w-full md:w-80 md:max-w-80"
-        >
-          {/* Compact Player Summary Card */}
-          <div className="glassmorphism rounded-2xl p-4 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 max-h-64">
-            {/* Avatar + Username + Rank */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold bg-gradient-to-br from-primary/20 to-primary/40 border border-primary/20">
-                <span className="text-primary">
-                  {userData.avatar || userData.username.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-base font-semibold truncate">{userData.username}</h3>
-                <div className="mt-1">
-                  <RankBadge rank={userData.currentRank} size="sm" />
+  const mainMenuItems = [
+    { id: "PLAY", label: "PLAY" },
+    { id: "CAREER", label: "CAREER" },
+    { id: "BATTLEPASS", label: "PROGRESSION" }, 
+    { id: "COLLECTION", label: "ACHIEVEMENTS" },
+    { id: "AGENTS", label: "RANKINGS" },
+    { id: "STORE", label: "STORE" }
+  ];
+
+  const gameModes = [
+    {
+      id: "A1",
+      title: "A1 ONLY", 
+      subtitle: "AS LEVEL MATH",
+      icon: "🔢",
+      gradient: "from-blue-500 to-purple-600"
+    },
+    {
+      id: "A2", 
+      title: "A1 + A2 MIXED",
+      subtitle: "FULL A LEVEL", 
+      icon: "📊",
+      gradient: "from-purple-500 to-pink-600"
+    },
+    {
+      id: "A2_ONLY",
+      title: "A2 ONLY",
+      subtitle: "ADVANCED MATH",
+      icon: "∫", 
+      gradient: "from-pink-500 to-red-600"
+    }
+  ];
+
+  const physicsMode = [
+    { id: "A1", icon: "⚡", gradient: "from-yellow-500 to-orange-600" },
+    { id: "A2", icon: "🔬", gradient: "from-green-500 to-blue-600" }, 
+    { id: "A2_ONLY", icon: "⚛️", gradient: "from-purple-500 to-indigo-600" }
+  ];
+
+  return (
+    <div className="min-h-screen bg-background text-foreground overflow-hidden">
+      {/* Top Right Stats */}
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-2">
+          <Star className="w-4 h-4 text-yellow-500" />
+          <span>1/2</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Trophy className="w-4 h-4 text-primary" />
+          <span>{userData.currentPoints}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Target className="w-4 h-4 text-accent" />
+          <span>{userData.accuracy}</span>
+        </div>
+        <button className="p-2 hover:bg-muted/20 rounded transition-colors">
+          <Settings className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Background Effects */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-1/4 right-1/3 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/3 left-1/4 w-80 h-80 bg-accent/10 rounded-full blur-3xl"></div>
+      </div>
+
+      <div className="flex min-h-screen">
+        {/* Left Navigation - Valorant Style */}
+        <div className="w-80 bg-card/10 backdrop-blur-sm border-r border-border/20 flex flex-col p-6">
+          {/* Logo */}
+          <div className="mb-12">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              BATTLE ARENA
+            </h1>
+            <p className="text-muted-foreground text-sm">A-LEVEL MATHEMATICS</p>
+          </div>
+
+          {/* Navigation Menu */}
+          <div className="flex-1 space-y-3">
+            {mainMenuItems.map((item, index) => (
+              <motion.button
+                key={item.id}
+                initial={{ x: -50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                onClick={() => setSelectedTab(item.id)}
+                className={`w-full text-left p-4 text-2xl font-bold tracking-wider transition-all duration-300 relative group ${
+                  selectedTab === item.id 
+                    ? 'text-primary' 
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-1 h-8 transition-all duration-300 ${
+                    selectedTab === item.id ? 'bg-primary' : 'bg-transparent'
+                  }`} />
+                  {item.label}
                 </div>
+                {selectedTab === item.id && (
+                  <motion.div
+                    layoutId="activeMenuItem"
+                    className="absolute right-4 top-1/2 -translate-y-1/2"
+                  >
+                    <ChevronRight className="w-6 h-6 text-primary" />
+                  </motion.div>
+                )}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col p-12">
+          {selectedTab === "PLAY" && (
+            <>
+              {/* Header */}
+              <motion.div
+                initial={{ y: -30, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8 }}
+                className="text-center mb-12"
+              >
+                <h2 className="text-6xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  Choose Your Path
+                </h2>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Master A-Level subjects through competitive battles or structured learning
+                </p>
+              </motion.div>
+
+              {/* Math 1v1 Battles */}
+              <motion.div
+                initial={{ y: 30, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="mb-12"
+              >
+                <h3 className="text-3xl font-bold mb-2 text-center">Math 1v1 Battles</h3>
+                <p className="text-muted-foreground text-center mb-8">Challenge opponents in mathematics battles</p>
+                
+                <div className="grid grid-cols-3 gap-6 max-w-4xl mx-auto">
+                  {gameModes.map((mode, index) => (
+                    <motion.button
+                      key={mode.id}
+                      initial={{ y: 50, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ duration: 0.6, delay: 0.3 + index * 0.1 }}
+                      onClick={() => onStartMathBattle(mode.id as 'A1' | 'A2_ONLY' | 'A2')}
+                      className={`p-8 rounded-2xl bg-gradient-to-br ${mode.gradient} text-white hover:scale-105 transition-all duration-300 shadow-xl`}
+                      whileHover={{ y: -5 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <div className="text-4xl mb-4">{mode.icon}</div>
+                      <h4 className="text-xl font-bold mb-2">{mode.title}</h4>
+                      <p className="text-sm opacity-90">{mode.subtitle}</p>
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Physics 1v1 Battles */}
+              <motion.div
+                initial={{ y: 30, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+              >
+                <h3 className="text-3xl font-bold mb-2 text-center">Physics 1v1 Battles</h3>
+                <p className="text-muted-foreground text-center mb-8">Challenge opponents in physics battles</p>
+                
+                <div className="grid grid-cols-3 gap-6 max-w-4xl mx-auto">
+                  {physicsMode.map((mode, index) => (
+                    <motion.button
+                      key={mode.id}
+                      initial={{ y: 50, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ duration: 0.6, delay: 0.5 + index * 0.1 }}
+                      onClick={() => onStartPhysicsBattle(mode.id as 'A1' | 'A2_ONLY' | 'A2')}
+                      className={`p-8 rounded-2xl bg-gradient-to-br ${mode.gradient} text-white hover:scale-105 transition-all duration-300 shadow-xl`}
+                      whileHover={{ y: -5 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <div className="text-4xl mb-4">{mode.icon}</div>
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            </>
+          )}
+
+          {selectedTab !== "PLAY" && (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <h3 className="text-3xl font-bold mb-4 text-muted-foreground">Coming Soon</h3>
+                <p className="text-lg text-muted-foreground">{selectedTab} section is under development</p>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Thin Progress Bar */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+        {/* Right Panel */}
+        <div className="w-96 p-6 space-y-6">
+          {/* Player Info */}
+          <motion.div
+            initial={{ x: 50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="cyber-card p-6"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-primary to-accent flex items-center justify-center text-xl font-bold">
+                {userData.username.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">{userData.username}</h3>
+                <RankBadge rank={userData.currentRank} size="sm" />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
                 <span>Progress</span>
                 <span>{userData.currentPoints} / 100</span>
               </div>
-              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <motion.div 
-                  className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full"
+              <div className="w-full bg-muted/20 rounded h-2">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-primary to-accent rounded"
                   initial={{ width: 0 }}
                   animate={{ width: `${userData.currentPoints}%` }}
-                  transition={{ duration: 1, delay: 0.5 }}
+                  transition={{ duration: 1.2, delay: 0.8 }}
                 />
               </div>
             </div>
+          </motion.div>
 
-            {/* Mini Stats Row */}
-            <div className="flex items-center justify-between text-center">
-              <div className="flex-1">
-                <div className="text-lg font-bold">{userData.winStreak}</div>
-                <div className="text-xs text-muted-foreground">Streak</div>
+          {/* Stats */}
+          <motion.div
+            initial={{ x: 50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="cyber-card p-6"
+          >
+            <h4 className="text-lg font-bold mb-4">PERFORMANCE</h4>
+            <div className="space-y-4">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Win Streak</span>
+                <span className="font-bold text-primary">{userData.winStreak}</span>
               </div>
-              <div className="w-px h-8 bg-border mx-2" />
-              <div className="flex-1">
-                <div className="text-lg font-bold">{userData.totalMatches}</div>
-                <div className="text-xs text-muted-foreground">Matches</div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Matches</span>
+                <span className="font-bold">{userData.totalMatches}</span>
               </div>
-              <div className="w-px h-8 bg-border mx-2" />
-              <div className="flex-1">
-                <div className="text-lg font-bold">{userData.accuracy}%</div>
-                <div className="text-xs text-muted-foreground">Accuracy</div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Accuracy</span>
+                <span className="font-bold text-accent">{userData.accuracy}%</span>
               </div>
             </div>
-          </div>
-        </motion.div>
-
-        {/* Right Panel - Choose Your Path */}
-        <motion.div 
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.4 }}
-          className="flex-1 flex flex-col justify-center space-y-8"
-        >
-          <div className="text-center space-y-4">
-            <h2 className="text-5xl font-bold mb-4" style={{
-              background: 'var(--gradient-cyber)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text'
-            }}>
-              Choose Your Path
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-md">
-              Master A-Level subjects through competitive battles or structured learning
-            </p>
-          </div>
-
-          {/* Game Mode Options */}
-          <div className="space-y-6 w-full max-w-2xl">
-
-            {/* Math 1v1 Battles Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="glassmorphism rounded-2xl p-6 space-y-4"
-            >
-              <div className="text-center mb-4">
-                <h3 className="text-2xl font-bold text-foreground mb-2">Math 1v1 Battles</h3>
-                <p className="text-sm text-muted-foreground">Challenge opponents in mathematics battles</p>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* A1 Only */}
-                <motion.button
-                  onClick={() => onStartMathBattle('A1')}
-                  className="cyber-button-neon flex flex-col items-center gap-3 py-6 px-4"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="text-2xl">🔢</div>
-                  <div className="text-center">
-                    <div className="font-bold text-sm">A1 Only</div>
-                    <div className="text-xs opacity-80">AS Level Math</div>
-                  </div>
-                </motion.button>
-
-                {/* A1 + A2 Mixed */}
-                <motion.button
-                  onClick={() => onStartMathBattle('A2')}
-                  className="cyber-button-neon flex flex-col items-center gap-3 py-6 px-4"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="text-2xl">📊</div>
-                  <div className="text-center">
-                    <div className="font-bold text-sm">A1 + A2 Mixed</div>
-                    <div className="text-xs opacity-80">Full A Level</div>
-                  </div>
-                </motion.button>
-
-                {/* A2 Only */}
-                <motion.button
-                  onClick={() => onStartMathBattle('A2_ONLY')}
-                  className="cyber-button-neon flex flex-col items-center gap-3 py-6 px-4"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="text-2xl">∫</div>
-                  <div className="text-center">
-                    <div className="font-bold text-sm">A2 Only</div>
-                    <div className="text-xs opacity-80">Advanced Math</div>
-                  </div>
-                </motion.button>
-              </div>
-            </motion.div>
-
-            {/* Physics 1v1 Battles Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-              className="glassmorphism rounded-2xl p-6 space-y-4"
-            >
-              <div className="text-center mb-4">
-                <h3 className="text-2xl font-bold text-foreground mb-2">Physics 1v1 Battles</h3>
-                <p className="text-sm text-muted-foreground">Challenge opponents in physics battles</p>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* A1 Only */}
-                <motion.button
-                  onClick={() => onStartPhysicsBattle('A1')}
-                  className="cyber-button-neon flex flex-col items-center gap-3 py-6 px-4"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="text-2xl">⚡</div>
-                  <div className="text-center">
-                    <div className="font-bold text-sm">A1 Only</div>
-                    <div className="text-xs opacity-80">AS Level Physics</div>
-                  </div>
-                </motion.button>
-
-                {/* A1 + A2 Mixed */}
-                <motion.button
-                  onClick={() => onStartPhysicsBattle('A2')}
-                  className="cyber-button-neon flex flex-col items-center gap-3 py-6 px-4"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="text-2xl">🔬</div>
-                  <div className="text-center">
-                    <div className="font-bold text-sm">A1 + A2 Mixed</div>
-                    <div className="text-xs opacity-80">Full A Level</div>
-                  </div>
-                </motion.button>
-
-                {/* A2 Only */}
-                <motion.button
-                  onClick={() => onStartPhysicsBattle('A2_ONLY')}
-                  className="cyber-button-neon flex flex-col items-center gap-3 py-6 px-4"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="text-2xl">⚛️</div>
-                  <div className="text-center">
-                    <div className="font-bold text-sm">A2 Only</div>
-                    <div className="text-xs opacity-80">Advanced Physics</div>
-                  </div>
-                </motion.button>
-              </div>
-            </motion.div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <motion.button 
-                className="cyber-button-neon flex items-center justify-center gap-3 py-6"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Target className="w-6 h-6" />
-                Practice Mode
-              </motion.button>
-              <motion.button 
-                className="glassmorphism flex items-center justify-center gap-3 py-6 px-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-300 hover:bg-white/10"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Users className="w-6 h-6" />
-                Guest Play
-              </motion.button>
-            </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </div>
   );
