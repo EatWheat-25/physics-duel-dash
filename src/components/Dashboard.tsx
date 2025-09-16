@@ -129,79 +129,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col p-12">
           {selectedTab === "PLAY" && (
-            <>
-              {/* Header */}
-              <motion.div
-                initial={{ y: -30, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.8 }}
-                className="text-center mb-12"
-              >
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
                 <h2 className="text-6xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                  Choose Your Path
+                  READY TO BATTLE
                 </h2>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                  Master A-Level subjects through competitive battles or structured learning
+                <p className="text-xl text-muted-foreground">
+                  Select a game mode from the navigation menu
                 </p>
-              </motion.div>
-
-              {/* Math 1v1 Battles */}
-              <motion.div
-                initial={{ y: 30, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-                className="mb-12"
-              >
-                <h3 className="text-3xl font-bold mb-2 text-center">Math 1v1 Battles</h3>
-                <p className="text-muted-foreground text-center mb-8">Challenge opponents in mathematics battles</p>
-                
-                <div className="grid grid-cols-3 gap-6 max-w-4xl mx-auto">
-                  {gameModes.map((mode, index) => (
-                    <motion.button
-                      key={mode.id}
-                      initial={{ y: 50, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ duration: 0.6, delay: 0.3 + index * 0.1 }}
-                      onClick={() => onStartMathBattle(mode.id as 'A1' | 'A2_ONLY' | 'A2')}
-                      className={`p-8 rounded-2xl bg-gradient-to-br ${mode.gradient} text-white hover:scale-105 transition-all duration-300 shadow-xl`}
-                      whileHover={{ y: -5 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <div className="text-4xl mb-4">{mode.icon}</div>
-                      <h4 className="text-xl font-bold mb-2">{mode.title}</h4>
-                      <p className="text-sm opacity-90">{mode.subtitle}</p>
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
-
-              {/* Physics 1v1 Battles */}
-              <motion.div
-                initial={{ y: 30, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.4 }}
-              >
-                <h3 className="text-3xl font-bold mb-2 text-center">Physics 1v1 Battles</h3>
-                <p className="text-muted-foreground text-center mb-8">Challenge opponents in physics battles</p>
-                
-                <div className="grid grid-cols-3 gap-6 max-w-4xl mx-auto">
-                  {physicsMode.map((mode, index) => (
-                    <motion.button
-                      key={mode.id}
-                      initial={{ y: 50, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ duration: 0.6, delay: 0.5 + index * 0.1 }}
-                      onClick={() => onStartPhysicsBattle(mode.id as 'A1' | 'A2_ONLY' | 'A2')}
-                      className={`p-8 rounded-2xl bg-gradient-to-br ${mode.gradient} text-white hover:scale-105 transition-all duration-300 shadow-xl`}
-                      whileHover={{ y: -5 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <div className="text-4xl mb-4">{mode.icon}</div>
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
-            </>
+              </div>
+            </div>
           )}
 
           {selectedTab !== "PLAY" && (
