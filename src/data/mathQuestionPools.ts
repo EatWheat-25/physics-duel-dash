@@ -6,6 +6,7 @@ import { A1_ONLY_QUESTIONS } from './questionPools/a1OnlyQuestions';
 import { A2_ONLY_QUESTIONS } from './questionPools/a2OnlyQuestions';
 import { ALL_MATHS_QUESTIONS } from './questionPools/allMathsQuestions';
 import { getAllQuestions } from './questionPools/questionGenerator';
+import { A2_INTEGRATION_QUESTIONS } from './questionPools/a2IntegrationQuestions';
 
 // Chapter definitions for all game modes
 export const CHAPTERS = {
@@ -186,14 +187,16 @@ export const CHAPTERS = {
 export const QUESTION_POOLS: Record<GameMode, GameQuestion[]> = {
   'A1-Only': A1_ONLY_QUESTIONS,
   'A2-Only': A2_ONLY_QUESTIONS, 
-  'All-Maths': ALL_MATHS_QUESTIONS
+  'All-Maths': ALL_MATHS_QUESTIONS,
+  'A2-Integration': A2_INTEGRATION_QUESTIONS
 };
 
 // Enhanced question pools with generated variations (full 200 per rank)
 export const ENHANCED_QUESTION_POOLS: Record<GameMode, GameQuestion[]> = {
   'A1-Only': [...A1_ONLY_QUESTIONS, ...getAllQuestions().filter(q => q.mode === 'A1-Only')],
   'A2-Only': [...A2_ONLY_QUESTIONS, ...getAllQuestions().filter(q => q.mode === 'A2-Only')],
-  'All-Maths': [...ALL_MATHS_QUESTIONS, ...getAllQuestions().filter(q => q.mode === 'All-Maths')]
+  'All-Maths': [...ALL_MATHS_QUESTIONS, ...getAllQuestions().filter(q => q.mode === 'All-Maths')],
+  'A2-Integration': A2_INTEGRATION_QUESTIONS
 };
 
 // Utility functions for question retrieval and management

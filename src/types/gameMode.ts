@@ -1,7 +1,7 @@
 // Game Mode System for Rank-Gated Mathematics Learning
 // Three variants: A1-Only, A2-Only, All-Maths (A1→A2)
 
-export type GameMode = 'A1-Only' | 'A2-Only' | 'All-Maths';
+export type GameMode = 'A1-Only' | 'A2-Only' | 'All-Maths' | 'A2-Integration';
 export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Diamond' | 'Unbeatable' | 'Pocket Calculator';
 export type SubRank = 1 | 2 | 3;
 export type Difficulty = 'Easy' | 'Med' | 'Hard' | 'A★';
@@ -415,6 +415,111 @@ export const CHAPTER_PROGRESSIONS: Record<GameMode, RankChapterMapping[]> = {
       rank: { tier: 'Pocket Calculator', subRank: 1 },
       chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion', 'trigonometry-1', 'differentiation-1', 'integration-1', 'trigonometry-2', 'vectors-1', 'functions-advanced', 'trigonometry-3', 'partial-fractions', 'differentiation-2', 'integration-2', 'a1-a2-composites'],
       newChapters: ['a1-a2-composites']
+    }
+  ],
+
+  'A2-Integration': [
+    // Bronze Tier (Integration Fundamentals)
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Bronze', subRank: 1 },
+      chapters: ['integration-basics', 'substitution-basic'],
+      newChapters: ['integration-basics', 'substitution-basic']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Bronze', subRank: 2 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration'],
+      newChapters: ['exponential-integration']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Bronze', subRank: 3 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration'],
+      newChapters: ['trigonometric-integration']
+    },
+    // Silver Tier (Advanced Methods)
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Silver', subRank: 1 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts'],
+      newChapters: ['integration-by-parts']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Silver', subRank: 2 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration'],
+      newChapters: ['partial-fractions-integration']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Silver', subRank: 3 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution'],
+      newChapters: ['advanced-substitution']
+    },
+    // Gold Tier (Complex Applications)
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Gold', subRank: 1 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas'],
+      newChapters: ['reduction-formulas']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Gold', subRank: 2 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas', 'numerical-integration'],
+      newChapters: ['numerical-integration']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Gold', subRank: 3 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas', 'numerical-integration', 'definite-integration'],
+      newChapters: ['definite-integration']
+    },
+    // Diamond Tier (Advanced Techniques)
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Diamond', subRank: 1 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas', 'numerical-integration', 'definite-integration', 'advanced-techniques'],
+      newChapters: ['advanced-techniques']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Diamond', subRank: 2 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas', 'numerical-integration', 'definite-integration', 'advanced-techniques', 'improper-integrals'],
+      newChapters: ['improper-integrals']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Diamond', subRank: 3 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas', 'numerical-integration', 'definite-integration', 'advanced-techniques', 'improper-integrals', 'area-volume-applications'],
+      newChapters: ['area-volume-applications']
+    },
+    // Unbeatable Tier (Master Level)
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Unbeatable', subRank: 1 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas', 'numerical-integration', 'definite-integration', 'advanced-techniques', 'improper-integrals', 'area-volume-applications', 'complex-applications'],
+      newChapters: ['complex-applications']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Unbeatable', subRank: 2 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas', 'numerical-integration', 'definite-integration', 'advanced-techniques', 'improper-integrals', 'area-volume-applications', 'complex-applications', 'mixed-integration'],
+      newChapters: ['mixed-integration']
+    },
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Unbeatable', subRank: 3 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas', 'numerical-integration', 'definite-integration', 'advanced-techniques', 'improper-integrals', 'area-volume-applications', 'complex-applications', 'mixed-integration', 'competition-problems'],
+      newChapters: ['competition-problems']
+    },
+    // Pocket Calculator (A★ Integration)
+    {
+      mode: 'A2-Integration',
+      rank: { tier: 'Pocket Calculator', subRank: 1 },
+      chapters: ['integration-basics', 'substitution-basic', 'exponential-integration', 'trigonometric-integration', 'integration-by-parts', 'partial-fractions-integration', 'advanced-substitution', 'reduction-formulas', 'numerical-integration', 'definite-integration', 'advanced-techniques', 'improper-integrals', 'area-volume-applications', 'complex-applications', 'mixed-integration', 'competition-problems', 'olympiad-integration'],
+      newChapters: ['olympiad-integration']
     }
   ]
 };

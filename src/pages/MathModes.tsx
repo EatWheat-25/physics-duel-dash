@@ -36,12 +36,31 @@ const MathModes: React.FC = () => {
       icon: "∫",
       gradient: "from-orange-500 to-red-600",
       players: "1.8M+"
+    },
+    {
+      id: "A2_INTEGRATION",
+      title: "A2 PAPER 3",
+      subtitle: "INTEGRATION MASTERY",
+      description: "CAIE Paper 3 Integration - advanced integration techniques, applications, and problem solving", 
+      difficulty: "EXPERT",
+      icon: "∬",
+      gradient: "from-violet-500 to-purple-600",
+      players: "542K+"
     }
   ];
 
   const handleModeSelect = (modeId: string) => {
+    // Map UI IDs to actual GameMode values
+    const modeMapping = {
+      'A1': 'A1-Only',
+      'A2': 'All-Maths', 
+      'A2_ONLY': 'A2-Only',
+      'A2_INTEGRATION': 'A2-Integration'
+    };
+    
+    const actualMode = modeMapping[modeId] || modeId;
     // Navigate back to main app with math battle mode
-    navigate(`/?mode=math&level=${modeId}`, { replace: true });
+    navigate(`/?mode=math&level=${actualMode}`, { replace: true });
   };
 
   return (
@@ -81,7 +100,7 @@ const MathModes: React.FC = () => {
           </motion.div>
 
           {/* Mode Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl">
             {gameModes.map((mode, index) => (
               <motion.div
                 key={mode.id}
