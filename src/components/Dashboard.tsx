@@ -132,12 +132,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
           {selectedTab === "PLAY" && (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
-                <h2 className="text-6xl font-bold mb-8 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                  READY TO BATTLE
-                </h2>
-                <p className="text-xl text-muted-foreground mb-12">
-                  Choose your subject and dominate the arena
-                </p>
                 <Link to="/subject-selection">
                   <motion.button
                     className="cyber-button flex items-center gap-4 px-12 py-6 text-2xl font-bold"
