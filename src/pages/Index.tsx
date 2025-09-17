@@ -16,6 +16,7 @@ import { toast } from '@/hooks/use-toast';
 import { StepBasedQuestion, convertLegacyQuestion } from '@/types/stepQuestion';
 import { getStepMathQuestions } from '@/data/stepMathQuestions';
 import StepBattlePage from '@/components/StepBattlePage';
+import { A2_INTEGRATION_QUESTIONS } from '@/data/questionPools/a2IntegrationQuestions';
 
 interface MatchStats {
   totalQuestions: number;
@@ -57,13 +58,32 @@ const Index = () => {
   // Handle URL parameters for mode and level selection
   useEffect(() => {
     const mode = searchParams.get('mode');
-    const level = searchParams.get('level') as 'A1' | 'A2_ONLY' | 'A2';
+    const level = searchParams.get('level');
     
     if (mode && level) {
       if (mode === 'math') {
-        handleStartMathBattle(level);
+        // Map URL parameter to proper GameMode
+        let mappedLevel: 'A1-Only' | 'A2-Only' | 'All-Maths' | 'A2-Integration';
+        switch(level) {
+          case 'A1-Only':
+            mappedLevel = 'A1-Only';
+            break;
+          case 'A2-Only':
+            mappedLevel = 'A2-Only';
+            break;
+          case 'All-Maths':
+            mappedLevel = 'All-Maths';
+            break;
+          case 'A2-Integration':
+            mappedLevel = 'A2-Integration';
+            break;
+          default:
+            console.warn('Unknown math level:', level);
+            return;
+        }
+        handleStartMathBattle(mappedLevel);
       } else if (mode === 'physics') {
-        handleStartPhysicsBattle(level);
+        handleStartPhysicsBattle(level as 'A1' | 'A2_ONLY' | 'A2');
       }
       // Clear the URL parameters after processing
       setSearchParams({});
@@ -143,25 +163,45 @@ const Index = () => {
     setCurrentPage('battle');
   };
 
-  const handleStartMathBattle = (level: 'A1' | 'A2_ONLY' | 'A2') => {
+  const handleStartMathBattle = (level: 'A1-Only' | 'A2-Only' | 'All-Maths' | 'A2-Integration') => {
     console.log(`Starting Step-based Math battle for level: ${level}`);
     setBattleContext('math-battle');
     
     // Get step-based math questions based on level
     let stepQuestions: StepBasedQuestion[] = [];
     
-    if (level === 'A1') {
+    if (level === 'A1-Only') {
       // A1 level: differentiation, integration, quadratic functions
       stepQuestions = [
         ...getStepMathQuestions('differentiation', 'A1', 1),
         ...getStepMathQuestions('integration', 'A1', 1),
         ...getStepMathQuestions('quadratic-functions', 'A1', 1)
       ];
-    } else if (level === 'A2_ONLY') {
+    } else if (level === 'A2-Only') {
       // A2 only: parametric equations and advanced topics
       stepQuestions = getStepMathQuestions('parametric-equations', 'A2', 2);
+    } else if (level === 'A2-Integration') {
+      // A2 Integration: Pure integration questions from CAIE papers
+      const integrationQuestions = A2_INTEGRATION_QUESTIONS.slice(0, 3); // Get first 3 questions for battle
+      const convertedQuestions: StepBasedQuestion[] = integrationQuestions.map(q => ({
+        id: q.id,
+        title: q.questionText.substring(0, 50) + '...',
+        subject: 'math' as const,
+        chapter: q.chapter,
+        level: 'A2' as const,
+        difficulty: q.difficulty === 'Easy' ? 'easy' as const : q.difficulty === 'Med' ? 'medium' as const : 'hard' as const,
+        totalMarks: q.totalMarks,
+        questionText: q.questionText,
+        topicTags: q.topicTags,
+        steps: q.steps
+      }));
+      
+      console.log('Loading A2 Integration questions:', convertedQuestions);
+      setStepBattleQuestions(convertedQuestions);
+      setCurrentPage('step-battle');
+      return; // Early return since we handled the questions
     } else {
-      // A2 full: mix of A1 and A2 questions
+      // All-Maths: mix of A1 and A2 questions
       stepQuestions = [
         ...getStepMathQuestions('differentiation', 'A1', 1),
         ...getStepMathQuestions('parametric-equations', 'A2', 1)
@@ -173,7 +213,7 @@ const Index = () => {
       setCurrentPage('step-battle');
     } else {
       // Fallback to legacy math questions converted to step format
-      const mathQuestions = getMathQuestionsByRank(level, userData.currentPoints, 5);
+      const mathQuestions = getMathQuestionsByRank(level as any, userData.currentPoints, 5);
       
       if (mathQuestions.length > 0) {
         const convertedStepQuestions = mathQuestions.map(convertLegacyQuestion);
@@ -208,7 +248,11 @@ const Index = () => {
             setBattleContext('regular');
             setCurrentPage('battle');
           }} 
-          onStartMathBattle={handleStartMathBattle}
+          onStartMathBattle={(level: 'A1' | 'A2_ONLY' | 'A2') => {
+            // This is for backward compatibility - Dashboard still uses old format
+            // but we don't actually call it directly since we use URL routing
+            console.log('Dashboard onStartMathBattle called with:', level);
+          }}
           onStartPhysicsBattle={handleStartPhysicsBattle}
           userData={userData}
         />
