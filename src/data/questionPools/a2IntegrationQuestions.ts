@@ -4,8 +4,8 @@
 import { GameQuestion } from '@/types/gameMode';
 
 export const A2_INTEGRATION_QUESTIONS: GameQuestion[] = [
-  // ===== BRONZE RANK QUESTIONS (15 questions) =====
-  // Basic integration techniques and substitution
+  // ===== BRONZE RANK QUESTIONS (8 questions) =====
+  // Basic integration techniques from CAIE papers
   
   {
     id: 'a2-int-b1-001',
@@ -13,44 +13,236 @@ export const A2_INTEGRATION_QUESTIONS: GameQuestion[] = [
     chapter: 'integration-basics',
     rank: { tier: 'Bronze', subRank: 1 },
     difficulty: 'Easy',
-    questionText: 'Find ∫(3x² + 4x - 2)dx',
+    questionText: 'Find ∫(4x³ - 6x² + 2x - 3)dx',
     totalMarks: 4,
-    estimatedTime: 3,
-    topicTags: ['basic integration', 'polynomial'],
+    estimatedTime: 4,
+    topicTags: ['polynomial integration', 'basic techniques'],
     caieYear: 2023,
     caieVariant: '31',
     steps: [
       {
         id: 'step-1',
-        question: 'Integrate 3x²:',
-        options: ['x³', '3x³', 'x³ + c', '3x³/3 = x³'],
-        correctAnswer: 3,
+        question: 'Integrate each term using the power rule ∫xⁿdx = xⁿ⁺¹/(n+1):',
+        options: ['x⁴ - 2x³ + x² - 3x + c', 'x⁴ - 2x³ + x² - 3x', '4x⁴ - 6x³ + 2x² - 3x + c', 'x⁴/4 - 2x³ + x² - 3x + c'],
+        correctAnswer: 0,
+        marks: 4,
+        explanation: '∫4x³dx = x⁴, ∫-6x²dx = -2x³, ∫2xdx = x², ∫-3dx = -3x'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-b1-002',
+    mode: 'A2-Integration',
+    chapter: 'substitution-basic',
+    rank: { tier: 'Bronze', subRank: 1 },
+    difficulty: 'Med',
+    questionText: 'Find ∫(3x + 1)⁶dx',
+    totalMarks: 5,
+    estimatedTime: 5,
+    topicTags: ['substitution', 'chain rule integration'],
+    caieYear: 2022,
+    caieVariant: '32',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Let u = 3x + 1. Find du/dx:',
+        options: ['3', '1', '3x', '6x'],
+        correctAnswer: 0,
         marks: 1,
-        explanation: '∫3x²dx = 3∫x²dx = 3 × x³/3 = x³'
+        explanation: 'du/dx = d/dx(3x + 1) = 3'
       },
       {
         id: 'step-2',
-        question: 'Integrate 4x:',
-        options: ['4x²', '2x²', '4x²/2', '2x²'],
-        correctAnswer: 3,
-        marks: 1,
-        explanation: '∫4xdx = 4∫xdx = 4 × x²/2 = 2x²'
+        question: 'Rewrite the integral in terms of u:',
+        options: ['∫u⁶ × (1/3)du', '∫u⁶ × 3du', '∫u⁶du', '∫3u⁶du'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: 'Since du = 3dx, we have dx = du/3, so ∫(3x+1)⁶dx = ∫u⁶ × (1/3)du'
       },
       {
         id: 'step-3',
-        question: 'Integrate -2:',
-        options: ['-2x', '-2', '-x²', '0'],
+        question: 'Complete the integration and substitute back:',
+        options: ['(3x + 1)⁷/21 + c', '(3x + 1)⁷/7 + c', '(3x + 1)⁶/18 + c', '(3x + 1)⁷/3 + c'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: '(1/3) × u⁷/7 = u⁷/21 = (3x + 1)⁷/21 + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-b2-003',
+    mode: 'A2-Integration',
+    chapter: 'exponential-integration',
+    rank: { tier: 'Bronze', subRank: 2 },
+    difficulty: 'Med',
+    questionText: 'Find ∫3e^(2x-1)dx',
+    totalMarks: 4,
+    estimatedTime: 4,
+    topicTags: ['exponential integration', 'chain rule'],
+    caieYear: 2023,
+    caieVariant: '33',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Identify the derivative of the exponent (2x - 1):',
+        options: ['2', '1', '2x', '-1'],
         correctAnswer: 0,
         marks: 1,
-        explanation: '∫-2dx = -2x'
+        explanation: 'd/dx(2x - 1) = 2'
       },
       {
-        id: 'step-4',
-        question: 'Complete answer with constant:',
-        options: ['x³ + 2x² - 2x', 'x³ + 2x² - 2x + c', '3x³ + 4x² - 2x', 'x³ + 4x² - 2x + c'],
-        correctAnswer: 1,
+        id: 'step-2',
+        question: 'Apply the integration formula ∫ae^(bx+c)dx = (a/b)e^(bx+c):',
+        options: ['(3/2)e^(2x-1) + c', '3e^(2x-1)/2 + c', 'Both A and B are correct', '6e^(2x-1) + c'],
+        correctAnswer: 2,
+        marks: 3,
+        explanation: '∫3e^(2x-1)dx = 3 × e^(2x-1)/2 = (3/2)e^(2x-1) + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-b2-004',
+    mode: 'A2-Integration',
+    chapter: 'trigonometric-integration',
+    rank: { tier: 'Bronze', subRank: 2 },
+    difficulty: 'Med',
+    questionText: 'Find ∫sin(4x - π/3)dx',
+    totalMarks: 4,
+    estimatedTime: 4,
+    topicTags: ['trigonometric integration', 'sine function'],
+    caieYear: 2022,
+    caieVariant: '31',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Identify the coefficient of x in the argument:',
+        options: ['4', '-π/3', '1', '4 - π/3'],
+        correctAnswer: 0,
         marks: 1,
-        explanation: '∫(3x² + 4x - 2)dx = x³ + 2x² - 2x + c'
+        explanation: 'In sin(4x - π/3), the coefficient of x is 4'
+      },
+      {
+        id: 'step-2',
+        question: 'Apply ∫sin(ax + b)dx = -(1/a)cos(ax + b) + c:',
+        options: ['-(1/4)cos(4x - π/3) + c', '-cos(4x - π/3)/4 + c', 'Both are correct', '4cos(4x - π/3) + c'],
+        correctAnswer: 2,
+        marks: 3,
+        explanation: '∫sin(4x - π/3)dx = -(1/4)cos(4x - π/3) + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-b3-005',
+    mode: 'A2-Integration',
+    chapter: 'logarithmic-integration',
+    rank: { tier: 'Bronze', subRank: 3 },
+    difficulty: 'Med',
+    questionText: 'Find ∫(2x + 3)/(x² + 3x + 1)dx',
+    totalMarks: 5,
+    estimatedTime: 6,
+    topicTags: ['logarithmic integration', 'derivative recognition'],
+    caieYear: 2023,
+    caieVariant: '32',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Find the derivative of the denominator x² + 3x + 1:',
+        options: ['2x + 3', 'x + 3', '2x', '2x + 1'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: 'd/dx(x² + 3x + 1) = 2x + 3'
+      },
+      {
+        id: 'step-2',
+        question: 'Since the numerator equals the derivative of denominator:',
+        options: ['∫f\'(x)/f(x)dx = ln|f(x)| + c', 'This gives ln|x² + 3x + 1| + c', 'Both statements are correct', 'Need different approach'],
+        correctAnswer: 2,
+        marks: 3,
+        explanation: '∫(2x + 3)/(x² + 3x + 1)dx = ln|x² + 3x + 1| + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-b3-006',
+    mode: 'A2-Integration',
+    chapter: 'rational-integration',
+    rank: { tier: 'Bronze', subRank: 3 },
+    difficulty: 'Med',
+    questionText: 'Find ∫1/(2x - 5)dx',
+    totalMarks: 3,
+    estimatedTime: 3,
+    topicTags: ['rational functions', 'logarithmic form'],
+    caieYear: 2022,
+    caieVariant: '33',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Apply the formula ∫1/(ax + b)dx = (1/a)ln|ax + b| + c:',
+        options: ['(1/2)ln|2x - 5| + c', 'ln|2x - 5|/2 + c', 'Both are equivalent', '2ln|2x - 5| + c'],
+        correctAnswer: 2,
+        marks: 3,
+        explanation: '∫1/(2x - 5)dx = (1/2)ln|2x - 5| + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-b3-007',
+    mode: 'A2-Integration',
+    chapter: 'inverse-trig-integration',
+    rank: { tier: 'Bronze', subRank: 3 },
+    difficulty: 'Hard',
+    questionText: 'Find ∫1/√(9 - x²)dx',
+    totalMarks: 4,
+    estimatedTime: 5,
+    topicTags: ['inverse trigonometric', 'arcsine'],
+    caieYear: 2023,
+    caieVariant: '31',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Recognize this as the standard form ∫1/√(a² - x²)dx = arcsin(x/a) + c:',
+        options: ['a = 3, so arcsin(x/3) + c', 'a = 9, so arcsin(x/9) + c', 'Need substitution first', 'Cannot integrate'],
+        correctAnswer: 0,
+        marks: 4,
+        explanation: '∫1/√(9 - x²)dx = ∫1/√(3² - x²)dx = arcsin(x/3) + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-b3-008',
+    mode: 'A2-Integration',
+    chapter: 'definite-integration-basic',
+    rank: { tier: 'Bronze', subRank: 3 },
+    difficulty: 'Med',
+    questionText: 'Evaluate ∫₁³(x² - 2x + 1)dx',
+    totalMarks: 5,
+    estimatedTime: 5,
+    topicTags: ['definite integration', 'fundamental theorem'],
+    caieYear: 2022,
+    caieVariant: '32',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Find the antiderivative of x² - 2x + 1:',
+        options: ['x³/3 - x² + x + c', '(x³ - 3x² + 3x)/3 + c', 'Both are equivalent', '3x² - 2x + c'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: '∫(x² - 2x + 1)dx = x³/3 - x² + x + c'
+      },
+      {
+        id: 'step-2',
+        question: 'Apply limits: [x³/3 - x² + x]₁³',
+        options: ['(27/3 - 9 + 3) - (1/3 - 1 + 1) = 3 - 1/3 = 8/3', '(9 - 9 + 3) - (1/3 - 1 + 1) = 3 - 1/3 = 8/3', 'Both calculations are correct', '10/3'],
+        correctAnswer: 1,
+        marks: 3,
+        explanation: 'At x=3: 27/3 - 9 + 3 = 3. At x=1: 1/3 - 1 + 1 = 1/3. Answer: 3 - 1/3 = 8/3'
       }
     ]
   },
@@ -151,7 +343,368 @@ export const A2_INTEGRATION_QUESTIONS: GameQuestion[] = [
     ]
   },
 
-  // ===== SILVER RANK QUESTIONS (20 questions) =====
+  // ===== SILVER RANK QUESTIONS (8 questions) =====
+  // Integration by parts and advanced substitution
+  
+  {
+    id: 'a2-int-s1-009',
+    mode: 'A2-Integration',
+    chapter: 'integration-by-parts',
+    rank: { tier: 'Silver', subRank: 1 },
+    difficulty: 'Hard',
+    questionText: 'Use integration by parts to find ∫x ln(x)dx',
+    totalMarks: 6,
+    estimatedTime: 7,
+    topicTags: ['integration by parts', 'logarithm'],
+    caieYear: 2022,
+    caieVariant: '31',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Choose u and dv for ∫x ln(x)dx:',
+        options: ['u = ln(x), dv = x dx', 'u = x, dv = ln(x) dx', 'Both choices work', 'Cannot use integration by parts'],
+        correctAnswer: 0,
+        marks: 1,
+        explanation: 'Choose u = ln(x) (differentiates to simpler), dv = x dx'
+      },
+      {
+        id: 'step-2',
+        question: 'Find du and v:',
+        options: ['du = 1/x dx, v = x²/2', 'du = 1/x, v = x²/2', 'du = x dx, v = x²', 'du = 1/x dx, v = x²'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: 'du = d/dx(ln(x)) = 1/x dx, v = ∫x dx = x²/2'
+      },
+      {
+        id: 'step-3',
+        question: 'Apply ∫u dv = uv - ∫v du:',
+        options: ['ln(x) × x²/2 - ∫(x²/2) × (1/x) dx', 'x²ln(x)/2 - ∫x/2 dx', 'Both are equivalent', 'x²ln(x)/2 - ∫x² dx'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫x ln(x) dx = ln(x) × x²/2 - ∫(x²/2) × (1/x) dx = x²ln(x)/2 - ∫x/2 dx'
+      },
+      {
+        id: 'step-4',
+        question: 'Complete the integration:',
+        options: ['x²ln(x)/2 - x²/4 + c', 'x²ln(x)/2 - x²/2 + c', 'x²(ln(x) - 1/2)/2 + c', 'Both A and C are correct'],
+        correctAnswer: 3,
+        marks: 1,
+        explanation: 'x²ln(x)/2 - ∫x/2 dx = x²ln(x)/2 - x²/4 + c = x²(ln(x) - 1/2)/2 + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-s1-010',
+    mode: 'A2-Integration',
+    chapter: 'integration-by-parts',
+    rank: { tier: 'Silver', subRank: 1 },
+    difficulty: 'Hard',
+    questionText: 'Find ∫x²e^x dx using integration by parts',
+    totalMarks: 8,
+    estimatedTime: 10,
+    topicTags: ['integration by parts', 'repeated application'],
+    caieYear: 2023,
+    caieVariant: '33',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'First application: u = x², dv = e^x dx gives:',
+        options: ['x²e^x - ∫2xe^x dx', 'x²e^x - 2∫xe^x dx', 'Both are equivalent', 'e^x - ∫x²e^x dx'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: 'du = 2x dx, v = e^x, so ∫x²e^x dx = x²e^x - ∫e^x(2x)dx = x²e^x - 2∫xe^x dx'
+      },
+      {
+        id: 'step-2',
+        question: 'For ∫xe^x dx, use u = x, dv = e^x dx:',
+        options: ['xe^x - ∫e^x dx', 'xe^x - e^x', 'e^x(x - 1)', 'All are equivalent'],
+        correctAnswer: 3,
+        marks: 2,
+        explanation: '∫xe^x dx = xe^x - ∫e^x dx = xe^x - e^x = e^x(x - 1)'
+      },
+      {
+        id: 'step-3',
+        question: 'Substitute back into original integral:',
+        options: ['x²e^x - 2e^x(x - 1)', 'x²e^x - 2xe^x + 2e^x', 'e^x(x² - 2x + 2)', 'All are equivalent'],
+        correctAnswer: 3,
+        marks: 3,
+        explanation: '∫x²e^x dx = x²e^x - 2(xe^x - e^x) = x²e^x - 2xe^x + 2e^x = e^x(x² - 2x + 2) + c'
+      },
+      {
+        id: 'step-4',
+        question: 'Final answer:',
+        options: ['e^x(x² - 2x + 2) + c', 'x²e^x - 2xe^x + 2e^x + c', 'Both are correct', 'e^x(x² + 2x + 2) + c'],
+        correctAnswer: 2,
+        marks: 1,
+        explanation: 'Both factored and expanded forms are correct'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-s2-011',
+    mode: 'A2-Integration',
+    chapter: 'partial-fractions-integration',
+    rank: { tier: 'Silver', subRank: 2 },
+    difficulty: 'Hard',
+    questionText: 'Find ∫(x + 7)/((x + 1)(x + 3))dx using partial fractions',
+    totalMarks: 7,
+    estimatedTime: 8,
+    topicTags: ['partial fractions', 'logarithmic integration'],
+    caieYear: 2022,
+    caieVariant: '32',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Set up: (x + 7)/((x + 1)(x + 3)) = A/(x + 1) + B/(x + 3)',
+        options: ['Correct setup', 'Need quadratic numerator', 'Should be three fractions', 'Cannot be partial fractioned'],
+        correctAnswer: 0,
+        marks: 1,
+        explanation: 'Correct partial fraction setup for distinct linear factors'
+      },
+      {
+        id: 'step-2',
+        question: 'Find A by substituting x = -1: (-1) + 7 = A(2), so A = ?',
+        options: ['3', '6', '2', '1'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: '6 = A(2), so A = 3'
+      },
+      {
+        id: 'step-3',
+        question: 'Find B by substituting x = -3: (-3) + 7 = B(-2), so B = ?',
+        options: ['-2', '2', '-1', '4'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: '4 = B(-2), so B = -2'
+      },
+      {
+        id: 'step-4',
+        question: 'Integrate 3/(x + 1) - 2/(x + 3):',
+        options: ['3ln|x + 1| - 2ln|x + 3| + c', 'ln|(x + 1)³/(x + 3)²| + c', 'Both are equivalent', '3ln|x + 1| + 2ln|x + 3| + c'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫[3/(x+1) - 2/(x+3)]dx = 3ln|x + 1| - 2ln|x + 3| + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-s2-012',
+    mode: 'A2-Integration',
+    chapter: 'area-calculation',
+    rank: { tier: 'Silver', subRank: 2 },
+    difficulty: 'Hard',
+    questionText: 'Find the area bounded by y = x² - 4x + 3, the x-axis, and the lines x = 1 and x = 3',
+    totalMarks: 8,
+    estimatedTime: 10,
+    topicTags: ['definite integration', 'area under curve', 'quadratic functions'],
+    caieYear: 2023,
+    caieVariant: '31',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Find where y = x² - 4x + 3 crosses the x-axis:',
+        options: ['x = 1 and x = 3', 'x = 0 and x = 4', 'x = -1 and x = 3', 'No real roots'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: 'x² - 4x + 3 = (x - 1)(x - 3) = 0, so x = 1 and x = 3'
+      },
+      {
+        id: 'step-2',
+        question: 'Since the function is negative between x = 1 and x = 3:',
+        options: ['Area = ∫₁³|x² - 4x + 3|dx', 'Area = -∫₁³(x² - 4x + 3)dx', 'Area = ∫₁³(4x - x² - 3)dx', 'All expressions give the same result'],
+        correctAnswer: 3,
+        marks: 2,
+        explanation: 'Since y < 0 on [1,3], we need |y| for area, giving us the absolute value'
+      },
+      {
+        id: 'step-3',
+        question: 'Integrate -(x² - 4x + 3) = -x² + 4x - 3:',
+        options: ['-x³/3 + 2x² - 3x + c', '(-x³ + 6x² - 9x)/3 + c', 'Both are equivalent', 'x³/3 - 2x² + 3x + c'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: '∫(-x² + 4x - 3)dx = -x³/3 + 2x² - 3x + c'
+      },
+      {
+        id: 'step-4',
+        question: 'Evaluate [-x³/3 + 2x² - 3x]₁³:',
+        options: ['(-9 + 18 - 9) - (-1/3 + 2 - 3) = 0 - (-4/3) = 4/3', '4/3 square units', 'Both are correct', '8/3 square units'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: 'At x=3: -27/3 + 18 - 9 = 0. At x=1: -1/3 + 2 - 3 = -4/3. Area = 0 - (-4/3) = 4/3'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-s3-013',
+    mode: 'A2-Integration',
+    chapter: 'substitution-advanced',
+    rank: { tier: 'Silver', subRank: 3 },
+    difficulty: 'Hard',
+    questionText: 'Find ∫x√(x - 2)dx using the substitution u = x - 2',
+    totalMarks: 7,
+    estimatedTime: 8,
+    topicTags: ['substitution', 'algebraic manipulation'],
+    caieYear: 2022,
+    caieVariant: '33',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'If u = x - 2, express x and dx in terms of u:',
+        options: ['x = u + 2, dx = du', 'x = u - 2, dx = du', 'x = u + 2, dx = 2du', 'x = 2 - u, dx = du'],
+        correctAnswer: 0,
+        marks: 1,
+        explanation: 'u = x - 2, so x = u + 2 and dx = du'
+      },
+      {
+        id: 'step-2',
+        question: 'Substitute into ∫x√(x - 2)dx:',
+        options: ['∫(u + 2)√u du', '∫(u + 2)u^(1/2) du', 'Both are equivalent', '∫u√(u + 2) du'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫x√(x - 2)dx = ∫(u + 2)√u du = ∫(u + 2)u^(1/2) du'
+      },
+      {
+        id: 'step-3',
+        question: 'Expand (u + 2)u^(1/2):',
+        options: ['u^(3/2) + 2u^(1/2)', 'u^(1/2) + 2u^(3/2)', 'u^(3/2) + 2u', 'u + 2u^(1/2)'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: '(u + 2)u^(1/2) = u·u^(1/2) + 2·u^(1/2) = u^(3/2) + 2u^(1/2)'
+      },
+      {
+        id: 'step-4',
+        question: 'Integrate and substitute back u = x - 2:',
+        options: ['(2/5)(x-2)^(5/2) + (4/3)(x-2)^(3/2) + c', '(2/5)u^(5/2) + (4/3)u^(3/2) + c', 'Both are equivalent', '(x-2)^(3/2)/3 + 2(x-2)^(1/2) + c'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫u^(3/2)du + 2∫u^(1/2)du = (2/5)u^(5/2) + 2·(2/3)u^(3/2) = (2/5)(x-2)^(5/2) + (4/3)(x-2)^(3/2) + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-s3-014',
+    mode: 'A2-Integration',
+    chapter: 'trigonometric-powers',
+    rank: { tier: 'Silver', subRank: 3 },
+    difficulty: 'Hard',
+    questionText: 'Find ∫cos²(x)dx using the identity cos²(x) = (1 + cos(2x))/2',
+    totalMarks: 5,
+    estimatedTime: 6,
+    topicTags: ['trigonometric powers', 'double angle identities'],
+    caieYear: 2023,
+    caieVariant: '32',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Substitute the identity cos²(x) = (1 + cos(2x))/2:',
+        options: ['∫(1 + cos(2x))/2 dx', '(1/2)∫(1 + cos(2x))dx', 'Both are equivalent', '∫cos²(x)dx directly'],
+        correctAnswer: 2,
+        marks: 1,
+        explanation: '∫cos²(x)dx = ∫(1 + cos(2x))/2 dx = (1/2)∫(1 + cos(2x))dx'
+      },
+      {
+        id: 'step-2',
+        question: 'Split the integral:',
+        options: ['(1/2)[∫1 dx + ∫cos(2x)dx]', '(1/2)[x + sin(2x)/2] + c', 'Both show correct progression', '∫1 dx + ∫cos(2x)dx'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '(1/2)∫(1 + cos(2x))dx = (1/2)[∫1 dx + ∫cos(2x)dx] = (1/2)[x + sin(2x)/2] + c'
+      },
+      {
+        id: 'step-3',
+        question: 'Final answer:',
+        options: ['x/2 + sin(2x)/4 + c', '(1/2)(x + sin(2x)/2) + c', 'Both are equivalent', 'x + sin(2x) + c'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫cos²(x)dx = x/2 + sin(2x)/4 + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-s3-015',
+    mode: 'A2-Integration',
+    chapter: 'volume-revolution',
+    rank: { tier: 'Silver', subRank: 3 },
+    difficulty: 'Hard',
+    questionText: 'Find the volume when y = √x is rotated about the x-axis from x = 0 to x = 4',
+    totalMarks: 6,
+    estimatedTime: 7,
+    topicTags: ['volume of revolution', 'definite integration'],
+    caieYear: 2022,
+    caieVariant: '31',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Apply the formula V = π∫ᵃᵇ y² dx:',
+        options: ['V = π∫₀⁴ (√x)² dx', 'V = π∫₀⁴ x dx', 'Both are equivalent', 'V = ∫₀⁴ πx dx'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: 'Volume = π∫₀⁴ (√x)² dx = π∫₀⁴ x dx'
+      },
+      {
+        id: 'step-2',
+        question: 'Integrate x:',
+        options: ['π[x²/2]₀⁴', 'π × x²/2 evaluated from 0 to 4', 'Both represent the same', 'π[x²]₀⁴'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫x dx = x²/2, so V = π[x²/2]₀⁴'
+      },
+      {
+        id: 'step-3',
+        question: 'Evaluate the definite integral:',
+        options: ['π(16/2 - 0) = 8π', 'π × 8 = 8π cubic units', 'Both are correct', 'π × 16 = 16π'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: 'V = π[x²/2]₀⁴ = π(16/2 - 0) = 8π cubic units'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-s3-016',
+    mode: 'A2-Integration',
+    chapter: 'differential-equations',
+    rank: { tier: 'Silver', subRank: 3 },
+    difficulty: 'Hard',
+    questionText: 'Solve the differential equation dy/dx = 2x + 3 given that y = 5 when x = 1',
+    totalMarks: 5,
+    estimatedTime: 6,
+    topicTags: ['differential equations', 'initial conditions'],
+    caieYear: 2023,
+    caieVariant: '33',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Integrate both sides: ∫dy = ∫(2x + 3)dx',
+        options: ['y = x² + 3x + c', 'y = 2x² + 3x + c', 'y = x² + 3x', 'Need separation of variables'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: '∫dy = ∫(2x + 3)dx gives y = x² + 3x + c'
+      },
+      {
+        id: 'step-2',
+        question: 'Use initial condition y = 5 when x = 1:',
+        options: ['5 = 1² + 3(1) + c', '5 = 1 + 3 + c', '5 = 4 + c, so c = 1', 'All steps are correct'],
+        correctAnswer: 3,
+        marks: 2,
+        explanation: 'Substituting: 5 = 1 + 3 + c = 4 + c, therefore c = 1'
+      },
+      {
+        id: 'step-3',
+        question: 'Final solution:',
+        options: ['y = x² + 3x + 1', 'Particular solution found', 'Both statements correct', 'y = x² + 3x + 5'],
+        correctAnswer: 2,
+        marks: 1,
+        explanation: 'y = x² + 3x + 1'
+      }
+    ]
+  },
   
   {
     id: 'a2-int-s1-004',
@@ -888,110 +1441,351 @@ export const A2_INTEGRATION_QUESTIONS: GameQuestion[] = [
     ]
   },
 
-  // ===== MORE DIAMOND RANK QUESTIONS =====
-
+  // ===== GOLD RANK QUESTIONS (8 questions) =====
+  // Advanced integration techniques from CAIE papers
+  
   {
-    id: 'a2-int-d1-019',
+    id: 'a2-int-g1-017',
     mode: 'A2-Integration',
-    chapter: 'advanced-techniques',
-    rank: { tier: 'Diamond', subRank: 1 },
+    chapter: 'parametric-integration',
+    rank: { tier: 'Gold', subRank: 1 },
     difficulty: 'A★',
-    questionText: 'Find ∫(x² + 1)/(x³ + 3x + 2)dx using partial fractions',
-    totalMarks: 12,
-    estimatedTime: 15,
-    topicTags: ['partial fractions', 'factoring', 'complex denominators'],
-    caieYear: 2022,
-    caieVariant: '33',
-    steps: [
-      {
-        id: 'step-1',
-        question: 'Factor the denominator x³ + 3x + 2:',
-        options: ['(x + 1)(x² - x + 2)', '(x + 1)(x + 2)(x - 1)', '(x + 1)(x² + 2)', 'Cannot be factored easily'],
-        correctAnswer: 0,
-        marks: 3,
-        explanation: 'x³ + 3x + 2 = (x + 1)(x² - x + 2) by polynomial division or inspection'
-      },
-      {
-        id: 'step-2',
-        question: 'Set up partial fractions: (x² + 1)/((x + 1)(x² - x + 2)) = ?',
-        options: ['A/(x + 1) + (Bx + C)/(x² - x + 2)', 'A/(x + 1) + B/(x² - x + 2)', 'A/(x + 1) + B/(x - 1) + C/(x + 2)', '(Ax + B)/(x + 1)(x² - x + 2)'],
-        correctAnswer: 0,
-        marks: 2,
-        explanation: 'Linear factor gives A/(x+1), quadratic factor gives (Bx+C)/(x²-x+2)'
-      },
-      {
-        id: 'step-3',
-        question: 'Find A by substituting x = -1: (-1)² + 1 = A((-1)² - (-1) + 2), so A = ?',
-        options: ['1/2', '2/4', '1/2', '2'],
-        correctAnswer: 0,
-        marks: 3,
-        explanation: '1 + 1 = A(1 + 1 + 2) = 4A, so A = 2/4 = 1/2'
-      },
-      {
-        id: 'step-4',
-        question: 'After finding B and C, the integral becomes complex logarithmic and arctangent terms',
-        options: ['(1/2)ln|x + 1| + complex terms involving ln and arctan', 'This requires advanced techniques beyond basic partial fractions', 'Both statements are correct', 'Simple logarithmic result only'],
-        correctAnswer: 2,
-        marks: 4,
-        explanation: 'The quadratic factor x²-x+2 leads to complex logarithmic and arctangent terms in the final answer'
-      }
-    ]
-  },
-
-  {
-    id: 'a2-int-d2-020',
-    mode: 'A2-Integration',
-    chapter: 'improper-integrals',
-    rank: { tier: 'Diamond', subRank: 2 },
-    difficulty: 'A★',
-    questionText: 'Evaluate ∫₁^∞ 1/(x²√(x² - 1))dx',
-    totalMarks: 11,
-    estimatedTime: 16,
-    topicTags: ['improper integrals', 'trigonometric substitution', 'limits'],
+    questionText: 'Given x = 2t², y = 4t³, find dy/dx and hence ∫y dx in terms of t',
+    totalMarks: 8,
+    estimatedTime: 10,
+    topicTags: ['parametric equations', 'chain rule', 'integration'],
     caieYear: 2023,
     caieVariant: '31',
     steps: [
       {
         id: 'step-1',
-        question: 'This is an improper integral. Set up the limit:',
-        options: ['lim[t→∞] ∫₁ᵗ 1/(x²√(x² - 1))dx', '∫₁^∞ 1/(x²√(x² - 1))dx directly', 'Both represent the same concept', 'Need to split at x = 1'],
-        correctAnswer: 2,
-        marks: 1,
-        explanation: 'Improper integral due to infinite upper limit, need to use limits'
+        question: 'Find dx/dt and dy/dt:',
+        options: ['dx/dt = 4t, dy/dt = 12t²', 'dx/dt = 2t, dy/dt = 4t³', 'dx/dt = 4t², dy/dt = 12t³', 'dx/dt = 4t, dy/dt = 12t'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: 'dx/dt = d/dt(2t²) = 4t, dy/dt = d/dt(4t³) = 12t²'
       },
       {
         id: 'step-2',
-        question: 'Use trigonometric substitution x = sec(θ), so dx = sec(θ)tan(θ)dθ:',
-        options: ['√(x² - 1) = √(sec²(θ) - 1) = tan(θ)', 'x² = sec²(θ)', 'dx = sec(θ)tan(θ)dθ', 'All substitutions are correct'],
-        correctAnswer: 3,
+        question: 'Find dy/dx using chain rule:',
+        options: ['dy/dx = (dy/dt)/(dx/dt) = 12t²/4t = 3t', 'dy/dx = 3t (for t ≠ 0)', 'Both are correct', 'dy/dx = 4t/12t² = 1/3t'],
+        correctAnswer: 2,
         marks: 2,
-        explanation: 'x = sec(θ) gives x² = sec²(θ), √(x²-1) = tan(θ), dx = sec(θ)tan(θ)dθ'
+        explanation: 'dy/dx = (dy/dt)/(dx/dt) = 12t²/4t = 3t'
       },
       {
         id: 'step-3',
-        question: 'Substitute into the integral:',
-        options: ['∫ sec(θ)tan(θ)/(sec²(θ)tan(θ)) dθ', '∫ 1/sec(θ) dθ', '∫ cos(θ) dθ', 'All are equivalent'],
-        correctAnswer: 3,
-        marks: 3,
-        explanation: '∫ 1/(x²√(x²-1))dx = ∫ sec(θ)tan(θ)/(sec²(θ)tan(θ)) dθ = ∫ 1/sec(θ) dθ = ∫ cos(θ) dθ'
+        question: 'For ∫y dx, use ∫y dx = ∫y(dx/dt)dt:',
+        options: ['∫4t³ × 4t dt', '∫16t⁴ dt', 'Both represent the same integral', '∫4t³ dt'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫y dx = ∫4t³ × 4t dt = ∫16t⁴ dt'
       },
       {
         id: 'step-4',
-        question: 'Integrate and convert back to x:',
-        options: ['sin(θ) = sin(arcsec(x)) = √(x²-1)/x', '∫cos(θ)dθ = sin(θ) + c', 'Final answer: √(x²-1)/x + c', 'All steps are correct'],
-        correctAnswer: 3,
-        marks: 3,
-        explanation: '∫cos(θ)dθ = sin(θ) + c = √(x²-1)/x + c'
-      },
-      {
-        id: 'step-5',
-        question: 'Evaluate the improper integral lim[t→∞] [√(x²-1)/x]₁ᵗ:',
-        options: ['lim[t→∞] (√(t²-1)/t - √(1-1)/1) = lim[t→∞] √(t²-1)/t - 0', 'lim[t→∞] √(t²-1)/t = lim[t→∞] √(1-1/t²) = 1', 'Final answer: 1 - 0 = 1', 'All calculations are correct'],
-        correctAnswer: 3,
+        question: 'Complete the integration:',
+        options: ['16t⁵/5 + c', '(16/5)t⁵ + c', 'Both are equivalent', '16t⁵ + c'],
+        correctAnswer: 2,
         marks: 2,
-        explanation: 'The improper integral converges to 1'
+        explanation: '∫16t⁴ dt = 16t⁵/5 + c'
       }
     ]
-  }
+  },
+
+  {
+    id: 'a2-int-g1-018',
+    mode: 'A2-Integration',
+    chapter: 'improper-integrals',
+    rank: { tier: 'Gold', subRank: 1 },
+    difficulty: 'A★',
+    questionText: 'Evaluate the improper integral ∫₁^∞ 1/x² dx',
+    totalMarks: 6,
+    estimatedTime: 8,
+    topicTags: ['improper integrals', 'limits', 'convergence'],
+    caieYear: 2022,
+    caieVariant: '32',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Set up the limit for the improper integral:',
+        options: ['lim[t→∞] ∫₁ᵗ 1/x² dx', 'lim[t→∞] ∫₁ᵗ x⁻² dx', 'Both are equivalent', '∫₁^∞ x⁻² dx directly'],
+        correctAnswer: 2,
+        marks: 1,
+        explanation: 'Improper integral: lim[t→∞] ∫₁ᵗ x⁻² dx'
+      },
+      {
+        id: 'step-2',
+        question: 'Find the antiderivative of x⁻²:',
+        options: ['-x⁻¹', '-1/x', 'Both are equivalent', 'x⁻¹/-1'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫x⁻² dx = x⁻¹/(-1) = -x⁻¹ = -1/x'
+      },
+      {
+        id: 'step-3',
+        question: 'Apply the limits: lim[t→∞] [-1/x]₁ᵗ',
+        options: ['lim[t→∞] (-1/t - (-1/1))', 'lim[t→∞] (-1/t + 1)', '0 + 1 = 1', 'All steps are correct'],
+        correctAnswer: 3,
+        marks: 3,
+        explanation: 'lim[t→∞] [-1/x]₁ᵗ = lim[t→∞] (-1/t + 1) = 0 + 1 = 1. The integral converges to 1.'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-g2-019',
+    mode: 'A2-Integration',
+    chapter: 'trig-substitution',
+    rank: { tier: 'Gold', subRank: 2 },
+    difficulty: 'A★',
+    questionText: 'Find ∫1/(4 + x²) dx using the result that ∫1/(a² + x²) dx = (1/a)arctan(x/a) + c',
+    totalMarks: 5,
+    estimatedTime: 6,
+    topicTags: ['trigonometric substitution', 'arctangent', 'standard forms'],
+    caieYear: 2023,
+    caieVariant: '33',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Identify a² in the form a² + x²:',
+        options: ['a² = 4, so a = 2', 'a² = 4, so a = ±2', 'a = 2 (positive)', 'a = 4'],
+        correctAnswer: 2,
+        marks: 1,
+        explanation: '4 + x² = 2² + x², so a = 2'
+      },
+      {
+        id: 'step-2',
+        question: 'Apply the standard form ∫1/(a² + x²) dx = (1/a)arctan(x/a) + c:',
+        options: ['(1/2)arctan(x/2) + c', 'arctan(x/2)/2 + c', 'Both are equivalent', 'arctan(x/4) + c'],
+        correctAnswer: 2,
+        marks: 4,
+        explanation: '∫1/(4 + x²) dx = ∫1/(2² + x²) dx = (1/2)arctan(x/2) + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-g2-020',
+    mode: 'A2-Integration',
+    chapter: 'exponential-substitution',
+    rank: { tier: 'Gold', subRank: 2 },
+    difficulty: 'A★',
+    questionText: 'Find ∫e^x/(e^x + 1) dx using substitution u = e^x + 1',
+    totalMarks: 6,
+    estimatedTime: 7,
+    topicTags: ['exponential substitution', 'logarithmic integration'],
+    caieYear: 2022,
+    caieVariant: '31',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'If u = e^x + 1, find du:',
+        options: ['du = e^x dx', 'du/dx = e^x', 'Both are equivalent', 'du = (e^x + 1) dx'],
+        correctAnswer: 2,
+        marks: 1,
+        explanation: 'u = e^x + 1, so du/dx = e^x, therefore du = e^x dx'
+      },
+      {
+        id: 'step-2',
+        question: 'Notice that the numerator is du:',
+        options: ['∫e^x/(e^x + 1) dx = ∫1/u du', 'This is now standard form', 'Both observations are correct', 'Need different substitution'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫e^x/(e^x + 1) dx = ∫du/u = ∫1/u du'
+      },
+      {
+        id: 'step-3',
+        question: 'Integrate and substitute back:',
+        options: ['ln|u| + c = ln|e^x + 1| + c', 'ln(e^x + 1) + c (since e^x + 1 > 0)', 'Both are correct', 'e^x + 1 + c'],
+        correctAnswer: 2,
+        marks: 3,
+        explanation: '∫1/u du = ln|u| + c = ln|e^x + 1| + c = ln(e^x + 1) + c'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-g3-021',
+    mode: 'A2-Integration',
+    chapter: 'reduction-formulas',
+    rank: { tier: 'Gold', subRank: 3 },
+    difficulty: 'A★',
+    questionText: 'Use the reduction formula to find ∫sin²(x) dx',
+    totalMarks: 6,
+    estimatedTime: 8,
+    topicTags: ['reduction formulas', 'trigonometric powers'],
+    caieYear: 2023,
+    caieVariant: '32',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Use sin²(x) = (1 - cos(2x))/2:',
+        options: ['∫(1 - cos(2x))/2 dx', '(1/2)∫(1 - cos(2x)) dx', 'Both are equivalent', 'Different identity needed'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: 'sin²(x) = (1 - cos(2x))/2, so ∫sin²(x) dx = (1/2)∫(1 - cos(2x)) dx'
+      },
+      {
+        id: 'step-2',
+        question: 'Integrate term by term:',
+        options: ['(1/2)[x - sin(2x)/2] + c', '(1/2)[x - sin(2x)/2]', 'x/2 - sin(2x)/4 + c', 'All expressions are related'],
+        correctAnswer: 2,
+        marks: 3,
+        explanation: '(1/2)∫(1 - cos(2x)) dx = (1/2)[x - sin(2x)/2] + c = x/2 - sin(2x)/4 + c'
+      },
+      {
+        id: 'step-3',
+        question: 'Final answer verification:',
+        options: ['∫sin²(x) dx = x/2 - sin(2x)/4 + c', 'This matches the reduction formula result', 'Both statements are correct', 'Need to verify by differentiation'],
+        correctAnswer: 2,
+        marks: 1,
+        explanation: 'The result x/2 - sin(2x)/4 + c is correct for ∫sin²(x) dx'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-g3-022',
+    mode: 'A2-Integration',
+    chapter: 'definite-area-between-curves',
+    rank: { tier: 'Gold', subRank: 3 },
+    difficulty: 'A★',
+    questionText: 'Find the area between y = x² and y = 2x from x = 0 to x = 2',
+    totalMarks: 8,
+    estimatedTime: 10,
+    topicTags: ['area between curves', 'definite integration'],
+    caieYear: 2022,
+    caieVariant: '33',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Find intersection points of y = x² and y = 2x:',
+        options: ['x² = 2x gives x = 0 and x = 2', 'x² - 2x = 0, so x(x - 2) = 0', 'Both methods give x = 0, 2', 'No intersection points'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: 'Setting x² = 2x gives x² - 2x = 0, so x(x - 2) = 0, thus x = 0 or x = 2'
+      },
+      {
+        id: 'step-2',
+        question: 'Determine which function is on top between x = 0 and x = 2:',
+        options: ['At x = 1: y = 2x gives y = 2, y = x² gives y = 1', 'So 2x > x² on (0, 2)', 'Both observations are correct', 'x² > 2x on this interval'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: 'Test at x = 1: 2(1) = 2 and 1² = 1, so 2x > x² between the intersection points'
+      },
+      {
+        id: 'step-3',
+        question: 'Set up the area integral:',
+        options: ['Area = ∫₀²(2x - x²) dx', 'Area = ∫₀²(upper - lower) dx', 'Both represent the correct setup', 'Area = ∫₀²(x² - 2x) dx'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: 'Area = ∫₀²(2x - x²) dx since 2x is the upper curve'
+      },
+      {
+        id: 'step-4',
+        question: 'Evaluate ∫₀²(2x - x²) dx = [x² - x³/3]₀²:',
+        options: ['(4 - 8/3) - (0) = 12/3 - 8/3 = 4/3', '4/3 square units', 'Both are correct', '8/3 square units'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '[x² - x³/3]₀² = (4 - 8/3) - 0 = 12/3 - 8/3 = 4/3 square units'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-g3-023',
+    mode: 'A2-Integration',
+    chapter: 'mean-value-integration',
+    rank: { tier: 'Gold', subRank: 3 },
+    difficulty: 'A★',
+    questionText: 'Find the mean value of f(x) = x³ + 2x over the interval [1, 3]',
+    totalMarks: 6,
+    estimatedTime: 7,
+    topicTags: ['mean value', 'definite integration', 'applications'],
+    caieYear: 2023,
+    caieVariant: '31',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Apply mean value formula: f̄ = (1/(b-a))∫ᵃᵇ f(x) dx:',
+        options: ['f̄ = (1/(3-1))∫₁³(x³ + 2x) dx', 'f̄ = (1/2)∫₁³(x³ + 2x) dx', 'Both are equivalent', 'f̄ = ∫₁³(x³ + 2x) dx'],
+        correctAnswer: 2,
+        marks: 1,
+        explanation: 'Mean value = (1/(3-1))∫₁³(x³ + 2x) dx = (1/2)∫₁³(x³ + 2x) dx'
+      },
+      {
+        id: 'step-2',
+        question: 'Find the antiderivative of x³ + 2x:',
+        options: ['x⁴/4 + x² + c', '(x⁴ + 4x²)/4 + c', 'Both are equivalent', 'x⁴/4 + 2x² + c'],
+        correctAnswer: 0,
+        marks: 2,
+        explanation: '∫(x³ + 2x) dx = x⁴/4 + x² + c'
+      },
+      {
+        id: 'step-3',
+        question: 'Evaluate [x⁴/4 + x²]₁³:',
+        options: ['(81/4 + 9) - (1/4 + 1) = 81/4 + 9 - 1/4 - 1', '80/4 + 8 = 20 + 8 = 28', 'Both calculations are correct', '(81/4 + 9) - (1/4 + 1) = 28'],
+        correctAnswer: 3,
+        marks: 2,
+        explanation: '[x⁴/4 + x²]₁³ = (81/4 + 9) - (1/4 + 1) = 80/4 + 8 = 28'
+      },
+      {
+        id: 'step-4',
+        question: 'Complete: f̄ = (1/2) × 28 = ?',
+        options: ['14', 'Mean value is 14', 'Both are correct', '28'],
+        correctAnswer: 2,
+        marks: 1,
+        explanation: 'Mean value = (1/2) × 28 = 14'
+      }
+    ]
+  },
+
+  {
+    id: 'a2-int-g3-024',
+    mode: 'A2-Integration',
+    chapter: 'kinematics-integration',
+    rank: { tier: 'Gold', subRank: 3 },
+    difficulty: 'A★',
+    questionText: 'A particle moves with acceleration a = 6t - 4. If v = 2 when t = 0 and s = 1 when t = 0, find expressions for v and s',
+    totalMarks: 8,
+    estimatedTime: 10,
+    topicTags: ['kinematics', 'differential equations', 'initial conditions'],
+    caieYear: 2022,
+    caieVariant: '32',
+    steps: [
+      {
+        id: 'step-1',
+        question: 'Since a = dv/dt = 6t - 4, integrate to find v:',
+        options: ['v = ∫(6t - 4) dt = 3t² - 4t + c₁', 'Need initial condition v = 2 when t = 0', 'Both statements are correct', 'v = 6t² - 4t + c₁'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫(6t - 4) dt = 3t² - 4t + c₁'
+      },
+      {
+        id: 'step-2',
+        question: 'Use v = 2 when t = 0 to find c₁:',
+        options: ['2 = 3(0)² - 4(0) + c₁', '2 = c₁', 'So v = 3t² - 4t + 2', 'All steps are correct'],
+        correctAnswer: 3,
+        marks: 2,
+        explanation: 'Substituting: 2 = 0 - 0 + c₁, so c₁ = 2. Therefore v = 3t² - 4t + 2'
+      },
+      {
+        id: 'step-3',
+        question: 'Since v = ds/dt = 3t² - 4t + 2, integrate to find s:',
+        options: ['s = ∫(3t² - 4t + 2) dt = t³ - 2t² + 2t + c₂', 'Need s = 1 when t = 0', 'Both statements are correct', 's = 3t³ - 4t² + 2t + c₂'],
+        correctAnswer: 2,
+        marks: 2,
+        explanation: '∫(3t² - 4t + 2) dt = t³ - 2t² + 2t + c₂'
+      },
+      {
+        id: 'step-4',
+        question: 'Use s = 1 when t = 0 to find c₂:',
+        options: ['1 = 0 - 0 + 0 + c₂, so c₂ = 1', 's = t³ - 2t² + 2t + 1', 'Both are correct', 'Final answers: v = 3t² - 4t + 2, s = t³ - 2t² + 2t + 1'],
+        correctAnswer: 3,
+        marks: 2,
+        explanation: 'c₂ = 1, so s = t³ - 2t² + 2t + 1'
+      }
+    ]
+  },
 
 ];
