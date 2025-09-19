@@ -155,8 +155,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                   </div>
                 </motion.div>
 
-                {/* Start Button */}
-                <Link to="/subject-selection">
+                {/* Modes Button */}
+                <Link to="/modes">
                   <motion.button
                     initial={{ x: -50, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
@@ -166,7 +166,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     className="w-full py-4 bg-gradient-to-r from-green-500 to-lime-400 text-black font-bold text-xl rounded-lg border-2 border-lime-300 hover:from-green-400 hover:to-lime-300 transition-all duration-200 flex items-center justify-center gap-3"
                   >
                     <Play className="w-6 h-6" />
-                    START
+                    MODES
                   </motion.button>
                 </Link>
               </div>

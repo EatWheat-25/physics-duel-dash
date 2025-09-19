@@ -8,6 +8,8 @@ import NotFound from "./pages/NotFound";
 import SubjectSelection from "./pages/SubjectSelection";
 import MathModes from "./pages/MathModes";
 import PhysicsModes from "./pages/PhysicsModes";
+import ModeSelection from "./pages/ModeSelection";
+import MatchmakingScreen from "./components/MatchmakingScreen";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +24,8 @@ const App = () => (
           <Route path="/subject-selection" element={<SubjectSelection />} />
           <Route path="/math-modes" element={<MathModes />} />
           <Route path="/physics-modes" element={<PhysicsModes />} />
+          <Route path="/modes" element={<ModeSelection />} />
+          <Route path="/matchmaking" element={<MatchmakingScreen />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
