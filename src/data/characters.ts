@@ -1,9 +1,17 @@
 import { Character } from "@/types/character";
 import cyberWarrior from "@/assets/characters/cyber-warrior-transparent.png";
 import mysticMage from "@/assets/characters/mystic-mage-transparent.png";
-import techNinja from "@/assets/characters/tech-ninja-transparent.png";
+import fortniteCharacter from "@/assets/characters/fortnite-character.png";
 
 export const characters: Character[] = [
+  {
+    id: "fortnite-warrior",
+    name: "Fortnite Warrior",
+    avatar: fortniteCharacter,
+    description: "Epic battle royale champion with mystical powers",
+    rarity: "legendary",
+    unlocked: true,
+  },
   {
     id: "cyber-warrior",
     name: "Cyber Warrior",
@@ -18,14 +26,6 @@ export const characters: Character[] = [
     avatar: mysticMage,
     description: "Master of ancient magical arts and mystical knowledge",
     rarity: "rare",
-    unlocked: true,
-  },
-  {
-    id: "tech-ninja",
-    name: "Tech Ninja",
-    avatar: techNinja,
-    description: "Silent assassin with cutting-edge technology",
-    rarity: "legendary",
     unlocked: true,
   },
 ];
