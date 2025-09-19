@@ -208,19 +208,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     START BATTLE
                   </motion.button>
                 ) : (
-                  <Link to="/modes">
-                    <motion.button
-                      initial={{ x: -50, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      transition={{ duration: 0.6, delay: 0.2 }}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold text-xl rounded-lg border-2 border-blue-300 hover:from-blue-400 hover:to-purple-400 transition-all duration-200 flex items-center justify-center gap-3"
-                    >
-                      <Target className="w-6 h-6" />
-                      SELECT MODE
-                    </motion.button>
-                  </Link>
+                    <Link to="/modes">
+                      <motion.button
+                        initial={{ x: -50, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ duration: 0.6, delay: 0.2 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold text-xl rounded-lg border-2 border-blue-300 hover:from-blue-400 hover:to-purple-400 transition-all duration-200 flex items-center justify-center gap-3"
+                      >
+                        <Play className="w-6 h-6" />
+                        START
+                      </motion.button>
+                    </Link>
                 )}
               </div>
             </div>
