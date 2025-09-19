@@ -6,6 +6,7 @@ import CyberBackground from './CyberBackground';
 import RankBadge from './RankBadge';
 import CharacterAvatar from './CharacterAvatar';
 import CharacterSelection from './CharacterSelection';
+import CharacterShowcase from './CharacterShowcase';
 import { useCharacter } from '@/hooks/useCharacter';
 import { UserRankData } from '@/types/ranking';
 
@@ -156,7 +157,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
         {selectedTab === "PLAY" && (
           <>
             {/* Left Section - Game Mode Selection */}
-            <div className="flex-1 p-8">
+            <div className="w-80 p-8">
               <div className="max-w-md">
                 {/* Modes Selection Card */}
                 {selectedSubject && selectedMode ? (
@@ -233,6 +234,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 )}
               </div>
             </div>
+
+            {/* Center Section - Character Showcase */}
+            <CharacterShowcase 
+              character={selectedCharacter} 
+              onCharacterClick={() => setCharacterSelectionOpen(true)}
+            />
 
             {/* Right Section - Battle Pass & Activities */}
             <div className="w-96 p-8 space-y-6">
