@@ -6,7 +6,7 @@ import CyberBackground from './CyberBackground';
 import RankBadge from './RankBadge';
 import CharacterAvatar from './CharacterAvatar';
 import CharacterSelection from './CharacterSelection';
-import CharacterShowcase from './CharacterShowcase';
+import FortniteStyleShowcase from './FortniteStyleShowcase';
 import { useCharacter } from '@/hooks/useCharacter';
 import { UserRankData } from '@/types/ranking';
 
@@ -236,7 +236,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             </div>
 
             {/* Center Section - Character Showcase */}
-            <CharacterShowcase 
+            <FortniteStyleShowcase 
               character={selectedCharacter} 
               onCharacterClick={() => setCharacterSelectionOpen(true)}
             />

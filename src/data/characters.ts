@@ -1,7 +1,7 @@
 import { Character } from "@/types/character";
-import cyberWarrior from "@/assets/characters/cyber-warrior.png";
-import mysticMage from "@/assets/characters/mystic-mage.png";
-import techNinja from "@/assets/characters/tech-ninja.png";
+import cyberWarrior from "@/assets/characters/cyber-warrior-transparent.png";
+import mysticMage from "@/assets/characters/mystic-mage-transparent.png";
+import techNinja from "@/assets/characters/tech-ninja-transparent.png";
 
 export const characters: Character[] = [
   {
