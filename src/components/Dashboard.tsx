@@ -4,6 +4,9 @@ import { Settings, LogOut, Play, Users, Target, BookOpen, Trophy, Star, ChevronR
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import CyberBackground from './CyberBackground';
 import RankBadge from './RankBadge';
+import CharacterAvatar from './CharacterAvatar';
+import CharacterSelection from './CharacterSelection';
+import { useCharacter } from '@/hooks/useCharacter';
 import { UserRankData } from '@/types/ranking';
 
 interface DashboardProps {
@@ -17,6 +20,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
   const [selectedTab, setSelectedTab] = useState("PLAY");
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { selectedCharacter, setCharacterSelectionOpen } = useCharacter();
   
   const selectedSubject = searchParams.get('subject');
   const selectedMode = searchParams.get('mode');
@@ -114,6 +118,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
 
         {/* User Info & Stats */}
         <div className="flex items-center gap-6">
+          {/* Character Avatar */}
+          <div className="flex items-center gap-4">
+            <CharacterAvatar 
+              character={selectedCharacter} 
+              size="sm" 
+              onClick={() => setCharacterSelectionOpen(true)}
+            />
+          </div>
+          
           <div className="flex items-center gap-4 text-sm text-foreground">
             <div className="flex items-center gap-1">
               <Trophy className="w-4 h-4 text-accent" />
@@ -329,6 +342,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
           </div>
         )}
       </div>
+      
+      {/* Character Selection Modal */}
+      <CharacterSelection />
     </div>
   );
 };
