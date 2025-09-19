@@ -52,21 +52,16 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				battle: {
-					bg: 'hsl(var(--battle-bg))',
-					primary: 'hsl(var(--battle-primary))',
-					secondary: 'hsl(var(--battle-secondary))',
-					success: 'hsl(var(--battle-success))',
-					danger: 'hsl(var(--battle-danger))',
-					warning: 'hsl(var(--battle-warning))',
-					card: 'hsl(var(--battle-card))',
-					'card-glow': 'hsl(var(--battle-card-glow))'
-				},
-				fragpunk: {
-					pink: 'hsl(var(--fragpunk-pink))',
-					yellow: 'hsl(var(--fragpunk-yellow))',
-					cyan: 'hsl(var(--fragpunk-cyan))',
-					black: 'hsl(var(--fragpunk-black))'
+				game: {
+					bg: 'hsl(var(--game-bg))',
+					surface: 'hsl(var(--game-surface))',
+					border: 'hsl(var(--game-border))',
+					accent: 'hsl(var(--game-accent))',
+					'accent-soft': 'hsl(var(--game-accent-soft))',
+					success: 'hsl(var(--game-success))',
+					warning: 'hsl(var(--game-warning))',
+					text: 'hsl(var(--game-text))',
+					'text-muted': 'hsl(var(--game-text-muted))'
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
