@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, LogOut, Play, Users, Target, BookOpen, Trophy, Star, ChevronRight, User, Bell } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import CyberBackground from './CyberBackground';
 import RankBadge from './RankBadge';
 import { UserRankData } from '@/types/ranking';
@@ -15,6 +15,22 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle, onStartPhysicsBattle, userData }) => {
   const [selectedTab, setSelectedTab] = useState("PLAY");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
+  const selectedSubject = searchParams.get('subject');
+  const selectedMode = searchParams.get('mode');
+
+  const handleStartSelectedMode = () => {
+    if (selectedSubject && selectedMode) {
+      navigate('/matchmaking', { 
+        state: { 
+          subject: selectedSubject, 
+          mode: selectedMode 
+        } 
+      });
+    }
+  };
 
   const mainMenuItems = [
     { id: "PLAY", label: "PLAY" },
@@ -136,39 +152,76 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             {/* Left Section - Game Mode Selection */}
             <div className="flex-1 p-8">
               <div className="max-w-md">
-                {/* Standard Mode Card */}
-                <motion.div
-                  initial={{ x: -50, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.6 }}
-                  className="mb-6 p-6 rounded-lg bg-gradient-to-r from-orange-500 to-yellow-500 border-2 border-yellow-300"
-                >
-                  <div className="flex items-center gap-4 mb-4">
-                    <BookOpen className="w-8 h-8 text-white" />
-                    <div>
-                      <h3 className="text-xl font-bold text-white">STANDARD</h3>
-                      <p className="text-white/80 text-sm">A-Level Mathematics</p>
+                {/* Modes Selection Card */}
+                {selectedSubject && selectedMode ? (
+                  <motion.div
+                    initial={{ x: -50, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.6 }}
+                    className="mb-6 p-6 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 border-2 border-green-300"
+                  >
+                    <div className="flex items-center gap-4 mb-4">
+                      <Target className="w-8 h-8 text-white" />
+                      <div>
+                        <h3 className="text-xl font-bold text-white">SELECTED MODE</h3>
+                        <p className="text-white/80 text-sm">{selectedSubject.toUpperCase()} - {selectedMode.replace('_', ' ')}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="w-full h-24 bg-black/20 rounded-lg mb-4 flex items-center justify-center">
-                    <span className="text-white/60 text-sm">Mode Preview</span>
-                  </div>
-                </motion.div>
+                    <div className="w-full h-24 bg-black/20 rounded-lg mb-4 flex items-center justify-center">
+                      <span className="text-white font-medium">Ready to Battle!</span>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <Link to="/modes">
+                    <motion.div
+                      initial={{ x: -50, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ duration: 0.6 }}
+                      className="mb-6 p-6 rounded-lg bg-gradient-to-r from-orange-500 to-yellow-500 border-2 border-yellow-300 cursor-pointer hover:scale-105 transition-transform duration-200"
+                    >
+                      <div className="flex items-center gap-4 mb-4">
+                        <BookOpen className="w-8 h-8 text-white" />
+                        <div>
+                          <h3 className="text-xl font-bold text-white">MODES</h3>
+                          <p className="text-white/80 text-sm">Choose Math or Physics</p>
+                        </div>
+                      </div>
+                      <div className="w-full h-24 bg-black/20 rounded-lg mb-4 flex items-center justify-center">
+                        <span className="text-white/60 text-sm">Select Your Battle Mode</span>
+                      </div>
+                    </motion.div>
+                  </Link>
+                )}
 
-                {/* Modes Button */}
-                <Link to="/modes">
+                {/* Start Button */}
+                {selectedSubject && selectedMode ? (
                   <motion.button
                     initial={{ x: -50, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.6, delay: 0.2 }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    onClick={handleStartSelectedMode}
                     className="w-full py-4 bg-gradient-to-r from-green-500 to-lime-400 text-black font-bold text-xl rounded-lg border-2 border-lime-300 hover:from-green-400 hover:to-lime-300 transition-all duration-200 flex items-center justify-center gap-3"
                   >
                     <Play className="w-6 h-6" />
-                    MODES
+                    START BATTLE
                   </motion.button>
-                </Link>
+                ) : (
+                  <Link to="/modes">
+                    <motion.button
+                      initial={{ x: -50, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ duration: 0.6, delay: 0.2 }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="w-full py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold text-xl rounded-lg border-2 border-blue-300 hover:from-blue-400 hover:to-purple-400 transition-all duration-200 flex items-center justify-center gap-3"
+                    >
+                      <Target className="w-6 h-6" />
+                      SELECT MODE
+                    </motion.button>
+                  </Link>
+                )}
               </div>
             </div>
 

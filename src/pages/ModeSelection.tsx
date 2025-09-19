@@ -85,12 +85,7 @@ const ModeSelection: React.FC = () => {
 
   const handleStartBattle = () => {
     if (selectedSubject && selectedMode) {
-      navigate('/matchmaking', { 
-        state: { 
-          subject: selectedSubject, 
-          mode: selectedMode 
-        } 
-      });
+      navigate(`/?subject=${selectedSubject}&mode=${selectedMode}`);
     }
   };
 
