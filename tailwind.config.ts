@@ -62,6 +62,12 @@ export default {
 					card: 'hsl(var(--battle-card))',
 					'card-glow': 'hsl(var(--battle-card-glow))'
 				},
+				fragpunk: {
+					pink: 'hsl(var(--fragpunk-pink))',
+					yellow: 'hsl(var(--fragpunk-yellow))',
+					cyan: 'hsl(var(--fragpunk-cyan))',
+					black: 'hsl(var(--fragpunk-black))'
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',

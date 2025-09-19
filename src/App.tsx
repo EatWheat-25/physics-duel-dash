@@ -10,6 +10,7 @@ import MathModes from "./pages/MathModes";
 import PhysicsModes from "./pages/PhysicsModes";
 import ModeSelection from "./pages/ModeSelection";
 import MatchmakingScreen from "./components/MatchmakingScreen";
+import GameModes from "./components/GameModes";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/math-modes" element={<MathModes />} />
           <Route path="/physics-modes" element={<PhysicsModes />} />
           <Route path="/modes" element={<ModeSelection />} />
+          <Route path="/game-modes" element={<GameModes />} />
           <Route path="/matchmaking" element={<MatchmakingScreen />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

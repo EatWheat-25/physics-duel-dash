@@ -43,6 +43,12 @@ All colors MUST be HSL.
     --cyber-purple: 260 75% 50%;     /* #784BA0 */
     --cyber-navy: 221 39% 11%;       /* #0A0F1C */
     
+    /* FragPunk Gaming Colors */
+    --fragpunk-pink: 328 100% 50%;   /* #FF007F */
+    --fragpunk-yellow: 60 100% 50%;  /* #FAFF00 */
+    --fragpunk-cyan: 188 100% 50%;   /* #00F5FF */
+    --fragpunk-black: 0 0% 8%;       /* #141414 */
+    
     /* Battle Colors */
     --battle-primary: 214 100% 50%;     /* #007BFF - Blue for Player/Ally */
     --battle-danger: 0 84% 60%;         /* #E53E3E - Red for Opponent */
