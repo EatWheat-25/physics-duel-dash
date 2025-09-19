@@ -95,11 +95,10 @@ const ModeSelection: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute top-1/4 right-1/3 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-1/3 left-1/4 w-80 h-80 bg-accent/10 rounded-full blur-3xl"></div>
-      </div>
+      {/* Premium Background Effects */}
+      <div className="premium-grid"></div>
+      <div className="floating-element floating-blue w-32 h-32 top-1/3 right-1/4" style={{ animationDelay: '0s' }}></div>
+      <div className="floating-element floating-purple w-24 h-24 bottom-1/3 left-1/4" style={{ animationDelay: '3s' }}></div>
 
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
@@ -124,7 +123,7 @@ const ModeSelection: React.FC = () => {
                 transition={{ duration: 0.8 }}
                 className="text-center mb-16"
               >
-                <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-accent-blue to-accent-purple bg-clip-text text-transparent">
                   Choose Your Subject
                 </h1>
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -142,17 +141,17 @@ const ModeSelection: React.FC = () => {
                   >
                     <div 
                       onClick={() => setSelectedSubject(subject.id as 'math' | 'physics')}
-                      className="cyber-card p-12 hover:scale-105 transition-all duration-300 cursor-pointer group"
+                      className="premium-card p-12 hover:scale-105 transition-all duration-300 cursor-pointer group bg-white/70 hover:bg-white/90"
                     >
                       <div className="text-center">
-                        <div className={`w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-r ${subject.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
+                        <div className={`w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-r ${subject.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
                           <subject.icon className="w-12 h-12 text-white" />
                         </div>
                         <h2 className="text-4xl font-bold mb-4 text-foreground">{subject.title}</h2>
                         <p className="text-lg text-muted-foreground mb-6">
                           {subject.description}
                         </p>
-                        <div className="flex items-center justify-center gap-2 text-primary font-semibold">
+                        <div className="flex items-center justify-center gap-2 text-accent-blue font-semibold">
                           <span>Enter Battle Arena</span>
                           <motion.div
                             animate={{ x: [0, 5, 0] }}
@@ -183,7 +182,7 @@ const ModeSelection: React.FC = () => {
                   >
                     <ArrowLeft className="w-6 h-6" />
                   </button>
-                  <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  <h1 className="text-5xl font-bold bg-gradient-to-r from-accent-blue to-accent-purple bg-clip-text text-transparent">
                     {selectedSubject === 'math' ? 'Mathematics' : 'Physics'} Modes
                   </h1>
                 </div>
@@ -202,20 +201,20 @@ const ModeSelection: React.FC = () => {
                   >
                     <div 
                       onClick={() => handleModeSelect(mode.id)}
-                      className={`cyber-card p-8 hover:scale-105 transition-all duration-300 cursor-pointer group ${
-                        selectedMode === mode.id ? 'ring-2 ring-primary' : ''
+                      className={`premium-card p-8 hover:scale-105 transition-all duration-300 cursor-pointer group bg-white/70 hover:bg-white/90 ${
+                        selectedMode === mode.id ? 'ring-2 ring-accent-blue shadow-lg' : ''
                       }`}
                     >
                       <div className="text-center">
-                        <div className={`w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r ${mode.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
+                        <div className={`w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r ${mode.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md`}>
                           <span className="text-2xl font-bold text-white">
                             {mode.id === 'A1' ? 'A1' : mode.id === 'A2_ONLY' ? 'A2' : 'A★'}
                           </span>
                         </div>
                         <h3 className="text-2xl font-bold mb-2 text-foreground">{mode.title}</h3>
-                        <p className="text-sm text-accent mb-3">{mode.subtitle}</p>
+                        <p className="text-sm text-accent-blue mb-3">{mode.subtitle}</p>
                         <p className="text-sm text-muted-foreground mb-4">{mode.description}</p>
-                        <div className="inline-block px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-semibold">
+                        <div className="inline-block px-3 py-1 rounded-full bg-accent-blue/10 text-accent-blue text-xs font-semibold border border-accent-blue/20">
                           {mode.difficulty}
                         </div>
                       </div>
@@ -231,7 +230,7 @@ const ModeSelection: React.FC = () => {
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.5 }}
                   onClick={handleStartBattle}
-                  className="px-12 py-4 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold text-xl rounded-lg hover:scale-105 transition-all duration-200 flex items-center gap-3"
+                  className="premium-button px-12 py-4 bg-gradient-to-r from-accent-blue to-accent-purple text-white font-bold text-xl rounded-lg hover:scale-105 transition-all duration-200 flex items-center gap-3 shadow-lg"
                 >
                   <Play className="w-6 h-6" />
                   START BATTLE

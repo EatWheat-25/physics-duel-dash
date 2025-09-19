@@ -8,100 +8,100 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Neon Cyber Gaming Theme - Valorant x Duolingo inspired */
-    --background: 221 39% 11%;  /* Deep navy/charcoal #0A0F1C */
-    --foreground: 0 0% 100%;
+    /* Premium White & Grey Theme - Clean and Modern */
+    --background: 0 0% 100%;          /* Pure white #FFFFFF */
+    --foreground: 0 0% 15%;           /* Dark grey #262626 */
 
-    --card: 221 39% 11%;
-    --card-foreground: 0 0% 100%;
+    --card: 0 0% 98%;                 /* Very light grey #FAFAFA */
+    --card-foreground: 0 0% 15%;
 
-    --popover: 221 39% 15%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 15%;
 
-    --primary: 194 100% 50%;  /* Electric cyan #00E5FF */
-    --primary-foreground: 221 39% 11%;
+    --primary: 0 0% 20%;              /* Charcoal #333333 */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 221 39% 15%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;            /* Light grey #F5F5F5 */
+    --secondary-foreground: 0 0% 20%;
 
-    --muted: 221 39% 15%;
-    --muted-foreground: 220 9% 65%;
+    --muted: 0 0% 94%;                /* Soft grey #F0F0F0 */
+    --muted-foreground: 0 0% 45%;     /* Medium grey #737373 */
 
-    --accent: 320 68% 62%;  /* Neon magenta #FF3CAC */
-    --accent-foreground: 0 0% 100%;
+    --accent: 0 0% 85%;               /* Silver grey #D9D9D9 */
+    --accent-foreground: 0 0% 15%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 75% 55%;         /* Elegant red */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 221 39% 20%;
-    --input: 221 39% 15%;
-    --ring: 194 100% 50%;
+    --border: 0 0% 90%;               /* Light border #E6E6E6 */
+    --input: 0 0% 98%;
+    --ring: 0 0% 30%;
 
-    /* Cyber Neon Colors */
-    --cyber-cyan: 194 100% 50%;      /* #00E5FF */
-    --cyber-pink: 320 68% 62%;       /* #FF3CAC */
-    --cyber-purple: 260 75% 50%;     /* #784BA0 */
-    --cyber-navy: 221 39% 11%;       /* #0A0F1C */
+    /* Premium Grey Palette */
+    --grey-50: 0 0% 98%;              /* #FAFAFA */
+    --grey-100: 0 0% 96%;             /* #F5F5F5 */
+    --grey-200: 0 0% 90%;             /* #E6E6E6 */
+    --grey-300: 0 0% 85%;             /* #D9D9D9 */
+    --grey-400: 0 0% 70%;             /* #B3B3B3 */
+    --grey-500: 0 0% 55%;             /* #8C8C8C */
+    --grey-600: 0 0% 45%;             /* #737373 */
+    --grey-700: 0 0% 30%;             /* #4D4D4D */
+    --grey-800: 0 0% 20%;             /* #333333 */
+    --grey-900: 0 0% 10%;             /* #1A1A1A */
     
-    /* FragPunk Gaming Colors */
-    --fragpunk-pink: 328 100% 50%;   /* #FF007F */
-    --fragpunk-yellow: 60 100% 50%;  /* #FAFF00 */
-    --fragpunk-cyan: 188 100% 50%;   /* #00F5FF */
-    --fragpunk-black: 0 0% 8%;       /* #141414 */
+    /* Elegant Accent Colors */
+    --accent-blue: 210 100% 55%;      /* Premium blue #0080FF */
+    --accent-purple: 250 75% 60%;     /* Elegant purple #7C3AED */
+    --accent-emerald: 160 85% 45%;    /* Sophisticated green #0D9488 */
+    --accent-amber: 45 95% 50%;       /* Warm amber #F59E0B */
     
-    /* Battle Colors */
-    --battle-primary: 214 100% 50%;     /* #007BFF - Blue for Player/Ally */
-    --battle-danger: 0 84% 60%;         /* #E53E3E - Red for Opponent */
-    --battle-bg: 221 39% 11%;           /* Dark background */
-    --battle-secondary: 0 0% 50%;       /* Neutral gray */
-    --battle-success: 120 60% 50%;      /* Green for success */
-    --battle-warning: 45 100% 50%;      /* Orange for warning */
-    --battle-card: 221 39% 15%;         /* Card background */
-    --battle-card-glow: 194 100% 50%;   /* Cyan glow */
+    /* Battle Colors - Refined */
+    --battle-primary: 210 100% 55%;   /* Premium blue */
+    --battle-danger: 0 75% 55%;       /* Elegant red */
+    --battle-bg: 0 0% 100%;           /* White background */
+    --battle-secondary: 0 0% 55%;     /* Neutral grey */
+    --battle-success: 140 70% 45%;    /* Refined green */
+    --battle-warning: 35 90% 55%;     /* Warm orange */
+    --battle-card: 0 0% 98%;          /* Card background */
+    --battle-card-glow: 210 100% 55%; /* Blue glow */
     
-    /* Rank Colors */
-    --rank-bronze: 25 95% 63%;       /* #FF9F45 */
-    --rank-silver: 0 0% 75%;         /* #C0C0C0 */
-    --rank-gold: 51 100% 50%;        /* #FFD700 */
-    --rank-diamond: 185 100% 50%;    /* #00FFF7 */
-    --rank-sigma: 280 100% 56%;      /* #A020F0 */
+    /* Rank Colors - Premium */
+    --rank-bronze: 30 85% 55%;        /* #D97706 */
+    --rank-silver: 0 0% 60%;          /* #999999 */
+    --rank-gold: 45 95% 50%;          /* #F59E0B */
+    --rank-diamond: 200 95% 50%;      /* #0EA5E9 */
+    --rank-sigma: 270 85% 60%;        /* #8B5CF6 */
     
-    /* Glassmorphism & Glow Effects */
-    --glass-bg: hsla(221, 39%, 11%, 0.4);
-    --glass-border: hsla(194, 100%, 50%, 0.2);
-    --glass-glow: 0 0 40px hsla(194, 100%, 50%, 0.15);
+    /* Glass & Modern Effects */
+    --glass-bg: hsla(0, 0%, 100%, 0.8);
+    --glass-border: hsla(0, 0%, 85%, 0.3);
+    --glass-glow: 0 8px 32px hsla(0, 0%, 0%, 0.1);
     
-    /* Neon Gradients */
-    --gradient-cyber: linear-gradient(135deg, hsl(194 100% 50%), hsl(320 68% 62%));
-    --gradient-neon: linear-gradient(135deg, hsl(320 68% 62%), hsl(260 75% 50%));
-    --gradient-bg: radial-gradient(ellipse at top, hsl(221 39% 15%) 0%, hsl(221 39% 11%) 100%);
-    --gradient-card: linear-gradient(135deg, hsla(221, 39%, 15%, 0.8), hsla(221, 39%, 20%, 0.4));
-    --gradient-glow: linear-gradient(135deg, hsla(194, 100%, 50%, 0.1), hsla(320, 68%, 62%, 0.1));
+    /* Premium Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(0 0% 98%), hsl(0 0% 94%));
+    --gradient-accent: linear-gradient(135deg, hsl(210 100% 55%), hsl(250 75% 60%));
+    --gradient-bg: radial-gradient(ellipse at top, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
+    --gradient-card: linear-gradient(135deg, hsla(0, 0%, 100%, 0.9), hsla(0, 0%, 98%, 0.7));
+    --gradient-glow: linear-gradient(135deg, hsla(210, 100%, 55%, 0.05), hsla(250, 75%, 60%, 0.05));
     
-    /* Enhanced Shadows */
-    --shadow-cyber-glow: 0 0 30px hsla(194, 100%, 50%, 0.4), 0 0 60px hsla(194, 100%, 50%, 0.1);
-    --shadow-neon-glow: 0 0 30px hsla(320, 68%, 62%, 0.4), 0 0 60px hsla(320, 68%, 62%, 0.1);
-    --shadow-glass: 0 8px 32px hsla(221, 39%, 11%, 0.6);
-    --shadow-intense: 0 0 100px hsla(194, 100%, 50%, 0.3);
-    --shadow-purple: 0 0 40px hsla(280, 100%, 56%, 0.5);
+    /* Enhanced Shadows - Soft & Premium */
+    --shadow-soft: 0 4px 16px hsla(0, 0%, 0%, 0.08);
+    --shadow-medium: 0 8px 32px hsla(0, 0%, 0%, 0.12);
+    --shadow-large: 0 16px 64px hsla(0, 0%, 0%, 0.16);
+    --shadow-premium: 0 24px 80px hsla(0, 0%, 0%, 0.12);
+    --shadow-glow-blue: 0 0 40px hsla(210, 100%, 55%, 0.2);
+    --shadow-glow-purple: 0 0 40px hsla(250, 75%, 60%, 0.2);
 
     --radius: 1rem;
 
     --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
+    --sidebar-foreground: 0 0% 20%;
+    --sidebar-primary: 0 0% 15%;
     --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 15%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 210 100% 55%;
   }
 
   .dark {
@@ -155,217 +155,219 @@ All colors MUST be HSL.
     min-height: 100vh;
     font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
     overflow-x: hidden;
+    position: relative;
+  }
+  
+  /* Beautiful Background Scenery */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -2;
+    background: 
+      /* Mountain silhouettes */
+      radial-gradient(ellipse 800px 320px at 50% 100%, hsl(0 0% 92%) 0%, transparent 50%),
+      radial-gradient(ellipse 600px 250px at 30% 100%, hsl(0 0% 94%) 0%, transparent 50%),
+      radial-gradient(ellipse 700px 300px at 70% 100%, hsl(0 0% 90%) 0%, transparent 50%),
+      /* Cloud layers */
+      radial-gradient(ellipse 400px 80px at 20% 20%, hsla(0, 0%, 96%, 0.8) 0%, transparent 50%),
+      radial-gradient(ellipse 300px 60px at 60% 15%, hsla(0, 0%, 98%, 0.7) 0%, transparent 50%),
+      radial-gradient(ellipse 350px 70px at 80% 25%, hsla(0, 0%, 94%, 0.6) 0%, transparent 50%),
+      /* Sky gradient */
+      linear-gradient(180deg, 
+        hsl(210 100% 98%) 0%, 
+        hsl(210 50% 96%) 20%, 
+        hsl(0 0% 98%) 40%, 
+        hsl(0 0% 100%) 100%
+      );
+  }
+  
+  /* Floating geometric elements */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    opacity: 0.03;
+    background-image: 
+      radial-gradient(circle at 10% 20%, hsl(210 100% 55%) 0%, transparent 50%),
+      radial-gradient(circle at 90% 80%, hsl(250 75% 60%) 0%, transparent 50%),
+      radial-gradient(circle at 40% 60%, hsl(160 85% 45%) 0%, transparent 30%);
+    animation: float-bg 20s ease-in-out infinite;
+  }
+  
+  @keyframes float-bg {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    33% { transform: translateY(-20px) rotate(1deg); }
+    66% { transform: translateY(-10px) rotate(-0.5deg); }
   }
 }
 
 @layer components {
-  /* Cyber Gaming Components */
-  .cyber-card {
+  /* Premium Modern Components */
+  .premium-card {
     @apply rounded-2xl border backdrop-blur-xl;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-glow), var(--shadow-glass);
+    box-shadow: var(--shadow-soft);
     backdrop-filter: blur(20px);
     position: relative;
   }
 
-  .cyber-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: inherit;
-    background: var(--gradient-glow);
-    z-index: -1;
+  .premium-card:hover {
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
   }
 
-  .cyber-button {
-    @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-500 relative overflow-hidden;
-    background: var(--gradient-cyber);
-    box-shadow: var(--shadow-cyber-glow);
-    text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
-    border: 1px solid hsla(194, 100%, 50%, 0.3);
+  .premium-button {
+    @apply px-6 py-4 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300 relative overflow-hidden;
+    background: var(--gradient-accent);
+    color: white;
+    box-shadow: var(--shadow-soft);
+    border: 1px solid hsla(210, 100%, 55%, 0.2);
   }
 
-  .cyber-button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, hsla(194, 100%, 80%, 0.2), transparent);
-    transition: left 0.5s;
+  .premium-button:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-medium), var(--shadow-glow-blue);
   }
 
-  .cyber-button:hover::before {
-    left: 100%;
+  .premium-button-secondary {
+    @apply px-6 py-4 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300;
+    background: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+    box-shadow: var(--shadow-soft);
+    border: 1px solid hsl(var(--border));
   }
 
-  .cyber-button:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: var(--shadow-intense);
-    animation: pulse-glow 2s infinite;
+  .premium-button-secondary:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-medium);
+    background: hsl(var(--accent));
   }
 
-  .cyber-button-neon {
-    @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-500 relative overflow-hidden;
-    background: var(--gradient-neon);
-    box-shadow: var(--shadow-neon-glow);
-    text-shadow: 0 0 10px rgba(255, 60, 172, 0.5);
-    border: 1px solid hsla(320, 68%, 62%, 0.3);
-  }
-
-  .cyber-button-neon:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 0 80px hsla(320, 68%, 62%, 0.4);
-  }
-
-  @keyframes pulse-glow {
-    0%, 100% { box-shadow: var(--shadow-cyber-glow); }
-    50% { box-shadow: var(--shadow-intense); }
-  }
-
-  .glassmorphism {
-    background: var(--glass-bg);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-glow);
-  }
-
-  /* Enhanced Input */
-  .cyber-input {
+  /* Modern Glass Input */
+  .premium-input {
     @apply bg-transparent border rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground transition-all duration-300;
     background: var(--glass-bg);
     border-color: var(--glass-border);
     backdrop-filter: blur(10px);
   }
 
-  .cyber-input:focus {
+  .premium-input:focus {
     outline: none;
-    border-color: hsl(194 100% 50%);
-    box-shadow: var(--shadow-cyber-glow);
+    border-color: hsl(var(--primary));
+    box-shadow: var(--shadow-glow-blue);
   }
 
-  /* Animated Cyber Grid Background */
-  .cyber-grid {
+  /* Subtle Grid Pattern */
+  .premium-grid {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     pointer-events: none;
-    opacity: 0.03;
-    z-index: 0;
+    opacity: 0.02;
+    z-index: -1;
     background-image: 
-      linear-gradient(rgba(0, 229, 255, 0.1) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 229, 255, 0.1) 1px, transparent 1px);
-    background-size: 50px 50px;
-    animation: grid-move 20s linear infinite;
+      linear-gradient(hsl(var(--border)) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px);
+    background-size: 60px 60px;
+    animation: grid-drift 30s linear infinite;
   }
 
-  @keyframes grid-move {
+  @keyframes grid-drift {
     0% { transform: translate(0, 0); }
-    100% { transform: translate(50px, 50px); }
+    100% { transform: translate(60px, 60px); }
   }
 
-  /* Floating Particles */
-  .particles {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .particle {
+  /* Floating Elements Animation */
+  .floating-element {
     position: absolute;
     border-radius: 50%;
-    animation: float-particle 8s ease-in-out infinite;
+    animation: float-gentle 8s ease-in-out infinite;
   }
 
-  .particle-cyan {
-    background: radial-gradient(circle, hsl(194 100% 50% / 0.8), hsl(194 100% 50% / 0));
-    box-shadow: 0 0 20px hsl(194 100% 50% / 0.5);
+  .floating-blue {
+    background: radial-gradient(circle, hsla(210, 100%, 55%, 0.1), transparent);
   }
 
-  .particle-pink {
-    background: radial-gradient(circle, hsl(320 68% 62% / 0.8), hsl(320 68% 62% / 0));
-    box-shadow: 0 0 20px hsl(320 68% 62% / 0.5);
+  .floating-purple {
+    background: radial-gradient(circle, hsla(250, 75%, 60%, 0.1), transparent);
   }
 
-  @keyframes float-particle {
+  @keyframes float-gentle {
     0%, 100% {
-      transform: translateY(0px) translateX(0px) scale(1);
+      transform: translateY(0px) translateX(0px);
       opacity: 0.3;
     }
-    25% {
-      transform: translateY(-30px) translateX(20px) scale(1.1);
-      opacity: 0.8;
-    }
     50% {
-      transform: translateY(-15px) translateX(-10px) scale(0.9);
-      opacity: 1;
-    }
-    75% {
-      transform: translateY(-40px) translateX(-20px) scale(1.05);
-      opacity: 0.6;
+      transform: translateY(-20px) translateX(10px);
+      opacity: 0.7;
     }
   }
 
-  /* Progress Bar Enhancements */
-  .cyber-progress {
-    @apply relative h-3 rounded-full overflow-hidden;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  /* Enhanced Progress Bar */
+  .premium-progress {
+    @apply relative h-2 rounded-full overflow-hidden;
+    background: hsl(var(--muted));
+    box-shadow: inset 0 1px 2px hsla(0, 0%, 0%, 0.1);
   }
 
-  .cyber-progress-fill {
+  .premium-progress-fill {
     @apply h-full transition-all duration-1000 ease-out;
-    background: var(--gradient-cyber);
-    box-shadow: 0 0 20px hsl(194 100% 50% / 0.4);
-    animation: progress-glow 2s ease-in-out infinite alternate;
+    background: var(--gradient-accent);
+    box-shadow: 0 0 10px hsla(210, 100%, 55%, 0.3);
   }
 
-  @keyframes progress-glow {
-    from { box-shadow: 0 0 10px hsl(194 100% 50% / 0.4); }
-    to { box-shadow: 0 0 30px hsl(194 100% 50% / 0.8); }
+  /* Modern Stats Card */
+  .stat-card-premium {
+    @apply premium-card p-6 text-center relative;
   }
 
-  /* Stats Card Enhancement */
-  .stat-card {
-    @apply cyber-card p-4 text-center relative;
-  }
-
-  .stat-number {
-    @apply text-3xl font-bold;
-    background: var(--gradient-cyber);
+  .stat-number-premium {
+    @apply text-3xl font-bold mb-2;
+    background: var(--gradient-accent);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    filter: drop-shadow(0 0 10px hsl(194 100% 50% / 0.3));
   }
 
-  .stat-label {
-    @apply text-xs uppercase tracking-widest font-medium;
-    color: hsl(220 9% 65%);
+  .stat-label-premium {
+    @apply text-sm font-medium;
+    color: hsl(var(--muted-foreground));
   }
 
-  /* Legacy classes for backward compatibility */
+  /* Legacy compatibility - updated to match new theme */
+  .cyber-card {
+    @apply premium-card;
+  }
+
+  .cyber-button {
+    @apply premium-button;
+  }
+
+  .cyber-button-neon {
+    @apply premium-button;
+  }
+
   .valorant-card {
-    @apply cyber-card;
+    @apply premium-card;
   }
 
   .valorant-button {
-    @apply cyber-button;
+    @apply premium-button;
   }
 
   .valorant-button-accent {
-    @apply cyber-button-neon;
+    @apply premium-button;
   }
 }
