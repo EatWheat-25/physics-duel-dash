@@ -1,14 +1,14 @@
 import { Character } from "@/types/character";
 import cyberWarrior from "@/assets/characters/cyber-warrior-transparent.png";
 import mysticMage from "@/assets/characters/mystic-mage-transparent.png";
-import fortniteCharacter from "@/assets/characters/fortnite-character.png";
+import animeCharacter from "@/assets/characters/anime-character.png";
 
 export const characters: Character[] = [
   {
-    id: "fortnite-warrior",
-    name: "Fortnite Warrior",
-    avatar: fortniteCharacter,
-    description: "Epic battle royale champion with mystical powers",
+    id: "anime-hero",
+    name: "Anime Hero",
+    avatar: animeCharacter,
+    description: "Cheerful and brave hero ready for any challenge",
     rarity: "legendary",
     unlocked: true,
   },
