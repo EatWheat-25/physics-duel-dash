@@ -8,82 +8,74 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Neon Cyber Gaming Theme - Valorant x Duolingo inspired */
-    --background: 221 39% 11%;  /* Deep navy/charcoal #0A0F1C */
-    --foreground: 0 0% 100%;
+    /* Premium White & Grey Theme - Clean & Elegant */
+    --background: 0 0% 100%;     /* Pure white */
+    --foreground: 222 84% 5%;    /* Nearly black */
 
-    --card: 221 39% 11%;
-    --card-foreground: 0 0% 100%;
+    --card: 0 0% 98%;            /* Off-white */
+    --card-foreground: 222 84% 5%;
 
-    --popover: 221 39% 15%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 84% 5%;
 
-    --primary: 194 100% 50%;  /* Electric cyan #00E5FF */
-    --primary-foreground: 221 39% 11%;
+    --primary: 222 47% 11%;      /* Deep charcoal */
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 221 39% 15%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;    /* Light grey */
+    --secondary-foreground: 222 84% 5%;
 
-    --muted: 221 39% 15%;
-    --muted-foreground: 220 9% 65%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 320 68% 62%;  /* Neon magenta #FF3CAC */
-    --accent-foreground: 0 0% 100%;
+    --accent: 215 28% 17%;       /* Dark grey */
+    --accent-foreground: 0 0% 98%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 221 39% 20%;
-    --input: 221 39% 15%;
-    --ring: 194 100% 50%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 222 47% 11%;
 
-    /* Cyber Neon Colors */
-    --cyber-cyan: 194 100% 50%;      /* #00E5FF */
-    --cyber-pink: 320 68% 62%;       /* #FF3CAC */
-    --cyber-purple: 260 75% 50%;     /* #784BA0 */
-    --cyber-navy: 221 39% 11%;       /* #0A0F1C */
+    /* Premium Grey Tones */
+    --grey-50: 220 14% 96%;      /* Lightest grey */
+    --grey-100: 220 13% 91%;     /* Very light grey */
+    --grey-200: 220 14% 83%;     /* Light grey */
+    --grey-300: 216 12% 64%;     /* Medium light grey */
+    --grey-400: 218 11% 65%;     /* Medium grey */
+    --grey-500: 220 9% 46%;      /* True medium grey */
+    --grey-600: 215 14% 34%;     /* Medium dark grey */
+    --grey-700: 215 28% 17%;     /* Dark grey */
+    --grey-800: 222 47% 11%;     /* Very dark grey */
+    --grey-900: 222 84% 5%;      /* Nearly black */
     
-    /* FragPunk Gaming Colors */
-    --fragpunk-pink: 328 100% 50%;   /* #FF007F */
-    --fragpunk-yellow: 60 100% 50%;  /* #FAFF00 */
-    --fragpunk-cyan: 188 100% 50%;   /* #00F5FF */
-    --fragpunk-black: 0 0% 8%;       /* #141414 */
+    /* Elegant Gradients */
+    --gradient-elegant: linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(220 14% 96%) 100%);
+    --gradient-subtle: linear-gradient(135deg, hsl(220 14% 96%) 0%, hsl(220 13% 91%) 100%);
+    --gradient-deep: linear-gradient(135deg, hsl(215 28% 17%) 0%, hsl(222 47% 11%) 100%);
+    --gradient-overlay: linear-gradient(135deg, hsla(0, 0%, 100%, 0.8) 0%, hsla(220, 14%, 96%, 0.4) 100%);
     
-    /* Battle Colors */
-    --battle-primary: 214 100% 50%;     /* #007BFF - Blue for Player/Ally */
-    --battle-danger: 0 84% 60%;         /* #E53E3E - Red for Opponent */
-    --battle-bg: 221 39% 11%;           /* Dark background */
-    --battle-secondary: 0 0% 50%;       /* Neutral gray */
-    --battle-success: 120 60% 50%;      /* Green for success */
-    --battle-warning: 45 100% 50%;      /* Orange for warning */
-    --battle-card: 221 39% 15%;         /* Card background */
-    --battle-card-glow: 194 100% 50%;   /* Cyan glow */
+    /* Refined Shadows */
+    --shadow-elegant: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+    --shadow-premium: 0 4px 6px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-luxe: 0 10px 25px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.1);
+    --shadow-deep: 0 20px 40px rgba(0, 0, 0, 0.2), 0 8px 16px rgba(0, 0, 0, 0.15);
     
-    /* Rank Colors */
-    --rank-bronze: 25 95% 63%;       /* #FF9F45 */
-    --rank-silver: 0 0% 75%;         /* #C0C0C0 */
-    --rank-gold: 51 100% 50%;        /* #FFD700 */
-    --rank-diamond: 185 100% 50%;    /* #00FFF7 */
-    --rank-sigma: 280 100% 56%;      /* #A020F0 */
+    /* Mountain Scenery Background */
+    --mountain-bg: linear-gradient(
+      180deg, 
+      hsl(0 0% 100%) 0%, 
+      hsl(220 14% 98%) 20%,
+      hsl(220 13% 94%) 40%,
+      hsl(216 12% 88%) 60%,
+      hsl(220 9% 82%) 80%,
+      hsl(215 14% 76%) 100%
+    );
     
-    /* Glassmorphism & Glow Effects */
-    --glass-bg: hsla(221, 39%, 11%, 0.4);
-    --glass-border: hsla(194, 100%, 50%, 0.2);
-    --glass-glow: 0 0 40px hsla(194, 100%, 50%, 0.15);
-    
-    /* Neon Gradients */
-    --gradient-cyber: linear-gradient(135deg, hsl(194 100% 50%), hsl(320 68% 62%));
-    --gradient-neon: linear-gradient(135deg, hsl(320 68% 62%), hsl(260 75% 50%));
-    --gradient-bg: radial-gradient(ellipse at top, hsl(221 39% 15%) 0%, hsl(221 39% 11%) 100%);
-    --gradient-card: linear-gradient(135deg, hsla(221, 39%, 15%, 0.8), hsla(221, 39%, 20%, 0.4));
-    --gradient-glow: linear-gradient(135deg, hsla(194, 100%, 50%, 0.1), hsla(320, 68%, 62%, 0.1));
-    
-    /* Enhanced Shadows */
-    --shadow-cyber-glow: 0 0 30px hsla(194, 100%, 50%, 0.4), 0 0 60px hsla(194, 100%, 50%, 0.1);
-    --shadow-neon-glow: 0 0 30px hsla(320, 68%, 62%, 0.4), 0 0 60px hsla(320, 68%, 62%, 0.1);
-    --shadow-glass: 0 8px 32px hsla(221, 39%, 11%, 0.6);
-    --shadow-intense: 0 0 100px hsla(194, 100%, 50%, 0.3);
-    --shadow-purple: 0 0 40px hsla(280, 100%, 56%, 0.5);
+    /* Glass morphism for premium feel */
+    --glass-white: hsla(0, 0%, 100%, 0.25);
+    --glass-border: hsla(0, 0%, 100%, 0.18);
+    --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.1);
 
     --radius: 1rem;
 
@@ -151,22 +143,66 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-    background: var(--gradient-bg);
+    background: var(--mountain-bg);
     min-height: 100vh;
     font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
     overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Premium Mountain Scenery */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    background: 
+      /* Floating elements */
+      radial-gradient(circle at 20% 30%, hsla(220, 14%, 96%, 0.4) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, hsla(220, 13%, 91%, 0.3) 0%, transparent 50%),
+      radial-gradient(circle at 60% 70%, hsla(216, 12%, 88%, 0.2) 0%, transparent 50%),
+      
+      /* Mountain silhouettes */
+      polygon(0% 70%, 20% 50%, 40% 65%, 60% 45%, 80% 60%, 100% 40%, 100% 100%, 0% 100%) hsla(215, 14%, 90%, 0.3),
+      polygon(0% 80%, 25% 60%, 50% 75%, 75% 55%, 100% 65%, 100% 100%, 0% 100%) hsla(220, 9%, 85%, 0.2);
+    
+    background-size: 
+      800px 600px,
+      600px 400px,
+      400px 300px,
+      100% 100%,
+      100% 100%;
+    
+    background-position:
+      -200px -100px,
+      calc(100% + 100px) -50px,
+      50% 20%,
+      0 0,
+      0 0;
+    
+    animation: float-scenery 20s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes float-scenery {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
   }
 }
 
 @layer components {
-  /* Cyber Gaming Components */
+  /* Premium Card Components */
   .cyber-card {
-    @apply rounded-2xl border backdrop-blur-xl;
-    background: var(--glass-bg);
+    @apply rounded-3xl border backdrop-blur-xl relative;
+    background: var(--glass-white);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-glow), var(--shadow-glass);
+    box-shadow: var(--shadow-premium);
     backdrop-filter: blur(20px);
     position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .cyber-card::before {
@@ -177,8 +213,20 @@ All colors MUST be HSL.
     right: 0;
     bottom: 0;
     border-radius: inherit;
-    background: var(--gradient-glow);
+    background: var(--gradient-overlay);
     z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .cyber-card:hover::before {
+    opacity: 1;
+  }
+
+  .cyber-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-luxe);
+    border-color: hsla(222, 47%, 11%, 0.2);
   }
 
   .cyber-button {
