@@ -8,46 +8,46 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Premium White & Grey Theme - Clean and Modern */
-    --background: 0 0% 100%;          /* Pure white #FFFFFF */
-    --foreground: 0 0% 15%;           /* Dark grey #262626 */
+    /* Premium Dark & Grey Theme - Sophisticated and Modern */
+    --background: 0 0% 8%;            /* Very dark grey #141414 */
+    --foreground: 0 0% 95%;           /* Light grey #F2F2F2 */
 
-    --card: 0 0% 98%;                 /* Very light grey #FAFAFA */
-    --card-foreground: 0 0% 15%;
+    --card: 0 0% 12%;                 /* Dark card #1F1F1F */
+    --card-foreground: 0 0% 90%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 15%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 90%;
 
-    --primary: 0 0% 20%;              /* Charcoal #333333 */
-    --primary-foreground: 0 0% 100%;
+    --primary: 0 0% 85%;              /* Light primary #D9D9D9 */
+    --primary-foreground: 0 0% 10%;
 
-    --secondary: 0 0% 96%;            /* Light grey #F5F5F5 */
-    --secondary-foreground: 0 0% 20%;
+    --secondary: 0 0% 15%;            /* Dark secondary #262626 */
+    --secondary-foreground: 0 0% 85%;
 
-    --muted: 0 0% 94%;                /* Soft grey #F0F0F0 */
-    --muted-foreground: 0 0% 45%;     /* Medium grey #737373 */
+    --muted: 0 0% 18%;                /* Dark muted #2E2E2E */
+    --muted-foreground: 0 0% 65%;     /* Light muted text #A6A6A6 */
 
-    --accent: 0 0% 85%;               /* Silver grey #D9D9D9 */
-    --accent-foreground: 0 0% 15%;
+    --accent: 0 0% 25%;               /* Dark accent #404040 */
+    --accent-foreground: 0 0% 90%;
 
     --destructive: 0 75% 55%;         /* Elegant red */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%;               /* Light border #E6E6E6 */
-    --input: 0 0% 98%;
-    --ring: 0 0% 30%;
+    --border: 0 0% 20%;               /* Dark border #333333 */
+    --input: 0 0% 12%;
+    --ring: 0 0% 70%;
 
-    /* Premium Grey Palette */
-    --grey-50: 0 0% 98%;              /* #FAFAFA */
-    --grey-100: 0 0% 96%;             /* #F5F5F5 */
-    --grey-200: 0 0% 90%;             /* #E6E6E6 */
-    --grey-300: 0 0% 85%;             /* #D9D9D9 */
-    --grey-400: 0 0% 70%;             /* #B3B3B3 */
+    /* Premium Dark Grey Palette */
+    --grey-50: 0 0% 5%;               /* #0D0D0D */
+    --grey-100: 0 0% 10%;             /* #1A1A1A */
+    --grey-200: 0 0% 15%;             /* #262626 */
+    --grey-300: 0 0% 25%;             /* #404040 */
+    --grey-400: 0 0% 40%;             /* #666666 */
     --grey-500: 0 0% 55%;             /* #8C8C8C */
-    --grey-600: 0 0% 45%;             /* #737373 */
-    --grey-700: 0 0% 30%;             /* #4D4D4D */
-    --grey-800: 0 0% 20%;             /* #333333 */
-    --grey-900: 0 0% 10%;             /* #1A1A1A */
+    --grey-600: 0 0% 70%;             /* #B3B3B3 */
+    --grey-700: 0 0% 80%;             /* #CCCCCC */
+    --grey-800: 0 0% 90%;             /* #E6E6E6 */
+    --grey-900: 0 0% 95%;             /* #F2F2F2 */
     
     /* Elegant Accent Colors */
     --accent-blue: 210 100% 55%;      /* Premium blue #0080FF */
@@ -55,14 +55,14 @@ All colors MUST be HSL.
     --accent-emerald: 160 85% 45%;    /* Sophisticated green #0D9488 */
     --accent-amber: 45 95% 50%;       /* Warm amber #F59E0B */
     
-    /* Battle Colors - Refined */
+    /* Battle Colors - Dark & Refined */
     --battle-primary: 210 100% 55%;   /* Premium blue */
     --battle-danger: 0 75% 55%;       /* Elegant red */
-    --battle-bg: 0 0% 100%;           /* White background */
+    --battle-bg: 0 0% 8%;             /* Dark background */
     --battle-secondary: 0 0% 55%;     /* Neutral grey */
     --battle-success: 140 70% 45%;    /* Refined green */
     --battle-warning: 35 90% 55%;     /* Warm orange */
-    --battle-card: 0 0% 98%;          /* Card background */
+    --battle-card: 0 0% 12%;          /* Dark card */
     --battle-card-glow: 210 100% 55%; /* Blue glow */
     
     /* Rank Colors - Premium */
@@ -72,17 +72,17 @@ All colors MUST be HSL.
     --rank-diamond: 200 95% 50%;      /* #0EA5E9 */
     --rank-sigma: 270 85% 60%;        /* #8B5CF6 */
     
-    /* Glass & Modern Effects */
-    --glass-bg: hsla(0, 0%, 100%, 0.8);
-    --glass-border: hsla(0, 0%, 85%, 0.3);
-    --glass-glow: 0 8px 32px hsla(0, 0%, 0%, 0.1);
+    /* Glass & Modern Effects - Dark Theme */
+    --glass-bg: hsla(0, 0%, 10%, 0.8);
+    --glass-border: hsla(0, 0%, 25%, 0.3);
+    --glass-glow: 0 8px 32px hsla(0, 0%, 0%, 0.6);
     
-    /* Premium Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(0 0% 98%), hsl(0 0% 94%));
+    /* Premium Dark Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(0 0% 12%), hsl(0 0% 8%));
     --gradient-accent: linear-gradient(135deg, hsl(210 100% 55%), hsl(250 75% 60%));
-    --gradient-bg: radial-gradient(ellipse at top, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
-    --gradient-card: linear-gradient(135deg, hsla(0, 0%, 100%, 0.9), hsla(0, 0%, 98%, 0.7));
-    --gradient-glow: linear-gradient(135deg, hsla(210, 100%, 55%, 0.05), hsla(250, 75%, 60%, 0.05));
+    --gradient-bg: radial-gradient(ellipse at top, hsl(0 0% 8%) 0%, hsl(0 0% 5%) 100%);
+    --gradient-card: linear-gradient(135deg, hsla(0, 0%, 12%, 0.9), hsla(0, 0%, 8%, 0.7));
+    --gradient-glow: linear-gradient(135deg, hsla(210, 100%, 55%, 0.1), hsla(250, 75%, 60%, 0.1));
     
     /* Enhanced Shadows - Soft & Premium */
     --shadow-soft: 0 4px 16px hsla(0, 0%, 0%, 0.08);
@@ -158,7 +158,7 @@ All colors MUST be HSL.
     position: relative;
   }
   
-  /* Beautiful Background Scenery */
+  /* Beautiful Dark Background Scenery */
   body::before {
     content: '';
     position: fixed;
@@ -168,20 +168,20 @@ All colors MUST be HSL.
     height: 100%;
     z-index: -2;
     background: 
-      /* Mountain silhouettes */
-      radial-gradient(ellipse 800px 320px at 50% 100%, hsl(0 0% 92%) 0%, transparent 50%),
-      radial-gradient(ellipse 600px 250px at 30% 100%, hsl(0 0% 94%) 0%, transparent 50%),
-      radial-gradient(ellipse 700px 300px at 70% 100%, hsl(0 0% 90%) 0%, transparent 50%),
-      /* Cloud layers */
-      radial-gradient(ellipse 400px 80px at 20% 20%, hsla(0, 0%, 96%, 0.8) 0%, transparent 50%),
-      radial-gradient(ellipse 300px 60px at 60% 15%, hsla(0, 0%, 98%, 0.7) 0%, transparent 50%),
-      radial-gradient(ellipse 350px 70px at 80% 25%, hsla(0, 0%, 94%, 0.6) 0%, transparent 50%),
-      /* Sky gradient */
+      /* Dark mountain silhouettes */
+      radial-gradient(ellipse 800px 320px at 50% 100%, hsl(0 0% 18%) 0%, transparent 50%),
+      radial-gradient(ellipse 600px 250px at 30% 100%, hsl(0 0% 15%) 0%, transparent 50%),
+      radial-gradient(ellipse 700px 300px at 70% 100%, hsl(0 0% 12%) 0%, transparent 50%),
+      /* Dark cloud layers */
+      radial-gradient(ellipse 400px 80px at 20% 20%, hsla(0, 0%, 25%, 0.4) 0%, transparent 50%),
+      radial-gradient(ellipse 300px 60px at 60% 15%, hsla(0, 0%, 30%, 0.3) 0%, transparent 50%),
+      radial-gradient(ellipse 350px 70px at 80% 25%, hsla(0, 0%, 20%, 0.2) 0%, transparent 50%),
+      /* Dark sky gradient */
       linear-gradient(180deg, 
-        hsl(210 100% 98%) 0%, 
-        hsl(210 50% 96%) 20%, 
-        hsl(0 0% 98%) 40%, 
-        hsl(0 0% 100%) 100%
+        hsl(0 0% 10%) 0%, 
+        hsl(0 0% 8%) 20%, 
+        hsl(0 0% 6%) 40%, 
+        hsl(0 0% 5%) 100%
       );
   }
   
