@@ -133,42 +133,171 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
       <div className="relative z-10 flex min-h-[calc(100vh-80px)]">
         {selectedTab === "PLAY" && (
           <>
-            {/* Left Section - Game Mode Selection */}
+            {/* Game Mode Selection Grid */}
             <div className="flex-1 p-8">
-              <div className="max-w-md">
-                {/* Standard Mode Card */}
-                <motion.div
-                  initial={{ x: -50, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.6 }}
-                  className="mb-6 p-6 rounded-lg bg-gradient-to-r from-orange-500 to-yellow-500 border-2 border-yellow-300"
-                >
-                  <div className="flex items-center gap-4 mb-4">
-                    <BookOpen className="w-8 h-8 text-white" />
-                    <div>
-                      <h3 className="text-xl font-bold text-white">STANDARD</h3>
-                      <p className="text-white/80 text-sm">A-Level Mathematics</p>
-                    </div>
-                  </div>
-                  <div className="w-full h-24 bg-black/20 rounded-lg mb-4 flex items-center justify-center">
-                    <span className="text-white/60 text-sm">Mode Preview</span>
-                  </div>
-                </motion.div>
+              <motion.div
+                initial={{ y: -30, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8 }}
+                className="text-center mb-8"
+              >
+                <h2 className="text-4xl font-bold mb-2 text-white">SELECT GAME MODE</h2>
+                <p className="text-white/70">Choose your battle arena and dominate</p>
+              </motion.div>
 
-                {/* Start Button */}
-                <Link to="/subject-selection">
-                  <motion.button
-                    initial={{ x: -50, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ duration: 0.6, delay: 0.2 }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full py-4 bg-gradient-to-r from-green-500 to-lime-400 text-black font-bold text-xl rounded-lg border-2 border-lime-300 hover:from-green-400 hover:to-lime-300 transition-all duration-200 flex items-center justify-center gap-3"
-                  >
-                    <Play className="w-6 h-6" />
-                    START
-                  </motion.button>
-                </Link>
+              {/* Mathematics Modes */}
+              <div className="mb-8">
+                <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="text-3xl">📚</span>
+                  MATHEMATICS BATTLES
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    {
+                      id: "A1-Only",
+                      title: "A1 ONLY",
+                      subtitle: "AS LEVEL",
+                      icon: "📚",
+                      gradient: "from-emerald-500 to-teal-600",
+                      difficulty: "BEGINNER",
+                      players: "2.1M+"
+                    },
+                    {
+                      id: "All-Maths", 
+                      title: "A1 + A2 MIXED",
+                      subtitle: "FULL A-LEVEL",
+                      icon: "📊",
+                      gradient: "from-purple-500 to-pink-600", 
+                      difficulty: "EXPERT",
+                      players: "986K+"
+                    },
+                    {
+                      id: "A2-Only",
+                      title: "A2 ONLY",
+                      subtitle: "ADVANCED",
+                      icon: "∫",
+                      gradient: "from-orange-500 to-red-600",
+                      difficulty: "ADVANCED", 
+                      players: "1.8M+"
+                    },
+                    {
+                      id: "A2-Integration",
+                      title: "A2 PAPER 3",
+                      subtitle: "INTEGRATION",
+                      icon: "∬",
+                      gradient: "from-violet-500 to-purple-600",
+                      difficulty: "EXPERT",
+                      players: "542K+"
+                    }
+                  ].map((mode, index) => (
+                    <motion.div
+                      key={mode.id}
+                      initial={{ y: 50, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ duration: 0.6, delay: index * 0.1 }}
+                      className="bg-black/40 backdrop-blur-sm rounded-lg p-4 border border-white/20 hover:border-white/40 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+                      onClick={() => onStartMathBattle(mode.id as any)}
+                    >
+                      <div className={`absolute inset-0 bg-gradient-to-br ${mode.gradient} opacity-0 group-hover:opacity-20 transition-opacity duration-300`} />
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-2xl">{mode.icon}</div>
+                          <div className={`px-2 py-1 rounded-full text-xs font-bold bg-gradient-to-r ${mode.gradient} text-white`}>
+                            {mode.difficulty}
+                          </div>
+                        </div>
+                        
+                        <h4 className="text-lg font-bold text-white mb-1">{mode.title}</h4>
+                        <p className="text-sm text-white/60 mb-3">{mode.subtitle}</p>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                            <span className="text-xs text-white/60">{mode.players}</span>
+                          </div>
+                          <button className="flex items-center gap-1 px-3 py-1 bg-white/10 hover:bg-white/20 rounded transition-colors">
+                            <Play className="w-3 h-3 text-white" />
+                            <span className="text-xs font-semibold text-white">PLAY</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Physics Modes */}
+              <div>
+                <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="text-3xl">⚡</span>
+                  PHYSICS BATTLES
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    {
+                      id: "A1",
+                      title: "A1 ONLY",
+                      subtitle: "AS LEVEL",
+                      icon: "⚡",
+                      gradient: "from-yellow-500 to-orange-600",
+                      difficulty: "BEGINNER",
+                      players: "1.9M+"
+                    },
+                    {
+                      id: "A2",
+                      title: "A1 + A2 MIXED", 
+                      subtitle: "FULL A-LEVEL",
+                      icon: "🔬",
+                      gradient: "from-purple-500 to-pink-600",
+                      difficulty: "EXPERT",
+                      players: "845K+"
+                    },
+                    {
+                      id: "A2_ONLY",
+                      title: "A2 ONLY",
+                      subtitle: "ADVANCED",
+                      icon: "⚛️",
+                      gradient: "from-blue-500 to-indigo-600",
+                      difficulty: "ADVANCED",
+                      players: "1.2M+"
+                    }
+                  ].map((mode, index) => (
+                    <motion.div
+                      key={mode.id}
+                      initial={{ y: 50, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ duration: 0.6, delay: 0.4 + index * 0.1 }}
+                      className="bg-black/40 backdrop-blur-sm rounded-lg p-4 border border-white/20 hover:border-white/40 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+                      onClick={() => onStartPhysicsBattle(mode.id as any)}
+                    >
+                      <div className={`absolute inset-0 bg-gradient-to-br ${mode.gradient} opacity-0 group-hover:opacity-20 transition-opacity duration-300`} />
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-2xl">{mode.icon}</div>
+                          <div className={`px-2 py-1 rounded-full text-xs font-bold bg-gradient-to-r ${mode.gradient} text-white`}>
+                            {mode.difficulty}
+                          </div>
+                        </div>
+                        
+                        <h4 className="text-lg font-bold text-white mb-1">{mode.title}</h4>
+                        <p className="text-sm text-white/60 mb-3">{mode.subtitle}</p>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                            <span className="text-xs text-white/60">{mode.players}</span>
+                          </div>
+                          <button className="flex items-center gap-1 px-3 py-1 bg-white/10 hover:bg-white/20 rounded transition-colors">
+                            <Play className="w-3 h-3 text-white" />
+                            <span className="text-xs font-semibold text-white">PLAY</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               </div>
             </div>
 
