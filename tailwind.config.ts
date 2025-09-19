@@ -52,24 +52,6 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				// Premium grey palette
-				grey: {
-					50: 'hsl(var(--grey-50))',
-					100: 'hsl(var(--grey-100))',
-					200: 'hsl(var(--grey-200))',
-					300: 'hsl(var(--grey-300))',
-					400: 'hsl(var(--grey-400))',
-					500: 'hsl(var(--grey-500))',
-					600: 'hsl(var(--grey-600))',
-					700: 'hsl(var(--grey-700))',
-					800: 'hsl(var(--grey-800))',
-					900: 'hsl(var(--grey-900))'
-				},
-				// Elegant accent colors
-				'accent-blue': 'hsl(var(--accent-blue))',
-				'accent-purple': 'hsl(var(--accent-purple))',
-				'accent-emerald': 'hsl(var(--accent-emerald))',
-				'accent-amber': 'hsl(var(--accent-amber))',
 				battle: {
 					bg: 'hsl(var(--battle-bg))',
 					primary: 'hsl(var(--battle-primary))',
@@ -79,6 +61,12 @@ export default {
 					warning: 'hsl(var(--battle-warning))',
 					card: 'hsl(var(--battle-card))',
 					'card-glow': 'hsl(var(--battle-card-glow))'
+				},
+				fragpunk: {
+					pink: 'hsl(var(--fragpunk-pink))',
+					yellow: 'hsl(var(--fragpunk-yellow))',
+					cyan: 'hsl(var(--fragpunk-cyan))',
+					black: 'hsl(var(--fragpunk-black))'
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
