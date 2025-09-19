@@ -56,165 +56,225 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-hidden">
-      {/* Top Right Stats */}
-      <div className="absolute top-6 right-6 z-50 flex items-center gap-6 text-sm">
-        <div className="flex items-center gap-2">
-          <Star className="w-4 h-4 text-yellow-500" />
-          <span>1/2</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Trophy className="w-4 h-4 text-primary" />
-          <span>{userData.currentPoints}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Target className="w-4 h-4 text-accent" />
-          <span>{userData.accuracy}</span>
-        </div>
-        <button className="p-2 hover:bg-muted/20 rounded transition-colors">
-          <Settings className="w-5 h-5" />
-        </button>
+    <div className="min-h-screen text-foreground overflow-hidden relative">
+      {/* Vibrant Diagonal Stripe Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-pink-500 via-purple-600 to-orange-400">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `linear-gradient(45deg, 
+            transparent 25%, 
+            rgba(255,255,255,0.1) 25%, 
+            rgba(255,255,255,0.1) 50%, 
+            transparent 50%, 
+            transparent 75%, 
+            rgba(255,255,255,0.1) 75%
+          )`,
+          backgroundSize: '60px 60px'
+        }} />
+        <div className="absolute inset-0" style={{
+          backgroundImage: `linear-gradient(-45deg, 
+            rgba(255,193,7,0.3) 0%, 
+            rgba(233,30,99,0.3) 50%, 
+            rgba(156,39,176,0.3) 100%
+          )`
+        }} />
       </div>
 
-      {/* Background Effects */}
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute top-1/4 right-1/3 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-1/3 left-1/4 w-80 h-80 bg-accent/10 rounded-full blur-3xl"></div>
-      </div>
-
-      <div className="flex min-h-screen">
-        {/* Left Navigation - Valorant Style */}
-        <div className="w-80 bg-card/10 backdrop-blur-sm border-r border-border/20 flex flex-col p-6">
-          {/* Logo */}
-          <div className="mb-12">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              BATTLE ARENA
-            </h1>
-            <p className="text-muted-foreground text-sm">A-LEVEL MATHEMATICS</p>
-          </div>
-
-          {/* Navigation Menu */}
-          <div className="flex-1 space-y-3">
-            {mainMenuItems.map((item, index) => (
-              <motion.button
+      {/* Top Navigation Bar */}
+      <div className="relative z-10 flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10">
+        {/* Logo */}
+        <div className="flex items-center gap-8">
+          <h1 className="text-2xl font-bold text-white">BATTLE ARENA</h1>
+          
+          {/* Navigation Items */}
+          <div className="flex items-center gap-6">
+            {mainMenuItems.map((item) => (
+              <button
                 key={item.id}
-                initial={{ x: -50, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
                 onClick={() => setSelectedTab(item.id)}
-                className={`w-full text-left p-4 text-2xl font-bold tracking-wider transition-all duration-300 relative group ${
+                className={`px-4 py-2 text-sm font-medium transition-all duration-200 ${
                   selectedTab === item.id 
-                    ? 'text-primary' 
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'text-yellow-400 border-b-2 border-yellow-400' 
+                    : 'text-white/80 hover:text-white'
                 }`}
               >
-                <div className="flex items-center gap-4">
-                  <div className={`w-1 h-8 transition-all duration-300 ${
-                    selectedTab === item.id ? 'bg-primary' : 'bg-transparent'
-                  }`} />
-                  {item.label}
-                </div>
-                {selectedTab === item.id && (
-                  <motion.div
-                    layoutId="activeMenuItem"
-                    className="absolute right-4 top-1/2 -translate-y-1/2"
-                  >
-                    <ChevronRight className="w-6 h-6 text-primary" />
-                  </motion.div>
-                )}
-              </motion.button>
+                {item.label}
+              </button>
             ))}
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col p-12">
-          {selectedTab === "PLAY" && (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
+        {/* User Info & Stats */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 text-sm text-white">
+            <div className="flex items-center gap-1">
+              <Trophy className="w-4 h-4 text-yellow-400" />
+              <span>{userData.currentPoints}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Target className="w-4 h-4 text-green-400" />
+              <span>{userData.accuracy}%</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-400 to-purple-500 flex items-center justify-center text-sm font-bold text-white">
+              {userData.username.charAt(0).toUpperCase()}
+            </div>
+            <span className="text-white font-medium">{userData.username}</span>
+          </div>
+          
+          <button className="p-2 hover:bg-white/10 rounded transition-colors">
+            <Settings className="w-5 h-5 text-white" />
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="relative z-10 flex min-h-[calc(100vh-80px)]">
+        {selectedTab === "PLAY" && (
+          <>
+            {/* Left Section - Game Mode Selection */}
+            <div className="flex-1 p-8">
+              <div className="max-w-md">
+                {/* Standard Mode Card */}
+                <motion.div
+                  initial={{ x: -50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ duration: 0.6 }}
+                  className="mb-6 p-6 rounded-lg bg-gradient-to-r from-orange-500 to-yellow-500 border-2 border-yellow-300"
+                >
+                  <div className="flex items-center gap-4 mb-4">
+                    <BookOpen className="w-8 h-8 text-white" />
+                    <div>
+                      <h3 className="text-xl font-bold text-white">STANDARD</h3>
+                      <p className="text-white/80 text-sm">A-Level Mathematics</p>
+                    </div>
+                  </div>
+                  <div className="w-full h-24 bg-black/20 rounded-lg mb-4 flex items-center justify-center">
+                    <span className="text-white/60 text-sm">Mode Preview</span>
+                  </div>
+                </motion.div>
+
+                {/* Start Button */}
                 <Link to="/subject-selection">
                   <motion.button
-                    className="cyber-button flex items-center gap-4 px-12 py-6 text-2xl font-bold"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    initial={{ x: -50, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.6, delay: 0.2 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-4 bg-gradient-to-r from-green-500 to-lime-400 text-black font-bold text-xl rounded-lg border-2 border-lime-300 hover:from-green-400 hover:to-lime-300 transition-all duration-200 flex items-center justify-center gap-3"
                   >
-                    <Play className="w-8 h-8" />
-                    START BATTLE
+                    <Play className="w-6 h-6" />
+                    START
                   </motion.button>
                 </Link>
               </div>
             </div>
-          )}
 
-          {selectedTab !== "PLAY" && (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <h3 className="text-3xl font-bold mb-4 text-muted-foreground">Coming Soon</h3>
-                <p className="text-lg text-muted-foreground">{selectedTab} section is under development</p>
-              </div>
-            </div>
-          )}
-        </div>
+            {/* Right Section - Battle Pass & Activities */}
+            <div className="w-96 p-8 space-y-6">
+              {/* Battle Pass */}
+              <motion.div
+                initial={{ x: 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-4 border border-blue-300"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 bg-white/20 rounded flex items-center justify-center text-white font-bold">
+                    22
+                  </div>
+                  <span className="text-white font-bold">BATTLE PASS</span>
+                </div>
+                <div className="w-full h-16 bg-black/30 rounded-lg"></div>
+              </motion.div>
 
-        {/* Right Panel */}
-        <div className="w-96 p-6 space-y-6">
-          {/* Player Info */}
-          <motion.div
-            initial={{ x: 50, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="cyber-card p-6"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-primary to-accent flex items-center justify-center text-xl font-bold">
-                {userData.username.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <h3 className="text-xl font-bold">{userData.username}</h3>
-                <RankBadge rank={userData.currentRank} size="sm" />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Progress</span>
-                <span>{userData.currentPoints} / 100</span>
-              </div>
-              <div className="w-full bg-muted/20 rounded h-2">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-primary to-accent rounded"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${userData.currentPoints}%` }}
-                  transition={{ duration: 1.2, delay: 0.8 }}
-                />
-              </div>
-            </div>
-          </motion.div>
+              {/* Challenges */}
+              <motion.div
+                initial={{ x: 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="bg-black/40 backdrop-blur-sm rounded-lg p-4 border border-white/20"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-white font-bold">CHALLENGES</span>
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-white" />
+                    <span className="text-white text-sm">3/5</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-white/20 rounded-full">
+                    <div className="h-full w-3/5 bg-green-400 rounded-full"></div>
+                  </div>
+                </div>
+              </motion.div>
 
-          {/* Stats */}
-          <motion.div
-            initial={{ x: 50, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="cyber-card p-6"
-          >
-            <h4 className="text-lg font-bold mb-4">PERFORMANCE</h4>
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Win Streak</span>
-                <span className="font-bold text-primary">{userData.winStreak}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Matches</span>
-                <span className="font-bold">{userData.totalMatches}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Accuracy</span>
-                <span className="font-bold text-accent">{userData.accuracy}%</span>
-              </div>
+              {/* Activity */}
+              <motion.div
+                initial={{ x: 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="bg-black/40 backdrop-blur-sm rounded-lg p-4 border border-white/20"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <Star className="w-5 h-5 text-yellow-400" />
+                  <span className="text-white font-bold">ACTIVITY</span>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg"></div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium">Daily Challenge</p>
+                      <p className="text-white/60 text-xs">Solve 5 problems</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg"></div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium">Weekly Goal</p>
+                      <p className="text-white/60 text-xs">Win 3 battles</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Performance Stats */}
+              <motion.div
+                initial={{ x: 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                className="bg-black/40 backdrop-blur-sm rounded-lg p-4 border border-white/20"
+              >
+                <h4 className="text-white font-bold mb-4">PERFORMANCE</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-white/70 text-sm">Win Streak</span>
+                    <span className="text-green-400 font-bold">{userData.winStreak}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/70 text-sm">Total Matches</span>
+                    <span className="text-white font-bold">{userData.totalMatches}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/70 text-sm">Current Rank</span>
+                    <RankBadge rank={userData.currentRank} size="sm" />
+                  </div>
+                </div>
+              </motion.div>
             </div>
-          </motion.div>
-        </div>
+          </>
+        )}
+
+        {selectedTab !== "PLAY" && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <h3 className="text-4xl font-bold mb-4 text-white">Coming Soon</h3>
+              <p className="text-xl text-white/80">{selectedTab} section is under development</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
