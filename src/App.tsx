@@ -13,6 +13,8 @@ import MatchmakingScreen from "./components/MatchmakingScreen";
 import GameModes from "./components/GameModes";
 import StepBattlePage from "./components/StepBattlePage";
 import BattlePageNew from "./components/BattlePageNew";
+import { getStepMathQuestions } from "./data/stepMathQuestions";
+import { getRandomQuestions } from "./data/questions";
 
 const queryClient = new QueryClient();
 
@@ -30,8 +32,8 @@ const App = () => (
           <Route path="/modes" element={<ModeSelection />} />
           <Route path="/game-modes" element={<GameModes />} />
           <Route path="/matchmaking" element={<MatchmakingScreen />} />
-          <Route path="/battle" element={<StepBattlePage questions={[]} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
-          <Route path="/physics-battle" element={<BattlePageNew questions={[]} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
+          <Route path="/battle" element={<StepBattlePage questions={getStepMathQuestions(undefined, undefined, 3)} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
+          <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
