@@ -147,23 +147,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               <div className="max-w-md">
                 {/* Modes Selection Card */}
                 {selectedSubject && selectedMode ? (
-                  <motion.div
-                    initial={{ x: -50, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ duration: 0.6 }}
-                    className="cyber-card mb-6 p-6 border border-primary/30"
-                  >
-                    <div className="flex items-center gap-4 mb-4">
-                      <Target className="w-8 h-8 text-primary" />
-                      <div>
-                        <h3 className="text-xl font-bold text-foreground">SELECTED MODE</h3>
-                        <p className="text-muted-foreground text-sm">{selectedSubject.toUpperCase()} - {selectedMode.replace('_', ' ')}</p>
+                  <Link to="/modes">
+                    <motion.div
+                      initial={{ x: -50, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ duration: 0.6 }}
+                      className="cyber-card mb-6 p-6 border border-primary/30 cursor-pointer hover:scale-105 transition-transform duration-200"
+                    >
+                      <div className="flex items-center gap-4 mb-4">
+                        <Target className="w-8 h-8 text-primary" />
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-foreground">SELECTED MODE</h3>
+                          <p className="text-muted-foreground text-sm">{selectedSubject.toUpperCase()} - {selectedMode.replace('_', ' ')}</p>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
                       </div>
-                    </div>
-                    <div className="w-full h-24 bg-secondary/50 rounded-lg mb-4 flex items-center justify-center border border-border">
-                      <span className="text-foreground font-medium">Ready to Battle!</span>
-                    </div>
-                  </motion.div>
+                      <div className="w-full h-24 bg-secondary/50 rounded-lg mb-4 flex items-center justify-center border border-border">
+                        <span className="text-foreground font-medium">Ready to Battle! Click to change mode</span>
+                      </div>
+                    </motion.div>
+                  </Link>
                 ) : (
                   <Link to="/modes">
                     <motion.div
