@@ -7,6 +7,7 @@ import RankBadge from './RankBadge';
 import CharacterAvatar from './CharacterAvatar';
 import CharacterSelection from './CharacterSelection';
 import FortniteStyleShowcase from './FortniteStyleShowcase';
+import BackgroundRemovalProcessor from './BackgroundRemovalProcessor';
 import { useCharacter } from '@/hooks/useCharacter';
 import { UserRankData } from '@/types/ranking';
 
@@ -352,6 +353,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
       
       {/* Character Selection Modal */}
       <CharacterSelection />
+      
+      {/* Background Removal Processor */}
+      <BackgroundRemovalProcessor />
     </div>
   );
 };
