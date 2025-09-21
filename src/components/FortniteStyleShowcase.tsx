@@ -51,28 +51,6 @@ const FortniteStyleShowcase: React.FC<FortniteStyleShowcaseProps> = ({ character
       {/* Background Environment */}
       <div className="absolute inset-0 bg-gradient-to-b from-sky-400/20 via-transparent to-green-400/10" />
       
-      {/* Floating Particles */}
-          {Array.from({ length: 6 }).map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-2 h-2 rounded-full opacity-30"
-              style={{ 
-                backgroundColor: effects.primaryColor,
-                left: `${20 + Math.random() * 60}%`,
-                top: `${20 + Math.random() * 60}%`,
-              }}
-              animate={{
-                x: [0, Math.random() * 100 - 50, 0],
-                y: [0, Math.random() * 100 - 50, 0],
-                opacity: [0.3, 0.8, 0.3],
-              }}
-              transition={{
-                duration: 3 + Math.random() * 2,
-                repeat: Infinity,
-                delay: i * 0.5,
-              }}
-            />
-          ))}
 
       <div className="relative">
         {/* Character Platform/Pedestal */}
@@ -134,76 +112,10 @@ const FortniteStyleShowcase: React.FC<FortniteStyleShowcaseProps> = ({ character
                 />
               </div>
 
-              {/* Floating Rarity Particles */}
-              {character.rarity === 'legendary' && (
-                <>
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute"
-                      animate={{ 
-                        rotate: 360,
-                        scale: [1, 1.5, 1],
-                        opacity: [0.5, 1, 0.5]
-                      }}
-                      transition={{ 
-                        duration: 3,
-                        repeat: Infinity,
-                        delay: i * 0.5,
-                        ease: "easeInOut"
-                      }}
-                      style={{
-                        left: `${20 + i * 20}%`,
-                        top: `${10 + (i % 2) * 30}%`,
-                      }}
-                    >
-                      {effects.particles}
-                    </motion.div>
-                  ))}
-                </>
-              )}
             </motion.div>
 
-            {/* Character Info */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.8 }}
-              className="absolute -bottom-20 left-1/2 transform -translate-x-1/2 text-center"
-            >
-              <h2 className="text-3xl font-bold text-foreground mb-3 drop-shadow-lg">
-                {character.name}
-              </h2>
-              <div className="flex items-center justify-center gap-2 mb-3">
-                <motion.div
-                  animate={{ boxShadow: [`0 0 10px ${effects.glowColor}`, `0 0 20px ${effects.glowColor}`, `0 0 10px ${effects.glowColor}`] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="px-4 py-2 rounded-full text-sm font-bold uppercase backdrop-blur-sm border"
-                  style={{ 
-                    backgroundColor: `${effects.primaryColor}20`,
-                    borderColor: `${effects.primaryColor}60`,
-                    color: effects.primaryColor
-                  }}
-                >
-                  {character.rarity}
-                </motion.div>
-              </div>
-              <p className="text-muted-foreground text-sm max-w-xs backdrop-blur-sm bg-background/30 px-4 py-2 rounded-lg">
-                {character.description}
-              </p>
-            </motion.div>
           </motion.div>
 
-          {/* Interactive Hint */}
-          <motion.div
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 3, repeat: Infinity }}
-            className="absolute -bottom-32 left-1/2 transform -translate-x-1/2 text-center"
-          >
-            <p className="text-xs text-muted-foreground backdrop-blur-sm bg-background/50 px-3 py-1 rounded-full">
-              Click to change character
-            </p>
-          </motion.div>
         </motion.div>
 
         {/* Ambient Lighting Effects */}
