@@ -100,9 +100,9 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
           {/* Logo Area */}
           <div className="p-6 border-b border-border/20">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              BATTLE ARENA
+              ROBOT ACADEMY
             </h1>
-            <p className="text-muted-foreground text-sm">A-LEVEL MATHEMATICS</p>
+            <p className="text-muted-foreground text-sm">AI MATHEMATICS WARFARE</p>
           </div>
 
           {/* Main Navigation */}
@@ -152,15 +152,15 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
               className="max-w-2xl"
             >
               <h2 className="text-6xl font-bold mb-6 leading-tight">
-                MATHEMATICAL
+                AI-POWERED
                 <br />
                 <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                  WARFARE
+                  MATH BATTLES
                 </span>
               </h2>
               <p className="text-xl text-muted-foreground mb-8 max-w-lg">
-                Challenge opponents in tactical mathematics battles. 
-                Master equations, dominate rankings.
+                Team up with advanced AI companions in futuristic mathematics warfare. 
+                Calculate, strategize, dominate.
               </p>
               
               <motion.button

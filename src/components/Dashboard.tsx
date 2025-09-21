@@ -96,8 +96,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
       {/* Top Navigation Bar */}
       <div className="relative z-10 flex items-center justify-between px-8 py-4 bg-card/50 backdrop-blur-lg border-b border-border">
         {/* Logo */}
-        <div className="flex items-center gap-8">
-          <h1 className="text-2xl font-bold text-foreground">BATTLE ARENA</h1>
+          <div className="flex items-center gap-8">
+            <h1 className="text-2xl font-bold text-foreground">ROBOT ACADEMY</h1>
           
           {/* Navigation Items */}
           <div className="flex items-center gap-6">

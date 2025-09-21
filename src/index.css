@@ -8,130 +8,109 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Professional Gaming Theme - Muted & Clean */
-    --background: 210 30% 8%;      /* Dark navy blue */
-    --foreground: 0 0% 98%;        /* Almost white */
+    /* Robotic Futuristic Theme - AI/Tech Aesthetic */
+    --background: 200 25% 6%;
+    --foreground: 180 100% 95%;
+    --card: 200 25% 9%;
+    --card-foreground: 180 100% 95%;
+    --popover: 200 25% 9%;  
+    --popover-foreground: 180 100% 95%;
+    --primary: 180 100% 60%;
+    --primary-foreground: 200 25% 6%;
+    --secondary: 195 30% 12%;
+    --secondary-foreground: 180 100% 95%;
+    --muted: 195 30% 12%;
+    --muted-foreground: 195 15% 65%;
+    --accent: 200 100% 70%;
+    --accent-foreground: 200 25% 6%;
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 180 100% 95%;
+    --border: 195 40% 15%;
+    --input: 195 40% 15%;
+    --ring: 180 100% 60%;
 
-    --card: 210 25% 12%;           /* Slightly lighter navy */
-    --card-foreground: 0 0% 95%;
-
-    --popover: 210 25% 12%;
-    --popover-foreground: 0 0% 95%;
-
-    --primary: 200 100% 65%;       /* Soft blue accent */
-    --primary-foreground: 210 30% 8%;
-
-    --secondary: 215 25% 18%;      /* Muted grey-blue */
-    --secondary-foreground: 0 0% 95%;
-
-    --muted: 215 25% 15%;
-    --muted-foreground: 215 15% 65%;
-
-    --accent: 190 100% 70%;        /* Subtle cyan accent */
-    --accent-foreground: 210 30% 8%;
-
-    --destructive: 0 75% 60%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 215 25% 20%;
-    --input: 215 25% 18%;
-    --ring: 200 100% 65%;
-
-    /* Professional Gaming Palette */
-    --game-bg: 210 30% 8%;         /* Main dark background */
-    --game-surface: 215 25% 12%;   /* Card/surface color */
-    --game-border: 215 25% 20%;    /* Border color */
-    --game-accent: 200 100% 65%;   /* Primary accent */
-    --game-accent-soft: 190 100% 70%; /* Secondary accent */
-    --game-success: 140 60% 55%;   /* Success green */
+    /* Robotic Gaming Palette */
+    --game-bg: 200 25% 6%;         /* Deep tech blue */
+    --game-surface: 195 30% 12%;   /* Tech surface */
+    --game-border: 195 40% 15%;    /* Electric border */
+    --game-accent: 180 100% 60%;   /* Cyan primary */
+    --game-accent-soft: 200 100% 70%; /* Electric blue */
+    --game-success: 160 80% 50%;   /* Tech green */
     --game-warning: 45 90% 60%;    /* Warning orange */
-    --game-text: 0 0% 95%;         /* Primary text */
-    --game-text-muted: 215 15% 65%; /* Muted text */
+    --game-text: 180 100% 95%;     /* Electric white */
+    --game-text-muted: 195 15% 65%; /* Muted electric */
     
-    /* Subtle Gradients */
-    --gradient-main: linear-gradient(135deg, hsl(210 30% 8%) 0%, hsl(215 25% 12%) 100%);
-    --gradient-card: linear-gradient(135deg, hsl(215 25% 12%) 0%, hsl(215 25% 15%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(200 100% 65%) 0%, hsl(190 100% 70%) 100%);
-    --gradient-overlay: linear-gradient(135deg, hsla(210, 30%, 8%, 0.9) 0%, hsla(215, 25%, 12%, 0.8) 100%);
+    /* Robotic Gradients */
+    --gradient-main: linear-gradient(135deg, hsl(200 25% 6%) 0%, hsl(195 30% 12%) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(195 30% 12%) 0%, hsl(195 30% 15%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(180 100% 60%) 0%, hsl(200 100% 70%) 100%);
+    --gradient-overlay: linear-gradient(135deg, hsla(200, 25%, 6%, 0.9) 0%, hsla(195, 30%, 12%, 0.8) 100%);
+    --gradient-robot: linear-gradient(135deg, hsl(180 100% 60%), hsl(200 100% 70%), hsl(220 90% 65%));
     
-    /* Professional Shadows */
-    --shadow-soft: 0 2px 8px hsla(210, 30%, 4%, 0.3);
-    --shadow-medium: 0 4px 16px hsla(210, 30%, 4%, 0.4);
-    --shadow-strong: 0 8px 32px hsla(210, 30%, 4%, 0.5);
-    --shadow-glow: 0 0 20px hsla(200, 100%, 65%, 0.2);
+    /* Robot Tech Shadows */
+    --shadow-soft: 0 2px 8px hsla(180, 100%, 60%, 0.2);
+    --shadow-medium: 0 4px 16px hsla(180, 100%, 60%, 0.3);
+    --shadow-strong: 0 8px 32px hsla(180, 100%, 60%, 0.4);
+    --shadow-glow: 0 0 40px hsla(180, 100%, 60%, 0.5);
+    --shadow-robot: 0 0 30px hsl(180, 100%, 60%), 0 0 60px hsl(200, 100%, 70%);
     
-    /* Subtle Background Pattern */
+    /* Electric Pattern Background */
     --pattern-bg: linear-gradient(
       180deg, 
-      hsl(210 30% 8%) 0%, 
-      hsl(215 25% 10%) 20%,
-      hsl(215 25% 12%) 40%,
-      hsl(220 25% 11%) 60%,
-      hsl(215 25% 10%) 80%,
-      hsl(210 30% 8%) 100%
+      hsl(200 25% 6%) 0%, 
+      hsl(195 30% 8%) 20%,
+      hsl(195 30% 12%) 40%,
+      hsl(200 30% 10%) 60%,
+      hsl(195 30% 8%) 80%,
+      hsl(200 25% 6%) 100%
     );
     
-    /* Glass effects */
-    --glass-bg: hsla(215, 25%, 12%, 0.8);
-    --glass-border: hsla(215, 25%, 20%, 0.5);
-    --glass-shadow: 0 8px 32px hsla(210, 30%, 4%, 0.3);
+    /* Glass effects with cyan tint */
+    --glass-bg: hsla(195, 30%, 12%, 0.8);
+    --glass-border: hsla(180, 100%, 60%, 0.3);
+    --glass-shadow: 0 8px 32px hsla(180, 100%, 60%, 0.3);
 
     --radius: 1rem;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 180 100% 95%;
+    --sidebar-foreground: 200 25% 20%;
+    --sidebar-primary: 180 100% 60%;
+    --sidebar-primary-foreground: 200 25% 6%;
+    --sidebar-accent: 195 30% 90%;
+    --sidebar-accent-foreground: 200 25% 20%;
+    --sidebar-border: 195 40% 80%;
+    --sidebar-ring: 180 100% 60%;
   }
 
   .dark {
-    /* Same as root for consistent gaming theme */
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-
-    --primary: 263 70% 50%;
-    --primary-foreground: 0 0% 98%;
-
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-
-    --accent: 263 70% 50%;
-    --accent-foreground: 0 0% 98%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 263 70% 50%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Robotic Dark Theme */
+    --background: 200 25% 6%;
+    --foreground: 180 100% 95%;
+    --card: 200 25% 9%;
+    --card-foreground: 180 100% 95%;
+    --popover: 200 25% 9%;
+    --popover-foreground: 180 100% 95%;
+    --primary: 180 100% 60%;
+    --primary-foreground: 200 25% 6%;
+    --secondary: 195 30% 12%;
+    --secondary-foreground: 180 100% 95%;
+    --muted: 195 30% 12%;
+    --muted-foreground: 195 15% 65%;
+    --accent: 200 100% 70%;
+    --accent-foreground: 200 25% 6%;
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 180 100% 95%;
+    --border: 195 40% 15%;
+    --input: 195 40% 15%;
+    --ring: 180 100% 60%;
+    --sidebar-background: 195 30% 12%;
+    --sidebar-foreground: 180 100% 95%;
+    --sidebar-primary: 180 100% 60%;
+    --sidebar-primary-foreground: 200 25% 6%;
+    --sidebar-accent: 195 30% 15%;
+    --sidebar-accent-foreground: 180 100% 95%;
+    --sidebar-border: 195 40% 15%;
+    --sidebar-ring: 180 100% 60%;
   }
 }
 
@@ -149,7 +128,7 @@ All colors MUST be HSL.
     position: relative;
   }
 
-  /* Subtle Tech Pattern */
+  /* Futuristic Robot Grid Pattern */
   body::before {
     content: '';
     position: fixed;
@@ -159,49 +138,50 @@ All colors MUST be HSL.
     height: 100%;
     z-index: 0;
     background: 
-      /* Subtle grid pattern */
-      linear-gradient(90deg, hsla(215, 25%, 20%, 0.1) 1px, transparent 1px),
-      linear-gradient(180deg, hsla(215, 25%, 20%, 0.1) 1px, transparent 1px),
+      /* Electric grid pattern */
+      linear-gradient(90deg, hsla(180, 100%, 60%, 0.08) 1px, transparent 1px),
+      linear-gradient(180deg, hsla(180, 100%, 60%, 0.08) 1px, transparent 1px),
       
-      /* Floating tech elements */
-      radial-gradient(circle at 15% 25%, hsla(200, 100%, 65%, 0.03) 0%, transparent 50%),
-      radial-gradient(circle at 85% 75%, hsla(190, 100%, 70%, 0.03) 0%, transparent 50%),
-      radial-gradient(circle at 50% 50%, hsla(215, 25%, 15%, 0.5) 0%, transparent 70%);
+      /* Floating robot tech elements */
+      radial-gradient(circle at 15% 25%, hsla(180, 100%, 60%, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 85% 75%, hsla(200, 100%, 70%, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, hsla(195, 30%, 12%, 0.7) 0%, transparent 70%);
     
     background-size: 
-      60px 60px,
-      60px 60px,
-      800px 600px,
-      600px 400px,
-      400px 300px;
+      80px 80px,
+      80px 80px,
+      900px 700px,
+      700px 500px,
+      500px 400px;
     
     background-position:
       0 0,
       0 0,
-      -200px -100px,
-      calc(100% + 100px) -50px,
+      -250px -150px,
+      calc(100% + 150px) -100px,
       50% 50%;
     
-    animation: subtle-float 30s ease-in-out infinite;
+    animation: robot-grid-float 35s ease-in-out infinite;
     pointer-events: none;
   }
 
-  @keyframes subtle-float {
-    0%, 100% { transform: translateY(0px) scale(1); }
-    50% { transform: translateY(-5px) scale(1.01); }
+  @keyframes robot-grid-float {
+    0%, 100% { transform: translateY(0px) scale(1) rotate(0deg); }
+    33% { transform: translateY(-8px) scale(1.02) rotate(0.3deg); }
+    66% { transform: translateY(5px) scale(0.98) rotate(-0.2deg); }
   }
 }
 
 @layer components {
-  /* Premium Card Components */
+  /* Robotic Card Components */
   .cyber-card {
-    @apply rounded-3xl border backdrop-blur-xl relative;
-    background: var(--glass-white);
+    @apply rounded-2xl border backdrop-blur-xl relative;
+    background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-premium);
+    box-shadow: var(--shadow-robot);
     backdrop-filter: blur(20px);
     position: relative;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
   .cyber-card::before {
@@ -212,28 +192,28 @@ All colors MUST be HSL.
     right: 0;
     bottom: 0;
     border-radius: inherit;
-    background: var(--gradient-overlay);
+    background: var(--gradient-robot);
+    opacity: 0.03;
     z-index: -1;
-    opacity: 0;
     transition: opacity 0.3s ease;
   }
 
   .cyber-card:hover::before {
-    opacity: 1;
+    opacity: 0.08;
   }
 
   .cyber-card:hover {
-    transform: translateY(-8px);
-    box-shadow: var(--shadow-luxe);
-    border-color: hsla(222, 47%, 11%, 0.2);
+    transform: translateY(-6px) scale(1.01);
+    box-shadow: var(--shadow-robot), 0 0 40px hsla(180, 100%, 60%, 0.3);
+    border-color: hsla(180, 100%, 60%, 0.6);
   }
 
   .cyber-button {
     @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-500 relative overflow-hidden;
-    background: var(--gradient-cyber);
-    box-shadow: var(--shadow-cyber-glow);
-    text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
-    border: 1px solid hsla(194, 100%, 50%, 0.3);
+    background: var(--gradient-accent);
+    box-shadow: var(--shadow-glow);
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    border: 1px solid hsla(180, 100%, 60%, 0.4);
   }
 
   .cyber-button::before {
@@ -243,7 +223,7 @@ All colors MUST be HSL.
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, hsla(194, 100%, 80%, 0.2), transparent);
+    background: linear-gradient(90deg, transparent, hsla(180, 100%, 80%, 0.3), transparent);
     transition: left 0.5s;
   }
 
@@ -253,8 +233,8 @@ All colors MUST be HSL.
 
   .cyber-button:hover {
     transform: translateY(-3px) scale(1.02);
-    box-shadow: var(--shadow-intense);
-    animation: pulse-glow 2s infinite;
+    box-shadow: var(--shadow-robot);
+    animation: robot-pulse-glow 2s infinite;
   }
 
   .cyber-button-neon {
@@ -270,9 +250,9 @@ All colors MUST be HSL.
     box-shadow: 0 0 80px hsla(320, 68%, 62%, 0.4);
   }
 
-  @keyframes pulse-glow {
-    0%, 100% { box-shadow: var(--shadow-cyber-glow); }
-    50% { box-shadow: var(--shadow-intense); }
+  @keyframes robot-pulse-glow {
+    0%, 100% { box-shadow: var(--shadow-glow); }
+    50% { box-shadow: var(--shadow-robot); }
   }
 
   .glassmorphism {
