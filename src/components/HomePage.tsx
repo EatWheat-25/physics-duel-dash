@@ -88,10 +88,94 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
         </button>
       </div>
 
-      {/* Background Effects */}
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-accent/10 rounded-full blur-3xl"></div>
+      {/* Enhanced Futuristic Background Effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Animated Circuit Grid */}
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `
+              linear-gradient(90deg, hsl(188, 100%, 42%, 0.1) 1px, transparent 1px),
+              linear-gradient(0deg, hsl(193, 100%, 50%, 0.1) 1px, transparent 1px),
+              linear-gradient(45deg, hsl(175, 100%, 45%, 0.05) 1px, transparent 1px)
+            `,
+            backgroundSize: '60px 60px, 60px 60px, 120px 120px',
+            animation: 'gridMove 25s linear infinite'
+          }} />
+        </div>
+        
+        {/* Floating Holographic Orbs */}
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full opacity-30"
+          style={{
+            background: `radial-gradient(circle, hsl(188, 100%, 42%, 0.2) 0%, hsl(193, 100%, 50%, 0.1) 40%, transparent 70%)`,
+            filter: 'blur(40px)',
+            animation: 'float 8s ease-in-out infinite'
+          }} 
+        />
+        <div className="absolute bottom-1/3 left-1/5 w-80 h-80 rounded-full opacity-25"
+          style={{
+            background: `radial-gradient(circle, hsl(193, 100%, 50%, 0.15) 0%, hsl(175, 100%, 45%, 0.08) 50%, transparent 80%)`,
+            filter: 'blur(35px)',
+            animation: 'float 10s ease-in-out infinite reverse'
+          }} 
+        />
+        <div className="absolute top-1/2 left-1/2 w-64 h-64 rounded-full opacity-20"
+          style={{
+            background: `radial-gradient(circle, hsl(175, 100%, 45%, 0.12) 0%, transparent 60%)`,
+            filter: 'blur(30px)',
+            animation: 'pulse 6s ease-in-out infinite'
+          }} 
+        />
+        
+        {/* Geometric Tech Elements */}
+        <div className="absolute top-1/6 right-1/6 w-32 h-32 border border-primary/20 rotate-45"
+          style={{ animation: 'spin 20s linear infinite' }} 
+        />
+        <div className="absolute bottom-1/4 right-1/3 w-24 h-24 border-2 border-accent/15 rotate-12"
+          style={{ animation: 'spin 15s linear infinite reverse' }} 
+        />
+        <div className="absolute top-2/3 left-1/6 w-16 h-16 border border-primary/25"
+          style={{ animation: 'pulse 4s ease-in-out infinite' }} 
+        />
+        
+        {/* Scanning Lines */}
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent"
+            style={{ animation: 'scanLine 8s ease-in-out infinite' }} 
+          />
+          <div className="absolute bottom-0 right-0 w-px h-full bg-gradient-to-t from-transparent via-primary/30 to-transparent"
+            style={{ animation: 'scanLineVertical 12s ease-in-out infinite' }} 
+          />
+        </div>
+        
+        {/* Data Stream Effect */}
+        <div className="absolute top-1/4 left-0 w-2 h-full opacity-30">
+          <div className="w-full h-8 bg-gradient-to-b from-primary/40 to-transparent"
+            style={{ animation: 'dataStream 3s linear infinite' }} 
+          />
+        </div>
+        <div className="absolute top-1/3 right-0 w-1 h-full opacity-25">
+          <div className="w-full h-12 bg-gradient-to-b from-accent/30 to-transparent"
+            style={{ animation: 'dataStream 4s linear infinite reverse' }} 
+          />
+        </div>
+        
+        {/* Holographic Panels */}
+        <div className="absolute top-1/5 left-1/4 w-48 h-32 rounded-lg opacity-10"
+          style={{
+            background: `linear-gradient(135deg, hsl(188, 100%, 42%, 0.15), hsl(193, 100%, 50%, 0.08))`,
+            backdropFilter: 'blur(20px)',
+            border: '1px solid hsl(188, 100%, 42%, 0.2)',
+            animation: 'float 6s ease-in-out infinite'
+          }} 
+        />
+        <div className="absolute bottom-1/5 right-1/4 w-32 h-24 rounded opacity-8"
+          style={{
+            background: `linear-gradient(45deg, hsl(175, 100%, 45%, 0.12), transparent)`,
+            backdropFilter: 'blur(15px)',
+            border: '1px solid hsl(175, 100%, 45%, 0.15)',
+            animation: 'float 8s ease-in-out infinite reverse'
+          }} 
+        />
       </div>
 
       <div className="flex min-h-screen">

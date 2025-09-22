@@ -194,6 +194,39 @@ All colors MUST be HSL.
     33% { transform: translateY(-15px) rotate(2deg); }
     66% { transform: translateY(10px) rotate(-1deg); }
   }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px) translateX(0px) scale(1); }
+    33% { transform: translateY(-20px) translateX(10px) scale(1.05); }
+    66% { transform: translateY(10px) translateX(-5px) scale(0.95); }
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  @keyframes scanLine {
+    0%, 100% { transform: translateY(0px); opacity: 0; }
+    50% { transform: translateY(100vh); opacity: 1; }
+  }
+
+  @keyframes scanLineVertical {
+    0%, 100% { transform: translateX(0px); opacity: 0; }
+    50% { transform: translateX(-100vw); opacity: 1; }
+  }
+
+  @keyframes dataStream {
+    0% { transform: translateY(-100px); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(100vh); opacity: 0; }
+  }
+
+  @keyframes gridMove {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    100% { transform: translate(60px, 60px) rotate(1deg); }
+  }
 }
 
 @layer components {
