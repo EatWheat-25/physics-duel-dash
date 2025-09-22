@@ -7,113 +7,128 @@ All colors MUST be HSL.
 */
 
 @layer base {
+  /* ===== FUTURISTIC ROBOTIC AI THEME - LIGHT HIGH-TECH ===== */
   :root {
-    /* Robotic Futuristic Theme - AI/Tech Aesthetic */
-    --background: 200 25% 6%;
-    --foreground: 180 100% 95%;
-    --card: 200 25% 9%;
-    --card-foreground: 180 100% 95%;
-    --popover: 200 25% 9%;  
-    --popover-foreground: 180 100% 95%;
-    --primary: 180 100% 60%;
-    --primary-foreground: 200 25% 6%;
-    --secondary: 195 30% 12%;
-    --secondary-foreground: 180 100% 95%;
-    --muted: 195 30% 12%;
-    --muted-foreground: 195 15% 65%;
-    --accent: 200 100% 70%;
-    --accent-foreground: 200 25% 6%;
-    --destructive: 0 85% 55%;
-    --destructive-foreground: 180 100% 95%;
-    --border: 195 40% 15%;
-    --input: 195 40% 15%;
-    --ring: 180 100% 60%;
+    /* High-Tech Light Palette */
+    --background: 210 20% 98%;
+    --foreground: 210 15% 12%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 210 15% 12%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 15% 12%;
+    
+    --primary: 188 100% 42%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 210 15% 95%;
+    --secondary-foreground: 210 15% 20%;
+    
+    --muted: 210 15% 96%;
+    --muted-foreground: 210 10% 45%;
+    
+    --accent: 193 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 210 15% 90%;
+    --input: 210 15% 96%;
+    --ring: 188 100% 42%;
+    
+    --chart-1: 188 100% 42%;
+    --chart-2: 193 100% 50%;
+    --chart-3: 175 100% 45%;
+    --chart-4: 165 100% 40%;
+    --chart-5: 160 100% 50%;
 
-    /* Robotic Gaming Palette */
-    --game-bg: 200 25% 6%;         /* Deep tech blue */
-    --game-surface: 195 30% 12%;   /* Tech surface */
-    --game-border: 195 40% 15%;    /* Electric border */
-    --game-accent: 180 100% 60%;   /* Cyan primary */
-    --game-accent-soft: 200 100% 70%; /* Electric blue */
-    --game-success: 160 80% 50%;   /* Tech green */
-    --game-warning: 45 90% 60%;    /* Warning orange */
-    --game-text: 180 100% 95%;     /* Electric white */
-    --game-text-muted: 195 15% 65%; /* Muted electric */
+    /* Robotic Gaming Palette - Light */
+    --game-bg: 210 20% 98%;
+    --game-surface: 210 15% 95%;
+    --game-border: 210 15% 90%;
+    --game-accent: 188 100% 42%;
+    --game-accent-soft: 193 100% 50%;
+    --game-success: 160 80% 50%;
+    --game-warning: 45 90% 60%;
+    --game-text: 210 15% 12%;
+    --game-text-muted: 210 10% 45%;
+
+    /* Advanced Gradients & Effects - Light Tech Theme */
+    --gradient-primary: linear-gradient(135deg, hsl(188, 100%, 42%), hsl(193, 100%, 50%));
+    --gradient-secondary: linear-gradient(135deg, hsl(210, 15%, 98%), hsl(210, 15%, 95%));
+    --gradient-accent: linear-gradient(45deg, hsl(193, 100%, 50%), hsl(175, 100%, 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(210, 20%, 98%) 0%, hsl(210, 15%, 96%) 30%, hsl(188, 50%, 85%) 100%);
+    --gradient-bg: linear-gradient(135deg, hsl(210, 25%, 96%) 0%, hsl(200, 30%, 94%) 50%, hsl(188, 20%, 92%) 100%);
+    --gradient-robot: linear-gradient(135deg, hsl(188, 100%, 42%), hsl(193, 100%, 50%), hsl(175, 100%, 45%));
     
-    /* Robotic Gradients */
-    --gradient-main: linear-gradient(135deg, hsl(200 25% 6%) 0%, hsl(195 30% 12%) 100%);
-    --gradient-card: linear-gradient(135deg, hsl(195 30% 12%) 0%, hsl(195 30% 15%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(180 100% 60%) 0%, hsl(200 100% 70%) 100%);
-    --gradient-overlay: linear-gradient(135deg, hsla(200, 25%, 6%, 0.9) 0%, hsla(195, 30%, 12%, 0.8) 100%);
-    --gradient-robot: linear-gradient(135deg, hsl(180 100% 60%), hsl(200 100% 70%), hsl(220 90% 65%));
+    /* Cyber Shadows & Glows - Softer for Light Theme */
+    --shadow-cyber: 0 4px 20px hsl(188, 100%, 42%, 0.15);
+    --shadow-neon: 0 0 30px hsl(193, 100%, 50%, 0.2);
+    --shadow-accent: 0 0 25px hsl(175, 100%, 45%, 0.15);
+    --glow-primary: drop-shadow(0 0 10px hsl(188, 100%, 42%, 0.3));
+    --glow-accent: drop-shadow(0 0 15px hsl(193, 100%, 50%, 0.25));
+    --glow-soft: 0 0 20px hsl(188, 80%, 70%, 0.3);
+    --shadow-robot: 0 0 20px hsl(188, 100%, 42%, 0.2), 0 0 40px hsl(193, 100%, 50%, 0.15);
     
-    /* Robot Tech Shadows */
-    --shadow-soft: 0 2px 8px hsla(180, 100%, 60%, 0.2);
-    --shadow-medium: 0 4px 16px hsla(180, 100%, 60%, 0.3);
-    --shadow-strong: 0 8px 32px hsla(180, 100%, 60%, 0.4);
-    --shadow-glow: 0 0 40px hsla(180, 100%, 60%, 0.5);
-    --shadow-robot: 0 0 30px hsl(180, 100%, 60%), 0 0 60px hsl(200, 100%, 70%);
+    /* Glass & Transparency Effects - Light */
+    --glass-bg: rgba(255, 255, 255, 0.6);
+    --glass-border: rgba(0, 188, 212, 0.3);
+    --glass-blur: blur(12px);
+    --glass-glow: 0 4px 16px hsl(188, 100%, 42%, 0.1);
     
-    /* Electric Pattern Background */
-    --pattern-bg: linear-gradient(
-      180deg, 
-      hsl(200 25% 6%) 0%, 
-      hsl(195 30% 8%) 20%,
-      hsl(195 30% 12%) 40%,
-      hsl(200 30% 10%) 60%,
-      hsl(195 30% 8%) 80%,
-      hsl(200 25% 6%) 100%
-    );
-    
-    /* Glass effects with cyan tint */
-    --glass-bg: hsla(195, 30%, 12%, 0.8);
-    --glass-border: hsla(180, 100%, 60%, 0.3);
-    --glass-shadow: 0 8px 32px hsla(180, 100%, 60%, 0.3);
+    /* Pattern & Texture Variables - Subtle Light Patterns */
+    --pattern-grid: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300bcd4' fill-opacity='0.08'%3E%3Cpath d='M30 30h30v30H30zM0 0h30v30H0z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    --pattern-circuit: url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2300bcd4' stroke-width='1' stroke-opacity='0.05'%3E%3Cpath d='M20 20h40v40H20z'/%3E%3Cpath d='M0 0h20v20H0z'/%3E%3Cpath d='M60 60h20v20H60z'/%3E%3C/g%3E%3C/svg%3E");
 
     --radius: 1rem;
 
-    --sidebar-background: 180 100% 95%;
-    --sidebar-foreground: 200 25% 20%;
-    --sidebar-primary: 180 100% 60%;
-    --sidebar-primary-foreground: 200 25% 6%;
-    --sidebar-accent: 195 30% 90%;
-    --sidebar-accent-foreground: 200 25% 20%;
-    --sidebar-border: 195 40% 80%;
-    --sidebar-ring: 180 100% 60%;
+    --sidebar-background: 210 20% 98%;
+    --sidebar-foreground: 210 15% 12%;
+    --sidebar-primary: 188 100% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 15% 95%;
+    --sidebar-accent-foreground: 210 15% 20%;
+    --sidebar-border: 210 15% 90%;
+    --sidebar-ring: 188 100% 42%;
   }
 
   .dark {
-    /* Robotic Dark Theme */
-    --background: 200 25% 6%;
-    --foreground: 180 100% 95%;
-    --card: 200 25% 9%;
+    --background: 210 30% 8%;
+    --foreground: 180 100% 90%;
+    
+    --card: 210 25% 12%;
     --card-foreground: 180 100% 95%;
-    --popover: 200 25% 9%;
-    --popover-foreground: 180 100% 95%;
-    --primary: 180 100% 60%;
-    --primary-foreground: 200 25% 6%;
-    --secondary: 195 30% 12%;
-    --secondary-foreground: 180 100% 95%;
-    --muted: 195 30% 12%;
-    --muted-foreground: 195 15% 65%;
-    --accent: 200 100% 70%;
-    --accent-foreground: 200 25% 6%;
-    --destructive: 0 85% 55%;
-    --destructive-foreground: 180 100% 95%;
-    --border: 195 40% 15%;
-    --input: 195 40% 15%;
-    --ring: 180 100% 60%;
-    --sidebar-background: 195 30% 12%;
-    --sidebar-foreground: 180 100% 95%;
-    --sidebar-primary: 180 100% 60%;
-    --sidebar-primary-foreground: 200 25% 6%;
-    --sidebar-accent: 195 30% 15%;
-    --sidebar-accent-foreground: 180 100% 95%;
-    --sidebar-border: 195 40% 15%;
-    --sidebar-ring: 180 100% 60%;
+    
+    --popover: 210 30% 10%;
+    --popover-foreground: 180 100% 90%;
+    
+    --primary: 188 100% 42%;
+    --primary-foreground: 210 40% 8%;
+    
+    --secondary: 210 20% 18%;
+    --secondary-foreground: 180 100% 85%;
+    
+    --muted: 210 15% 15%;
+    --muted-foreground: 180 50% 65%;
+    
+    --accent: 193 100% 50%;
+    --accent-foreground: 210 40% 8%;
+    
+    --border: 210 20% 20%;
+    --input: 210 20% 18%;
+    --ring: 188 100% 42%;
+    
+    /* Dark theme gradients */
+    --gradient-bg: linear-gradient(135deg, hsl(210, 30%, 8%) 0%, hsl(210, 25%, 12%) 50%, hsl(188, 100%, 42%) 100%);
+    --shadow-cyber: 0 0 20px hsl(188, 100%, 42%, 0.3);
+    --glow-soft: 0 0 20px hsl(188, 100%, 42%, 0.4);
+    --glass-bg: rgba(0, 255, 255, 0.05);
   }
 }
 
+/* ===== BASE STYLES ===== */
 @layer base {
   * {
     @apply border-border;
@@ -121,66 +136,74 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-    background: var(--pattern-bg);
-    min-height: 100vh;
-    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background: var(--gradient-bg);
+    font-family: 'Exo 2', 'Inter', system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
-    position: relative;
   }
 
-  /* Futuristic Robot Grid Pattern */
+  /* Subtle Futuristic Tech Grid Pattern */
   body::before {
     content: '';
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
+    width: 100vw;
+    height: 100vh;
     background: 
-      /* Electric grid pattern */
-      linear-gradient(90deg, hsla(180, 100%, 60%, 0.08) 1px, transparent 1px),
-      linear-gradient(180deg, hsla(180, 100%, 60%, 0.08) 1px, transparent 1px),
-      
-      /* Floating robot tech elements */
-      radial-gradient(circle at 15% 25%, hsla(180, 100%, 60%, 0.05) 0%, transparent 50%),
-      radial-gradient(circle at 85% 75%, hsla(200, 100%, 70%, 0.05) 0%, transparent 50%),
-      radial-gradient(circle at 50% 50%, hsla(195, 30%, 12%, 0.7) 0%, transparent 70%);
-    
-    background-size: 
-      80px 80px,
-      80px 80px,
-      900px 700px,
-      700px 500px,
-      500px 400px;
-    
-    background-position:
-      0 0,
-      0 0,
-      -250px -150px,
-      calc(100% + 150px) -100px,
-      50% 50%;
-    
-    animation: robot-grid-float 35s ease-in-out infinite;
+      var(--pattern-grid),
+      var(--pattern-circuit),
+      linear-gradient(45deg, transparent 40%, hsl(188, 60%, 80%, 0.05) 50%, transparent 60%),
+      linear-gradient(-45deg, transparent 40%, hsl(193, 60%, 75%, 0.05) 50%, transparent 60%);
+    background-size: 60px 60px, 80px 80px, 200px 200px, 300px 300px;
+    background-position: 0 0, 40px 40px, 0 0, 150px 150px;
+    animation: gridFloat 30s ease-in-out infinite, gridPulse 12s ease-in-out infinite alternate;
     pointer-events: none;
+    z-index: -2;
   }
 
-  @keyframes robot-grid-float {
-    0%, 100% { transform: translateY(0px) scale(1) rotate(0deg); }
-    33% { transform: translateY(-8px) scale(1.02) rotate(0.3deg); }
-    66% { transform: translateY(5px) scale(0.98) rotate(-0.2deg); }
+  /* Soft floating holographic elements */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -5%;
+    left: -5%;
+    width: 110%;
+    height: 110%;
+    background: 
+      radial-gradient(circle at 25% 25%, hsl(188, 80%, 85%, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 75% 75%, hsl(193, 80%, 80%, 0.06) 0%, transparent 40%),
+      radial-gradient(circle at 50% 50%, hsl(175, 70%, 85%, 0.04) 0%, transparent 30%);
+    animation: particleFloat 35s ease-in-out infinite;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  @keyframes gridFloat {
+    0%, 100% { transform: translateY(0px) scale(1); }
+    33% { transform: translateY(-8px) scale(1.02); }
+    66% { transform: translateY(5px) scale(0.98); }
+  }
+
+  @keyframes gridPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
+  }
+
+  @keyframes particleFloat {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    33% { transform: translateY(-15px) rotate(2deg); }
+    66% { transform: translateY(10px) rotate(-1deg); }
   }
 }
 
 @layer components {
-  /* Robotic Card Components */
+  /* Futuristic Card Components - Light Theme */
   .cyber-card {
     @apply rounded-2xl border backdrop-blur-xl relative;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-robot);
-    backdrop-filter: blur(20px);
-    position: relative;
+    box-shadow: var(--shadow-cyber);
+    backdrop-filter: var(--glass-blur);
     transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
@@ -203,17 +226,20 @@ All colors MUST be HSL.
   }
 
   .cyber-card:hover {
-    transform: translateY(-6px) scale(1.01);
-    box-shadow: var(--shadow-robot), 0 0 40px hsla(180, 100%, 60%, 0.3);
-    border-color: hsla(180, 100%, 60%, 0.6);
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: var(--shadow-neon);
+    border-color: hsl(188, 100%, 42%, 0.5);
   }
 
+  /* Futuristic Buttons with Glow Effects */
   .cyber-button {
     @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-500 relative overflow-hidden;
-    background: var(--gradient-accent);
-    box-shadow: var(--shadow-glow);
-    text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-    border: 1px solid hsla(180, 100%, 60%, 0.4);
+    font-family: 'Orbitron', sans-serif;
+    background: var(--gradient-primary);
+    box-shadow: var(--shadow-cyber);
+    border: 1px solid hsl(188, 100%, 42%, 0.3);
+    color: white;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
   }
 
   .cyber-button::before {
@@ -223,8 +249,8 @@ All colors MUST be HSL.
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, hsla(180, 100%, 80%, 0.3), transparent);
-    transition: left 0.5s;
+    background: linear-gradient(90deg, transparent, hsla(193, 100%, 80%, 0.4), transparent);
+    transition: left 0.6s;
   }
 
   .cyber-button:hover::before {
@@ -232,155 +258,110 @@ All colors MUST be HSL.
   }
 
   .cyber-button:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: var(--shadow-robot);
-    animation: robot-pulse-glow 2s infinite;
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: var(--shadow-neon);
+    animation: button-glow-pulse 2s infinite;
   }
 
+  @keyframes button-glow-pulse {
+    0%, 100% { box-shadow: var(--shadow-cyber); }
+    50% { box-shadow: var(--shadow-neon); }
+  }
+
+  /* Neon Accent Button */
   .cyber-button-neon {
     @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-500 relative overflow-hidden;
-    background: var(--gradient-neon);
-    box-shadow: var(--shadow-neon-glow);
-    text-shadow: 0 0 10px rgba(255, 60, 172, 0.5);
-    border: 1px solid hsla(320, 68%, 62%, 0.3);
+    font-family: 'Orbitron', sans-serif;
+    background: var(--gradient-accent);
+    box-shadow: var(--shadow-accent);
+    border: 1px solid hsl(193, 100%, 50%, 0.4);
+    color: white;
   }
 
   .cyber-button-neon:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 0 80px hsla(320, 68%, 62%, 0.4);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 0 40px hsl(193, 100%, 50%, 0.4);
   }
 
-  @keyframes robot-pulse-glow {
-    0%, 100% { box-shadow: var(--shadow-glow); }
-    50% { box-shadow: var(--shadow-robot); }
-  }
-
+  /* Glass Morphism Effects */
   .glassmorphism {
     background: var(--glass-bg);
-    backdrop-filter: blur(20px);
+    backdrop-filter: var(--glass-blur);
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-glow);
   }
 
-  /* Enhanced Input */
+  /* Enhanced Input Fields */
   .cyber-input {
     @apply bg-transparent border rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground transition-all duration-300;
     background: var(--glass-bg);
     border-color: var(--glass-border);
     backdrop-filter: blur(10px);
+    font-family: 'Exo 2', sans-serif;
   }
 
   .cyber-input:focus {
     outline: none;
-    border-color: hsl(194 100% 50%);
-    box-shadow: var(--shadow-cyber-glow);
+    border-color: hsl(188, 100%, 42%);
+    box-shadow: var(--shadow-cyber);
   }
 
-  /* Animated Cyber Grid Background */
-  .cyber-grid {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    opacity: 0.03;
-    z-index: 0;
-    background-image: 
-      linear-gradient(rgba(0, 229, 255, 0.1) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 229, 255, 0.1) 1px, transparent 1px);
-    background-size: 50px 50px;
-    animation: grid-move 20s linear infinite;
-  }
-
-  @keyframes grid-move {
-    0% { transform: translate(0, 0); }
-    100% { transform: translate(50px, 50px); }
-  }
-
-  /* Floating Particles */
-  .particles {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .particle {
-    position: absolute;
-    border-radius: 50%;
-    animation: float-particle 8s ease-in-out infinite;
-  }
-
-  .particle-cyan {
-    background: radial-gradient(circle, hsl(194 100% 50% / 0.8), hsl(194 100% 50% / 0));
-    box-shadow: 0 0 20px hsl(194 100% 50% / 0.5);
-  }
-
-  .particle-pink {
-    background: radial-gradient(circle, hsl(320 68% 62% / 0.8), hsl(320 68% 62% / 0));
-    box-shadow: 0 0 20px hsl(320 68% 62% / 0.5);
-  }
-
-  @keyframes float-particle {
-    0%, 100% {
-      transform: translateY(0px) translateX(0px) scale(1);
-      opacity: 0.3;
-    }
-    25% {
-      transform: translateY(-30px) translateX(20px) scale(1.1);
-      opacity: 0.8;
-    }
-    50% {
-      transform: translateY(-15px) translateX(-10px) scale(0.9);
-      opacity: 1;
-    }
-    75% {
-      transform: translateY(-40px) translateX(-20px) scale(1.05);
-      opacity: 0.6;
-    }
-  }
-
-  /* Progress Bar Enhancements */
+  /* Animated Progress Bars */
   .cyber-progress {
     @apply relative h-3 rounded-full overflow-hidden;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
   .cyber-progress-fill {
     @apply h-full transition-all duration-1000 ease-out;
-    background: var(--gradient-cyber);
-    box-shadow: 0 0 20px hsl(194 100% 50% / 0.4);
+    background: var(--gradient-primary);
+    box-shadow: 0 0 15px hsl(188, 100%, 42%, 0.4);
     animation: progress-glow 2s ease-in-out infinite alternate;
   }
 
   @keyframes progress-glow {
-    from { box-shadow: 0 0 10px hsl(194 100% 50% / 0.4); }
-    to { box-shadow: 0 0 30px hsl(194 100% 50% / 0.8); }
+    from { box-shadow: 0 0 10px hsl(188, 100%, 42%, 0.3); }
+    to { box-shadow: 0 0 25px hsl(188, 100%, 42%, 0.6); }
   }
 
-  /* Stats Card Enhancement */
+  /* Holographic Stats Card */
   .stat-card {
-    @apply cyber-card p-4 text-center relative;
+    @apply cyber-card p-6 text-center relative;
   }
 
   .stat-number {
-    @apply text-3xl font-bold;
-    background: var(--gradient-cyber);
+    @apply text-3xl font-bold mb-2;
+    font-family: 'Orbitron', sans-serif;
+    background: var(--gradient-primary);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    filter: drop-shadow(0 0 10px hsl(194 100% 50% / 0.3));
+    filter: var(--glow-primary);
   }
 
   .stat-label {
     @apply text-xs uppercase tracking-widest font-medium;
-    color: hsl(220 9% 65%);
+    font-family: 'Exo 2', sans-serif;
+    color: var(--muted-foreground);
+  }
+
+  /* Typography Enhancements */
+  .futuristic-heading {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: var(--glow-primary);
+  }
+
+  .tech-text {
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 500;
   }
 
   /* Legacy classes for backward compatibility */
@@ -394,5 +375,32 @@ All colors MUST be HSL.
 
   .valorant-button-accent {
     @apply cyber-button-neon;
+  }
+
+  /* Animated Cyber Grid Background - Removed particles */
+  .cyber-grid {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0.05;
+    z-index: 0;
+    background-image: 
+      linear-gradient(rgba(0, 188, 212, 0.15) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 188, 212, 0.15) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: grid-move 25s linear infinite;
+  }
+
+  @keyframes grid-move {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(50px, 50px); }
+  }
+
+  /* No floating particles */
+  .particles {
+    display: none;
   }
 }

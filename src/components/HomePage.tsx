@@ -99,10 +99,10 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
         <div className="w-80 bg-card/20 backdrop-blur-sm border-r border-border/30 flex flex-col">
           {/* Logo Area */}
           <div className="p-6 border-b border-border/20">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold futuristic-heading">
               ROBOT ACADEMY
             </h1>
-            <p className="text-muted-foreground text-sm">AI MATHEMATICS WARFARE</p>
+            <p className="text-muted-foreground text-sm tech-text">AI MATHEMATICS WARFARE</p>
           </div>
 
           {/* Main Navigation */}
@@ -115,7 +115,7 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
                   onClick={() => setSelectedMode(item.id)}
-                  className={`w-full text-left p-4 text-2xl font-bold tracking-wider transition-all duration-300 relative group ${
+                  className={`w-full text-left p-4 text-2xl font-bold tracking-wider transition-all duration-300 relative group tech-text ${
                     selectedMode === item.id 
                       ? 'text-primary' 
                       : 'text-muted-foreground hover:text-foreground'
@@ -151,14 +151,14 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
               transition={{ duration: 0.8 }}
               className="max-w-2xl"
             >
-              <h2 className="text-6xl font-bold mb-6 leading-tight">
+              <h2 className="text-6xl font-bold mb-6 leading-tight futuristic-heading">
                 AI-POWERED
                 <br />
-                <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                <span className="futuristic-heading">
                   MATH BATTLES
                 </span>
               </h2>
-              <p className="text-xl text-muted-foreground mb-8 max-w-lg">
+              <p className="text-xl text-muted-foreground mb-8 max-w-lg tech-text">
                 Team up with advanced AI companions in futuristic mathematics warfare. 
                 Calculate, strategize, dominate.
               </p>
@@ -192,8 +192,8 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
             className="cyber-card p-6"
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">CURRENT RANK</h3>
-              <div className="text-sm text-muted-foreground">
+              <h3 className="text-lg font-bold futuristic-heading">CURRENT RANK</h3>
+              <div className="text-sm text-muted-foreground tech-text">
                 {progress}% TO GO
               </div>
             </div>
@@ -203,8 +203,8 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
                 {getRankEmoji(rank)}
               </div>
               <div>
-                <div className="text-2xl font-bold">{rank.toUpperCase()}</div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-2xl font-bold futuristic-heading">{rank.toUpperCase()}</div>
+                <div className="text-sm text-muted-foreground tech-text">
                   Next: {ranks[ranks.indexOf(rank) + 1]?.toUpperCase() || "MAX RANK"}
                 </div>
               </div>
@@ -227,7 +227,7 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
             transition={{ duration: 0.8, delay: 0.4 }}
             className="cyber-card p-6"
           >
-            <h3 className="text-lg font-bold mb-4">SELECT MODE</h3>
+            <h3 className="text-lg font-bold mb-4 futuristic-heading">SELECT MODE</h3>
             <div className="space-y-3">
               {gameModes.map((mode, index) => (
                 <div
@@ -237,7 +237,7 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
                   <div className="flex items-center gap-3">
                     <div className="text-xl">{mode.icon}</div>
                     <div>
-                      <div className="font-bold text-sm">{mode.title}</div>
+                      <div className="font-bold text-sm tech-text">{mode.title}</div>
                       <div className="text-xs text-muted-foreground">{mode.subtitle}</div>
                     </div>
                   </div>
@@ -256,19 +256,19 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
             transition={{ duration: 0.8, delay: 0.6 }}
             className="cyber-card p-6"
           >
-            <h3 className="text-lg font-bold mb-4">PERFORMANCE</h3>
+            <h3 className="text-lg font-bold mb-4 futuristic-heading">PERFORMANCE</h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Total Wins</span>
-                <span className="font-bold">127</span>
+                <span className="text-sm text-muted-foreground tech-text">Total Wins</span>
+                <span className="font-bold futuristic-heading">127</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Win Rate</span>
-                <span className="font-bold text-primary">89%</span>
+                <span className="text-sm text-muted-foreground tech-text">Win Rate</span>
+                <span className="font-bold text-primary futuristic-heading">89%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Best Streak</span>
-                <span className="font-bold text-accent">12</span>
+                <span className="text-sm text-muted-foreground tech-text">Best Streak</span>
+                <span className="font-bold text-accent futuristic-heading">12</span>
               </div>
             </div>
           </motion.div>
