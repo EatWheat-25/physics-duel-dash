@@ -56,17 +56,20 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				game: {
-					bg: 'hsl(var(--game-bg))',
-					surface: 'hsl(var(--game-surface))',
-					border: 'hsl(var(--game-border))',
-					accent: 'hsl(var(--game-accent))',
-					'accent-soft': 'hsl(var(--game-accent-soft))',
-					success: 'hsl(var(--game-success))',
-					warning: 'hsl(var(--game-warning))',
-					text: 'hsl(var(--game-text))',
-					'text-muted': 'hsl(var(--game-text-muted))'
-				},
+        game: {
+          primary: "hsl(var(--primary))",
+          secondary: "hsl(var(--secondary))", 
+          accent: "hsl(var(--accent))",
+          background: "hsl(var(--background))",
+          surface: "hsl(var(--card))",
+          text: "hsl(var(--foreground))",
+          "text-secondary": "hsl(var(--muted-foreground))",
+          border: "hsl(var(--border))",
+          hover: "hsl(var(--muted))",
+          neon: "hsl(var(--neon-cyan))",
+          purple: "hsl(var(--neon-purple))",
+          void: "hsl(var(--void-black))",
+        },
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',

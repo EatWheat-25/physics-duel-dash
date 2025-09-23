@@ -7,124 +7,133 @@ All colors MUST be HSL.
 */
 
 @layer base {
-  /* ===== FUTURISTIC ROBOTIC AI THEME - LIGHT HIGH-TECH ===== */
+  /* ===== DARK CYBERPUNK THEME - COOL & EDGY ===== */
   :root {
-    /* High-Tech Light Palette */
-    --background: 210 20% 98%;
-    --foreground: 210 15% 12%;
+    /* Dark Base Palette */
+    --background: 222 25% 8%;
+    --foreground: 210 40% 95%;
     
-    --card: 0 0% 100%;
-    --card-foreground: 210 15% 12%;
+    --card: 222 30% 12%;
+    --card-foreground: 210 35% 92%;
     
-    --popover: 0 0% 100%;
-    --popover-foreground: 210 15% 12%;
+    --popover: 222 35% 10%;
+    --popover-foreground: 210 40% 95%;
     
-    --primary: 188 100% 42%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 195 100% 50%;
+    --primary-foreground: 222 25% 8%;
     
-    --secondary: 210 15% 95%;
-    --secondary-foreground: 210 15% 20%;
+    --secondary: 222 20% 18%;
+    --secondary-foreground: 210 35% 85%;
     
-    --muted: 210 15% 96%;
-    --muted-foreground: 210 10% 45%;
+    --muted: 222 25% 15%;
+    --muted-foreground: 210 20% 65%;
     
-    --accent: 193 100% 50%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 271 100% 60%;
+    --accent-foreground: 210 40% 95%;
     
-    --destructive: 0 75% 60%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
     
-    --border: 210 15% 90%;
-    --input: 210 15% 96%;
-    --ring: 188 100% 42%;
+    --border: 222 30% 20%;
+    --input: 222 25% 16%;
+    --ring: 195 100% 50%;
     
-    --chart-1: 188 100% 42%;
-    --chart-2: 193 100% 50%;
-    --chart-3: 175 100% 45%;
-    --chart-4: 165 100% 40%;
-    --chart-5: 160 100% 50%;
+    --chart-1: 195 100% 50%;
+    --chart-2: 271 100% 60%;
+    --chart-3: 180 100% 45%;
+    --chart-4: 320 100% 60%;
+    --chart-5: 240 100% 65%;
 
-    /* Robotic Gaming Palette - Light */
-    --game-bg: 210 20% 98%;
-    --game-surface: 210 15% 95%;
-    --game-border: 210 15% 90%;
-    --game-accent: 188 100% 42%;
-    --game-accent-soft: 193 100% 50%;
+    /* Dark Cyberpunk Gaming Palette */
+    --game-bg: 222 25% 8%;
+    --game-surface: 222 30% 12%;
+    --game-border: 222 30% 20%;
+    --game-accent: 195 100% 50%;
+    --game-accent-soft: 271 100% 60%;
     --game-success: 160 80% 50%;
     --game-warning: 45 90% 60%;
-    --game-text: 210 15% 12%;
-    --game-text-muted: 210 10% 45%;
+    --game-text: 210 40% 95%;
+    --game-text-muted: 210 20% 65%;
 
-    /* Advanced Gradients & Effects - Light Tech Theme */
-    --gradient-primary: linear-gradient(135deg, hsl(188, 100%, 42%), hsl(193, 100%, 50%));
-    --gradient-secondary: linear-gradient(135deg, hsl(210, 15%, 98%), hsl(210, 15%, 95%));
-    --gradient-accent: linear-gradient(45deg, hsl(193, 100%, 50%), hsl(175, 100%, 45%));
-    --gradient-hero: linear-gradient(135deg, hsl(210, 20%, 98%) 0%, hsl(210, 15%, 96%) 30%, hsl(188, 50%, 85%) 100%);
-    --gradient-bg: linear-gradient(135deg, hsl(210, 25%, 96%) 0%, hsl(200, 30%, 94%) 50%, hsl(188, 20%, 92%) 100%);
-    --gradient-robot: linear-gradient(135deg, hsl(188, 100%, 42%), hsl(193, 100%, 50%), hsl(175, 100%, 45%));
+    /* Neon accents */
+    --neon-cyan: 180 100% 50%;
+    --neon-purple: 271 100% 60%;
+    --neon-blue: 221 100% 65%;
+    --electric-teal: 180 100% 45%;
+    --plasma-pink: 320 100% 60%;
+    --void-black: 222 40% 5%;
+    --steel-gray: 210 15% 25%;
+
+    /* Dark Gradients & Effects */
+    --gradient-primary: linear-gradient(135deg, hsl(195, 100%, 50%), hsl(271, 100%, 60%));
+    --gradient-secondary: linear-gradient(135deg, hsl(222, 30%, 12%), hsl(222, 25%, 8%));
+    --gradient-accent: linear-gradient(45deg, hsl(271, 100%, 60%), hsl(320, 100%, 60%));
+    --gradient-hero: linear-gradient(135deg, hsl(222, 25%, 8%) 0%, hsl(222, 30%, 12%) 30%, hsl(195, 50%, 15%) 100%);
+    --gradient-bg: linear-gradient(135deg, hsl(222, 40%, 3%) 0%, hsl(222, 30%, 6%) 50%, hsl(222, 25%, 8%) 100%);
+    --gradient-robot: linear-gradient(135deg, hsl(195, 100%, 50%), hsl(271, 100%, 60%), hsl(180, 100%, 45%));
     
-    /* Cyber Shadows & Glows - Softer for Light Theme */
-    --shadow-cyber: 0 4px 20px hsl(188, 100%, 42%, 0.15);
-    --shadow-neon: 0 0 30px hsl(193, 100%, 50%, 0.2);
-    --shadow-accent: 0 0 25px hsl(175, 100%, 45%, 0.15);
-    --glow-primary: drop-shadow(0 0 10px hsl(188, 100%, 42%, 0.3));
-    --glow-accent: drop-shadow(0 0 15px hsl(193, 100%, 50%, 0.25));
-    --glow-soft: 0 0 20px hsl(188, 80%, 70%, 0.3);
-    --shadow-robot: 0 0 20px hsl(188, 100%, 42%, 0.2), 0 0 40px hsl(193, 100%, 50%, 0.15);
+    /* Intense Cyber Shadows & Glows */
+    --shadow-cyber: 0 8px 32px hsl(195, 100%, 50%, 0.3);
+    --shadow-neon: 0 0 50px hsl(271, 100%, 60%, 0.4);
+    --shadow-accent: 0 0 40px hsl(180, 100%, 45%, 0.3);
+    --glow-primary: drop-shadow(0 0 20px hsl(195, 100%, 50%, 0.5));
+    --glow-accent: drop-shadow(0 0 25px hsl(271, 100%, 60%, 0.4));
+    --glow-soft: 0 0 30px hsl(195, 80%, 70%, 0.5);
+    --shadow-robot: 0 0 40px hsl(195, 100%, 50%, 0.4), 0 0 80px hsl(271, 100%, 60%, 0.3);
     
-    /* Glass & Transparency Effects - Light */
-    --glass-bg: rgba(255, 255, 255, 0.6);
-    --glass-border: rgba(0, 188, 212, 0.3);
-    --glass-blur: blur(12px);
-    --glass-glow: 0 4px 16px hsl(188, 100%, 42%, 0.1);
+    /* Dark Glass & Transparency Effects */
+    --glass-bg: rgba(0, 0, 0, 0.4);
+    --glass-border: rgba(0, 255, 255, 0.2);
+    --glass-blur: blur(16px);
+    --glass-glow: 0 8px 32px hsl(195, 100%, 50%, 0.2);
     
-    /* Pattern & Texture Variables - Subtle Light Patterns */
-    --pattern-grid: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300bcd4' fill-opacity='0.08'%3E%3Cpath d='M30 30h30v30H30zM0 0h30v30H0z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    --pattern-circuit: url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2300bcd4' stroke-width='1' stroke-opacity='0.05'%3E%3Cpath d='M20 20h40v40H20z'/%3E%3Cpath d='M0 0h20v20H0z'/%3E%3Cpath d='M60 60h20v20H60z'/%3E%3C/g%3E%3C/svg%3E");
+    /* Dark Tech Pattern Variables */
+    --pattern-grid: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300ffff' fill-opacity='0.03'%3E%3Cpath d='M30 30h30v30H30zM0 0h30v30H0z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    --pattern-circuit: url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2300ffff' stroke-width='1' stroke-opacity='0.02'%3E%3Cpath d='M20 20h40v40H20z'/%3E%3Cpath d='M0 0h20v20H0z'/%3E%3Cpath d='M60 60h20v20H60z'/%3E%3C/g%3E%3C/svg%3E");
 
     --radius: 1rem;
 
-    --sidebar-background: 210 20% 98%;
-    --sidebar-foreground: 210 15% 12%;
-    --sidebar-primary: 188 100% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 15% 95%;
-    --sidebar-accent-foreground: 210 15% 20%;
-    --sidebar-border: 210 15% 90%;
-    --sidebar-ring: 188 100% 42%;
+    --sidebar-background: 222 25% 8%;
+    --sidebar-foreground: 210 40% 95%;
+    --sidebar-primary: 195 100% 50%;
+    --sidebar-primary-foreground: 222 25% 8%;
+    --sidebar-accent: 222 20% 18%;
+    --sidebar-accent-foreground: 210 35% 85%;
+    --sidebar-border: 222 30% 20%;
+    --sidebar-ring: 195 100% 50%;
   }
 
   .dark {
-    --background: 210 30% 8%;
-    --foreground: 180 100% 90%;
+    /* Enhanced ultra-dark theme */
+    --background: 222 40% 3%;
+    --foreground: 210 50% 98%;
     
-    --card: 210 25% 12%;
-    --card-foreground: 180 100% 95%;
+    --card: 222 45% 6%;
+    --card-foreground: 210 45% 95%;
     
-    --popover: 210 30% 10%;
-    --popover-foreground: 180 100% 90%;
+    --popover: 222 50% 4%;
+    --popover-foreground: 210 50% 98%;
     
-    --primary: 188 100% 42%;
-    --primary-foreground: 210 40% 8%;
+    --primary: 180 100% 45%;
+    --primary-foreground: 222 40% 3%;
     
-    --secondary: 210 20% 18%;
-    --secondary-foreground: 180 100% 85%;
+    --secondary: 222 35% 8%;
+    --secondary-foreground: 210 45% 90%;
     
-    --muted: 210 15% 15%;
-    --muted-foreground: 180 50% 65%;
+    --muted: 222 40% 7%;
+    --muted-foreground: 210 25% 70%;
     
-    --accent: 193 100% 50%;
-    --accent-foreground: 210 40% 8%;
+    --accent: 280 100% 65%;
+    --accent-foreground: 210 50% 98%;
     
-    --border: 210 20% 20%;
-    --input: 210 20% 18%;
-    --ring: 188 100% 42%;
-    
-    /* Dark theme gradients */
-    --gradient-bg: linear-gradient(135deg, hsl(210, 30%, 8%) 0%, hsl(210, 25%, 12%) 50%, hsl(188, 100%, 42%) 100%);
-    --shadow-cyber: 0 0 20px hsl(188, 100%, 42%, 0.3);
-    --glow-soft: 0 0 20px hsl(188, 100%, 42%, 0.4);
-    --glass-bg: rgba(0, 255, 255, 0.05);
+    --border: 222 40% 12%;
+    --input: 222 35% 9%;
+    --ring: 180 100% 45%;
+
+    /* Ultra dark gradients */
+    --gradient-bg: linear-gradient(135deg, hsl(222, 45%, 4%), hsl(222, 40%, 2%));
+    --gradient-card: linear-gradient(145deg, hsl(222, 50%, 8%), hsl(222, 45%, 4%));
+    --gradient-metallic: linear-gradient(135deg, hsl(210, 20%, 15%), hsl(222, 35%, 10%));
   }
 }
 

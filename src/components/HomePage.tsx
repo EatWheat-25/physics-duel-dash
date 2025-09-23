@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Play, Trophy, Target, Users, Settings, Star, User, Bell, ChevronRight } from "lucide-react";
+import DarkModeToggle from './DarkModeToggle';
 
 interface HomePageProps {
   startGame: () => void;
@@ -68,8 +69,28 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-hidden relative">
-      {/* Top Bar */}
+    <div className="min-h-screen bg-gradient-to-br from-background via-game-void to-background text-foreground overflow-hidden relative">
+      <DarkModeToggle />
+      
+      {/* Dark tech atmosphere */}
+      <div className="absolute inset-0 bg-gradient-to-t from-game-void/50 via-transparent to-game-void/30 pointer-events-none" />
+      
+      {/* Subtle particle effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-60">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div
+            key={`particle-${i}`}
+            className="absolute w-1 h-1 bg-game-neon rounded-full animate-float opacity-40"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 8}s`,
+              animationDuration: `${Math.random() * 15 + 10}s`,
+              filter: 'blur(0.5px)'
+            }}
+          />
+        ))}
+      </div>
       <div className="absolute top-0 right-0 z-50 p-4 flex items-center gap-4">
         <div className="flex items-center gap-2 text-sm">
           <Star className="w-4 h-4 text-yellow-500" />
