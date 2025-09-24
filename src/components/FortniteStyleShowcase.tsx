@@ -29,10 +29,8 @@ const FortniteStyleShowcase: React.FC<FortniteStyleShowcaseProps> = ({
         transition={{ duration: 1, ease: "easeOut" }}
         className="relative"
       >
-        {/* Rotating Holographic Platform */}
+        {/* Character Platform */}
         <motion.div
-          animate={{ rotateY: [0, 360] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
           className="relative cursor-pointer group"
           onClick={onCharacterClick}
         >
@@ -95,40 +93,7 @@ const FortniteStyleShowcase: React.FC<FortniteStyleShowcaseProps> = ({
             </motion.div>
           </div>
           
-          {/* Orbiting Tech Elements */}
-          <motion.div
-            className="absolute inset-0 pointer-events-none"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          >
-            <div className="relative w-full h-full">
-              <div className="absolute top-1/4 left-1/4 w-4 h-4 rounded-full bg-primary/60 animate-pulse" />
-              <div className="absolute top-3/4 right-1/4 w-3 h-3 rounded-full bg-secondary/60 animate-pulse" />
-              <div className="absolute top-1/2 right-1/3 w-2 h-2 rounded-full bg-accent/60 animate-pulse" />
-            </div>
-          </motion.div>
           
-          {/* Holographic Ring */}
-          <motion.div
-            className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-72 h-72 rounded-full border-2 border-primary/30"
-            animate={{ 
-              rotate: [0, 360],
-              scale: [1, 1.05, 1]
-            }}
-            transition={{ 
-              rotate: { duration: 15, repeat: Infinity, ease: "linear" },
-              scale: { duration: 4, repeat: Infinity, ease: "easeInOut" }
-            }}
-          >
-            <div className="absolute inset-4 rounded-full border border-secondary/20" />
-            <div className="absolute inset-8 rounded-full border border-accent/15" />
-            
-            {/* Tech Nodes */}
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-primary animate-pulse" />
-            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 w-3 h-3 rounded-full bg-secondary animate-pulse" />
-            <div className="absolute left-0 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-accent animate-pulse" />
-            <div className="absolute right-0 top-1/2 transform translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-primary animate-pulse" />
-          </motion.div>
         </motion.div>
         
         {/* Character Info Panel */}
