@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, LogOut, Play, Users, Target, BookOpen, Trophy, Star, ChevronRight, User, Bell } from 'lucide-react';
+import { Settings, Play, Users, Target, BookOpen, Trophy, Star, ChevronRight, Zap, Cpu, Brain, Rocket, Shield, Activity } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import CyberBackground from './CyberBackground';
+import CyberpunkBackground from './CyberpunkBackground';
 import RankBadge from './RankBadge';
 import CharacterAvatar from './CharacterAvatar';
 import CharacterSelection from './CharacterSelection';
@@ -78,161 +78,272 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
 
   return (
     <div className="min-h-screen text-foreground overflow-hidden relative">
-      {/* Professional Gaming Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-background via-card to-background">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `linear-gradient(45deg, 
-            transparent 25%, 
-            hsla(215, 25%, 15%, 0.1) 25%, 
-            hsla(215, 25%, 15%, 0.1) 50%, 
-            transparent 50%, 
-            transparent 75%, 
-            hsla(215, 25%, 15%, 0.1) 75%
-          )`,
-          backgroundSize: '40px 40px'
-        }} />
-      </div>
+      {/* Next-Gen Cyberpunk Background */}
+      <CyberpunkBackground />
 
-      {/* Top Navigation Bar */}
-      <div className="relative z-10 flex items-center justify-between px-8 py-4 bg-card/50 backdrop-blur-lg border-b border-border">
-        {/* Logo */}
+      {/* Ultra-Tech Navigation Header */}
+      <motion.div 
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="relative z-10 cyber-panel mx-4 mt-4 px-8 py-4 border-0"
+        style={{ 
+          background: 'var(--panel-bg)',
+          borderBottom: '2px solid var(--panel-border)'
+        }}
+      >
+        <div className="flex items-center justify-between">
+          {/* Futuristic Logo */}
           <div className="flex items-center gap-8">
-            <h1 className="text-2xl font-bold text-foreground">ROBOT ACADEMY</h1>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="flex items-center gap-3"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                <Cpu className="w-6 h-6 text-background font-bold" style={{ filter: 'var(--glow-primary)' }} />
+              </div>
+              <h1 className="text-2xl font-bold futuristic-heading">NEURAL ACADEMY</h1>
+            </motion.div>
           
-          {/* Navigation Items */}
+            {/* Holographic Navigation */}
+            <div className="flex items-center gap-2">
+              {mainMenuItems.map((item, index) => (
+                <motion.button
+                  key={item.id}
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  onClick={() => setSelectedTab(item.id)}
+                  className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-300 rounded-lg relative overflow-hidden ${
+                    selectedTab === item.id 
+                      ? 'text-primary bg-primary/10 border border-primary/30' 
+                      : 'text-muted-foreground hover:text-primary hover:bg-primary/5 border border-transparent'
+                  }`}
+                  style={{ fontFamily: 'Orbitron, sans-serif' }}
+                >
+                  <span className="relative z-10">{item.label}</span>
+                  {selectedTab === item.id && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute inset-0 bg-primary/20 border border-primary/50 rounded-lg"
+                      style={{ boxShadow: '0 0 20px hsl(180, 100%, 50%, 0.3)' }}
+                    />
+                  )}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+
+          {/* Enhanced User Stats */}
           <div className="flex items-center gap-6">
-            {mainMenuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setSelectedTab(item.id)}
-                className={`px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                  selectedTab === item.id 
-                    ? 'text-primary border-b-2 border-primary' 
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
+            {/* Glowing Stats */}
+            <div className="flex items-center gap-6 text-sm">
+              <motion.div 
+                whileHover={{ scale: 1.1 }}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20"
               >
-                {item.label}
-              </button>
-            ))}
+                <Trophy className="w-4 h-4 text-primary" style={{ filter: 'var(--glow-primary)' }} />
+                <span className="font-bold text-primary">{userData.currentPoints}</span>
+              </motion.div>
+              
+              <motion.div 
+                whileHover={{ scale: 1.1 }}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/10 border border-secondary/20"
+              >
+                <Target className="w-4 h-4 text-secondary" />
+                <span className="font-bold text-secondary">{userData.accuracy}%</span>
+              </motion.div>
+              
+              <motion.div 
+                whileHover={{ scale: 1.1 }}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20"
+              >
+                <Zap className="w-4 h-4 text-accent" />
+                <span className="font-bold text-accent">{userData.winStreak}</span>
+              </motion.div>
+            </div>
+            
+            {/* Enhanced Character Avatar */}
+            <motion.div
+              whileHover={{ scale: 1.1 }}
+              className="relative"
+            >
+              <CharacterAvatar 
+                character={selectedCharacter} 
+                size="sm" 
+                onClick={() => setCharacterSelectionOpen(true)}
+              />
+              <div className="absolute -inset-2 rounded-full border border-primary/30 animate-pulse opacity-50" />
+            </motion.div>
+            
+            {/* Holographic User Info */}
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              className="flex items-center gap-3 px-4 py-2 rounded-lg bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20"
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center text-sm font-bold text-background relative">
+                {userData.username.charAt(0).toUpperCase()}
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-primary to-secondary opacity-20 blur-sm" />
+              </div>
+              <span className="text-foreground font-bold">{userData.username}</span>
+            </motion.div>
+            
+            <motion.button 
+              whileHover={{ scale: 1.1, rotate: 90 }}
+              whileTap={{ scale: 0.9 }}
+              className="p-3 rounded-xl bg-secondary/10 border border-secondary/20 hover:bg-secondary/20 transition-all duration-300"
+            >
+              <Settings className="w-5 h-5 text-secondary" />
+            </motion.button>
           </div>
         </div>
+      </motion.div>
 
-        {/* User Info & Stats */}
-        <div className="flex items-center gap-6">
-          {/* Character Avatar */}
-          <div className="flex items-center gap-4">
-            <CharacterAvatar 
-              character={selectedCharacter} 
-              size="sm" 
-              onClick={() => setCharacterSelectionOpen(true)}
-            />
-          </div>
-          
-          <div className="flex items-center gap-4 text-sm text-foreground">
-            <div className="flex items-center gap-1">
-              <Trophy className="w-4 h-4 text-accent" />
-              <span>{userData.currentPoints}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Target className="w-4 h-4 text-primary" />
-              <span>{userData.accuracy}%</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-accent flex items-center justify-center text-sm font-bold text-primary-foreground">
-              {userData.username.charAt(0).toUpperCase()}
-            </div>
-            <span className="text-foreground font-medium">{userData.username}</span>
-          </div>
-          
-          <button className="p-2 hover:bg-secondary rounded transition-colors">
-            <Settings className="w-5 h-5 text-foreground" />
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="relative z-10 flex min-h-[calc(100vh-80px)]">
+      {/* Revolutionary Main Interface */}
+      <div className="relative z-10 flex min-h-[calc(100vh-120px)]">
         {selectedTab === "PLAY" && (
           <>
-            {/* Left Section - Game Mode Selection */}
-            <div className="w-80 p-8">
-              <div className="max-w-md">
-                {/* Modes Selection Card */}
+            {/* Left Command Panel */}
+            <div className="w-96 p-6">
+              <motion.div
+                initial={{ x: -100, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                className="max-w-md space-y-6"
+              >
+                {/* Enhanced Mode Selection Panel */}
                 {selectedSubject && selectedMode ? (
                   <Link to="/modes">
                     <motion.div
-                      initial={{ x: -50, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      transition={{ duration: 0.6 }}
-                      className="cyber-card mb-6 p-6 border border-primary/30 cursor-pointer hover:scale-105 transition-transform duration-200"
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="cyber-panel p-6 cursor-pointer group"
                     >
-                      <div className="flex items-center gap-4 mb-4">
-                        <Target className="w-8 h-8 text-primary" />
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold text-foreground">SELECTED MODE</h3>
-                          <p className="text-muted-foreground text-sm">{selectedSubject.toUpperCase()} - {selectedMode.replace('_', ' ')}</p>
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="relative">
+                          <Target className="w-10 h-10 text-primary" style={{ filter: 'var(--glow-primary)' }} />
+                          <motion.div
+                            className="absolute -inset-2 rounded-full border border-primary/30"
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                          />
                         </div>
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold futuristic-heading mb-1">COMBAT MODE ACTIVE</h3>
+                          <p className="text-primary text-sm font-bold uppercase tracking-wider">{selectedSubject} :: {selectedMode.replace('_', ' ')}</p>
+                        </div>
+                        <ChevronRight className="w-6 h-6 text-primary group-hover:translate-x-1 transition-transform" />
                       </div>
-                      <div className="w-full h-24 bg-secondary/50 rounded-lg mb-4 flex items-center justify-center border border-border">
-                        <span className="text-foreground font-medium">Ready to Battle! Click to change mode</span>
+                      
+                      <div className="relative h-32 rounded-xl overflow-hidden border border-primary/20 mb-4">
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-secondary/20" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-center">
+                            <Brain className="w-8 h-8 text-primary mx-auto mb-2" />
+                            <span className="text-foreground font-bold">NEURAL LINK ESTABLISHED</span>
+                          </div>
+                        </div>
+                        
+                        {/* Animated Tech Lines */}
+                        <motion.div
+                          className="absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-primary to-transparent"
+                          animate={{ scaleX: [0, 1, 0] }}
+                          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                        />
+                      </div>
+                      
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                        ◦ READY FOR DEPLOYMENT ◦
                       </div>
                     </motion.div>
                   </Link>
                 ) : (
                   <Link to="/modes">
                     <motion.div
-                      initial={{ x: -50, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      transition={{ duration: 0.6 }}
-                      className="cyber-card mb-6 p-6 cursor-pointer hover:scale-105 transition-transform duration-200 border border-accent/30"
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="cyber-panel p-6 cursor-pointer group"
                     >
-                      <div className="flex items-center gap-4 mb-4">
-                        <BookOpen className="w-8 h-8 text-accent" />
-                        <div>
-                          <h3 className="text-xl font-bold text-foreground">MODES</h3>
-                          <p className="text-muted-foreground text-sm">Choose Math or Physics</p>
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="relative">
+                          <BookOpen className="w-10 h-10 text-accent" />
+                          <motion.div
+                            className="absolute -inset-2 rounded-full border border-accent/30"
+                            animate={{ scale: [1, 1.1, 1] }}
+                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold futuristic-heading mb-1">SELECT PROTOCOL</h3>
+                          <p className="text-accent text-sm font-bold uppercase tracking-wider">MATH :: PHYSICS</p>
+                        </div>
+                        <ChevronRight className="w-6 h-6 text-accent group-hover:translate-x-1 transition-transform" />
+                      </div>
+                      
+                      <div className="relative h-32 rounded-xl overflow-hidden border border-accent/20 mb-4">
+                        <div className="absolute inset-0 bg-gradient-to-br from-accent/20 via-transparent to-primary/20" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-center">
+                            <Rocket className="w-8 h-8 text-accent mx-auto mb-2" />
+                            <span className="text-muted-foreground font-medium">Initialize Combat Systems</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="w-full h-24 bg-secondary/50 rounded-lg mb-4 flex items-center justify-center border border-border">
-                        <span className="text-muted-foreground text-sm">Select Your Battle Mode</span>
+                      
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                        ◦ AWAITING SELECTION ◦
                       </div>
                     </motion.div>
                   </Link>
                 )}
 
-                {/* Start Button */}
+                {/* Ultra-Tech Launch Button */}
                 {selectedSubject && selectedMode ? (
                   <motion.button
-                    initial={{ x: -50, opacity: 0 }}
+                    initial={{ x: -100, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
-                    transition={{ duration: 0.6, delay: 0.2 }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    transition={{ duration: 0.8, delay: 0.3 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={handleStartSelectedMode}
-                    className="w-full py-4 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold text-xl rounded-lg border border-primary/30 hover:shadow-glow transition-all duration-200 flex items-center justify-center gap-3"
+                    className="w-full cyber-button py-6 text-xl relative group"
                   >
-                    <Play className="w-6 h-6" />
-                    START BATTLE
+                    <div className="flex items-center justify-center gap-4">
+                      <Play className="w-8 h-8" />
+                      <span>INITIATE COMBAT</span>
+                      <Shield className="w-8 h-8" />
+                    </div>
+                    
+                    {/* Animated Border Effect */}
+                    <motion.div
+                      className="absolute -inset-1 rounded-xl bg-gradient-to-r from-primary via-secondary to-accent opacity-0 group-hover:opacity-30 blur-sm"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                    />
                   </motion.button>
                 ) : (
-                    <Link to="/modes">
-                      <motion.button
-                        initial={{ x: -50, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ duration: 0.6, delay: 0.2 }}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="w-full py-4 bg-secondary text-secondary-foreground font-bold text-xl rounded-lg border border-border hover:bg-secondary/80 transition-all duration-200 flex items-center justify-center gap-3"
-                      >
-                        <Play className="w-6 h-6" />
-                        START
-                      </motion.button>
-                    </Link>
+                  <Link to="/modes">
+                    <motion.button
+                      initial={{ x: -100, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ duration: 0.8, delay: 0.3 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="w-full py-6 bg-gradient-to-r from-secondary/20 to-accent/20 text-secondary-foreground font-bold text-xl rounded-xl border-2 border-secondary/30 hover:border-secondary/50 transition-all duration-300 flex items-center justify-center gap-4 relative overflow-hidden"
+                      style={{ fontFamily: 'Orbitron, sans-serif' }}
+                    >
+                      <Cpu className="w-8 h-8" />
+                      <span>ACTIVATE SYSTEMS</span>
+                      
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-secondary/10 to-transparent"
+                        animate={{ x: ['-100%', '100%'] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                    </motion.button>
+                  </Link>
                 )}
-              </div>
+              </motion.div>
             </div>
 
             {/* Center Section - Character Showcase */}
@@ -241,99 +352,167 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               onCharacterClick={() => setCharacterSelectionOpen(true)}
             />
 
-            {/* Right Section - Battle Pass & Activities */}
-            <div className="w-96 p-8 space-y-6">
-              {/* Battle Pass */}
+            {/* Right Command Center */}
+            <div className="w-96 p-6 space-y-6">
+              {/* Neural Progress Tracker */}
               <motion.div
-                initial={{ x: 50, opacity: 0 }}
+                initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.1 }}
-                className="cyber-card p-4 border border-primary/30"
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="cyber-panel p-6 relative overflow-hidden"
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 bg-primary/20 rounded flex items-center justify-center text-primary font-bold">
-                    22
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-background font-bold text-lg">
+                      22
+                    </div>
+                    <motion.div
+                      className="absolute -inset-2 rounded-xl border border-primary/30"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                    />
                   </div>
-                  <span className="text-foreground font-bold">BATTLE PASS</span>
+                  <div>
+                    <h4 className="text-lg font-bold futuristic-heading">NEURAL PROGRESS</h4>
+                    <p className="text-primary text-sm font-medium">Level 22 • Elite Protocol</p>
+                  </div>
                 </div>
-                <div className="w-full h-16 bg-secondary/50 rounded-lg border border-border"></div>
+                
+                <div className="relative h-20 rounded-xl bg-gradient-to-r from-background/50 to-primary/10 border border-primary/20 overflow-hidden">
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-primary/30 to-secondary/30"
+                    initial={{ width: 0 }}
+                    animate={{ width: '78%' }}
+                    transition={{ duration: 2, ease: "easeOut" }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-foreground">78%</div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">COMPLETION</div>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
 
-              {/* Challenges */}
+              {/* Combat Objectives */}
               <motion.div
-                initial={{ x: 50, opacity: 0 }}
+                initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
-                className="cyber-card p-4"
+                transition={{ duration: 0.8, delay: 0.3 }}
+                className="cyber-panel p-6"
               >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-foreground font-bold">CHALLENGES</span>
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 mb-6">
+                  <Shield className="w-8 h-8 text-accent" style={{ filter: 'var(--glow-accent)' }} />
+                  <div>
+                    <h4 className="text-lg font-bold futuristic-heading">OBJECTIVES</h4>
+                    <p className="text-accent text-sm">Combat Missions</p>
+                  </div>
+                  <div className="ml-auto flex items-center gap-2 px-3 py-1 rounded-lg bg-accent/10 border border-accent/20">
                     <Users className="w-4 h-4 text-accent" />
-                    <span className="text-foreground text-sm">3/5</span>
+                    <span className="text-accent font-bold text-sm">3/5</span>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="h-2 bg-secondary rounded-full">
-                    <div className="h-full w-3/5 bg-primary rounded-full"></div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                    <div className="flex-1">
+                      <div className="h-2 bg-background/50 rounded-full overflow-hidden">
+                        <motion.div 
+                          className="h-full bg-gradient-to-r from-primary to-secondary"
+                          initial={{ width: 0 }}
+                          animate={{ width: '60%' }}
+                          transition={{ duration: 1.5, ease: "easeOut" }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-primary font-bold text-xs">60%</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
+                    <div className="flex-1">
+                      <div className="h-2 bg-background/50 rounded-full overflow-hidden">
+                        <motion.div 
+                          className="h-full bg-gradient-to-r from-secondary to-accent"
+                          initial={{ width: 0 }}
+                          animate={{ width: '85%' }}
+                          transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-secondary font-bold text-xs">85%</span>
                   </div>
                 </div>
               </motion.div>
 
-              {/* Activity */}
+              {/* Mission Intel */}
               <motion.div
-                initial={{ x: 50, opacity: 0 }}
+                initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                className="cyber-card p-4"
+                transition={{ duration: 0.8, delay: 0.4 }}
+                className="cyber-panel p-6"
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <Star className="w-5 h-5 text-accent" />
-                  <span className="text-foreground font-bold">ACTIVITY</span>
+                <div className="flex items-center gap-3 mb-6">
+                  <Activity className="w-8 h-8 text-accent" />
+                  <h4 className="text-lg font-bold futuristic-heading">MISSION INTEL</h4>
                 </div>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-accent/20 rounded-lg border border-border flex items-center justify-center">
-                      <span className="text-accent font-bold text-sm">D</span>
+                
+                <div className="space-y-4">
+                  <motion.div 
+                    whileHover={{ x: 4 }}
+                    className="flex items-center gap-4 p-3 rounded-lg bg-primary/5 border border-primary/20 cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
+                      <Brain className="w-5 h-5 text-background" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-foreground text-sm font-medium">Daily Challenge</p>
-                      <p className="text-muted-foreground text-xs">Solve 5 problems</p>
+                      <p className="font-bold text-foreground text-sm">Neural Sync</p>
+                      <p className="text-muted-foreground text-xs">Solve 5 complex equations</p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-primary/20 rounded-lg border border-border flex items-center justify-center">
-                      <span className="text-primary font-bold text-sm">W</span>
+                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  </motion.div>
+                  
+                  <motion.div 
+                    whileHover={{ x: 4 }}
+                    className="flex items-center gap-4 p-3 rounded-lg bg-secondary/5 border border-secondary/20 cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-secondary to-secondary/70 flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-background" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-foreground text-sm font-medium">Weekly Goal</p>
-                      <p className="text-muted-foreground text-xs">Win 3 battles</p>
+                      <p className="font-bold text-foreground text-sm">Combat Streak</p>
+                      <p className="text-muted-foreground text-xs">Win 3 consecutive battles</p>
                     </div>
-                  </div>
+                    <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
+                  </motion.div>
                 </div>
               </motion.div>
 
-              {/* Performance Stats */}
+              {/* Performance Analytics */}
               <motion.div
-                initial={{ x: 50, opacity: 0 }}
+                initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-                className="cyber-card p-4"
+                transition={{ duration: 0.8, delay: 0.5 }}
+                className="cyber-panel p-6"
               >
-                <h4 className="text-foreground font-bold mb-4">PERFORMANCE</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground text-sm">Win Streak</span>
-                    <span className="text-primary font-bold">{userData.winStreak}</span>
+                <h4 className="text-lg font-bold futuristic-heading mb-6">COMBAT ANALYTICS</h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 rounded-lg bg-primary/10 border border-primary/20">
+                    <div className="text-2xl font-bold text-primary mb-1">{userData.winStreak}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Streak</div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground text-sm">Total Matches</span>
-                    <span className="text-foreground font-bold">{userData.totalMatches}</span>
+                  
+                  <div className="text-center p-3 rounded-lg bg-secondary/10 border border-secondary/20">
+                    <div className="text-2xl font-bold text-secondary mb-1">{userData.totalMatches}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Battles</div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground text-sm">Current Rank</span>
-                    <RankBadge rank={userData.currentRank} size="sm" />
-                  </div>
+                </div>
+                
+                <div className="mt-4 p-3 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-between">
+                  <span className="text-muted-foreground text-sm font-medium">Current Rank</span>
+                  <RankBadge rank={userData.currentRank} size="sm" />
                 </div>
               </motion.div>
             </div>

@@ -7,89 +7,90 @@ All colors MUST be HSL.
 */
 
 @layer base {
-  /* ===== DARK CYBERPUNK THEME - COOL & EDGY ===== */
+  /* ===== NEXT-GEN CYBERPUNK THEME - ULTRA FUTURISTIC ===== */
   :root {
-    /* Dark Base Palette */
-    --background: 222 25% 8%;
-    --foreground: 210 40% 95%;
+    /* Ultra Dark Core */
+    --background: 220 30% 2%;
+    --foreground: 200 100% 98%;
     
-    --card: 222 30% 12%;
-    --card-foreground: 210 35% 92%;
+    --card: 220 25% 4%;
+    --card-foreground: 200 50% 95%;
     
-    --popover: 222 35% 10%;
-    --popover-foreground: 210 40% 95%;
+    --popover: 220 35% 3%;
+    --popover-foreground: 200 100% 98%;
     
-    --primary: 195 100% 50%;
-    --primary-foreground: 222 25% 8%;
+    /* Cyberpunk Neon Colors */
+    --primary: 180 100% 50%;        /* Electric Cyan */
+    --primary-foreground: 220 30% 2%;
     
-    --secondary: 222 20% 18%;
-    --secondary-foreground: 210 35% 85%;
+    --secondary: 280 100% 70%;      /* Neon Purple */
+    --secondary-foreground: 200 100% 98%;
     
-    --muted: 222 25% 15%;
-    --muted-foreground: 210 20% 65%;
+    --muted: 220 20% 8%;
+    --muted-foreground: 200 20% 70%;
     
-    --accent: 271 100% 60%;
-    --accent-foreground: 210 40% 95%;
+    --accent: 320 100% 60%;         /* Plasma Pink */
+    --accent-foreground: 200 100% 98%;
     
-    --destructive: 0 75% 55%;
+    --destructive: 0 100% 60%;
     --destructive-foreground: 0 0% 100%;
     
-    --border: 222 30% 20%;
-    --input: 222 25% 16%;
-    --ring: 195 100% 50%;
+    --border: 180 50% 15%;
+    --input: 220 25% 6%;
+    --ring: 180 100% 50%;
     
-    --chart-1: 195 100% 50%;
-    --chart-2: 271 100% 60%;
-    --chart-3: 180 100% 45%;
-    --chart-4: 320 100% 60%;
-    --chart-5: 240 100% 65%;
-
-    /* Dark Cyberpunk Gaming Palette */
-    --game-bg: 222 25% 8%;
-    --game-surface: 222 30% 12%;
-    --game-border: 222 30% 20%;
-    --game-accent: 195 100% 50%;
-    --game-accent-soft: 271 100% 60%;
-    --game-success: 160 80% 50%;
-    --game-warning: 45 90% 60%;
-    --game-text: 210 40% 95%;
-    --game-text-muted: 210 20% 65%;
-
-    /* Neon accents */
+    /* Cyberpunk Game Palette */
+    --cyber-cyan: 180 100% 50%;
+    --cyber-purple: 280 100% 70%;
+    --cyber-pink: 320 100% 60%;
+    --cyber-blue: 240 100% 65%;
+    --cyber-green: 120 100% 50%;
+    --cyber-orange: 30 100% 60%;
+    
+    /* Neon Glow Colors */
     --neon-cyan: 180 100% 50%;
-    --neon-purple: 271 100% 60%;
-    --neon-blue: 221 100% 65%;
+    --neon-purple: 280 100% 70%;
+    --neon-pink: 320 100% 60%;
+    --neon-blue: 240 100% 65%;
     --electric-teal: 180 100% 45%;
-    --plasma-pink: 320 100% 60%;
-    --void-black: 222 40% 5%;
-    --steel-gray: 210 15% 25%;
+    --plasma-magenta: 300 100% 65%;
+    --void-black: 220 40% 1%;
+    --steel-gray: 200 15% 25%;
 
-    /* Dark Gradients & Effects */
-    --gradient-primary: linear-gradient(135deg, hsl(195, 100%, 50%), hsl(271, 100%, 60%));
-    --gradient-secondary: linear-gradient(135deg, hsl(222, 30%, 12%), hsl(222, 25%, 8%));
-    --gradient-accent: linear-gradient(45deg, hsl(271, 100%, 60%), hsl(320, 100%, 60%));
-    --gradient-hero: linear-gradient(135deg, hsl(222, 25%, 8%) 0%, hsl(222, 30%, 12%) 30%, hsl(195, 50%, 15%) 100%);
-    --gradient-bg: linear-gradient(135deg, hsl(222, 40%, 3%) 0%, hsl(222, 30%, 6%) 50%, hsl(222, 25%, 8%) 100%);
-    --gradient-robot: linear-gradient(135deg, hsl(195, 100%, 50%), hsl(271, 100%, 60%), hsl(180, 100%, 45%));
+    /* Cyberpunk Gradients & Effects */
+    --gradient-primary: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(280, 100%, 70%));
+    --gradient-secondary: linear-gradient(135deg, hsl(320, 100%, 60%), hsl(240, 100%, 65%));
+    --gradient-accent: linear-gradient(45deg, hsl(280, 100%, 70%), hsl(320, 100%, 60%));
+    --gradient-hero: linear-gradient(135deg, hsl(220, 30%, 2%) 0%, hsl(220, 25%, 4%) 30%, hsl(180, 50%, 8%) 100%);
+    --gradient-bg: linear-gradient(135deg, hsl(220, 40%, 1%) 0%, hsl(220, 30%, 2%) 50%, hsl(220, 25%, 4%) 100%);
+    --gradient-robot: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(280, 100%, 70%), hsl(320, 100%, 60%));
+    --gradient-neon: linear-gradient(90deg, hsl(180, 100%, 50%), hsl(280, 100%, 70%), hsl(320, 100%, 60%), hsl(240, 100%, 65%));
+    --gradient-hologram: linear-gradient(45deg, hsl(180, 100%, 50%, 0.1), hsl(280, 100%, 70%, 0.1), hsl(320, 100%, 60%, 0.1));
     
-    /* Intense Cyber Shadows & Glows */
-    --shadow-cyber: 0 8px 32px hsl(195, 100%, 50%, 0.3);
-    --shadow-neon: 0 0 50px hsl(271, 100%, 60%, 0.4);
-    --shadow-accent: 0 0 40px hsl(180, 100%, 45%, 0.3);
-    --glow-primary: drop-shadow(0 0 20px hsl(195, 100%, 50%, 0.5));
-    --glow-accent: drop-shadow(0 0 25px hsl(271, 100%, 60%, 0.4));
-    --glow-soft: 0 0 30px hsl(195, 80%, 70%, 0.5);
-    --shadow-robot: 0 0 40px hsl(195, 100%, 50%, 0.4), 0 0 80px hsl(271, 100%, 60%, 0.3);
+    /* Ultra Intense Cyberpunk Glows */
+    --shadow-cyber: 0 10px 40px hsl(180, 100%, 50%, 0.4);
+    --shadow-neon: 0 0 60px hsl(280, 100%, 70%, 0.5);
+    --shadow-accent: 0 0 50px hsl(320, 100%, 60%, 0.4);
+    --shadow-hologram: 0 8px 32px hsl(180, 100%, 50%, 0.2), 0 0 60px hsl(280, 100%, 70%, 0.3);
+    --glow-primary: drop-shadow(0 0 25px hsl(180, 100%, 50%, 0.6));
+    --glow-accent: drop-shadow(0 0 30px hsl(280, 100%, 70%, 0.5));
+    --glow-robot: 0 0 50px hsl(180, 100%, 50%, 0.5), 0 0 100px hsl(280, 100%, 70%, 0.4), 0 0 150px hsl(320, 100%, 60%, 0.3);
+    --glow-panel: 0 4px 20px hsl(180, 100%, 50%, 0.1), inset 0 1px 0 hsl(180, 100%, 50%, 0.2);
     
-    /* Dark Glass & Transparency Effects */
-    --glass-bg: rgba(0, 0, 0, 0.4);
-    --glass-border: rgba(0, 255, 255, 0.2);
-    --glass-blur: blur(16px);
-    --glass-glow: 0 8px 32px hsl(195, 100%, 50%, 0.2);
+    /* Advanced Holographic Glass Effects */
+    --glass-bg: rgba(0, 20, 40, 0.1);
+    --glass-border: rgba(0, 255, 255, 0.3);
+    --glass-blur: blur(20px);
+    --glass-glow: 0 8px 40px hsl(180, 100%, 50%, 0.3);
+    --hologram-bg: linear-gradient(135deg, rgba(0, 255, 255, 0.05), rgba(255, 0, 255, 0.05), rgba(255, 100, 200, 0.05));
+    --panel-bg: rgba(0, 20, 40, 0.15);
+    --panel-border: rgba(0, 255, 255, 0.4);
+    --panel-glow: 0 0 30px hsl(180, 100%, 50%, 0.2), inset 0 1px 0 hsl(180, 100%, 50%, 0.1);
     
-    /* Dark Tech Pattern Variables */
-    --pattern-grid: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300ffff' fill-opacity='0.03'%3E%3Cpath d='M30 30h30v30H30zM0 0h30v30H0z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    --pattern-circuit: url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2300ffff' stroke-width='1' stroke-opacity='0.02'%3E%3Cpath d='M20 20h40v40H20z'/%3E%3Cpath d='M0 0h20v20H0z'/%3E%3Cpath d='M60 60h20v20H60z'/%3E%3C/g%3E%3C/svg%3E");
+    /* Next-Gen Tech Patterns */
+    --pattern-circuit: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2300ffff' stroke-width='0.5' stroke-opacity='0.1'%3E%3Cpath d='M10 10h80v80H10z'/%3E%3Cpath d='M0 50h100M50 0v100'/%3E%3Ccircle cx='25' cy='25' r='3'/%3E%3Ccircle cx='75' cy='75' r='3'/%3E%3C/g%3E%3C/svg%3E");
+    --pattern-hex: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23ff00ff' stroke-width='0.5' stroke-opacity='0.08'%3E%3Cpolygon points='30,5 50,17.5 50,42.5 30,55 10,42.5 10,17.5'/%3E%3C/g%3E%3C/svg%3E");
+    --pattern-data: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ff6600' fill-opacity='0.03'%3E%3Crect x='0' y='0' width='2' height='2'/%3E%3Crect x='10' y='10' width='2' height='2'/%3E%3Crect x='20' y='5' width='2' height='2'/%3E%3Crect x='30' y='15' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E");
 
     --radius: 1rem;
 
@@ -239,17 +240,17 @@ All colors MUST be HSL.
 }
 
 @layer components {
-  /* Futuristic Card Components - Light Theme */
-  .cyber-card {
-    @apply rounded-2xl border backdrop-blur-xl relative;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-cyber);
+  /* Next-Gen Holographic Panels */
+  .cyber-panel {
+    @apply rounded-2xl relative overflow-hidden backdrop-blur-xl;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-glow);
     backdrop-filter: var(--glass-blur);
-    transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
   }
 
-  .cyber-card::before {
+  .cyber-panel::before {
     content: '';
     position: absolute;
     top: 0;
@@ -257,31 +258,51 @@ All colors MUST be HSL.
     right: 0;
     bottom: 0;
     border-radius: inherit;
-    background: var(--gradient-robot);
-    opacity: 0.03;
+    background: var(--hologram-bg);
+    opacity: 0.6;
     z-index: -1;
     transition: opacity 0.3s ease;
   }
 
-  .cyber-card:hover::before {
-    opacity: 0.08;
+  .cyber-panel::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border-radius: inherit;
+    background: var(--gradient-neon);
+    opacity: 0;
+    z-index: -2;
+    transition: opacity 0.3s ease, blur 0.3s ease;
+    filter: blur(8px);
   }
 
-  .cyber-card:hover {
-    transform: translateY(-4px) scale(1.01);
-    box-shadow: var(--shadow-neon);
-    border-color: hsl(188, 100%, 42%, 0.5);
+  .cyber-panel:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: var(--shadow-hologram);
+    border-color: hsl(180, 100%, 50%, 0.8);
   }
 
-  /* Futuristic Buttons with Glow Effects */
+  .cyber-panel:hover::before {
+    opacity: 0.9;
+  }
+
+  .cyber-panel:hover::after {
+    opacity: 0.3;
+  }
+
+  /* Ultra-Tech Neon Buttons */
   .cyber-button {
-    @apply px-6 py-4 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-500 relative overflow-hidden;
+    @apply px-8 py-4 rounded-xl font-bold text-sm uppercase tracking-widest transition-all duration-500 relative overflow-hidden;
     font-family: 'Orbitron', sans-serif;
     background: var(--gradient-primary);
     box-shadow: var(--shadow-cyber);
-    border: 1px solid hsl(188, 100%, 42%, 0.3);
-    color: white;
-    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+    border: 2px solid hsl(180, 100%, 50%, 0.4);
+    color: hsl(220, 30%, 2%);
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    font-weight: 800;
   }
 
   .cyber-button::before {
@@ -291,23 +312,49 @@ All colors MUST be HSL.
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, hsla(193, 100%, 80%, 0.4), transparent);
-    transition: left 0.6s;
+    background: linear-gradient(90deg, transparent, hsla(180, 100%, 80%, 0.6), transparent);
+    transition: left 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .cyber-button::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border-radius: inherit;
+    background: var(--gradient-primary);
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.3s ease;
+    filter: blur(10px);
   }
 
   .cyber-button:hover::before {
     left: 100%;
   }
 
-  .cyber-button:hover {
-    transform: translateY(-2px) scale(1.02);
-    box-shadow: var(--shadow-neon);
-    animation: button-glow-pulse 2s infinite;
+  .cyber-button:hover::after {
+    opacity: 1;
   }
 
-  @keyframes button-glow-pulse {
-    0%, 100% { box-shadow: var(--shadow-cyber); }
-    50% { box-shadow: var(--shadow-neon); }
+  .cyber-button:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: var(--glow-robot);
+    border-color: hsl(180, 100%, 50%, 0.8);
+    animation: neon-pulse 1.5s infinite;
+  }
+
+  @keyframes neon-pulse {
+    0%, 100% { 
+      box-shadow: var(--shadow-cyber);
+      text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    }
+    50% { 
+      box-shadow: var(--glow-robot);
+      text-shadow: 0 0 20px rgba(0, 255, 255, 0.8), 0 0 30px rgba(255, 0, 255, 0.4);
+    }
   }
 
   /* Neon Accent Button */
@@ -370,7 +417,7 @@ All colors MUST be HSL.
 
   /* Holographic Stats Card */
   .stat-card {
-    @apply cyber-card p-6 text-center relative;
+    @apply cyber-panel p-6 text-center relative;
   }
 
   .stat-number {
@@ -408,7 +455,7 @@ All colors MUST be HSL.
 
   /* Legacy classes for backward compatibility */
   .valorant-card {
-    @apply cyber-card;
+    @apply cyber-panel;
   }
 
   .valorant-button {
@@ -417,6 +464,10 @@ All colors MUST be HSL.
 
   .valorant-button-accent {
     @apply cyber-button-neon;
+  }
+
+  .cyber-card {
+    @apply cyber-panel;
   }
 
   /* Animated Cyber Grid Background - Removed particles */
