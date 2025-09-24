@@ -65,18 +65,7 @@ const FortniteStyleShowcase: React.FC<FortniteStyleShowcaseProps> = ({
           }} />
             
             {/* Holographic Grid Base */}
-            <motion.div className="absolute bottom-0 w-80 h-2 rounded-full overflow-hidden" style={{
-            background: 'linear-gradient(90deg, transparent, hsl(180, 100%, 50%, 0.4), hsl(280, 100%, 70%, 0.3), hsl(320, 100%, 60%, 0.2), transparent)',
-            boxShadow: '0 0 20px hsl(180, 100%, 50%, 0.3)'
-          }}>
-              <motion.div className="w-full h-full bg-gradient-to-r from-transparent via-primary to-transparent" animate={{
-              x: ['-100%', '100%']
-            }} transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }} />
-            </motion.div>
+            
           </div>
         </div>
         
