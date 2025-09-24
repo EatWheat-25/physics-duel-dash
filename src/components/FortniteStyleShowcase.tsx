@@ -34,7 +34,7 @@ const FortniteStyleShowcase: React.FC<FortniteStyleShowcaseProps> = ({
     }} className="relative">
         <div className="relative cursor-pointer group" onClick={onCharacterClick}>
           {/* Character Display with Ultra Glow */}
-          <div className="relative w-96 h-[500px] flex items-end justify-center">
+          <div className="relative flex items-end justify-center" style={{ width: '25vw', height: '35vh', minWidth: '300px', minHeight: '400px' }}>
             <motion.img src={character.avatar} alt={character.name} className="max-w-full max-h-full object-contain transition-all duration-500 group-hover:scale-110" style={{
             filter: 'var(--glow-robot)',
             transform: 'perspective(1000px)'
