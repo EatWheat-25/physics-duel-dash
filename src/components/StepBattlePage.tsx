@@ -279,6 +279,16 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
           </div>
         </motion.div>
 
+        {/* Original Question */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="cyber-card p-6"
+        >
+          <p className="text-lg font-medium leading-relaxed">
+            {currentQuestion.questionText}
+          </p>
+        </motion.div>
 
         {/* Current Step */}
         <AnimatePresence mode="wait">
