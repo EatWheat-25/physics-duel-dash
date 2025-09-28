@@ -279,39 +279,6 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
           </div>
         </motion.div>
 
-        {/* Question Context */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="cyber-card p-6 border-2 border-primary/20"
-        >
-          <h2 className="text-xl font-bold mb-4 text-primary">
-            {currentQuestion.title}
-          </h2>
-          
-          {/* Original CAIE Question - Made Prominent */}
-          <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-4 rounded-lg border border-primary/20 mb-4">
-            <h3 className="text-sm font-semibold text-primary mb-2 uppercase tracking-wide">
-              CAIE Question
-            </h3>
-            <p className="text-lg font-medium leading-relaxed text-foreground">
-              {currentQuestion.questionText}
-            </p>
-            <div className="text-right mt-2">
-              <span className="text-sm font-bold text-primary">
-                [{currentQuestion.totalMarks} marks total]
-              </span>
-            </div>
-          </div>
-          
-          <div className="flex gap-2 flex-wrap">
-            {currentQuestion.topicTags.map((tag, index) => (
-              <span key={index} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium">
-                {tag}
-              </span>
-            ))}
-          </div>
-        </motion.div>
 
         {/* Current Step */}
         <AnimatePresence mode="wait">
@@ -332,7 +299,7 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
             </div>
             
             <h4 className="text-xl font-medium mb-6">
-              {currentStep.question}
+              {currentStep.question.split(',').pop()?.trim() || currentStep.question}
             </h4>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
