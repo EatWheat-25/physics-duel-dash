@@ -72,7 +72,7 @@ export default function Auth() {
       const guestEmail = `guest_${Date.now()}@temp.com`;
       const guestPassword = Math.random().toString(36).slice(-8);
       
-      const { error } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email: guestEmail,
         password: guestPassword,
         options: {
@@ -80,7 +80,16 @@ export default function Auth() {
           data: { is_guest: true },
         },
       });
-      if (error) throw error;
+      if (signUpError) throw signUpError;
+
+      // Automatically sign in the guest user
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: guestEmail,
+        password: guestPassword,
+      });
+      if (signInError) throw signInError;
+
+      navigate("/onboarding");
     } catch (error: any) {
       toast({
         title: "Error",
