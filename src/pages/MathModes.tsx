@@ -2,11 +2,36 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const MathModes: React.FC = () => {
   const navigate = useNavigate();
+  const { profile, loading } = useAuth();
 
-  const gameModes = [
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    navigate('/auth');
+    return null;
+  }
+
+  // Get user's math levels
+  const userMathLevels = profile.subjects
+    .filter(s => s.subject === 'math')
+    .map(s => s.level);
+
+  if (userMathLevels.length === 0) {
+    navigate('/subject-selection');
+    return null;
+  }
+
+  const allGameModes = [
     {
       id: "A1",
       title: "A1 ONLY", 
@@ -15,7 +40,8 @@ const MathModes: React.FC = () => {
       difficulty: "BEGINNER",
       icon: "📚",
       gradient: "from-emerald-500 to-teal-600",
-      players: "2.1M+"
+      players: "2.1M+",
+      requiredLevel: "A1"
     },
     {
       id: "A2", 
@@ -25,7 +51,8 @@ const MathModes: React.FC = () => {
       difficulty: "EXPERT",
       icon: "📊",
       gradient: "from-purple-500 to-pink-600",
-      players: "986K+"
+      players: "986K+",
+      requiredLevel: "A1+A2"
     },
     {
       id: "A2_ONLY",
@@ -35,7 +62,8 @@ const MathModes: React.FC = () => {
       difficulty: "ADVANCED",
       icon: "∫",
       gradient: "from-orange-500 to-red-600",
-      players: "1.8M+"
+      players: "1.8M+",
+      requiredLevel: "A2"
     },
     {
       id: "A2_INTEGRATION",
@@ -45,9 +73,24 @@ const MathModes: React.FC = () => {
       difficulty: "EXPERT",
       icon: "∬",
       gradient: "from-violet-500 to-purple-600",
-      players: "542K+"
+      players: "542K+",
+      requiredLevel: "A2"
     }
   ];
+
+  // Filter modes based on user's selected levels
+  const gameModes = allGameModes.filter(mode => {
+    if (mode.requiredLevel === "A1") {
+      return userMathLevels.includes("A1") || userMathLevels.includes("A1+A2");
+    }
+    if (mode.requiredLevel === "A2") {
+      return userMathLevels.includes("A2") || userMathLevels.includes("A1+A2");
+    }
+    if (mode.requiredLevel === "A1+A2") {
+      return userMathLevels.includes("A1+A2");
+    }
+    return false;
+  });
 
   const handleModeSelect = (modeId: string) => {
     // Map UI IDs to actual GameMode values

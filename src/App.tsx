@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CharacterProvider } from "@/hooks/useCharacter";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SubjectSelection from "./pages/SubjectSelection";
@@ -14,6 +15,8 @@ import MatchmakingScreen from "./components/MatchmakingScreen";
 import GameModes from "./components/GameModes";
 import StepBattlePage from "./components/StepBattlePage";
 import BattlePageNew from "./components/BattlePageNew";
+import Auth from "./pages/Auth";
+import Onboarding from "./pages/Onboarding";
 import { getStepMathQuestions } from "./data/stepMathQuestions";
 import { getRandomQuestions } from "./data/questions";
 
@@ -26,21 +29,25 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/subject-selection" element={<SubjectSelection />} />
-          <Route path="/math-modes" element={<MathModes />} />
-          <Route path="/physics-modes" element={<PhysicsModes />} />
-          <Route path="/modes" element={<ModeSelection />} />
-          <Route path="/game-modes" element={<GameModes />} />
-          <Route path="/matchmaking" element={<MatchmakingScreen />} />
-          <Route path="/battle" element={<StepBattlePage questions={getStepMathQuestions(undefined, undefined, 3)} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
-          <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+          <AuthProvider>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/" element={<Index />} />
+              <Route path="/subject-selection" element={<SubjectSelection />} />
+              <Route path="/math-modes" element={<MathModes />} />
+              <Route path="/physics-modes" element={<PhysicsModes />} />
+              <Route path="/modes" element={<ModeSelection />} />
+              <Route path="/game-modes" element={<GameModes />} />
+              <Route path="/matchmaking" element={<MatchmakingScreen />} />
+              <Route path="/battle" element={<StepBattlePage questions={getStepMathQuestions(undefined, undefined, 3)} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
+              <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
     </CharacterProvider>
   </QueryClientProvider>
 );

@@ -1,9 +1,31 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Calculator, Atom } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Calculator, Atom, Beaker } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SubjectSelection: React.FC = () => {
+  const { profile, loading } = useAuth();
+  const navigate = useNavigate();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    navigate('/auth');
+    return null;
+  }
+
+  // Filter subjects based on user profile
+  const userSubjects = profile.subjects || [];
+  const hasMath = userSubjects.some(s => s.subject === 'math');
+  const hasPhysics = userSubjects.some(s => s.subject === 'physics');
+  const hasChemistry = userSubjects.some(s => s.subject === 'chemistry');
   return (
     <div className="min-h-screen bg-background text-foreground overflow-hidden">
       {/* Background Effects */}
@@ -41,8 +63,9 @@ const SubjectSelection: React.FC = () => {
           </motion.div>
 
           {/* Subject Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-4xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 max-w-6xl">
             {/* Mathematics */}
+            {hasMath && (
             <motion.div
               initial={{ x: -50, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -71,8 +94,10 @@ const SubjectSelection: React.FC = () => {
                 </div>
               </Link>
             </motion.div>
+            )}
 
             {/* Physics */}
+            {hasPhysics && (
             <motion.div
               initial={{ x: 50, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -101,6 +126,28 @@ const SubjectSelection: React.FC = () => {
                 </div>
               </Link>
             </motion.div>
+            )}
+
+            {/* Chemistry */}
+            {hasChemistry && (
+            <motion.div
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+            >
+              <div className="cyber-card p-12 opacity-50 cursor-not-allowed">
+                <div className="text-center">
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-r from-green-500 to-teal-600 flex items-center justify-center">
+                    <Beaker className="w-12 h-12 text-white" />
+                  </div>
+                  <h2 className="text-4xl font-bold mb-4 text-foreground">Chemistry</h2>
+                  <p className="text-lg text-muted-foreground mb-6">
+                    Coming Soon
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+            )}
           </div>
         </div>
       </div>

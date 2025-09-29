@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import Dashboard from '@/components/Dashboard';
 import BattlePageNew from '@/components/BattlePageNew';
 import PostMatchResults from '@/components/PostMatchResults';
@@ -42,6 +43,8 @@ type PageState = 'dashboard' | 'battle' | 'step-battle' | 'results' | 'physics-l
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user, profile, loading } = useAuth();
   const [currentPage, setCurrentPage] = useState<PageState>('dashboard');
   const [battleQuestions, setBattleQuestions] = useState<Question[]>(getRandomQuestions(5));
   const [stepBattleQuestions, setStepBattleQuestions] = useState<StepBasedQuestion[]>([]);
@@ -54,6 +57,17 @@ const Index = () => {
   const [battleContext, setBattleContext] = useState<'regular' | 'physics-study' | 'math-battle'>('regular');
   
   const { userData, updateAfterBattle } = useRanking();
+
+  // Check auth and redirect if needed
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        navigate('/auth');
+      } else if (!profile?.onboarding_completed) {
+        navigate('/onboarding');
+      }
+    }
+  }, [user, profile, loading, navigate]);
 
   // Handle URL parameters for mode and level selection
   useEffect(() => {
@@ -237,6 +251,24 @@ const Index = () => {
       setBattleQuestions(physicsQuestions);
       setCurrentPage('battle');
     }
+  };
+
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  // Filter content based on user's selected subjects
+  const userSubjects = profile?.subjects || [];
+  const hasSubject = (subject: string, level?: string) => {
+    if (!level) {
+      return userSubjects.some(s => s.subject === subject);
+    }
+    return userSubjects.some(s => s.subject === subject && s.level === level);
   };
 
   return (
