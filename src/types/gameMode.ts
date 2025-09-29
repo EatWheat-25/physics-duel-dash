@@ -104,107 +104,107 @@ export const GAME_RULES = {
 // Chapter progression mappings for each game mode
 export const CHAPTER_PROGRESSIONS: Record<GameMode, RankChapterMapping[]> = {
   'A1-Only': [
-    // Bronze Tier (A1 Basics)
+    // Bronze Tier - Coordinate Geometry & Series
     {
       mode: 'A1-Only',
       rank: { tier: 'Bronze', subRank: 1 },
-      chapters: ['indices-surds', 'linear-equations'],
-      newChapters: ['indices-surds', 'linear-equations']
-    },
-    {
-      mode: 'A1-Only',
-      rank: { tier: 'Bronze', subRank: 2 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics'],
-      newChapters: ['quadratics']
-    },
-    {
-      mode: 'A1-Only',
-      rank: { tier: 'Bronze', subRank: 3 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions'],
-      newChapters: ['basic-functions']
-    },
-    // Silver Tier (Core Algebra & Geometry)
-    {
-      mode: 'A1-Only',
-      rank: { tier: 'Silver', subRank: 1 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials'],
-      newChapters: ['polynomials']
-    },
-    {
-      mode: 'A1-Only',
-      rank: { tier: 'Silver', subRank: 2 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry'],
+      chapters: ['coordinate-geometry'],
       newChapters: ['coordinate-geometry']
     },
     {
       mode: 'A1-Only',
-      rank: { tier: 'Silver', subRank: 3 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs'],
-      newChapters: ['circular-measure', 'exponentials-logs']
-    },
-    // Gold Tier (Series, Trig, Calculus Intro)
-    {
-      mode: 'A1-Only',
-      rank: { tier: 'Gold', subRank: 1 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series'],
-      newChapters: ['sequences-series']
-    },
-    {
-      mode: 'A1-Only',
-      rank: { tier: 'Gold', subRank: 2 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion'],
+      rank: { tier: 'Bronze', subRank: 2 },
+      chapters: ['coordinate-geometry', 'binomial-expansion'],
       newChapters: ['binomial-expansion']
     },
     {
       mode: 'A1-Only',
-      rank: { tier: 'Gold', subRank: 3 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion', 'trigonometry-1', 'differentiation-1'],
-      newChapters: ['trigonometry-1', 'differentiation-1']
+      rank: { tier: 'Bronze', subRank: 3 },
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series'],
+      newChapters: ['sequences-series']
     },
-    // Diamond Tier (A1 Integration, Trig II, Vectors I)
+    // Silver Tier - Circular Measure & Quadratics
+    {
+      mode: 'A1-Only',
+      rank: { tier: 'Silver', subRank: 1 },
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure'],
+      newChapters: ['circular-measure']
+    },
+    {
+      mode: 'A1-Only',
+      rank: { tier: 'Silver', subRank: 2 },
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics'],
+      newChapters: ['quadratics']
+    },
+    {
+      mode: 'A1-Only',
+      rank: { tier: 'Silver', subRank: 3 },
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics'],
+      newChapters: []
+    },
+    // Gold Tier - Trigonometry & Functions
+    {
+      mode: 'A1-Only',
+      rank: { tier: 'Gold', subRank: 1 },
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry'],
+      newChapters: ['trigonometry']
+    },
+    {
+      mode: 'A1-Only',
+      rank: { tier: 'Gold', subRank: 2 },
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry', 'functions'],
+      newChapters: ['functions']
+    },
+    {
+      mode: 'A1-Only',
+      rank: { tier: 'Gold', subRank: 3 },
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry', 'functions'],
+      newChapters: []
+    },
+    // Diamond Tier - Differentiation
     {
       mode: 'A1-Only',
       rank: { tier: 'Diamond', subRank: 1 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion', 'trigonometry-1', 'differentiation-1', 'integration-1'],
-      newChapters: ['integration-1']
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry', 'functions', 'differentiation'],
+      newChapters: ['differentiation']
     },
     {
       mode: 'A1-Only',
       rank: { tier: 'Diamond', subRank: 2 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion', 'trigonometry-1', 'differentiation-1', 'integration-1', 'trigonometry-2'],
-      newChapters: ['trigonometry-2']
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry', 'functions', 'differentiation'],
+      newChapters: []
     },
     {
       mode: 'A1-Only',
       rank: { tier: 'Diamond', subRank: 3 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion', 'trigonometry-1', 'differentiation-1', 'integration-1', 'trigonometry-2', 'vectors-1'],
-      newChapters: ['vectors-1']
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry', 'functions', 'differentiation'],
+      newChapters: []
     },
-    // Unbeatable (A1 Mastery)
+    // Unbeatable - Integration
     {
       mode: 'A1-Only',
       rank: { tier: 'Unbeatable', subRank: 1 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion', 'trigonometry-1', 'differentiation-1', 'integration-1', 'trigonometry-2', 'vectors-1', 'a1-mixed-problems'],
-      newChapters: ['a1-mixed-problems']
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry', 'functions', 'differentiation', 'integration'],
+      newChapters: ['integration']
     },
     {
       mode: 'A1-Only',
       rank: { tier: 'Unbeatable', subRank: 2 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion', 'trigonometry-1', 'differentiation-1', 'integration-1', 'trigonometry-2', 'vectors-1', 'a1-mixed-problems', 'hard-binomial'],
-      newChapters: ['hard-binomial']
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry', 'functions', 'differentiation', 'integration'],
+      newChapters: []
     },
     {
       mode: 'A1-Only',
       rank: { tier: 'Unbeatable', subRank: 3 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion', 'trigonometry-1', 'differentiation-1', 'integration-1', 'trigonometry-2', 'vectors-1', 'a1-mixed-problems', 'hard-binomial', 'advanced-calculus-a1'],
-      newChapters: ['advanced-calculus-a1']
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry', 'functions', 'differentiation', 'integration'],
+      newChapters: []
     },
-    // Pocket Calculator (A★ A1)
+    // Pocket Calculator - All chapters mastery
     {
       mode: 'A1-Only',
       rank: { tier: 'Pocket Calculator', subRank: 1 },
-      chapters: ['indices-surds', 'linear-equations', 'quadratics', 'basic-functions', 'polynomials', 'coordinate-geometry', 'circular-measure', 'exponentials-logs', 'sequences-series', 'binomial-expansion', 'trigonometry-1', 'differentiation-1', 'integration-1', 'trigonometry-2', 'vectors-1', 'a1-mixed-problems', 'hard-binomial', 'advanced-calculus-a1', 'a1-olympiad'],
-      newChapters: ['a1-olympiad']
+      chapters: ['coordinate-geometry', 'binomial-expansion', 'sequences-series', 'circular-measure', 'quadratics', 'trigonometry', 'functions', 'differentiation', 'integration'],
+      newChapters: []
     }
   ],
   
