@@ -104,12 +104,14 @@ export default function Onboarding() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Not authenticated");
 
-        const { error } = await supabase.from("profiles").insert({
+        const { error } = await supabase.from("profiles").upsert({
           id: user.id,
           username: username.trim(),
           age: parseInt(age),
           subjects: selectedSubjects,
           onboarding_completed: true,
+        }, {
+          onConflict: 'id'
         });
 
         if (error) throw error;
