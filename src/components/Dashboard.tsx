@@ -8,7 +8,7 @@ import CharacterAvatar from './CharacterAvatar';
 import CharacterSelection from './CharacterSelection';
 import FortniteStyleShowcase from './FortniteStyleShowcase';
 import { useCharacter } from '@/hooks/useCharacter';
-import { UserRankData } from '@/types/ranking';
+import { UserRankData, getRankByPoints } from '@/types/ranking';
 
 interface DashboardProps {
   onStartBattle: () => void;
@@ -22,6 +22,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { selectedCharacter, setCharacterSelectionOpen } = useCharacter();
+  
+  const currentRank = getRankByPoints(userData.currentPoints);
   
   const selectedSubject = searchParams.get('subject');
   const selectedMode = searchParams.get('mode');
@@ -362,132 +364,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 className="cyber-panel p-6 relative overflow-hidden"
               >
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-background font-bold text-lg">
-                      22
-                    </div>
-                    <motion.div
-                      className="absolute -inset-2 rounded-xl border border-primary/30"
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                    />
-                  </div>
                   <div>
                     <h4 className="text-lg font-bold futuristic-heading">NEURAL PROGRESS</h4>
-                    <p className="text-primary text-sm font-medium">Level 22 • Elite Protocol</p>
+                    <p className="text-primary text-sm font-medium">{currentRank.displayName}</p>
                   </div>
                 </div>
                 
-                <div className="relative h-20 rounded-xl bg-gradient-to-r from-background/50 to-primary/10 border border-primary/20 overflow-hidden">
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-primary/30 to-secondary/30"
-                    initial={{ width: 0 }}
-                    animate={{ width: '78%' }}
-                    transition={{ duration: 2, ease: "easeOut" }}
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-foreground">78%</div>
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider">COMPLETION</div>
-                    </div>
-                  </div>
-                </div>
               </motion.div>
 
-              {/* Combat Objectives */}
-              <motion.div
-                initial={{ x: 100, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.3 }}
-                className="cyber-panel p-6"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <Shield className="w-8 h-8 text-accent" style={{ filter: 'var(--glow-accent)' }} />
-                  <div>
-                    <h4 className="text-lg font-bold futuristic-heading">OBJECTIVES</h4>
-                    <p className="text-accent text-sm">Combat Missions</p>
-                  </div>
-                  <div className="ml-auto flex items-center gap-2 px-3 py-1 rounded-lg bg-accent/10 border border-accent/20">
-                    <Users className="w-4 h-4 text-accent" />
-                    <span className="text-accent font-bold text-sm">3/5</span>
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    <div className="flex-1">
-                      <div className="h-2 bg-background/50 rounded-full overflow-hidden">
-                        <motion.div 
-                          className="h-full bg-gradient-to-r from-primary to-secondary"
-                          initial={{ width: 0 }}
-                          animate={{ width: '60%' }}
-                          transition={{ duration: 1.5, ease: "easeOut" }}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-primary font-bold text-xs">60%</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-                    <div className="flex-1">
-                      <div className="h-2 bg-background/50 rounded-full overflow-hidden">
-                        <motion.div 
-                          className="h-full bg-gradient-to-r from-secondary to-accent"
-                          initial={{ width: 0 }}
-                          animate={{ width: '85%' }}
-                          transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-secondary font-bold text-xs">85%</span>
-                  </div>
-                </div>
-              </motion.div>
 
-              {/* Mission Intel */}
-              <motion.div
-                initial={{ x: 100, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.4 }}
-                className="cyber-panel p-6"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <Activity className="w-8 h-8 text-accent" />
-                  <h4 className="text-lg font-bold futuristic-heading">MISSION INTEL</h4>
-                </div>
-                
-                <div className="space-y-4">
-                  <motion.div 
-                    whileHover={{ x: 4 }}
-                    className="flex items-center gap-4 p-3 rounded-lg bg-primary/5 border border-primary/20 cursor-pointer"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
-                      <Brain className="w-5 h-5 text-background" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-foreground text-sm">Neural Sync</p>
-                      <p className="text-muted-foreground text-xs">Solve 5 complex equations</p>
-                    </div>
-                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                  </motion.div>
-                  
-                  <motion.div 
-                    whileHover={{ x: 4 }}
-                    className="flex items-center gap-4 p-3 rounded-lg bg-secondary/5 border border-secondary/20 cursor-pointer"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-secondary to-secondary/70 flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-background" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-foreground text-sm">Combat Streak</p>
-                      <p className="text-muted-foreground text-xs">Win 3 consecutive battles</p>
-                    </div>
-                    <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-                  </motion.div>
-                </div>
-              </motion.div>
 
               {/* Performance Analytics */}
               <motion.div

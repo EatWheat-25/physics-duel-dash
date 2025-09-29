@@ -1,10 +1,9 @@
 import { useState, useCallback } from 'react';
 import { UserRankData, RankHistory, getRankByPoints, getPointsForWin, getPointsForLoss, RankName } from '@/types/ranking';
 
-// Mock initial user data
 const initialUserData: UserRankData = {
-  username: "PhysicsWarrior",
-  currentPoints: 0, // Bronze 1
+  username: "Player",
+  currentPoints: 0,
   currentRank: { tier: 'Bronze', subRank: 1 },
   winStreak: 0,
   totalMatches: 0,
