@@ -14,17 +14,17 @@ const TugOfWarBar: React.FC<TugOfWarBarProps> = ({ position, maxSteps }) => {
   return (
     <div className="w-full max-w-2xl mx-auto">
       <div className="flex justify-between text-sm mb-3 px-4">
-        <span className="text-battle-danger font-bold">OPPONENT</span>
-        <span className="text-battle-primary font-bold">YOU</span>
+        <span className="text-red-500 font-bold">OPPONENT</span>
+        <span className="text-emerald-500 font-bold">YOU</span>
       </div>
       
       <div className="relative w-full h-8 rounded-full overflow-hidden border-2 border-white/20 bg-black/20">
-        {/* Player (blue) section - left side */}
+        {/* Player (green) section - left side */}
         <motion.div
           className="absolute top-0 left-0 h-full rounded-l-full"
           style={{
-            background: 'linear-gradient(90deg, hsl(var(--battle-primary)), hsl(var(--battle-primary) / 0.8))',
-            boxShadow: '0 0 20px hsl(var(--battle-primary) / 0.4)',
+            background: 'linear-gradient(90deg, rgb(16, 185, 129), rgb(5, 150, 105))',
+            boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)',
           }}
           animate={{ 
             width: `${playerPercentage}%`,
@@ -37,12 +37,12 @@ const TugOfWarBar: React.FC<TugOfWarBarProps> = ({ position, maxSteps }) => {
           }}
         />
         
-        {/* Opponent (red/orange) section - right side */}
+        {/* Opponent (red) section - right side */}
         <motion.div
           className="absolute top-0 right-0 h-full rounded-r-full"
           style={{
-            background: 'linear-gradient(270deg, hsl(var(--battle-danger)), hsl(var(--battle-danger) / 0.8))',
-            boxShadow: '0 0 20px hsl(var(--battle-danger) / 0.4)',
+            background: 'linear-gradient(270deg, rgb(239, 68, 68), rgb(220, 38, 38))',
+            boxShadow: '0 0 20px rgba(239, 68, 68, 0.4)',
           }}
           animate={{ 
             width: `${opponentPercentage}%`,
@@ -95,7 +95,7 @@ const TugOfWarBar: React.FC<TugOfWarBarProps> = ({ position, maxSteps }) => {
         <motion.div 
           className={`px-3 py-1.5 rounded-lg font-bold transition-all duration-300 ${
             position <= -maxSteps 
-              ? 'bg-battle-danger text-white shadow-[0_0_20px_hsl(var(--battle-danger)/0.6)]' 
+              ? 'bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.6)]' 
               : 'text-muted-foreground bg-white/5'
           }`}
           animate={{
@@ -107,7 +107,7 @@ const TugOfWarBar: React.FC<TugOfWarBarProps> = ({ position, maxSteps }) => {
         <motion.div 
           className={`px-3 py-1.5 rounded-lg font-bold transition-all duration-300 ${
             position >= maxSteps 
-              ? 'bg-battle-primary text-white shadow-[0_0_20px_hsl(var(--battle-primary)/0.6)]' 
+              ? 'bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.6)]' 
               : 'text-muted-foreground bg-white/5'
           }`}
           animate={{
