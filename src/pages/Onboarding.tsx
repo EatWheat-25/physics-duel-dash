@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Subject = {
   id: string;
@@ -29,6 +30,7 @@ export default function Onboarding() {
   >([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
 
   useEffect(() => {
     checkProfile();
@@ -115,6 +117,9 @@ export default function Onboarding() {
         });
 
         if (error) throw error;
+
+        // Refresh profile to load the saved data
+        await refreshProfile();
 
         toast({
           title: "Welcome!",
