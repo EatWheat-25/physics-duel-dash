@@ -210,7 +210,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     <motion.div
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-6 cursor-pointer group rounded-xl border-2 border-primary/30 bg-card/90 backdrop-blur-sm"
+                      className="p-6 cursor-pointer group rounded-xl border-2 border-primary/30 backdrop-blur-sm"
+                      style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
                     >
                       <div className="flex items-center gap-4 mb-6">
                         <div className="relative">
@@ -242,7 +243,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     <motion.div
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-6 cursor-pointer group rounded-xl border-2 border-primary/30 bg-card/90 backdrop-blur-sm"
+                      className="p-6 cursor-pointer group rounded-xl border-2 border-primary/30 backdrop-blur-sm"
+                      style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
                     >
                       <div className="flex items-center gap-4 mb-6">
                         <div className="relative">
@@ -296,8 +298,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                       transition={{ duration: 0.8, delay: 0.3 }}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className="w-full py-6 font-bold text-xl rounded-xl border-2 border-primary/50 bg-card/90 backdrop-blur-sm text-white hover:bg-primary/10 transition-all duration-300 flex items-center justify-center gap-4"
-                      style={{ fontFamily: 'Orbitron, sans-serif' }}
+                      className="w-full py-6 font-bold text-xl rounded-xl border-2 border-primary/50 backdrop-blur-sm text-white hover:bg-primary/10 transition-all duration-300 flex items-center justify-center gap-4"
+                      style={{ fontFamily: 'Orbitron, sans-serif', backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
                     >
                       <BookOpen className="w-8 h-8" />
                       <span>SELECT PROTOCOL</span>
@@ -320,7 +322,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="p-6 rounded-xl border-2 border-primary/30 bg-card/90 backdrop-blur-sm"
+                className="p-6 rounded-xl border-2 border-primary/30 backdrop-blur-sm"
+                style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
               >
                 <h4 className="text-lg font-bold text-primary mb-4" style={{ fontFamily: 'Orbitron, sans-serif' }}>NEURAL PROGRESS</h4>
                 <div className="flex items-center gap-4 mb-4">
@@ -349,7 +352,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.5 }}
-                className="p-6 rounded-xl border-2 border-primary/30 bg-card/90 backdrop-blur-sm"
+                className="p-6 rounded-xl border-2 border-primary/30 backdrop-blur-sm"
+                style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
               >
                 <h4 className="text-lg font-bold text-primary mb-6" style={{ fontFamily: 'Orbitron, sans-serif' }}>COMBAT ANALYTICS</h4>
                 
