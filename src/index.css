@@ -7,67 +7,45 @@ All colors MUST be HSL.
 */
 
 @layer base {
-  /* ===== NEXT-GEN CYBERPUNK THEME - ULTRA FUTURISTIC ===== */
-  :root {
-    /* Ultra Dark Core */
-    --background: 220 30% 2%;
-    --foreground: 200 100% 98%;
-    
-    --card: 220 25% 4%;
-    --card-foreground: 200 50% 95%;
-    
-    --popover: 220 35% 3%;
-    --popover-foreground: 200 100% 98%;
-    
-    /* Cyberpunk Neon Colors */
-    --primary: 180 100% 50%;        /* Electric Cyan */
-    --primary-foreground: 220 30% 2%;
-    
-    --secondary: 280 100% 70%;      /* Neon Purple */
-    --secondary-foreground: 200 100% 98%;
-    
-    --muted: 220 20% 8%;
-    --muted-foreground: 200 20% 70%;
-    
-    --accent: 320 100% 60%;         /* Plasma Pink */
-    --accent-foreground: 200 100% 98%;
-    
-    --destructive: 0 100% 60%;
-    --destructive-foreground: 0 0% 100%;
-    
-    --border: 180 50% 15%;
-    --input: 220 25% 6%;
-    --ring: 180 100% 50%;
-    
-    /* Cyberpunk Game Palette */
-    --cyber-cyan: 180 100% 50%;
-    --cyber-purple: 280 100% 70%;
-    --cyber-pink: 320 100% 60%;
-    --cyber-blue: 240 100% 65%;
-    --cyber-green: 120 100% 50%;
-    --cyber-orange: 30 100% 60%;
-    
-    /* Neon Glow Colors */
-    --neon-cyan: 180 100% 50%;
-    --neon-purple: 280 100% 70%;
-    --neon-pink: 320 100% 60%;
-    --neon-blue: 240 100% 65%;
-    --electric-teal: 180 100% 45%;
-    --plasma-magenta: 300 100% 65%;
-    --void-black: 220 40% 1%;
-    --steel-gray: 200 15% 25%;
-
-    /* Cyberpunk Gradients & Effects */
-    --gradient-primary: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(280, 100%, 70%));
-    --gradient-secondary: linear-gradient(135deg, hsl(320, 100%, 60%), hsl(240, 100%, 65%));
-    --gradient-accent: linear-gradient(45deg, hsl(280, 100%, 70%), hsl(320, 100%, 60%));
-    --gradient-hero: linear-gradient(135deg, hsl(220, 30%, 2%) 0%, hsl(220, 25%, 4%) 30%, hsl(180, 50%, 8%) 100%);
-    --gradient-bg: linear-gradient(135deg, hsl(220, 40%, 1%) 0%, hsl(220, 30%, 2%) 50%, hsl(220, 25%, 4%) 100%);
-    --gradient-robot: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(280, 100%, 70%), hsl(320, 100%, 60%));
-    --gradient-neon: linear-gradient(90deg, hsl(180, 100%, 50%), hsl(280, 100%, 70%), hsl(320, 100%, 60%), hsl(240, 100%, 65%));
-    --gradient-hologram: linear-gradient(45deg, hsl(180, 100%, 50%, 0.1), hsl(280, 100%, 70%, 0.1), hsl(320, 100%, 60%, 0.1));
-    
-    /* Ultra Intense Cyberpunk Glows */
+  /* === Space Academy Theme === */
+  
+  /* Core Colors - Dark Space */
+  --background: 240 20% 6%;           /* Deep space black */
+  --foreground: 40 10% 95%;           /* Warm white text */
+  
+  --card: 240 15% 10%;                /* Dark panels */
+  --card-foreground: 40 10% 95%;
+  
+  --popover: 240 20% 8%;
+  --popover-foreground: 40 10% 95%;
+  
+  --primary: 45 95% 60%;              /* Golden yellow */
+  --primary-foreground: 240 20% 10%;
+  
+  --secondary: 40 80% 50%;            /* Amber/orange */
+  --secondary-foreground: 240 20% 10%;
+  
+  --muted: 240 10% 15%;
+  --muted-foreground: 240 5% 60%;
+  
+  --accent: 35 90% 55%;               /* Bright orange accent */
+  --accent-foreground: 240 20% 10%;
+  
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 40 10% 95%;
+  
+  --border: 240 15% 18%;
+  --input: 240 15% 12%;
+  --ring: 45 95% 60%;
+  
+  /* Custom Space Variables */
+  --space-gold: 45 95% 60%;
+  --space-amber: 40 80% 50%;
+  --space-void: 240 20% 4%;
+  
+  /* Battle Colors */
+  --battle-primary: 120 60% 45%;      /* Green for player */
+  --battle-danger: 0 84% 60%;         /* Red for opponent */
     --shadow-cyber: 0 10px 40px hsl(180, 100%, 50%, 0.4);
     --shadow-neon: 0 0 60px hsl(280, 100%, 70%, 0.5);
     --shadow-accent: 0 0 50px hsl(320, 100%, 60%, 0.4);
@@ -136,7 +114,6 @@ All colors MUST be HSL.
     --gradient-card: linear-gradient(145deg, hsl(222, 50%, 8%), hsl(222, 45%, 4%));
     --gradient-metallic: linear-gradient(135deg, hsl(210, 20%, 15%), hsl(222, 35%, 10%));
   }
-}
 
 /* ===== BASE STYLES ===== */
 @layer base {
