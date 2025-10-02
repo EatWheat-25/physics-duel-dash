@@ -243,30 +243,30 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     <motion.div
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-6 cursor-pointer group rounded-xl border-2 border-primary/30 backdrop-blur-sm"
+                      className="p-6 cursor-pointer group rounded-xl border-2 border-white/30 backdrop-blur-sm"
                       style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
                     >
                       <div className="flex items-center gap-4 mb-6">
                         <div className="relative">
-                          <BookOpen className="w-10 h-10 text-primary" />
+                          <BookOpen className="w-10 h-10 text-white" />
                         </div>
                         <div className="flex-1">
                           <h3 className="text-xl font-bold text-white mb-1">SELECT PROTOCOL</h3>
-                          <p className="text-primary text-sm font-bold uppercase tracking-wider">MATH :: PHYSICS</p>
+                          <p className="text-white text-sm font-bold uppercase tracking-wider">MATH :: PHYSICS</p>
                         </div>
-                        <ChevronRight className="w-6 h-6 text-primary group-hover:translate-x-1 transition-transform" />
+                        <ChevronRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" />
                       </div>
                       
-                      <div className="relative h-32 rounded-xl overflow-hidden border border-primary/20 mb-4 bg-primary/5">
+                      <div className="relative h-32 rounded-xl overflow-hidden border border-white/20 mb-4 bg-white/5">
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="text-center">
-                            <Rocket className="w-8 h-8 text-primary mx-auto mb-2" />
-                            <span className="text-white/70 font-medium">Choose Your Path</span>
+                            <Rocket className="w-8 h-8 text-white mx-auto mb-2" />
+                            <span className="text-white font-medium">Choose Your Path</span>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider text-center">
+                      <div className="text-xs text-white uppercase tracking-wider text-center">
                         ◦ CLICK TO SELECT ◦
                       </div>
                     </motion.div>
