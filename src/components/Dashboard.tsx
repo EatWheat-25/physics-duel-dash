@@ -322,10 +322,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="p-6 rounded-xl border-2 border-primary/30 backdrop-blur-sm"
+                className="p-6 rounded-xl border-2 border-white/30 backdrop-blur-sm"
                 style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
               >
-                <h4 className="text-lg font-bold text-primary mb-4" style={{ fontFamily: 'Orbitron, sans-serif' }}>NEURAL PROGRESS</h4>
+                <h4 className="text-lg font-bold text-white mb-4" style={{ fontFamily: 'Orbitron, sans-serif' }}>NEURAL PROGRESS</h4>
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-2xl">
                     🏆
@@ -352,24 +352,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.5 }}
-                className="p-6 rounded-xl border-2 border-primary/30 backdrop-blur-sm"
+                className="p-6 rounded-xl border-2 border-white/30 backdrop-blur-sm"
                 style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
               >
-                <h4 className="text-lg font-bold text-primary mb-6" style={{ fontFamily: 'Orbitron, sans-serif' }}>COMBAT ANALYTICS</h4>
+                <h4 className="text-lg font-bold text-white mb-6" style={{ fontFamily: 'Orbitron, sans-serif' }}>COMBAT ANALYTICS</h4>
                 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 rounded-lg bg-primary/10 border border-primary/20">
-                    <div className="text-2xl font-bold text-primary mb-1">{userData.winStreak}</div>
+                  <div className="text-center p-3 rounded-lg bg-white/10 border border-white/20">
+                    <div className="text-2xl font-bold text-white mb-1">{userData.winStreak}</div>
                     <div className="text-xs text-white/70 uppercase tracking-wider">Streak</div>
                   </div>
                   
-                  <div className="text-center p-3 rounded-lg bg-secondary/10 border border-secondary/20">
-                    <div className="text-2xl font-bold text-secondary mb-1">{userData.totalMatches}</div>
+                  <div className="text-center p-3 rounded-lg bg-white/10 border border-white/20">
+                    <div className="text-2xl font-bold text-white mb-1">{userData.totalMatches}</div>
                     <div className="text-xs text-white/70 uppercase tracking-wider">Battles</div>
                   </div>
                 </div>
                 
-                <div className="mt-4 p-3 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-between">
+                <div className="mt-4 p-3 rounded-lg bg-white/10 border border-white/20 flex items-center justify-between">
                   <span className="text-white/70 text-sm font-medium">Current Rank</span>
                   <RankBadge rank={userData.currentRank} size="sm" />
                 </div>
