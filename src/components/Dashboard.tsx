@@ -217,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                           <Target className="w-10 h-10 text-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-xl font-bold text-foreground mb-1">SELECTED PROTOCOL</h3>
+                          <h3 className="text-xl font-bold text-white mb-1">SELECTED PROTOCOL</h3>
                           <p className="text-primary text-sm font-bold uppercase tracking-wider">{selectedSubject} :: {selectedMode.replace('_', ' ')}</p>
                         </div>
                         <ChevronRight className="w-6 h-6 text-primary group-hover:translate-x-1 transition-transform" />
@@ -227,7 +227,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="text-center">
                             <Brain className="w-8 h-8 text-primary mx-auto mb-2" />
-                            <span className="text-foreground font-bold">READY FOR LAUNCH</span>
+                            <span className="text-white font-bold">READY FOR LAUNCH</span>
                           </div>
                         </div>
                       </div>
@@ -249,7 +249,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                           <BookOpen className="w-10 h-10 text-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-xl font-bold text-foreground mb-1">SELECT PROTOCOL</h3>
+                          <h3 className="text-xl font-bold text-white mb-1">SELECT PROTOCOL</h3>
                           <p className="text-primary text-sm font-bold uppercase tracking-wider">MATH :: PHYSICS</p>
                         </div>
                         <ChevronRight className="w-6 h-6 text-primary group-hover:translate-x-1 transition-transform" />
@@ -259,7 +259,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="text-center">
                             <Rocket className="w-8 h-8 text-primary mx-auto mb-2" />
-                            <span className="text-muted-foreground font-medium">Choose Your Path</span>
+                            <span className="text-white/70 font-medium">Choose Your Path</span>
                           </div>
                         </div>
                       </div>
@@ -328,8 +328,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     🏆
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-foreground">{currentRank.displayName}</p>
-                    <p className="text-sm text-muted-foreground">{currentRank.tier} Tier</p>
+                    <p className="text-2xl font-bold text-white">{currentRank.displayName}</p>
+                    <p className="text-sm text-white/70">{currentRank.tier} Tier</p>
                   </div>
                 </div>
                 <div className="w-full bg-muted/30 rounded-full h-3 overflow-hidden">
@@ -356,17 +356,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 rounded-lg bg-primary/10 border border-primary/20">
                     <div className="text-2xl font-bold text-primary mb-1">{userData.winStreak}</div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Streak</div>
+                    <div className="text-xs text-white/70 uppercase tracking-wider">Streak</div>
                   </div>
                   
                   <div className="text-center p-3 rounded-lg bg-secondary/10 border border-secondary/20">
                     <div className="text-2xl font-bold text-secondary mb-1">{userData.totalMatches}</div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Battles</div>
+                    <div className="text-xs text-white/70 uppercase tracking-wider">Battles</div>
                   </div>
                 </div>
                 
                 <div className="mt-4 p-3 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-between">
-                  <span className="text-muted-foreground text-sm font-medium">Current Rank</span>
+                  <span className="text-white/70 text-sm font-medium">Current Rank</span>
                   <RankBadge rank={userData.currentRank} size="sm" />
                 </div>
               </motion.div>
@@ -377,8 +377,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
         {selectedTab !== "PLAY" && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <h3 className="text-4xl font-bold mb-4 text-foreground">Coming Soon</h3>
-              <p className="text-xl text-muted-foreground">{selectedTab} section is under development</p>
+              <h3 className="text-4xl font-bold mb-4 text-white">Coming Soon</h3>
+              <p className="text-xl text-white/70">{selectedTab} section is under development</p>
             </div>
           </div>
         )}
