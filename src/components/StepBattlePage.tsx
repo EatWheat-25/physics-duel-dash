@@ -138,10 +138,10 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
   };
 
   const getButtonStyle = (index: number) => {
-    if (!showFeedback) return 'cyber-button-neon';
+    if (!showFeedback) return 'bg-white/10 border-white/30 text-white hover:bg-white/20';
     if (index === currentStep.correctAnswer) return 'bg-battle-success/20 border-battle-success text-battle-success';
     if (index === selectedAnswer && !isCorrect) return 'bg-battle-danger/20 border-battle-danger text-battle-danger';
-    return 'bg-white/5 text-muted-foreground border-white/10';
+    return 'bg-white/5 text-white/50 border-white/10';
   };
 
   if (gameOver) {
