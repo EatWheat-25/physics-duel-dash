@@ -6,7 +6,12 @@ export const useUserRole = () => {
     queryKey: ['userRole'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      console.log('Current user:', user?.id);
+      
+      if (!user) {
+        console.log('No user found');
+        return null;
+      }
 
       const { data, error } = await supabase
         .from('user_roles')
@@ -14,9 +19,17 @@ export const useUserRole = () => {
         .eq('user_id', user.id)
         .single();
 
-      if (error) return null;
+      console.log('User role data:', data, 'Error:', error);
+      
+      if (error) {
+        console.error('Role fetch error:', error);
+        return null;
+      }
       return data?.role || null;
-    }
+    },
+    staleTime: 0, // Always refetch
+    refetchOnMount: true,
+    refetchOnWindowFocus: true
   });
 };
 
