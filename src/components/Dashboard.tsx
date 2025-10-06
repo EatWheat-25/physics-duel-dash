@@ -9,6 +9,8 @@ import CharacterSelection from './CharacterSelection';
 import FortniteStyleShowcase from './FortniteStyleShowcase';
 import { useCharacter } from '@/hooks/useCharacter';
 import { UserRankData, getRankByPoints } from '@/types/ranking';
+import { useIsAdmin } from '@/hooks/useUserRole';
+import { Button } from './ui/button';
 
 interface DashboardProps {
   onStartBattle: () => void;
@@ -22,6 +24,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { selectedCharacter, setCharacterSelectionOpen } = useCharacter();
+  const { isAdmin } = useIsAdmin();
   
   const currentRank = getRankByPoints(userData.currentPoints);
   
@@ -188,6 +191,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             >
               <Settings className="w-5 h-5 text-gray-700" />
             </motion.button>
+            
+            {isAdmin && (
+              <Button
+                onClick={() => navigate('/admin/questions')}
+                variant="default"
+                size="sm"
+                className="ml-2"
+              >
+                Admin Dashboard
+              </Button>
+            )}
           </div>
         </div>
       </motion.div>
