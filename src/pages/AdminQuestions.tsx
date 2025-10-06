@@ -18,6 +18,7 @@ interface CommonMetadata {
   level: 'A1' | 'A2';
   chapter: string;
   rankTier: RankTier;
+  difficulty: 'easy' | 'medium' | 'hard';
 }
 
 const rankTierColors: Record<RankTier, string> = {
@@ -51,7 +52,8 @@ export default function AdminQuestions() {
     subject: 'math',
     level: 'A1',
     chapter: '',
-    rankTier: 'Bronze'
+    rankTier: 'Bronze',
+    difficulty: 'medium'
   });
 
   // Filter state
@@ -59,7 +61,6 @@ export default function AdminQuestions() {
 
   // Question form state
   const [questionForm, setQuestionForm] = useState({
-    title: '',
     questionText: '',
     stepQuestion: '',
     option1: '',
@@ -68,8 +69,7 @@ export default function AdminQuestions() {
     option4: '',
     correctAnswer: 0,
     explanation: '',
-    marks: 1,
-    topicTags: ''
+    marks: 1
   });
 
   if (roleLoading || questionsLoading) {
@@ -111,7 +111,7 @@ export default function AdminQuestions() {
   const handleQuestionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!questionForm.title.trim() || !questionForm.questionText.trim() || 
+    if (!questionForm.questionText.trim() || 
         !questionForm.stepQuestion.trim() || !questionForm.option1.trim() ||
         !questionForm.option2.trim() || !questionForm.option3.trim() || 
         !questionForm.option4.trim() || !questionForm.explanation.trim()) {
@@ -123,16 +123,19 @@ export default function AdminQuestions() {
       return;
     }
 
+    // Auto-generate title from question text (first 50 chars)
+    const autoTitle = questionForm.questionText.substring(0, 50) + (questionForm.questionText.length > 50 ? '...' : '');
+
     const newQuestion: Omit<StepBasedQuestion, 'id'> = {
-      title: questionForm.title,
+      title: autoTitle,
       subject: metadata.subject,
       chapter: metadata.chapter,
       level: metadata.level,
-      difficulty: 'medium',
+      difficulty: metadata.difficulty,
       rankTier: metadata.rankTier,
       totalMarks: questionForm.marks,
       questionText: questionForm.questionText,
-      topicTags: questionForm.topicTags.split(',').map(tag => tag.trim()).filter(Boolean),
+      topicTags: [],
       steps: [
         {
           id: 'step-1',
@@ -159,7 +162,6 @@ export default function AdminQuestions() {
       
       // Reset question form
       setQuestionForm({
-        title: '',
         questionText: '',
         stepQuestion: '',
         option1: '',
@@ -168,8 +170,7 @@ export default function AdminQuestions() {
         option4: '',
         correctAnswer: 0,
         explanation: '',
-        marks: 1,
-        topicTags: ''
+        marks: 1
       });
     } catch (error) {
       toast({
@@ -302,12 +303,32 @@ export default function AdminQuestions() {
                   </p>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="difficulty">Difficulty *</Label>
+                  <Select
+                    value={metadata.difficulty}
+                    onValueChange={(value: 'easy' | 'medium' | 'hard') =>
+                      setMetadata({ ...metadata, difficulty: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="easy">Easy</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="hard">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <h4 className="font-semibold mb-2">Summary</h4>
                   <div className="space-y-1 text-sm">
                     <p><strong>Subject:</strong> {metadata.subject}</p>
                     <p><strong>Level:</strong> {metadata.level}</p>
                     <p><strong>Chapter:</strong> {metadata.chapter || '(not set)'}</p>
+                    <p><strong>Difficulty:</strong> {metadata.difficulty}</p>
                     <p className="flex items-center gap-2">
                       <strong>Rank Tier:</strong> 
                       <Badge className={rankTierColors[metadata.rankTier]}>
@@ -362,6 +383,7 @@ export default function AdminQuestions() {
                 <Badge variant="secondary">{metadata.subject}</Badge>
                 <Badge variant="secondary">{metadata.level}</Badge>
                 <Badge variant="secondary">{metadata.chapter}</Badge>
+                <Badge variant="secondary">{metadata.difficulty}</Badge>
                 <Badge className={rankTierColors[metadata.rankTier]}>
                   {rankTierEmojis[metadata.rankTier]} {metadata.rankTier}
                 </Badge>
@@ -369,17 +391,6 @@ export default function AdminQuestions() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleQuestionSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Question Title *</Label>
-                  <Input
-                    id="title"
-                    value={questionForm.title}
-                    onChange={(e) => setQuestionForm({ ...questionForm, title: e.target.value })}
-                    placeholder="Brief title for the question"
-                    required
-                  />
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="questionText">Full Question Text *</Label>
                   <Textarea
@@ -484,17 +495,7 @@ export default function AdminQuestions() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="topicTags">Topic Tags (comma-separated)</Label>
-                  <Input
-                    id="topicTags"
-                    value={questionForm.topicTags}
-                    onChange={(e) => setQuestionForm({ ...questionForm, topicTags: e.target.value })}
-                    placeholder="e.g., algebra, quadratics, factoring"
-                  />
-                </div>
-
-                <Button 
+                <Button
                   type="submit" 
                   className="w-full" 
                   disabled={addQuestion.isPending}
