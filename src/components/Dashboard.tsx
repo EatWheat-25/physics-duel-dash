@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Play, Users, Target, BookOpen, Trophy, Star, ChevronRight, Zap, Cpu, Brain, Rocket, Shield, Activity } from 'lucide-react';
+import { Settings, Play, Users, Target, BookOpen, Trophy, Star, ChevronRight, Zap, Cpu, Brain, Rocket, Shield, Activity, LogOut, User } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import SpaceBackground from './SpaceBackground';
 import RankBadge from './RankBadge';
@@ -11,6 +11,15 @@ import { useCharacter } from '@/hooks/useCharacter';
 import { UserRankData, getRankByPoints } from '@/types/ranking';
 import { useIsAdmin } from '@/hooks/useUserRole';
 import { Button } from './ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface DashboardProps {
   onStartBattle: () => void;
@@ -25,6 +34,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
   const navigate = useNavigate();
   const { selectedCharacter, setCharacterSelectionOpen } = useCharacter();
   const { isAdmin } = useIsAdmin();
+  const { signOut } = useAuth();
   
   const currentRank = getRankByPoints(userData.currentPoints);
   
@@ -184,13 +194,37 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               <span className="text-gray-900 font-bold">{userData.username}</span>
             </motion.div>
             
-            <motion.button 
-              whileHover={{ scale: 1.1, rotate: 90 }}
-              whileTap={{ scale: 0.9 }}
-              className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-all duration-300"
-            >
-              <Settings className="w-5 h-5 text-gray-700" />
-            </motion.button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <motion.button 
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-all duration-300"
+                >
+                  <Settings className="w-5 h-5 text-gray-700" />
+                </motion.button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                  onClick={signOut}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             
             {isAdmin && (
               <Button
