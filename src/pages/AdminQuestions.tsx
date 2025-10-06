@@ -10,8 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy } from 'lucide-react';
+import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface CommonMetadata {
   subject: 'math' | 'physics' | 'chemistry';
@@ -60,15 +61,19 @@ export default function AdminQuestions() {
   // Question form state
   const [questionForm, setQuestionForm] = useState({
     questionText: '',
-    stepQuestion: '',
-    option1: '',
-    option2: '',
-    option3: '',
-    option4: '',
-    correctAnswer: 0,
-    explanation: '',
-    marks: 1,
-    difficulty: 'medium' as 'easy' | 'medium' | 'hard'
+    numberOfSteps: 1,
+    difficulty: 'medium' as 'easy' | 'medium' | 'hard',
+    steps: [
+      {
+        stepQuestion: '',
+        option1: '',
+        option2: '',
+        option3: '',
+        option4: '',
+        correctAnswer: 0,
+        explanation: ''
+      }
+    ]
   });
 
   if (roleLoading || questionsLoading) {
@@ -110,20 +115,42 @@ export default function AdminQuestions() {
   const handleQuestionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!questionForm.questionText.trim() || 
-        !questionForm.stepQuestion.trim() || !questionForm.option1.trim() ||
-        !questionForm.option2.trim() || !questionForm.option3.trim() || 
-        !questionForm.option4.trim() || !questionForm.explanation.trim()) {
+    // Validate main question text
+    if (!questionForm.questionText.trim()) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please enter the full question text",
         variant: "destructive"
       });
       return;
     }
 
+    // Validate all steps
+    for (let i = 0; i < questionForm.steps.length; i++) {
+      const step = questionForm.steps[i];
+      if (!step.stepQuestion.trim() || !step.option1.trim() || !step.option2.trim() || 
+          !step.option3.trim() || !step.option4.trim() || !step.explanation.trim()) {
+        toast({
+          title: "Error",
+          description: `Please fill in all fields for Step ${i + 1}`,
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     // Auto-generate title from question text (first 50 chars)
     const autoTitle = questionForm.questionText.substring(0, 50) + (questionForm.questionText.length > 50 ? '...' : '');
+
+    // Build steps array with proper structure
+    const stepsArray = questionForm.steps.map((step, index) => ({
+      id: `step-${index + 1}`,
+      question: step.stepQuestion,
+      options: [step.option1, step.option2, step.option3, step.option4],
+      correctAnswer: step.correctAnswer,
+      marks: 1, // Each step worth 1 mark
+      explanation: step.explanation
+    }));
 
     const newQuestion: Omit<StepBasedQuestion, 'id'> = {
       title: autoTitle,
@@ -132,45 +159,35 @@ export default function AdminQuestions() {
       level: metadata.level,
       difficulty: questionForm.difficulty,
       rankTier: metadata.rankTier,
-      totalMarks: questionForm.marks,
+      totalMarks: questionForm.numberOfSteps, // Total marks = number of steps
       questionText: questionForm.questionText,
       topicTags: [],
-      steps: [
-        {
-          id: 'step-1',
-          question: questionForm.stepQuestion,
-          options: [
-            questionForm.option1,
-            questionForm.option2,
-            questionForm.option3,
-            questionForm.option4
-          ],
-          correctAnswer: questionForm.correctAnswer,
-          marks: questionForm.marks,
-          explanation: questionForm.explanation
-        }
-      ]
+      steps: stepsArray
     };
 
     try {
       await addQuestion.mutateAsync(newQuestion);
       toast({
         title: "Success",
-        description: "Question added successfully!"
+        description: `Question with ${questionForm.numberOfSteps} step(s) added successfully!`
       });
       
       // Reset question form
       setQuestionForm({
         questionText: '',
-        stepQuestion: '',
-        option1: '',
-        option2: '',
-        option3: '',
-        option4: '',
-        correctAnswer: 0,
-        explanation: '',
-        marks: 1,
-        difficulty: 'medium'
+        numberOfSteps: 1,
+        difficulty: 'medium',
+        steps: [
+          {
+            stepQuestion: '',
+            option1: '',
+            option2: '',
+            option3: '',
+            option4: '',
+            correctAnswer: 0,
+            explanation: ''
+          }
+        ]
       });
     } catch (error) {
       toast({
@@ -179,6 +196,27 @@ export default function AdminQuestions() {
         variant: "destructive"
       });
     }
+  };
+
+  const handleNumberOfStepsChange = (value: number) => {
+    const newSteps = Array.from({ length: value }, (_, i) => 
+      questionForm.steps[i] || {
+        stepQuestion: '',
+        option1: '',
+        option2: '',
+        option3: '',
+        option4: '',
+        correctAnswer: 0,
+        explanation: ''
+      }
+    );
+    setQuestionForm({ ...questionForm, numberOfSteps: value, steps: newSteps });
+  };
+
+  const updateStep = (index: number, field: string, value: any) => {
+    const newSteps = [...questionForm.steps];
+    newSteps[index] = { ...newSteps[index], [field]: value };
+    setQuestionForm({ ...questionForm, steps: newSteps });
   };
 
   const handleDelete = async (id: string) => {
@@ -369,7 +407,8 @@ export default function AdminQuestions() {
               </div>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleQuestionSubmit} className="space-y-4">
+              <form onSubmit={handleQuestionSubmit} className="space-y-6">
+                {/* Main Question Text */}
                 <div className="space-y-2">
                   <Label htmlFor="questionText">Full Question Text *</Label>
                   <Textarea
@@ -382,98 +421,23 @@ export default function AdminQuestions() {
                   />
                 </div>
 
+                {/* Number of Steps Selector */}
                 <div className="space-y-2">
-                  <Label htmlFor="stepQuestion">Step Question *</Label>
-                  <Textarea
-                    id="stepQuestion"
-                    value={questionForm.stepQuestion}
-                    onChange={(e) => setQuestionForm({ ...questionForm, stepQuestion: e.target.value })}
-                    placeholder="The specific step or part of the question"
-                    rows={2}
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="option1">Option 1 *</Label>
-                    <Input
-                      id="option1"
-                      value={questionForm.option1}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option1: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="option2">Option 2 *</Label>
-                    <Input
-                      id="option2"
-                      value={questionForm.option2}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option2: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="option3">Option 3 *</Label>
-                    <Input
-                      id="option3"
-                      value={questionForm.option3}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option3: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="option4">Option 4 *</Label>
-                    <Input
-                      id="option4"
-                      value={questionForm.option4}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option4: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="correctAnswer">Correct Answer (0-3) *</Label>
-                  <Select
-                    value={questionForm.correctAnswer.toString()}
-                    onValueChange={(value) => setQuestionForm({ ...questionForm, correctAnswer: parseInt(value) })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Option 1</SelectItem>
-                      <SelectItem value="1">Option 2</SelectItem>
-                      <SelectItem value="2">Option 3</SelectItem>
-                      <SelectItem value="3">Option 4</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="explanation">Explanation *</Label>
-                  <Textarea
-                    id="explanation"
-                    value={questionForm.explanation}
-                    onChange={(e) => setQuestionForm({ ...questionForm, explanation: e.target.value })}
-                    placeholder="Explain why this is the correct answer"
-                    rows={3}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="marks">Marks</Label>
+                  <Label htmlFor="numberOfSteps">Number of Steps (Marks) *</Label>
                   <Input
-                    id="marks"
+                    id="numberOfSteps"
                     type="number"
                     min="1"
-                    value={questionForm.marks}
-                    onChange={(e) => setQuestionForm({ ...questionForm, marks: parseInt(e.target.value) })}
+                    max="20"
+                    value={questionForm.numberOfSteps}
+                    onChange={(e) => handleNumberOfStepsChange(parseInt(e.target.value) || 1)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Total marks = Number of steps (1-20)
+                  </p>
                 </div>
 
+                {/* Difficulty Selector */}
                 <div className="space-y-2">
                   <Label htmlFor="difficulty">Difficulty *</Label>
                   <Select
@@ -493,9 +457,126 @@ export default function AdminQuestions() {
                   </Select>
                 </div>
 
+                {/* Steps Accordion */}
+                <div className="space-y-2">
+                  <Label className="text-base">Question Steps</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Fill in each step with a sub-question and 4 options. The last step should contain the final answer.
+                  </p>
+                  
+                  <Accordion type="single" collapsible className="w-full">
+                    {questionForm.steps.map((step, index) => (
+                      <AccordionItem key={index} value={`step-${index}`}>
+                        <AccordionTrigger className="hover:no-underline">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={step.stepQuestion ? "default" : "secondary"}>
+                              Step {index + 1}
+                            </Badge>
+                            {step.stepQuestion && (
+                              <span className="text-sm text-muted-foreground truncate max-w-[200px]">
+                                {step.stepQuestion.substring(0, 40)}...
+                              </span>
+                            )}
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4 pt-4">
+                            {/* Step Question */}
+                            <div className="space-y-2">
+                              <Label htmlFor={`stepQuestion-${index}`}>
+                                Sub-Question {index === questionForm.steps.length - 1 ? "(Final Answer)" : ""} *
+                              </Label>
+                              <Textarea
+                                id={`stepQuestion-${index}`}
+                                value={step.stepQuestion}
+                                onChange={(e) => updateStep(index, 'stepQuestion', e.target.value)}
+                                placeholder={index === questionForm.steps.length - 1 ? "What is the final answer?" : "What did you do in this step?"}
+                                rows={2}
+                                required
+                              />
+                            </div>
+
+                            {/* Options Grid */}
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label htmlFor={`option1-${index}`}>Option 1 *</Label>
+                                <Input
+                                  id={`option1-${index}`}
+                                  value={step.option1}
+                                  onChange={(e) => updateStep(index, 'option1', e.target.value)}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`option2-${index}`}>Option 2 *</Label>
+                                <Input
+                                  id={`option2-${index}`}
+                                  value={step.option2}
+                                  onChange={(e) => updateStep(index, 'option2', e.target.value)}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`option3-${index}`}>Option 3 *</Label>
+                                <Input
+                                  id={`option3-${index}`}
+                                  value={step.option3}
+                                  onChange={(e) => updateStep(index, 'option3', e.target.value)}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`option4-${index}`}>Option 4 *</Label>
+                                <Input
+                                  id={`option4-${index}`}
+                                  value={step.option4}
+                                  onChange={(e) => updateStep(index, 'option4', e.target.value)}
+                                  required
+                                />
+                              </div>
+                            </div>
+
+                            {/* Correct Answer */}
+                            <div className="space-y-2">
+                              <Label htmlFor={`correctAnswer-${index}`}>Correct Answer *</Label>
+                              <Select
+                                value={step.correctAnswer.toString()}
+                                onValueChange={(value) => updateStep(index, 'correctAnswer', parseInt(value))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="0">Option 1</SelectItem>
+                                  <SelectItem value="1">Option 2</SelectItem>
+                                  <SelectItem value="2">Option 3</SelectItem>
+                                  <SelectItem value="3">Option 4</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Explanation */}
+                            <div className="space-y-2">
+                              <Label htmlFor={`explanation-${index}`}>Explanation *</Label>
+                              <Textarea
+                                id={`explanation-${index}`}
+                                value={step.explanation}
+                                onChange={(e) => updateStep(index, 'explanation', e.target.value)}
+                                placeholder="Explain why this is the correct answer"
+                                rows={2}
+                                required
+                              />
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </div>
+
                 <Button
-                  type="submit" 
-                  className="w-full" 
+                  type="submit"
+                  className="w-full"
                   disabled={addQuestion.isPending}
                 >
                   {addQuestion.isPending ? (
@@ -506,7 +587,7 @@ export default function AdminQuestions() {
                   ) : (
                     <>
                       <Plus className="mr-2 h-4 w-4" />
-                      Add Question
+                      Add Question ({questionForm.numberOfSteps} {questionForm.numberOfSteps === 1 ? 'Step' : 'Steps'})
                     </>
                   )}
                 </Button>
