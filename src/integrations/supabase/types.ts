@@ -52,6 +52,7 @@ export type Database = {
           id: string
           level: string
           question_text: string
+          rank_tier: string
           steps: Json
           subject: string
           title: string
@@ -66,6 +67,7 @@ export type Database = {
           id?: string
           level: string
           question_text: string
+          rank_tier?: string
           steps: Json
           subject: string
           title: string
@@ -80,6 +82,7 @@ export type Database = {
           id?: string
           level?: string
           question_text?: string
+          rank_tier?: string
           steps?: Json
           subject?: string
           title?: string

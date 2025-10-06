@@ -1,100 +1,182 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useIsAdmin } from '@/hooks/useUserRole';
+import { useQuestions, useAddQuestion, useDeleteQuestion } from '@/hooks/useQuestions';
+import { StepBasedQuestion, RankTier } from '@/types/stepQuestion';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useQuestions, useAddQuestion, useDeleteQuestion } from '@/hooks/useQuestions';
-import { useIsAdmin } from '@/hooks/useUserRole';
-import { toast } from 'sonner';
-import { Trash2, Plus, ArrowLeft } from 'lucide-react';
-import { StepBasedQuestion, QuestionStep } from '@/types/stepQuestion';
+import { toast } from '@/hooks/use-toast';
+import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+
+interface CommonMetadata {
+  subject: 'math' | 'physics' | 'chemistry';
+  level: 'A1' | 'A2';
+  chapter: string;
+  rankTier: RankTier;
+}
+
+const rankTierColors: Record<RankTier, string> = {
+  'Bronze': 'bg-amber-700 text-white',
+  'Silver': 'bg-gray-400 text-white',
+  'Gold': 'bg-yellow-500 text-white',
+  'Diamond': 'bg-cyan-500 text-white',
+  'Unbeatable': 'bg-purple-600 text-white',
+  'Pocket Calculator': 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+};
+
+const rankTierEmojis: Record<RankTier, string> = {
+  'Bronze': '🥉',
+  'Silver': '🥈',
+  'Gold': '🥇',
+  'Diamond': '💎',
+  'Unbeatable': '👑',
+  'Pocket Calculator': '🧮'
+};
 
 export default function AdminQuestions() {
   const navigate = useNavigate();
   const { isAdmin, isLoading: roleLoading } = useIsAdmin();
-  const { data: questions, isLoading } = useQuestions();
+  const { data: questions, isLoading: questionsLoading } = useQuestions();
   const addQuestion = useAddQuestion();
   const deleteQuestion = useDeleteQuestion();
 
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '',
-    subject: 'math' as 'math' | 'physics' | 'chemistry',
+  // Two-step flow state
+  const [step, setStep] = useState<'metadata' | 'questions'>('metadata');
+  const [metadata, setMetadata] = useState<CommonMetadata>({
+    subject: 'math',
+    level: 'A1',
     chapter: '',
-    level: 'A1' as 'A1' | 'A2',
-    difficulty: 'easy' as 'easy' | 'medium' | 'hard',
-    questionText: '',
-    totalMarks: 1,
-    topicTags: '',
-    stepQuestion: '',
-    stepOptions: ['', '', '', ''],
-    stepCorrectAnswer: 0,
-    stepMarks: 1,
-    stepExplanation: ''
+    rankTier: 'Bronze'
   });
 
-  if (roleLoading || isLoading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
+  // Filter state
+  const [filterRankTier, setFilterRankTier] = useState<RankTier | 'all'>('all');
 
-  if (!isAdmin) {
+  // Question form state
+  const [questionForm, setQuestionForm] = useState({
+    title: '',
+    questionText: '',
+    stepQuestion: '',
+    option1: '',
+    option2: '',
+    option3: '',
+    option4: '',
+    correctAnswer: 0,
+    explanation: '',
+    marks: 1,
+    topicTags: ''
+  });
+
+  if (roleLoading || questionsLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <h1 className="text-2xl font-bold">Access Denied</h1>
-        <p>You need admin privileges to access this page.</p>
-        <Button onClick={() => navigate('/')}>Go Home</Button>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     );
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const step: QuestionStep = {
-      id: 'step-1',
-      question: formData.stepQuestion,
-      options: formData.stepOptions.filter(o => o.trim() !== ''),
-      correctAnswer: formData.stepCorrectAnswer,
-      marks: formData.stepMarks,
-      explanation: formData.stepExplanation
-    };
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-destructive">Access denied. Admin privileges required.</p>
+            <Button onClick={() => navigate('/dashboard')} className="mt-4">
+              Back to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-    const question: Omit<StepBasedQuestion, 'id'> = {
-      title: formData.title,
-      subject: formData.subject,
-      chapter: formData.chapter,
-      level: formData.level,
-      difficulty: formData.difficulty,
-      questionText: formData.questionText,
-      totalMarks: formData.totalMarks,
-      topicTags: formData.topicTags.split(',').map(t => t.trim()).filter(t => t),
-      steps: [step]
+  const handleMetadataSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!metadata.chapter.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a chapter name",
+        variant: "destructive"
+      });
+      return;
+    }
+    setStep('questions');
+  };
+
+  const handleQuestionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!questionForm.title.trim() || !questionForm.questionText.trim() || 
+        !questionForm.stepQuestion.trim() || !questionForm.option1.trim() ||
+        !questionForm.option2.trim() || !questionForm.option3.trim() || 
+        !questionForm.option4.trim() || !questionForm.explanation.trim()) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newQuestion: Omit<StepBasedQuestion, 'id'> = {
+      title: questionForm.title,
+      subject: metadata.subject,
+      chapter: metadata.chapter,
+      level: metadata.level,
+      difficulty: 'medium',
+      rankTier: metadata.rankTier,
+      totalMarks: questionForm.marks,
+      questionText: questionForm.questionText,
+      topicTags: questionForm.topicTags.split(',').map(tag => tag.trim()).filter(Boolean),
+      steps: [
+        {
+          id: 'step-1',
+          question: questionForm.stepQuestion,
+          options: [
+            questionForm.option1,
+            questionForm.option2,
+            questionForm.option3,
+            questionForm.option4
+          ],
+          correctAnswer: questionForm.correctAnswer,
+          marks: questionForm.marks,
+          explanation: questionForm.explanation
+        }
+      ]
     };
 
     try {
-      await addQuestion.mutateAsync(question);
-      toast.success('Question added successfully!');
-      setShowForm(false);
-      setFormData({
+      await addQuestion.mutateAsync(newQuestion);
+      toast({
+        title: "Success",
+        description: "Question added successfully!"
+      });
+      
+      // Reset question form
+      setQuestionForm({
         title: '',
-        subject: 'math',
-        chapter: '',
-        level: 'A1',
-        difficulty: 'easy',
         questionText: '',
-        totalMarks: 1,
-        topicTags: '',
         stepQuestion: '',
-        stepOptions: ['', '', '', ''],
-        stepCorrectAnswer: 0,
-        stepMarks: 1,
-        stepExplanation: ''
+        option1: '',
+        option2: '',
+        option3: '',
+        option4: '',
+        correctAnswer: 0,
+        explanation: '',
+        marks: 1,
+        topicTags: ''
       });
     } catch (error) {
-      toast.error('Failed to add question');
+      toast({
+        title: "Error",
+        description: "Failed to add question",
+        variant: "destructive"
+      });
     }
   };
 
@@ -102,212 +184,405 @@ export default function AdminQuestions() {
     if (confirm('Are you sure you want to delete this question?')) {
       try {
         await deleteQuestion.mutateAsync(id);
-        toast.success('Question deleted');
+        toast({
+          title: "Success",
+          description: "Question deleted successfully"
+        });
       } catch (error) {
-        toast.error('Failed to delete question');
+        toast({
+          title: "Error",
+          description: "Failed to delete question",
+          variant: "destructive"
+        });
       }
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <h1 className="text-3xl font-bold">Question Management</h1>
-          </div>
-          <Button onClick={() => setShowForm(!showForm)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Question
-          </Button>
-        </div>
+  const filteredQuestions = filterRankTier === 'all' 
+    ? questions 
+    : questions?.filter(q => q.rankTier === filterRankTier);
 
-        {showForm && (
-          <Card className="p-6 mb-8">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="title">Title</Label>
-                  <Input
-                    id="title"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="subject">Subject</Label>
-                  <Select value={formData.subject} onValueChange={(v: any) => setFormData({ ...formData, subject: v })}>
+  // Step 1: Set Common Metadata
+  if (step === 'metadata') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6">
+        <div className="max-w-2xl mx-auto">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-4"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Button>
+
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <SettingsIcon className="h-6 w-6" />
+                Set Question Metadata
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Configure common settings for all questions you'll add in this session
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleMetadataSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="subject">Subject *</Label>
+                  <Select
+                    value={metadata.subject}
+                    onValueChange={(value: 'math' | 'physics' | 'chemistry') =>
+                      setMetadata({ ...metadata, subject: value })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="math">Math</SelectItem>
+                      <SelectItem value="math">Mathematics</SelectItem>
                       <SelectItem value="physics">Physics</SelectItem>
                       <SelectItem value="chemistry">Chemistry</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label htmlFor="chapter">Chapter</Label>
+
+                <div className="space-y-2">
+                  <Label htmlFor="level">Level *</Label>
+                  <Select
+                    value={metadata.level}
+                    onValueChange={(value: 'A1' | 'A2') =>
+                      setMetadata({ ...metadata, level: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A1">A1 (AS Level)</SelectItem>
+                      <SelectItem value="A2">A2 (A Level)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="chapter">Chapter *</Label>
                   <Input
                     id="chapter"
-                    value={formData.chapter}
-                    onChange={(e) => setFormData({ ...formData, chapter: e.target.value })}
+                    value={metadata.chapter}
+                    onChange={(e) => setMetadata({ ...metadata, chapter: e.target.value })}
+                    placeholder="e.g., Quadratic Equations"
                     required
                   />
                 </div>
-                <div>
-                  <Label htmlFor="level">Level</Label>
-                  <Select value={formData.level} onValueChange={(v: any) => setFormData({ ...formData, level: v })}>
+
+                <div className="space-y-2">
+                  <Label htmlFor="rankTier">Rank Tier *</Label>
+                  <Select
+                    value={metadata.rankTier}
+                    onValueChange={(value: RankTier) =>
+                      setMetadata({ ...metadata, rankTier: value })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="A1">A1</SelectItem>
-                      <SelectItem value="A2">A2</SelectItem>
+                      {(['Bronze', 'Silver', 'Gold', 'Diamond', 'Unbeatable', 'Pocket Calculator'] as RankTier[]).map(tier => (
+                        <SelectItem key={tier} value={tier}>
+                          <span className="flex items-center gap-2">
+                            {rankTierEmojis[tier]} {tier}
+                          </span>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Questions will be shown to players at this rank bracket
+                  </p>
                 </div>
-                <div>
-                  <Label htmlFor="difficulty">Difficulty</Label>
-                  <Select value={formData.difficulty} onValueChange={(v: any) => setFormData({ ...formData, difficulty: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="totalMarks">Total Marks</Label>
-                  <Input
-                    id="totalMarks"
-                    type="number"
-                    value={formData.totalMarks}
-                    onChange={(e) => setFormData({ ...formData, totalMarks: parseInt(e.target.value) })}
-                    required
-                  />
-                </div>
-              </div>
 
-              <div>
-                <Label htmlFor="questionText">Question Text</Label>
-                <Textarea
-                  id="questionText"
-                  value={formData.questionText}
-                  onChange={(e) => setFormData({ ...formData, questionText: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="topicTags">Topic Tags (comma separated)</Label>
-                <Input
-                  id="topicTags"
-                  value={formData.topicTags}
-                  onChange={(e) => setFormData({ ...formData, topicTags: e.target.value })}
-                  placeholder="algebra, quadratics, factoring"
-                />
-              </div>
-
-              <div className="border-t pt-4">
-                <h3 className="font-semibold mb-4">Step 1</h3>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="stepQuestion">Step Question</Label>
-                    <Textarea
-                      id="stepQuestion"
-                      value={formData.stepQuestion}
-                      onChange={(e) => setFormData({ ...formData, stepQuestion: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  {formData.stepOptions.map((opt, idx) => (
-                    <div key={idx}>
-                      <Label htmlFor={`option${idx}`}>Option {idx + 1}</Label>
-                      <Input
-                        id={`option${idx}`}
-                        value={opt}
-                        onChange={(e) => {
-                          const newOptions = [...formData.stepOptions];
-                          newOptions[idx] = e.target.value;
-                          setFormData({ ...formData, stepOptions: newOptions });
-                        }}
-                        required
-                      />
-                    </div>
-                  ))}
-
-                  <div>
-                    <Label htmlFor="correctAnswer">Correct Answer (0-3)</Label>
-                    <Input
-                      id="correctAnswer"
-                      type="number"
-                      min="0"
-                      max="3"
-                      value={formData.stepCorrectAnswer}
-                      onChange={(e) => setFormData({ ...formData, stepCorrectAnswer: parseInt(e.target.value) })}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="stepExplanation">Explanation</Label>
-                    <Textarea
-                      id="stepExplanation"
-                      value={formData.stepExplanation}
-                      onChange={(e) => setFormData({ ...formData, stepExplanation: e.target.value })}
-                      required
-                    />
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold mb-2">Summary</h4>
+                  <div className="space-y-1 text-sm">
+                    <p><strong>Subject:</strong> {metadata.subject}</p>
+                    <p><strong>Level:</strong> {metadata.level}</p>
+                    <p><strong>Chapter:</strong> {metadata.chapter || '(not set)'}</p>
+                    <p className="flex items-center gap-2">
+                      <strong>Rank Tier:</strong> 
+                      <Badge className={rankTierColors[metadata.rankTier]}>
+                        {rankTierEmojis[metadata.rankTier]} {metadata.rankTier}
+                      </Badge>
+                    </p>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex gap-2">
-                <Button type="submit" disabled={addQuestion.isPending}>
-                  {addQuestion.isPending ? 'Adding...' : 'Add Question'}
+                <Button type="submit" className="w-full" size="lg">
+                  Continue to Add Questions
+                  <Plus className="ml-2 h-4 w-4" />
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
+              </form>
+            </CardContent>
           </Card>
-        )}
+        </div>
+      </div>
+    );
+  }
 
-        <div className="space-y-4">
-          {questions?.map((q) => (
-            <Card key={q.id} className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{q.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{q.questionText}</p>
-                  <div className="flex gap-2 mt-2">
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">{q.subject}</span>
-                    <span className="text-xs bg-secondary/10 text-secondary px-2 py-1 rounded">{q.level}</span>
-                    <span className="text-xs bg-accent/10 text-accent px-2 py-1 rounded">{q.difficulty}</span>
-                    <span className="text-xs bg-muted px-2 py-1 rounded">{q.chapter}</span>
+  // Step 2: Add Questions
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => setStep('metadata')}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Change Metadata Settings
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => navigate('/dashboard')}
+          >
+            Back to Dashboard
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Column: Add Question Form */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Plus className="h-5 w-5" />
+                Add New Question
+              </CardTitle>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <Badge variant="secondary">{metadata.subject}</Badge>
+                <Badge variant="secondary">{metadata.level}</Badge>
+                <Badge variant="secondary">{metadata.chapter}</Badge>
+                <Badge className={rankTierColors[metadata.rankTier]}>
+                  {rankTierEmojis[metadata.rankTier]} {metadata.rankTier}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleQuestionSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Question Title *</Label>
+                  <Input
+                    id="title"
+                    value={questionForm.title}
+                    onChange={(e) => setQuestionForm({ ...questionForm, title: e.target.value })}
+                    placeholder="Brief title for the question"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="questionText">Full Question Text *</Label>
+                  <Textarea
+                    id="questionText"
+                    value={questionForm.questionText}
+                    onChange={(e) => setQuestionForm({ ...questionForm, questionText: e.target.value })}
+                    placeholder="The complete question as it appears in the exam"
+                    rows={3}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="stepQuestion">Step Question *</Label>
+                  <Textarea
+                    id="stepQuestion"
+                    value={questionForm.stepQuestion}
+                    onChange={(e) => setQuestionForm({ ...questionForm, stepQuestion: e.target.value })}
+                    placeholder="The specific step or part of the question"
+                    rows={2}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="option1">Option 1 *</Label>
+                    <Input
+                      id="option1"
+                      value={questionForm.option1}
+                      onChange={(e) => setQuestionForm({ ...questionForm, option1: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="option2">Option 2 *</Label>
+                    <Input
+                      id="option2"
+                      value={questionForm.option2}
+                      onChange={(e) => setQuestionForm({ ...questionForm, option2: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="option3">Option 3 *</Label>
+                    <Input
+                      id="option3"
+                      value={questionForm.option3}
+                      onChange={(e) => setQuestionForm({ ...questionForm, option3: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="option4">Option 4 *</Label>
+                    <Input
+                      id="option4"
+                      value={questionForm.option4}
+                      onChange={(e) => setQuestionForm({ ...questionForm, option4: e.target.value })}
+                      required
+                    />
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleDelete(q.id)}
-                  disabled={deleteQuestion.isPending}
+
+                <div className="space-y-2">
+                  <Label htmlFor="correctAnswer">Correct Answer (0-3) *</Label>
+                  <Select
+                    value={questionForm.correctAnswer.toString()}
+                    onValueChange={(value) => setQuestionForm({ ...questionForm, correctAnswer: parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Option 1</SelectItem>
+                      <SelectItem value="1">Option 2</SelectItem>
+                      <SelectItem value="2">Option 3</SelectItem>
+                      <SelectItem value="3">Option 4</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="explanation">Explanation *</Label>
+                  <Textarea
+                    id="explanation"
+                    value={questionForm.explanation}
+                    onChange={(e) => setQuestionForm({ ...questionForm, explanation: e.target.value })}
+                    placeholder="Explain why this is the correct answer"
+                    rows={3}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="marks">Marks</Label>
+                  <Input
+                    id="marks"
+                    type="number"
+                    min="1"
+                    value={questionForm.marks}
+                    onChange={(e) => setQuestionForm({ ...questionForm, marks: parseInt(e.target.value) })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="topicTags">Topic Tags (comma-separated)</Label>
+                  <Input
+                    id="topicTags"
+                    value={questionForm.topicTags}
+                    onChange={(e) => setQuestionForm({ ...questionForm, topicTags: e.target.value })}
+                    placeholder="e.g., algebra, quadratics, factoring"
+                  />
+                </div>
+
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={addQuestion.isPending}
                 >
-                  <Trash2 className="h-4 w-4 text-destructive" />
+                  {addQuestion.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Question
+                    </>
+                  )}
                 </Button>
-              </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Right Column: Questions List */}
+          <div className="space-y-4">
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5" />
+                    All Questions ({filteredQuestions?.length || 0})
+                  </span>
+                </CardTitle>
+                <div className="space-y-2">
+                  <Label>Filter by Rank Tier</Label>
+                  <Select
+                    value={filterRankTier}
+                    onValueChange={(value: RankTier | 'all') => setFilterRankTier(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Tiers</SelectItem>
+                      {(['Bronze', 'Silver', 'Gold', 'Diamond', 'Unbeatable', 'Pocket Calculator'] as RankTier[]).map(tier => (
+                        <SelectItem key={tier} value={tier}>
+                          {rankTierEmojis[tier]} {tier}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
             </Card>
-          ))}
+
+            <div className="space-y-3 max-h-[800px] overflow-y-auto pr-2">
+              {filteredQuestions?.map((question) => (
+                <Card key={question.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex-1 space-y-2">
+                        <h3 className="font-semibold text-sm">{question.title}</h3>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="outline" className="text-xs">{question.subject}</Badge>
+                          <Badge variant="outline" className="text-xs">{question.level}</Badge>
+                          <Badge variant="outline" className="text-xs">{question.chapter}</Badge>
+                          <Badge className={`text-xs ${rankTierColors[question.rankTier]}`}>
+                            {rankTierEmojis[question.rankTier]} {question.rankTier}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {question.questionText}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {question.totalMarks} mark(s) • {question.steps.length} step(s)
+                        </p>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => handleDelete(question.id)}
+                        disabled={deleteQuestion.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

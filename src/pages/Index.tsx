@@ -203,6 +203,7 @@ const Index = () => {
         chapter: q.chapter,
         level: 'A2' as const,
         difficulty: q.difficulty === 'Easy' ? 'easy' as const : q.difficulty === 'Med' ? 'medium' as const : 'hard' as const,
+        rankTier: 'Gold' as const, // A2 Integration is advanced content
         totalMarks: q.totalMarks,
         questionText: q.questionText,
         topicTags: q.topicTags,

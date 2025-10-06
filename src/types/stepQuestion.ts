@@ -10,6 +10,8 @@ export interface QuestionStep {
   commonMistakes?: string[];
 }
 
+export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Diamond' | 'Unbeatable' | 'Pocket Calculator';
+
 export interface StepBasedQuestion {
   id: string;
   title: string;
@@ -17,6 +19,7 @@ export interface StepBasedQuestion {
   chapter: string;
   level: 'A1' | 'A2';
   difficulty: 'easy' | 'medium' | 'hard';
+  rankTier: RankTier;
   totalMarks: number;
   steps: QuestionStep[];
   questionText: string; // The original CAIE question stem
@@ -56,6 +59,7 @@ export const convertLegacyQuestion = (legacyQuestion: any): StepBasedQuestion =>
     chapter: legacyQuestion.chapter || 'general',
     level: legacyQuestion.level || 'A1',
     difficulty: legacyQuestion.difficulty || 'medium',
+    rankTier: 'Bronze', // default rank tier
     totalMarks: 1,
     questionText: legacyQuestion.q,
     topicTags: [],

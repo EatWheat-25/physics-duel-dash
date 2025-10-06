@@ -7,6 +7,7 @@ export const useQuestions = (filters?: {
   chapter?: string;
   level?: 'A1' | 'A2';
   difficulty?: 'easy' | 'medium' | 'hard';
+  rankTier?: string;
 }) => {
   return useQuery({
     queryKey: ['questions', filters],
@@ -17,6 +18,7 @@ export const useQuestions = (filters?: {
       if (filters?.chapter) query = query.eq('chapter', filters.chapter);
       if (filters?.level) query = query.eq('level', filters.level);
       if (filters?.difficulty) query = query.eq('difficulty', filters.difficulty);
+      if (filters?.rankTier) query = query.eq('rank_tier', filters.rankTier);
 
       const { data, error } = await query.order('created_at', { ascending: false });
       
@@ -29,6 +31,7 @@ export const useQuestions = (filters?: {
         chapter: q.chapter,
         level: q.level as 'A1' | 'A2',
         difficulty: q.difficulty as 'easy' | 'medium' | 'hard',
+        rankTier: q.rank_tier as any,
         totalMarks: q.total_marks,
         questionText: q.question_text,
         topicTags: q.topic_tags || [],
@@ -51,6 +54,7 @@ export const useAddQuestion = () => {
           chapter: question.chapter,
           level: question.level,
           difficulty: question.difficulty,
+          rank_tier: question.rankTier,
           question_text: question.questionText,
           total_marks: question.totalMarks,
           topic_tags: question.topicTags,
