@@ -18,7 +18,6 @@ interface CommonMetadata {
   level: 'A1' | 'A2';
   chapter: string;
   rankTier: RankTier;
-  difficulty: 'easy' | 'medium' | 'hard';
 }
 
 const rankTierColors: Record<RankTier, string> = {
@@ -52,8 +51,7 @@ export default function AdminQuestions() {
     subject: 'math',
     level: 'A1',
     chapter: '',
-    rankTier: 'Bronze',
-    difficulty: 'medium'
+    rankTier: 'Bronze'
   });
 
   // Filter state
@@ -69,7 +67,8 @@ export default function AdminQuestions() {
     option4: '',
     correctAnswer: 0,
     explanation: '',
-    marks: 1
+    marks: 1,
+    difficulty: 'medium' as 'easy' | 'medium' | 'hard'
   });
 
   if (roleLoading || questionsLoading) {
@@ -131,7 +130,7 @@ export default function AdminQuestions() {
       subject: metadata.subject,
       chapter: metadata.chapter,
       level: metadata.level,
-      difficulty: metadata.difficulty,
+      difficulty: questionForm.difficulty,
       rankTier: metadata.rankTier,
       totalMarks: questionForm.marks,
       questionText: questionForm.questionText,
@@ -170,7 +169,8 @@ export default function AdminQuestions() {
         option4: '',
         correctAnswer: 0,
         explanation: '',
-        marks: 1
+        marks: 1,
+        difficulty: 'medium'
       });
     } catch (error) {
       toast({
@@ -303,32 +303,12 @@ export default function AdminQuestions() {
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="difficulty">Difficulty *</Label>
-                  <Select
-                    value={metadata.difficulty}
-                    onValueChange={(value: 'easy' | 'medium' | 'hard') =>
-                      setMetadata({ ...metadata, difficulty: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <h4 className="font-semibold mb-2">Summary</h4>
                   <div className="space-y-1 text-sm">
                     <p><strong>Subject:</strong> {metadata.subject}</p>
                     <p><strong>Level:</strong> {metadata.level}</p>
                     <p><strong>Chapter:</strong> {metadata.chapter || '(not set)'}</p>
-                    <p><strong>Difficulty:</strong> {metadata.difficulty}</p>
                     <p className="flex items-center gap-2">
                       <strong>Rank Tier:</strong> 
                       <Badge className={rankTierColors[metadata.rankTier]}>
@@ -383,7 +363,6 @@ export default function AdminQuestions() {
                 <Badge variant="secondary">{metadata.subject}</Badge>
                 <Badge variant="secondary">{metadata.level}</Badge>
                 <Badge variant="secondary">{metadata.chapter}</Badge>
-                <Badge variant="secondary">{metadata.difficulty}</Badge>
                 <Badge className={rankTierColors[metadata.rankTier]}>
                   {rankTierEmojis[metadata.rankTier]} {metadata.rankTier}
                 </Badge>
@@ -493,6 +472,25 @@ export default function AdminQuestions() {
                     value={questionForm.marks}
                     onChange={(e) => setQuestionForm({ ...questionForm, marks: parseInt(e.target.value) })}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="difficulty">Difficulty *</Label>
+                  <Select
+                    value={questionForm.difficulty}
+                    onValueChange={(value: 'easy' | 'medium' | 'hard') =>
+                      setQuestionForm({ ...questionForm, difficulty: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="easy">Easy</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="hard">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <Button
