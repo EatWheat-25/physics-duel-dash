@@ -177,7 +177,7 @@ const Index = () => {
     setCurrentPage('battle');
   };
 
-  const handleStartMathBattle = (level: 'A1-Only' | 'A2-Only' | 'All-Maths' | 'A2-Integration') => {
+  const handleStartMathBattle = async (level: 'A1-Only' | 'A2-Only' | 'All-Maths' | 'A2-Integration') => {
     console.log(`Starting Step-based Math battle for level: ${level}`);
     setBattleContext('math-battle');
     
@@ -186,14 +186,13 @@ const Index = () => {
     
     if (level === 'A1-Only') {
       // A1 level: differentiation, integration, quadratic functions
-      stepQuestions = [
-        ...getStepMathQuestions('differentiation', 'A1', 1),
-        ...getStepMathQuestions('integration', 'A1', 1),
-        ...getStepMathQuestions('quadratic-functions', 'A1', 1)
-      ];
+      const q1 = await getStepMathQuestions('differentiation', 'A1', 1);
+      const q2 = await getStepMathQuestions('integration', 'A1', 1);
+      const q3 = await getStepMathQuestions('quadratic-functions', 'A1', 1);
+      stepQuestions = [...q1, ...q2, ...q3];
     } else if (level === 'A2-Only') {
       // A2 only: parametric equations and advanced topics
-      stepQuestions = getStepMathQuestions('parametric-equations', 'A2', 2);
+      stepQuestions = await getStepMathQuestions('parametric-equations', 'A2', 2);
     } else if (level === 'A2-Integration') {
       // A2 Integration: Pure integration questions from CAIE papers
       const integrationQuestions = A2_INTEGRATION_QUESTIONS.slice(0, 3); // Get first 3 questions for battle
@@ -216,10 +215,9 @@ const Index = () => {
       return; // Early return since we handled the questions
     } else {
       // All-Maths: mix of A1 and A2 questions
-      stepQuestions = [
-        ...getStepMathQuestions('differentiation', 'A1', 1),
-        ...getStepMathQuestions('parametric-equations', 'A2', 1)
-      ];
+      const q1 = await getStepMathQuestions('differentiation', 'A1', 1);
+      const q2 = await getStepMathQuestions('parametric-equations', 'A2', 1);
+      stepQuestions = [...q1, ...q2];
     }
     
     if (stepQuestions.length > 0) {
