@@ -10,7 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy, ChevronDown } from 'lucide-react';
+import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy, ChevronDown, Image as ImageIcon, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
@@ -63,6 +64,7 @@ export default function AdminQuestions() {
     questionText: '',
     numberOfSteps: 1,
     difficulty: 'medium' as 'easy' | 'medium' | 'hard',
+    imageFile: null as File | null,
     steps: [
       {
         stepQuestion: '',
@@ -139,6 +141,36 @@ export default function AdminQuestions() {
       }
     }
 
+    let imageUrl = null;
+
+    // Upload image if provided
+    if (questionForm.imageFile) {
+      try {
+        const fileExt = questionForm.imageFile.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('question-images')
+          .upload(filePath, questionForm.imageFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('question-images')
+          .getPublicUrl(filePath);
+
+        imageUrl = publicUrl;
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to upload image",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     // Auto-generate title from question text (first 50 chars)
     const autoTitle = questionForm.questionText.substring(0, 50) + (questionForm.questionText.length > 50 ? '...' : '');
 
@@ -152,7 +184,7 @@ export default function AdminQuestions() {
       explanation: step.explanation
     }));
 
-    const newQuestion: Omit<StepBasedQuestion, 'id'> = {
+    const newQuestion: Omit<StepBasedQuestion, 'id'> & { image_url?: string | null } = {
       title: autoTitle,
       subject: metadata.subject,
       chapter: metadata.chapter,
@@ -162,7 +194,8 @@ export default function AdminQuestions() {
       totalMarks: questionForm.numberOfSteps, // Total marks = number of steps
       questionText: questionForm.questionText,
       topicTags: [],
-      steps: stepsArray
+      steps: stepsArray,
+      image_url: imageUrl
     };
 
     try {
@@ -177,6 +210,7 @@ export default function AdminQuestions() {
         questionText: '',
         numberOfSteps: 1,
         difficulty: 'medium',
+        imageFile: null,
         steps: [
           {
             stepQuestion: '',
@@ -419,6 +453,70 @@ export default function AdminQuestions() {
                     rows={3}
                     required
                   />
+                </div>
+
+                {/* Image Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="questionImage">Question Diagram (Optional)</Label>
+                  <div className="space-y-2">
+                    {questionForm.imageFile ? (
+                      <div className="relative border rounded-lg p-4 bg-muted/50">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-2 right-2"
+                          onClick={() => setQuestionForm({ ...questionForm, imageFile: null })}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                        <div className="flex items-center gap-3">
+                          <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{questionForm.imageFile.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(questionForm.imageFile.size / 1024).toFixed(1)} KB
+                            </p>
+                          </div>
+                        </div>
+                        <img 
+                          src={URL.createObjectURL(questionForm.imageFile)} 
+                          alt="Preview" 
+                          className="mt-3 max-h-48 rounded border"
+                        />
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer hover:bg-muted/50 transition-colors">
+                        <ImageIcon className="h-10 w-10 text-muted-foreground mb-2" />
+                        <span className="text-sm text-muted-foreground">
+                          Click to upload diagram or image
+                        </span>
+                        <span className="text-xs text-muted-foreground mt-1">
+                          PNG, JPG, or WEBP (max 5MB)
+                        </span>
+                        <input
+                          id="questionImage"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 5 * 1024 * 1024) {
+                                toast({
+                                  title: "Error",
+                                  description: "Image must be smaller than 5MB",
+                                  variant: "destructive"
+                                });
+                                return;
+                              }
+                              setQuestionForm({ ...questionForm, imageFile: file });
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
 
                 {/* Number of Steps Selector */}

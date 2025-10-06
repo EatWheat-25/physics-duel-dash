@@ -50,6 +50,7 @@ export type Database = {
           created_at: string | null
           difficulty: string
           id: string
+          image_url: string | null
           level: string
           question_text: string
           rank_tier: string
@@ -65,6 +66,7 @@ export type Database = {
           created_at?: string | null
           difficulty: string
           id?: string
+          image_url?: string | null
           level: string
           question_text: string
           rank_tier?: string
@@ -80,6 +82,7 @@ export type Database = {
           created_at?: string | null
           difficulty?: string
           id?: string
+          image_url?: string | null
           level?: string
           question_text?: string
           rank_tier?: string
