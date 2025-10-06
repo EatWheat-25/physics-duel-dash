@@ -19,6 +19,7 @@ import BattleLoader from "./components/BattleLoader";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import AdminQuestions from "./pages/AdminQuestions";
+import AdminLogin from "./pages/AdminLogin";
 import { getRandomQuestions } from "./data/questions";
 
 const queryClient = new QueryClient();
@@ -41,7 +42,8 @@ const App = () => (
               <Route path="/modes" element={<ModeSelection />} />
               <Route path="/game-modes" element={<GameModes />} />
               <Route path="/matchmaking" element={<MatchmakingScreen />} />
-              <Route path="/admin/questions" element={<AdminQuestions />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/questions" element={<AdminQuestions />} />
               <Route path="/battle" element={<BattleLoader />} />
               <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

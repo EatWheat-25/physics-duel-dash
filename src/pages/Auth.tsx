@@ -206,6 +206,17 @@ export default function Auth() {
               : "Don't have an account? Sign up"}
           </button>
         </div>
+
+        <div className="text-center pt-4 border-t">
+          <button
+            type="button"
+            onClick={() => navigate('/admin/login')}
+            className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center justify-center gap-2 mx-auto"
+          >
+            <Lock className="h-3 w-3" />
+            Admin Login
+          </button>
+        </div>
       </div>
     </div>
   );
