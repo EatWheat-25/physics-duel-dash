@@ -17,7 +17,7 @@ export const useUserRole = () => {
         .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       console.log('User role data:', data, 'Error:', error);
       
@@ -27,7 +27,7 @@ export const useUserRole = () => {
       }
       return data?.role || null;
     },
-    staleTime: 0, // Always refetch
+    staleTime: 0,
     refetchOnMount: true,
     refetchOnWindowFocus: true
   });
