@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIsAdmin } from '@/hooks/useUserRole';
-import { useQuestions, useAddQuestion, useDeleteQuestion } from '@/hooks/useQuestions';
+import { useQuestions, useAddQuestion, useUpdateQuestion, useDeleteQuestion } from '@/hooks/useQuestions';
 import { StepBasedQuestion, RankTier } from '@/types/stepQuestion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy, ChevronDown, Image as ImageIcon, X } from 'lucide-react';
+import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy, ChevronDown, Image as ImageIcon, X, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -45,10 +45,12 @@ export default function AdminQuestions() {
   const { isAdmin, isLoading: roleLoading } = useIsAdmin();
   const { data: questions, isLoading: questionsLoading } = useQuestions();
   const addQuestion = useAddQuestion();
+  const updateQuestion = useUpdateQuestion();
   const deleteQuestion = useDeleteQuestion();
 
   // Two-step flow state
   const [step, setStep] = useState<'metadata' | 'questions'>('metadata');
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<CommonMetadata>({
     subject: 'math',
     level: 'A1',
@@ -199,11 +201,20 @@ export default function AdminQuestions() {
     };
 
     try {
-      await addQuestion.mutateAsync(newQuestion);
-      toast({
-        title: "Success",
-        description: `Question with ${questionForm.numberOfSteps} step(s) added successfully!`
-      });
+      if (editingQuestionId) {
+        await updateQuestion.mutateAsync({ id: editingQuestionId, question: newQuestion });
+        toast({
+          title: "Success",
+          description: "Question updated successfully!"
+        });
+        setEditingQuestionId(null);
+      } else {
+        await addQuestion.mutateAsync(newQuestion);
+        toast({
+          title: "Success",
+          description: `Question with ${questionForm.numberOfSteps} step(s) added successfully!`
+        });
+      }
       
       // Reset question form
       setQuestionForm({
@@ -226,7 +237,7 @@ export default function AdminQuestions() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to add question",
+        description: editingQuestionId ? "Failed to update question" : "Failed to add question",
         variant: "destructive"
       });
     }
@@ -251,6 +262,54 @@ export default function AdminQuestions() {
     const newSteps = [...questionForm.steps];
     newSteps[index] = { ...newSteps[index], [field]: value };
     setQuestionForm({ ...questionForm, steps: newSteps });
+  };
+
+  const handleEditQuestion = (question: StepBasedQuestion) => {
+    setEditingQuestionId(question.id);
+    setMetadata({
+      subject: question.subject,
+      level: question.level,
+      chapter: question.chapter,
+      rankTier: question.rankTier
+    });
+    setQuestionForm({
+      questionText: question.questionText,
+      imageFile: null,
+      numberOfSteps: question.steps.length,
+      difficulty: question.difficulty,
+      steps: question.steps.map(step => ({
+        stepQuestion: step.question,
+        option1: step.options[0] || '',
+        option2: step.options[1] || '',
+        option3: step.options[2] || '',
+        option4: step.options[3] || '',
+        correctAnswer: step.correctAnswer,
+        explanation: step.explanation
+      }))
+    });
+    setStep('questions');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingQuestionId(null);
+    setQuestionForm({
+      questionText: '',
+      numberOfSteps: 1,
+      difficulty: 'medium',
+      imageFile: null,
+      steps: [
+        {
+          stepQuestion: '',
+          option1: '',
+          option2: '',
+          option3: '',
+          option4: '',
+          correctAnswer: 0,
+          explanation: ''
+        }
+      ]
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -424,13 +483,24 @@ export default function AdminQuestions() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column: Add Question Form */}
+          {/* Left Column: Add/Edit Question Form */}
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Add New Question
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  {editingQuestionId ? <Pencil className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                  {editingQuestionId ? 'Edit Question' : 'Add New Question'}
+                </CardTitle>
+                {editingQuestionId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelEdit}
+                  >
+                    Cancel Edit
+                  </Button>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 <Badge variant="secondary">{metadata.subject}</Badge>
                 <Badge variant="secondary">{metadata.level}</Badge>
@@ -675,17 +745,20 @@ export default function AdminQuestions() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={addQuestion.isPending}
+                  disabled={addQuestion.isPending || updateQuestion.isPending}
                 >
-                  {addQuestion.isPending ? (
+                  {(addQuestion.isPending || updateQuestion.isPending) ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Adding...
+                      {editingQuestionId ? 'Updating...' : 'Adding...'}
                     </>
                   ) : (
                     <>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Question ({questionForm.numberOfSteps} {questionForm.numberOfSteps === 1 ? 'Step' : 'Steps'})
+                      {editingQuestionId ? <Pencil className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                      {editingQuestionId 
+                        ? 'Update Question' 
+                        : `Add Question (${questionForm.numberOfSteps} ${questionForm.numberOfSteps === 1 ? 'Step' : 'Steps'})`
+                      }
                     </>
                   )}
                 </Button>
@@ -747,14 +820,23 @@ export default function AdminQuestions() {
                           {question.totalMarks} mark(s) • {question.steps.length} step(s)
                         </p>
                       </div>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => handleDelete(question.id)}
-                        disabled={deleteQuestion.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleEditQuestion(question)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => handleDelete(question.id)}
+                          disabled={deleteQuestion.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

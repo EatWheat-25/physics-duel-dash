@@ -72,6 +72,38 @@ export const useAddQuestion = () => {
   });
 };
 
+export const useUpdateQuestion = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, question }: { id: string; question: Omit<StepBasedQuestion, 'id'> }) => {
+      const { data, error } = await supabase
+        .from('questions')
+        .update({
+          title: question.title,
+          subject: question.subject,
+          chapter: question.chapter,
+          level: question.level,
+          difficulty: question.difficulty,
+          rank_tier: question.rankTier,
+          question_text: question.questionText,
+          total_marks: question.totalMarks,
+          topic_tags: question.topicTags,
+          steps: question.steps as any
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+    }
+  });
+};
+
 export const useDeleteQuestion = () => {
   const queryClient = useQueryClient();
 
