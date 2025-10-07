@@ -34,16 +34,15 @@ const CharacterAvatar: React.FC<CharacterAvatarProps> = ({
           loop
           muted
           playsInline
-          className="w-full h-full object-cover rounded-full border-2 border-primary/50 shadow-lg"
+          className="w-full h-full object-cover rounded-full"
         />
       ) : (
         <img
           src={character.avatar}
           alt={character.name}
-          className="w-full h-full object-cover rounded-full border-2 border-primary/50 shadow-lg"
+          className="w-full h-full object-cover rounded-full"
         />
       )}
-      <div className="absolute inset-0 rounded-full bg-gradient-to-t from-primary/20 to-transparent" />
     </div>
   );
 

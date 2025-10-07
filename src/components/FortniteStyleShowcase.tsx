@@ -1,120 +1,39 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Character } from '@/types/character';
-import { Sparkles, Star, Zap } from 'lucide-react';
+
 interface FortniteStyleShowcaseProps {
   character: Character | null;
   onCharacterClick: () => void;
 }
+
 const FortniteStyleShowcase: React.FC<FortniteStyleShowcaseProps> = ({
   character,
   onCharacterClick
 }) => {
   if (!character) return null;
-  const getRarityEffects = (rarity: string) => {
-    return {
-      primaryColor: '#0891b2',
-      secondaryColor: '#06b6d4',
-      glowColor: 'rgba(8, 145, 178, 0.3)',
-      particles: null
-    };
-  };
-  const effects = getRarityEffects(character.rarity);
-  return <div className="flex-1 flex items-center justify-center p-8 relative overflow-hidden">
-      {/* Holographic Showcase Arena */}
-      <motion.div initial={{
-      scale: 0.8,
-      opacity: 0
-    }} animate={{
-      scale: 1,
-      opacity: 1
-    }} transition={{
-      duration: 1,
-      ease: "easeOut"
-    }} className="relative">
-        <div className="relative cursor-pointer group" onClick={onCharacterClick}>
-          {/* Character Display with Ultra Glow */}
-          <div className="relative flex items-end justify-center" style={{ width: '25vw', height: '35vh', minWidth: '300px', minHeight: '400px' }}>
-            {character.avatar.endsWith('.mp4') ? (
-              <motion.video 
-                src={character.avatar} 
-                autoPlay 
-                loop 
-                muted 
-                playsInline
-                className="max-w-full max-h-full object-contain transition-all duration-500 group-hover:scale-110" 
-                style={{
-                  filter: 'var(--glow-robot)',
-                  transform: 'perspective(1000px)'
-                }} 
-                animate={{
-                  y: [0, -10, 0],
-                  rotateX: [0, 2, 0]
-                }} 
-                transition={{
-                  duration: 4,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }} 
-              />
-            ) : (
-              <motion.img 
-                src={character.avatar} 
-                alt={character.name} 
-                className="max-w-full max-h-full object-contain transition-all duration-500 group-hover:scale-110" 
-                style={{
-                  filter: 'var(--glow-robot)',
-                  transform: 'perspective(1000px)'
-                }} 
-                animate={{
-                  y: [0, -10, 0],
-                  rotateX: [0, 2, 0]
-                }} 
-                transition={{
-                  duration: 4,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }} 
-              />
-            )}
-            
-            {/* Advanced Holographic Base */}
-            <motion.div className="absolute bottom-0 w-full h-12" style={{
-            background: `
-                  radial-gradient(ellipse 80% 100% at center, hsl(180, 100%, 50%, 0.3), transparent 70%),
-                  radial-gradient(ellipse 60% 100% at center, hsl(280, 100%, 70%, 0.2), transparent 60%),
-                  radial-gradient(ellipse 40% 100% at center, hsl(320, 100%, 60%, 0.15), transparent 50%)
-                `,
-            filter: 'blur(10px)'
-          }} animate={{
-            opacity: [0.3, 0.8, 0.3],
-            scale: [1, 1.1, 1]
-          }} transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }} />
-            
-            {/* Holographic Grid Base */}
-            
-          </div>
-        </div>
-        
-        {/* Character Info Panel */}
-        
-        
-        {/* Interactive Hint */}
-        <motion.div animate={{
-        opacity: [0.4, 1, 0.4]
-      }} transition={{
-        duration: 3,
-        repeat: Infinity
-      }} className="absolute -bottom-32 left-1/2 transform -translate-x-1/2 text-center">
-          <p className="text-xs text-primary font-medium uppercase tracking-wider">
-            ◦ CLICK TO MODIFY AGENT ◦
-          </p>
-        </motion.div>
-      </motion.div>
-    </div>;
+
+  return (
+    <div className="flex-1 flex items-center justify-center p-8 cursor-pointer" onClick={onCharacterClick}>
+      <div className="relative" style={{ width: '25vw', height: '35vh', minWidth: '300px', minHeight: '400px' }}>
+        {character.avatar.endsWith('.mp4') ? (
+          <video 
+            src={character.avatar} 
+            autoPlay 
+            loop 
+            muted 
+            playsInline
+            className="w-full h-full object-contain"
+          />
+        ) : (
+          <img 
+            src={character.avatar} 
+            alt={character.name} 
+            className="w-full h-full object-contain"
+          />
+        )}
+      </div>
+    </div>
+  );
 };
+
 export default FortniteStyleShowcase;
