@@ -1,5 +1,5 @@
 import { Character } from "@/types/character";
-import blueRobot from "@/assets/characters/blue-robot.png";
+import blueRobot from "@/assets/characters/blue-robot-animated.mp4";
 import cyberWarrior from "@/assets/characters/cyber-warrior-transparent.png";
 import mysticMage from "@/assets/characters/mystic-mage-transparent.png";
 

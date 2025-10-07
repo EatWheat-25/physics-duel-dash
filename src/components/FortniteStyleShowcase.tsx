@@ -35,17 +35,48 @@ const FortniteStyleShowcase: React.FC<FortniteStyleShowcaseProps> = ({
         <div className="relative cursor-pointer group" onClick={onCharacterClick}>
           {/* Character Display with Ultra Glow */}
           <div className="relative flex items-end justify-center" style={{ width: '25vw', height: '35vh', minWidth: '300px', minHeight: '400px' }}>
-            <motion.img src={character.avatar} alt={character.name} className="max-w-full max-h-full object-contain transition-all duration-500 group-hover:scale-110" style={{
-            filter: 'var(--glow-robot)',
-            transform: 'perspective(1000px)'
-          }} animate={{
-            y: [0, -10, 0],
-            rotateX: [0, 2, 0]
-          }} transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }} />
+            {character.avatar.endsWith('.mp4') ? (
+              <motion.video 
+                src={character.avatar} 
+                autoPlay 
+                loop 
+                muted 
+                playsInline
+                className="max-w-full max-h-full object-contain transition-all duration-500 group-hover:scale-110" 
+                style={{
+                  filter: 'var(--glow-robot)',
+                  transform: 'perspective(1000px)'
+                }} 
+                animate={{
+                  y: [0, -10, 0],
+                  rotateX: [0, 2, 0]
+                }} 
+                transition={{
+                  duration: 4,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }} 
+              />
+            ) : (
+              <motion.img 
+                src={character.avatar} 
+                alt={character.name} 
+                className="max-w-full max-h-full object-contain transition-all duration-500 group-hover:scale-110" 
+                style={{
+                  filter: 'var(--glow-robot)',
+                  transform: 'perspective(1000px)'
+                }} 
+                animate={{
+                  y: [0, -10, 0],
+                  rotateX: [0, 2, 0]
+                }} 
+                transition={{
+                  duration: 4,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }} 
+              />
+            )}
             
             {/* Advanced Holographic Base */}
             <motion.div className="absolute bottom-0 w-full h-12" style={{

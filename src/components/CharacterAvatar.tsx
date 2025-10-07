@@ -23,13 +23,26 @@ const CharacterAvatar: React.FC<CharacterAvatarProps> = ({
     lg: 'w-32 h-32'
   };
 
+  const isVideo = character.avatar.endsWith('.mp4');
+  
   const avatarContent = (
     <div className={`${sizeClasses[size]} relative ${onClick ? 'cursor-pointer' : ''}`}>
-      <img
-        src={character.avatar}
-        alt={character.name}
-        className="w-full h-full object-cover rounded-full border-2 border-primary/50 shadow-lg"
-      />
+      {isVideo ? (
+        <video
+          src={character.avatar}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-full object-cover rounded-full border-2 border-primary/50 shadow-lg"
+        />
+      ) : (
+        <img
+          src={character.avatar}
+          alt={character.name}
+          className="w-full h-full object-cover rounded-full border-2 border-primary/50 shadow-lg"
+        />
+      )}
       <div className="absolute inset-0 rounded-full bg-gradient-to-t from-primary/20 to-transparent" />
     </div>
   );
