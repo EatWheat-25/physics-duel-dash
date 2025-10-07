@@ -24,10 +24,11 @@ import { getRandomQuestions } from "./data/questions";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <CharacterProvider>
-      <TooltipProvider>
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CharacterProvider>
+        <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
@@ -51,9 +52,10 @@ const App = () => (
             </Routes>
           </AuthProvider>
         </BrowserRouter>
-      </TooltipProvider>
-    </CharacterProvider>
-  </QueryClientProvider>
-);
+        </TooltipProvider>
+      </CharacterProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
