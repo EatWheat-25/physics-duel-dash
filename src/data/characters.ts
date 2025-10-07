@@ -1,5 +1,5 @@
 import { Character } from "@/types/character";
-import robotCharacter from "@/assets/characters/robot-character.png";
+import blueRobot from "@/assets/characters/blue-robot.png";
 import cyberWarrior from "@/assets/characters/cyber-warrior-transparent.png";
 import mysticMage from "@/assets/characters/mystic-mage-transparent.png";
 
@@ -7,7 +7,7 @@ export const characters: Character[] = [
   {
     id: "robo-genius",
     name: "Robo Genius",
-    avatar: robotCharacter,
+    avatar: blueRobot,
     description: "Advanced AI companion built for mathematical warfare and tactical dominance",
     rarity: "legendary",
     unlocked: true,
