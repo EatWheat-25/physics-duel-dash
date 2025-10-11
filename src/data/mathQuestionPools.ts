@@ -186,7 +186,7 @@ export const CHAPTERS = {
 // Combined question pools from all sources (9,600+ total questions)
 export const QUESTION_POOLS: Record<GameMode, GameQuestion[]> = {
   'A1-Only': A1_ONLY_QUESTIONS,
-  'A2-Only': A2_ONLY_QUESTIONS, 
+  'A2-Only': [] as GameQuestion[], // A2 uses step-based questions from database
   'All-Maths': ALL_MATHS_QUESTIONS,
   'A2-Integration': A2_INTEGRATION_QUESTIONS
 };
@@ -194,7 +194,7 @@ export const QUESTION_POOLS: Record<GameMode, GameQuestion[]> = {
 // Enhanced question pools with generated variations (full 200 per rank)
 export const ENHANCED_QUESTION_POOLS: Record<GameMode, GameQuestion[]> = {
   'A1-Only': [...A1_ONLY_QUESTIONS, ...getAllQuestions().filter(q => q.mode === 'A1-Only')],
-  'A2-Only': [...A2_ONLY_QUESTIONS, ...getAllQuestions().filter(q => q.mode === 'A2-Only')],
+  'A2-Only': getAllQuestions().filter(q => q.mode === 'A2-Only'),
   'All-Maths': [...ALL_MATHS_QUESTIONS, ...getAllQuestions().filter(q => q.mode === 'All-Maths')],
   'A2-Integration': A2_INTEGRATION_QUESTIONS
 };
