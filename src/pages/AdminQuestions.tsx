@@ -10,10 +10,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy, ChevronDown, Image as ImageIcon, X, Pencil } from 'lucide-react';
+import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy, ChevronDown, Image as ImageIcon, X, Pencil, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { A2_ONLY_QUESTIONS } from '@/data/questionPools/a2OnlyQuestions';
 
 interface CommonMetadata {
   subject: 'math' | 'physics' | 'chemistry';
@@ -60,6 +61,7 @@ export default function AdminQuestions() {
 
   // Filter state
   const [filterRankTier, setFilterRankTier] = useState<RankTier | 'all'>('all');
+  const [isImporting, setIsImporting] = useState(false);
 
   // Question form state
   const [questionForm, setQuestionForm] = useState({
@@ -330,6 +332,50 @@ export default function AdminQuestions() {
     }
   };
 
+  const handleImportA2Questions = async () => {
+    if (!confirm(`Import ${A2_ONLY_QUESTIONS.length} A2 questions into the database?`)) return;
+    
+    setIsImporting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const question of A2_ONLY_QUESTIONS) {
+        try {
+          await addQuestion.mutateAsync({
+            title: question.title,
+            subject: question.subject,
+            chapter: question.chapter,
+            level: question.level,
+            difficulty: question.difficulty,
+            rankTier: question.rankTier,
+            questionText: question.questionText,
+            totalMarks: question.totalMarks,
+            topicTags: question.topicTags,
+            steps: question.steps
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to import question ${question.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      toast({
+        title: "Import Complete",
+        description: `Successfully imported ${successCount} questions. ${errorCount > 0 ? `${errorCount} failed.` : ''}`
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to import questions",
+        variant: "destructive"
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const filteredQuestions = filterRankTier === 'all' 
     ? questions 
     : questions?.filter(q => q.rankTier === filterRankTier);
@@ -453,6 +499,32 @@ export default function AdminQuestions() {
                   Continue to Add Questions
                   <Plus className="ml-2 h-4 w-4" />
                 </Button>
+
+                <div className="pt-4 border-t">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Or import pre-made A2 questions directly:
+                  </p>
+                  <Button 
+                    type="button"
+                    variant="outline"
+                    className="w-full" 
+                    size="lg"
+                    onClick={handleImportA2Questions}
+                    disabled={isImporting}
+                  >
+                    {isImporting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Importing {A2_ONLY_QUESTIONS.length} Questions...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Import {A2_ONLY_QUESTIONS.length} A2 Questions to Database
+                      </>
+                    )}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
