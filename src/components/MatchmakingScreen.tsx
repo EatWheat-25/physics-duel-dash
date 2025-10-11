@@ -4,9 +4,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Users, Clock, Target, X } from 'lucide-react';
 
 const MatchmakingScreen: React.FC = () => {
-  const [countdown, setCountdown] = useState(10);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [matchFound, setMatchFound] = useState(false);
-  const [searchingPlayers, setSearchingPlayers] = useState(1);
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -14,24 +13,18 @@ const MatchmakingScreen: React.FC = () => {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
+      setElapsedTime((prev) => {
+        if (prev >= 9) {
           setMatchFound(true);
           clearInterval(timer);
-          return 0;
+          return prev;
         }
-        return prev - 1;
+        return prev + 1;
       });
-    }, 1000);
-
-    // Simulate player count fluctuation
-    const playerTimer = setInterval(() => {
-      setSearchingPlayers(Math.floor(Math.random() * 5) + 1);
     }, 1000);
 
     return () => {
       clearInterval(timer);
-      clearInterval(playerTimer);
     };
   }, []);
 
@@ -52,14 +45,6 @@ const MatchmakingScreen: React.FC = () => {
     navigate('/');
   };
 
-  const getModeTitle = () => {
-    const modeMap: { [key: string]: string } = {
-      'A1': 'A1 Level',
-      'A2_ONLY': 'A2 Only',
-      'A2': 'A1 + A2 Mixed'
-    };
-    return modeMap[mode] || mode;
-  };
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-hidden relative">
@@ -94,7 +79,7 @@ const MatchmakingScreen: React.FC = () => {
         </div>
       </div>
 
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-12">
+      <div className="relative z-10 min-h-screen flex flex-col p-12">
         {/* Cancel Button */}
         <button
           onClick={handleCancel}
@@ -103,124 +88,19 @@ const MatchmakingScreen: React.FC = () => {
           <X className="w-6 h-6" />
         </button>
 
-        {!matchFound ? (
-          <>
-            {/* Matchmaking Title */}
-            <motion.div
-              initial={{ y: -30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.8 }}
-              className="text-center mb-16"
-            >
-              <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Finding Match
-              </h1>
-              <p className="text-xl text-muted-foreground">
-                {subject === 'math' ? 'Mathematics' : 'Physics'} • {getModeTitle()}
-              </p>
-            </motion.div>
+        {/* Timer at Top Center */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex justify-center pt-8"
+        >
+          <div className="text-4xl font-bold text-primary">
+            {elapsedTime}s
+          </div>
+        </motion.div>
 
-            {/* Countdown Timer */}
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="mb-12"
-            >
-              <div className="relative w-48 h-48 mx-auto">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                    className="text-muted"
-                  />
-                  <motion.circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                    className="text-primary"
-                    strokeLinecap="round"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: (10 - countdown) / 10 }}
-                    transition={{ duration: 0.5 }}
-                    style={{
-                      strokeDasharray: "283",
-                      strokeDashoffset: "283"
-                    }}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <motion.div
-                    key={countdown}
-                    initial={{ scale: 1.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.3 }}
-                    className="text-6xl font-bold text-primary"
-                  >
-                    {countdown}
-                  </motion.div>
-                  <p className="text-sm text-muted-foreground mt-2">seconds</p>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Status Information */}
-            <motion.div
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-              className="space-y-6 text-center"
-            >
-              <div className="flex items-center justify-center gap-2 text-accent">
-                <Clock className="w-5 h-5" />
-                <span className="text-lg font-medium">Estimated wait time: {countdown}s</span>
-              </div>
-              
-              <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                <Users className="w-5 h-5" />
-                <span>Players searching: {searchingPlayers}</span>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                <Target className="w-5 h-5" />
-                <span>Skill-based matchmaking active</span>
-              </div>
-            </motion.div>
-
-            {/* Searching Animation */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-              className="mt-12"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Searching</span>
-                <div className="flex gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <motion.div
-                      key={i}
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        delay: i * 0.2
-                      }}
-                      className="w-2 h-2 bg-primary rounded-full"
-                    />
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        ) : (
+        {matchFound && (
           <>
             {/* Match Found */}
             <motion.div
