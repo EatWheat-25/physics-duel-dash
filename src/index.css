@@ -124,8 +124,12 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
     background: var(--gradient-bg);
-    font-family: 'Exo 2', 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Roboto', sans-serif;
   }
 
   /* Subtle Futuristic Tech Grid Pattern */
@@ -409,13 +413,13 @@ All colors MUST be HSL.
 
   .stat-label {
     @apply text-xs uppercase tracking-widest font-medium;
-    font-family: 'Exo 2', sans-serif;
+    font-family: 'Inter', sans-serif;
     color: var(--muted-foreground);
   }
 
   /* Typography Enhancements */
   .futuristic-heading {
-    font-family: 'Orbitron', sans-serif;
+    font-family: 'Roboto', sans-serif;
     font-weight: 700;
     letter-spacing: 0.05em;
     background: var(--gradient-primary);
@@ -426,7 +430,7 @@ All colors MUST be HSL.
   }
 
   .tech-text {
-    font-family: 'Exo 2', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
   }
 

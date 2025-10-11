@@ -117,7 +117,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
                 <Cpu className="w-6 h-6 text-white font-bold" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Orbitron, sans-serif' }}>NEURAL ACADEMY</h1>
+              <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Roboto, sans-serif' }}>NEURAL ACADEMY</h1>
             </motion.div>
           
             {/* Navigation */}
@@ -134,7 +134,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                       ? 'text-gray-900 bg-gray-200' 
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
-                  style={{ fontFamily: 'Orbitron, sans-serif' }}
+                  style={{ fontFamily: 'Roboto, sans-serif' }}
                 >
                   <span className="relative z-10">{item.label}</span>
                 </motion.button>
@@ -331,7 +331,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     whileTap={{ scale: 0.95 }}
                     onClick={handleStartSelectedMode}
                     className="w-full py-6 text-xl font-bold relative group rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-gray-900"
-                    style={{ fontFamily: 'Orbitron, sans-serif' }}
+                    style={{ fontFamily: 'Roboto, sans-serif' }}
                   >
                     <div className="flex items-center justify-center gap-4">
                       <Play className="w-8 h-8" />
@@ -347,7 +347,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       className="w-full py-6 font-bold text-xl rounded-xl border-2 border-primary/50 backdrop-blur-sm text-white hover:bg-primary/10 transition-all duration-300 flex items-center justify-center gap-4"
-                      style={{ fontFamily: 'Orbitron, sans-serif', backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
+                      style={{ fontFamily: 'Roboto, sans-serif', backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
                     >
                       <BookOpen className="w-8 h-8" />
                       <span>SELECT PROTOCOL</span>
@@ -373,7 +373,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 className="p-6 rounded-xl border-2 border-white/30 backdrop-blur-sm"
                 style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
               >
-                <h4 className="text-lg font-bold text-white mb-4" style={{ fontFamily: 'Orbitron, sans-serif' }}>NEURAL PROGRESS</h4>
+                <h4 className="text-lg font-bold text-white mb-4" style={{ fontFamily: 'Roboto, sans-serif' }}>NEURAL PROGRESS</h4>
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-2xl">
                     🏆
@@ -403,7 +403,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 className="p-6 rounded-xl border-2 border-white/30 backdrop-blur-sm"
                 style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
               >
-                <h4 className="text-lg font-bold text-white mb-6" style={{ fontFamily: 'Orbitron, sans-serif' }}>COMBAT ANALYTICS</h4>
+                <h4 className="text-lg font-bold text-white mb-6" style={{ fontFamily: 'Roboto, sans-serif' }}>COMBAT ANALYTICS</h4>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 rounded-lg bg-white/10 border border-white/20">

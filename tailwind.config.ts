@@ -19,8 +19,8 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				'orbitron': ['Orbitron', 'sans-serif'],
-				'exo': ['Exo 2', 'sans-serif'],
+				'sans': ['Inter', 'sans-serif'],
+				'heading': ['Roboto', 'sans-serif'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
