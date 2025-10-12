@@ -35,20 +35,43 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
   const { selectedCharacter, setCharacterSelectionOpen } = useCharacter();
   const { isAdmin } = useIsAdmin();
   const { signOut } = useAuth();
+  const [isMatchmaking, setIsMatchmaking] = useState(false);
+  const [matchmakingTime, setMatchmakingTime] = useState(0);
   
   const currentRank = getRankByPoints(userData.currentPoints);
   
   const selectedSubject = searchParams.get('subject');
   const selectedMode = searchParams.get('mode');
 
+  useEffect(() => {
+    if (isMatchmaking) {
+      const timer = setInterval(() => {
+        setMatchmakingTime((prev) => {
+          if (prev >= 9) {
+            clearInterval(timer);
+            setIsMatchmaking(false);
+            // Navigate to battle
+            if (selectedSubject === 'math') {
+              navigate('/battle', { state: { level: selectedMode } });
+            } else {
+              navigate('/physics-battle', { state: { level: selectedMode } });
+            }
+            return 0;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+
+      return () => {
+        clearInterval(timer);
+      };
+    }
+  }, [isMatchmaking, selectedSubject, selectedMode, navigate]);
+
   const handleStartSelectedMode = () => {
     if (selectedSubject && selectedMode) {
-      navigate('/matchmaking', { 
-        state: { 
-          subject: selectedSubject, 
-          mode: selectedMode 
-        } 
-      });
+      setIsMatchmaking(true);
+      setMatchmakingTime(0);
     }
   };
 
@@ -107,7 +130,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
         }}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between relative">
           {/* Logo */}
           <div className="flex items-center gap-8">
             <motion.div
@@ -141,6 +164,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               ))}
             </div>
           </div>
+
+          {/* Matchmaking Timer - Center */}
+          {isMatchmaking && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            >
+              <div className="px-4 py-2 rounded-lg bg-primary/10 border-2 border-primary/30">
+                <div className="text-lg font-bold text-primary">
+                  {matchmakingTime}s
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {/* User Stats */}
           <div className="flex items-center gap-6">
