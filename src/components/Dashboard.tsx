@@ -140,7 +140,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
                 <Cpu className="w-6 h-6 text-white font-bold" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Roboto, sans-serif' }}>NEURAL ACADEMY</h1>
+              <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Roboto, sans-serif' }}>BATTLE NERDS</h1>
             </motion.div>
           
             {/* Navigation */}
