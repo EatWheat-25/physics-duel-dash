@@ -34,11 +34,35 @@ const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions, onBattl
 
   const maxSteps = 4;
 
+  // Guard against undefined or empty questions
+  if (!questions || questions.length === 0) {
+    return (
+      <div className="min-h-screen relative flex items-center justify-center">
+        <AnimatedBackground />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="valorant-card p-8 text-center max-w-md relative z-10"
+        >
+          <h2 className="text-2xl font-bold mb-4">No Questions Available</h2>
+          <p className="text-muted-foreground mb-6">
+            Unable to load battle questions. Please try again.
+          </p>
+          <button onClick={onGoBack} className="valorant-button w-full">
+            Return to Dashboard
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  const currentQ = questions[currentQuestion];
+
   const handleAnswer = (answerIndex: number) => {
-    if (showFeedback || gameOver) return;
+    if (showFeedback || gameOver || !currentQ) return;
 
     setSelectedAnswer(answerIndex);
-    const correct = answerIndex === questions[currentQuestion].answer;
+    const correct = answerIndex === currentQ.answer;
     setIsCorrect(correct);
     setShowFeedback(true);
 
@@ -110,7 +134,8 @@ const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions, onBattl
 
   const getButtonStyle = (index: number) => {
     if (!showFeedback) return 'valorant-button-accent';
-    if (index === questions[currentQuestion].answer) return 'bg-battle-success text-white';
+    if (!currentQ) return 'bg-white/10 text-muted-foreground';
+    if (index === currentQ.answer) return 'bg-battle-success text-white';
     if (index === selectedAnswer && !isCorrect) return 'bg-battle-danger text-white';
     return 'bg-white/10 text-muted-foreground';
   };
@@ -206,11 +231,11 @@ const BattlePageNew: React.FC<BattlePageProps> = ({ onGoBack, questions, onBattl
             className="valorant-card p-8"
           >
             <h2 className="text-xl font-semibold mb-6 text-center">
-              {questions[currentQuestion].q}
+              {currentQ?.q || 'Loading question...'}
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {questions[currentQuestion].options.map((option, index) => (
+              {currentQ?.options?.map((option, index) => (
                 <motion.button
                   key={index}
                   onClick={() => handleAnswer(index)}
