@@ -1,50 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Users, Clock, Target, X } from 'lucide-react';
+import { Users, X } from 'lucide-react';
+import { useMatchmaking } from '@/hooks/useMatchmaking';
 
-const MatchmakingScreen: React.FC = () => {
+const MatchmakingScreen = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [matchFound, setMatchFound] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   
-  const { subject, mode } = location.state || { subject: 'math', mode: 'A1' };
+  const { subject, mode, rankTier } = location.state || { subject: 'math', mode: 'A1', rankTier: 'Bronze' };
+  const { joinQueue, leaveQueue } = useMatchmaking(subject, mode, rankTier);
 
   useEffect(() => {
+    // Join queue on mount
+    joinQueue();
+
+    // Start timer
     const timer = setInterval(() => {
-      setElapsedTime((prev) => {
-        if (prev >= 9) {
-          setMatchFound(true);
-          clearInterval(timer);
-          return prev;
-        }
-        return prev + 1;
-      });
+      setElapsedTime((prev) => prev + 1);
     }, 1000);
 
     return () => {
       clearInterval(timer);
+      leaveQueue();
     };
   }, []);
 
-  useEffect(() => {
-    if (matchFound) {
-      // Redirect to game after match is found
-      setTimeout(() => {
-        if (subject === 'math') {
-          navigate('/battle', { state: { level: mode } });
-        } else {
-          navigate('/physics-battle', { state: { level: mode } });
-        }
-      }, 2000);
-    }
-  }, [matchFound, navigate, subject, mode]);
-
   const handleCancel = () => {
+    leaveQueue();
     navigate('/');
   };
-
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-hidden relative">
@@ -100,50 +86,53 @@ const MatchmakingScreen: React.FC = () => {
           </div>
         </motion.div>
 
-        {matchFound && (
-          <>
-            {/* Match Found */}
+        {/* Main Content */}
+        <div className="flex-1 flex items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center"
+          >
             <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.5 }}
-              className="text-center"
+              animate={{ 
+                rotate: 360,
+                scale: [1, 1.1, 1]
+              }}
+              transition={{ 
+                rotate: { duration: 2, repeat: Infinity, ease: "linear" },
+                scale: { duration: 1, repeat: Infinity }
+              }}
+              className="w-24 h-24 mx-auto mb-8 bg-gradient-to-r from-primary to-accent rounded-full flex items-center justify-center"
             >
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 0.5, repeat: Infinity }}
-                className="w-24 h-24 mx-auto mb-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center"
-              >
-                <Users className="w-12 h-12 text-white" />
-              </motion.div>
-              
-              <h1 className="text-5xl font-bold mb-4 text-green-500">
-                MATCH FOUND!
-              </h1>
-              <p className="text-xl text-muted-foreground mb-8">
-                Entering battle arena...
-              </p>
-              
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-muted-foreground">Loading</span>
-                <div className="flex gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <motion.div
-                      key={i}
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{
-                        duration: 1,
-                        repeat: Infinity,
-                        delay: i * 0.2
-                      }}
-                      className="w-2 h-2 bg-green-500 rounded-full"
-                    />
-                  ))}
-                </div>
-              </div>
+              <Users className="w-12 h-12 text-white" />
             </motion.div>
-          </>
-        )}
+            
+            <h1 className="text-5xl font-bold mb-4">
+              FINDING OPPONENT
+            </h1>
+            <p className="text-xl text-muted-foreground mb-8">
+              Searching for worthy opponent...
+            </p>
+            
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-muted-foreground">Searching</span>
+              <div className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      delay: i * 0.2
+                    }}
+                    className="w-2 h-2 bg-primary rounded-full"
+                  />
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -20,6 +20,7 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import AdminQuestions from "./pages/AdminQuestions";
 import AdminLogin from "./pages/AdminLogin";
+import OnlineBattlePage from "./pages/OnlineBattlePage";
 import { getRandomQuestions } from "./data/questions";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => {
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/questions" element={<AdminQuestions />} />
               <Route path="/battle" element={<BattleLoader />} />
+              <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} />
               <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

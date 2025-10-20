@@ -14,6 +14,128 @@ export type Database = {
   }
   public: {
     Tables: {
+      matches: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          current_question_index: number | null
+          id: string
+          mode: string
+          player1_id: string
+          player1_score: number | null
+          player2_id: string
+          player2_score: number | null
+          questions: Json
+          started_at: string | null
+          status: Database["public"]["Enums"]["match_status"]
+          subject: string
+          winner_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_question_index?: number | null
+          id?: string
+          mode: string
+          player1_id: string
+          player1_score?: number | null
+          player2_id: string
+          player2_score?: number | null
+          questions: Json
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["match_status"]
+          subject: string
+          winner_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_question_index?: number | null
+          id?: string
+          mode?: string
+          player1_id?: string
+          player1_score?: number | null
+          player2_id?: string
+          player2_score?: number | null
+          questions?: Json
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["match_status"]
+          subject?: string
+          winner_id?: string | null
+        }
+        Relationships: []
+      }
+      matchmaking_queue: {
+        Row: {
+          created_at: string | null
+          id: string
+          mode: string
+          rank_tier: string
+          subject: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          mode: string
+          rank_tier: string
+          subject: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          mode?: string
+          rank_tier?: string
+          subject?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      player_actions: {
+        Row: {
+          answer: number
+          created_at: string | null
+          id: string
+          is_correct: boolean
+          marks_earned: number
+          match_id: string
+          question_index: number
+          step_index: number
+          user_id: string
+        }
+        Insert: {
+          answer: number
+          created_at?: string | null
+          id?: string
+          is_correct: boolean
+          marks_earned: number
+          match_id: string
+          question_index: number
+          step_index: number
+          user_id: string
+        }
+        Update: {
+          answer?: number
+          created_at?: string | null
+          id?: string
+          is_correct?: boolean
+          marks_earned?: number
+          match_id?: string
+          question_index?: number
+          step_index?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_actions_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           age: number | null
@@ -131,6 +253,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      match_status: "waiting" | "active" | "completed" | "abandoned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -259,6 +382,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      match_status: ["waiting", "active", "completed", "abandoned"],
     },
   },
 } as const
