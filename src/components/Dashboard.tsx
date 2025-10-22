@@ -124,10 +124,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="relative z-10 mx-4 mt-4 px-8 py-4 rounded-lg"
+        className="relative z-10 mx-4 mt-4 px-8 py-4 rounded-[2rem] backdrop-blur-xl bg-white/10 border border-white/20"
         style={{ 
-          background: 'rgba(255, 255, 255, 0.98)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
         }}
       >
         <div className="flex items-center justify-between relative">
