@@ -396,38 +396,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               >
                 <h4 className="text-2xl font-black text-white mb-6 uppercase tracking-wider">PROGRESS TRACKER</h4>
                 
-                {/* Rank Display */}
-                <div className="flex items-center gap-4 mb-6 p-4 rounded-2xl bg-white/10">
-                  <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-2xl">
-                    🏆
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-white">{currentRank.displayName}</p>
-                    <p className="text-sm text-white/70">{currentRank.tier} Tier</p>
-                  </div>
-                </div>
-                
-                {/* Overall Progress */}
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-white font-bold text-sm uppercase">Overall</span>
-                    <span className="text-white/70 text-sm">{userData.currentPoints % 100}%</span>
-                  </div>
-                  <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(userData.currentPoints % 100)}%` }}
-                      transition={{ duration: 1.2 }}
-                    />
-                  </div>
-                </div>
-
-                {/* Subject Progress */}
+                {/* Subject Progress with Ranks */}
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-white font-bold text-sm uppercase">Math</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-bold text-sm uppercase">Math</span>
+                        <span className="text-xs text-white/60">• {currentRank.displayName}</span>
+                      </div>
                       <span className="text-white/70 text-sm">{Math.floor(Math.random() * 100)}%</span>
                     </div>
                     <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
@@ -440,7 +416,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
 
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-white font-bold text-sm uppercase">Physics</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-bold text-sm uppercase">Physics</span>
+                        <span className="text-xs text-white/60">• {currentRank.displayName}</span>
+                      </div>
                       <span className="text-white/70 text-sm">{Math.floor(Math.random() * 100)}%</span>
                     </div>
                     <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
