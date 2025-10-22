@@ -298,13 +298,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     >
                       <div className="flex items-center gap-4 mb-6">
                         <div className="relative">
-                          <Target className="w-10 h-10 text-primary" />
+                          <Target className="w-10 h-10 text-white" />
                         </div>
                         <div className="flex-1">
                           <h3 className="text-xl font-bold text-white mb-1">SELECTED PROTOCOL</h3>
-                          <p className="text-primary text-sm font-bold uppercase tracking-wider">{selectedSubject} :: {selectedMode.replace('_', ' ')}</p>
+                          <p className="text-white text-sm font-bold uppercase tracking-wider">{selectedSubject} :: {selectedMode.replace('_', ' ')}</p>
                         </div>
-                        <ChevronRight className="w-6 h-6 text-primary group-hover:translate-x-1 transition-transform" />
+                        <ChevronRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" />
                       </div>
                       
                       <div className="relative h-32 rounded-xl overflow-hidden border border-white/40 mb-4 bg-primary/5">
