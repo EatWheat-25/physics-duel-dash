@@ -397,37 +397,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 <h4 className="text-2xl font-black text-white mb-6 uppercase tracking-wider">PROGRESS TRACKER</h4>
                 
                 {/* Subject Progress with Ranks */}
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-bold text-sm uppercase">Math</span>
-                        <span className="text-xs text-white/60">• {currentRank.displayName}</span>
-                      </div>
-                      <span className="text-white/70 text-sm">{Math.floor(Math.random() * 100)}%</span>
-                    </div>
-                    <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-blue-400 to-cyan-500"
-                        style={{ width: `${Math.floor(Math.random() * 100)}%` }}
-                      />
-                    </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-white/10 border border-white/20">
+                    <span className="text-white font-bold text-sm uppercase">Math</span>
+                    <span className="text-xs text-white/60">• {currentRank.displayName}</span>
                   </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-bold text-sm uppercase">Physics</span>
-                        <span className="text-xs text-white/60">• {currentRank.displayName}</span>
-                      </div>
-                      <span className="text-white/70 text-sm">{Math.floor(Math.random() * 100)}%</span>
-                    </div>
-                    <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-purple-400 to-pink-500"
-                        style={{ width: `${Math.floor(Math.random() * 100)}%` }}
-                      />
-                    </div>
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-white/10 border border-white/20">
+                    <span className="text-white font-bold text-sm uppercase">Physics</span>
+                    <span className="text-xs text-white/60">• {currentRank.displayName}</span>
                   </div>
                 </div>
               </motion.div>
