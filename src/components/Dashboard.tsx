@@ -392,11 +392,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="p-6 rounded-xl border-2 border-white/30 backdrop-blur-sm"
-                style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
+                className="p-8 rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
               >
-                <h4 className="text-lg font-bold text-white mb-4" style={{ fontFamily: 'Roboto, sans-serif' }}>NEURAL PROGRESS</h4>
-                <div className="flex items-center gap-4 mb-4">
+                <h4 className="text-2xl font-black text-white mb-6 uppercase tracking-wider">PROGRESS TRACKER</h4>
+                
+                {/* Rank Display */}
+                <div className="flex items-center gap-4 mb-6 p-4 rounded-2xl bg-white/10">
                   <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-2xl">
                     🏆
                   </div>
@@ -405,13 +406,50 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     <p className="text-sm text-white/70">{currentRank.tier} Tier</p>
                   </div>
                 </div>
-                <div className="w-full bg-muted/30 rounded-full h-3 overflow-hidden">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(userData.currentPoints % 100)}%` }}
-                    transition={{ duration: 1.2 }}
-                  />
+                
+                {/* Overall Progress */}
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-white font-bold text-sm uppercase">Overall</span>
+                    <span className="text-white/70 text-sm">{userData.currentPoints % 100}%</span>
+                  </div>
+                  <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(userData.currentPoints % 100)}%` }}
+                      transition={{ duration: 1.2 }}
+                    />
+                  </div>
+                </div>
+
+                {/* Subject Progress */}
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-white font-bold text-sm uppercase">Math</span>
+                      <span className="text-white/70 text-sm">{Math.floor(Math.random() * 100)}%</span>
+                    </div>
+                    <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-400 to-cyan-500"
+                        style={{ width: `${Math.floor(Math.random() * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-white font-bold text-sm uppercase">Physics</span>
+                      <span className="text-white/70 text-sm">{Math.floor(Math.random() * 100)}%</span>
+                    </div>
+                    <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-purple-400 to-pink-500"
+                        style={{ width: `${Math.floor(Math.random() * 100)}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </motion.div>
 
