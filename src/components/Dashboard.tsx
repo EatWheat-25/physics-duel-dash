@@ -310,7 +310,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                       <div className="relative h-32 rounded-xl overflow-hidden border border-white/40 mb-4 bg-primary/5">
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="text-center">
-                            <Brain className="w-8 h-8 text-primary mx-auto mb-2" />
+                            <Brain className="w-8 h-8 text-white mx-auto mb-2" />
                             <span className="text-white font-bold">READY FOR LAUNCH</span>
                           </div>
                         </div>
