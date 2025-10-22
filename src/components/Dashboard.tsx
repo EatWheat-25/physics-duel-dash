@@ -293,8 +293,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     <motion.div
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-6 cursor-pointer group rounded-xl border-2 border-white/50 backdrop-blur-sm"
-                      style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
+                      className="p-6 cursor-pointer group rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
                     >
                       <div className="flex items-center gap-4 mb-6">
                         <div className="relative">
