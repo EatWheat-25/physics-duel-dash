@@ -293,7 +293,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     <motion.div
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-6 cursor-pointer group rounded-xl border-2 border-primary/30 backdrop-blur-sm"
+                      className="p-6 cursor-pointer group rounded-xl border-2 border-white/50 backdrop-blur-sm"
                       style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
                     >
                       <div className="flex items-center gap-4 mb-6">
@@ -307,7 +307,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                         <ChevronRight className="w-6 h-6 text-primary group-hover:translate-x-1 transition-transform" />
                       </div>
                       
-                      <div className="relative h-32 rounded-xl overflow-hidden border border-primary/20 mb-4 bg-primary/5">
+                      <div className="relative h-32 rounded-xl overflow-hidden border border-white/40 mb-4 bg-primary/5">
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="text-center">
                             <Brain className="w-8 h-8 text-primary mx-auto mb-2" />
@@ -316,7 +316,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                         </div>
                       </div>
                       
-                      <div className="text-xs text-muted-foreground uppercase tracking-wider text-center">
+                      <div className="text-xs text-white uppercase tracking-wider text-center">
                         ◦ CLICK TO CHANGE ◦
                       </div>
                     </motion.div>
