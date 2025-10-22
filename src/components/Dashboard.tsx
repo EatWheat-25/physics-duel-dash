@@ -295,24 +295,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                       whileTap={{ scale: 0.98 }}
                       className="p-6 cursor-pointer group rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
                     >
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="relative">
+                      <div className="flex items-center justify-between gap-4 mb-6">
+                        <div className="flex items-center gap-4 flex-1">
                           <Target className="w-10 h-10 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold text-white mb-1">SELECTED PROTOCOL</h3>
-                          <p className="text-white text-sm font-bold uppercase tracking-wider">{selectedSubject} :: {selectedMode.replace('_', ' ')}</p>
+                          <h3 className="text-2xl font-black text-white uppercase tracking-wider">{selectedSubject} :: {selectedMode.replace('_', ' ')}</h3>
                         </div>
                         <ChevronRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" />
-                      </div>
-                      
-                      <div className="relative h-32 rounded-xl overflow-hidden border border-white/40 mb-4 bg-primary/5">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="text-center">
-                            <Brain className="w-8 h-8 text-white mx-auto mb-2" />
-                            <span className="text-white font-bold">READY FOR LAUNCH</span>
-                          </div>
-                        </div>
                       </div>
                       
                       <div className="text-xs text-white uppercase tracking-wider text-center">
