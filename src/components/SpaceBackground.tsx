@@ -4,7 +4,7 @@ const SpaceBackground: React.FC = () => {
   return (
     <div
       className="fixed inset-0 pointer-events-none"
-      style={{ background: '#1a1a1a' }}
+      style={{ background: '#0f0f0f' }}
     />
   );
 };
