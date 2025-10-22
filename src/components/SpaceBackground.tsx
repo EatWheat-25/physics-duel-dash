@@ -112,7 +112,7 @@ const SpaceBackground: React.FC = () => {
     <canvas
       ref={canvasRef}
       className="fixed inset-0 pointer-events-none"
-      style={{ background: 'linear-gradient(180deg, #0a0a14 0%, #0d0d1a 25%, #1a1a2e 50%, #0d0d1a 75%, #0a0a14 100%)' }}
+      style={{ background: 'linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 25%, #1f1f1f 50%, #2a2a2a 75%, #1a1a1a 100%)' }}
     />
   );
 };
