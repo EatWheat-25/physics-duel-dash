@@ -460,10 +460,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.5 }}
-                className="p-6 rounded-xl border-2 border-white/30 backdrop-blur-sm"
-                style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
+                className="p-6 rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
               >
-                <h4 className="text-lg font-bold text-white mb-6" style={{ fontFamily: 'Roboto, sans-serif' }}>COMBAT ANALYTICS</h4>
+                <h4 className="text-2xl font-black text-white mb-6 uppercase tracking-wider">ANALYTICS</h4>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 rounded-lg bg-white/10 border border-white/20">
