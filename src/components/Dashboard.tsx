@@ -124,7 +124,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="relative z-10 mx-4 mt-4 px-8 py-4 rounded-[2rem] backdrop-blur-xl bg-white/10 border border-white/20"
+        className="relative z-10 mx-4 mt-4 px-8 py-4 rounded-[3rem] backdrop-blur-xl bg-white/10 border border-white/20"
         style={{ 
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
         }}
@@ -139,7 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
                 <Cpu className="w-6 h-6 text-white font-bold" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Roboto, sans-serif' }}>BATTLE NERDS</h1>
+              <h1 className="text-3xl font-black text-white" style={{ fontFamily: 'Roboto, sans-serif' }}>BATTLE NERDS</h1>
             </motion.div>
           
             {/* Navigation */}
@@ -151,10 +151,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                   onClick={() => setSelectedTab(item.id)}
-                  className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-300 rounded-lg relative overflow-hidden ${
+                  className={`px-5 py-2.5 text-sm font-black uppercase tracking-wider transition-all duration-300 rounded-2xl relative overflow-hidden ${
                     selectedTab === item.id 
-                      ? 'text-gray-900 bg-gray-200' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      ? 'text-gray-900 bg-white' 
+                      : 'text-white hover:text-gray-900 hover:bg-white/90'
                   }`}
                   style={{ fontFamily: 'Roboto, sans-serif' }}
                 >
@@ -171,7 +171,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               animate={{ opacity: 1 }}
               className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
             >
-              <div className="text-sm font-bold text-gray-900 tracking-wider" style={{ fontFamily: 'Roboto, sans-serif' }}>
+              <div className="text-lg font-black text-white tracking-wider" style={{ fontFamily: 'Roboto, sans-serif' }}>
                 {Math.floor(matchmakingTime / 60)}:{(matchmakingTime % 60).toString().padStart(2, '0')}
               </div>
             </motion.div>
@@ -183,26 +183,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             <div className="flex items-center gap-4 text-sm">
               <motion.div 
                 whileHover={{ scale: 1.1 }}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-100"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/20 backdrop-blur-sm"
               >
-                <Trophy className="w-4 h-4 text-emerald-700" />
-                <span className="font-bold text-gray-900">{userData.currentPoints}</span>
+                <Trophy className="w-5 h-5 text-white" />
+                <span className="font-black text-white text-base">{userData.currentPoints}</span>
               </motion.div>
               
               <motion.div 
                 whileHover={{ scale: 1.1 }}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-100"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/20 backdrop-blur-sm"
               >
-                <Target className="w-4 h-4 text-blue-700" />
-                <span className="font-bold text-gray-900">{userData.accuracy}%</span>
+                <Target className="w-5 h-5 text-white" />
+                <span className="font-black text-white text-base">{userData.accuracy}%</span>
               </motion.div>
               
               <motion.div 
                 whileHover={{ scale: 1.1 }}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-100"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/20 backdrop-blur-sm"
               >
-                <Zap className="w-4 h-4 text-amber-700" />
-                <span className="font-bold text-gray-900">{userData.winStreak}</span>
+                <Zap className="w-5 h-5 text-white" />
+                <span className="font-black text-white text-base">{userData.winStreak}</span>
               </motion.div>
             </div>
             
@@ -221,12 +221,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             {/* User Info */}
             <motion.div 
               whileHover={{ scale: 1.05 }}
-              className="flex items-center gap-3 px-4 py-2 rounded-lg bg-gray-100"
+              className="flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-white/20 backdrop-blur-sm"
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center text-sm font-bold text-white">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center text-base font-black text-white">
                 {userData.username.charAt(0).toUpperCase()}
               </div>
-              <span className="text-gray-900 font-bold">{userData.username}</span>
+              <span className="text-white font-black text-base">{userData.username}</span>
             </motion.div>
             
             <DropdownMenu>
@@ -234,9 +234,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 <motion.button 
                   whileHover={{ scale: 1.1, rotate: 90 }}
                   whileTap={{ scale: 0.9 }}
-                  className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-all duration-300"
+                  className="p-3 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all duration-300"
                 >
-                  <Settings className="w-5 h-5 text-gray-700" />
+                  <Settings className="w-6 h-6 text-white" />
                 </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
