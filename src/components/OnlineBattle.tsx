@@ -18,6 +18,8 @@ interface Match {
   current_question_index: number;
   status: string;
   winner_id?: string;
+  started_at: string;
+  updated_at?: string;
 }
 
 interface PlayerAction {
@@ -94,20 +96,28 @@ export const OnlineBattle = () => {
     return () => clearInterval(timer);
   }, [timeLeft, match, waitingForOpponent]);
 
-  // Initialize timer when new question starts
+  // Initialize timer when new question starts - synchronized with match update
   useEffect(() => {
     if (!match || !match.questions[match.current_question_index]) return;
     const currentQuestion = match.questions[match.current_question_index];
-    setTimeLeft(currentQuestion.totalMarks * 60); // 1 mark = 1 minute
+    
+    // Calculate time based on when question started (server time sync)
+    const questionStartTime = new Date(match.updated_at || match.started_at).getTime();
+    const now = Date.now();
+    const elapsedSeconds = Math.floor((now - questionStartTime) / 1000);
+    const totalSeconds = currentQuestion.totalMarks * 60;
+    const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+    
+    setTimeLeft(remainingSeconds);
     setCurrentStep(0);
     setSelectedAnswer(null);
     setShowFeedback(false);
     setWaitingForOpponent(false);
-  }, [match?.current_question_index]);
+  }, [match?.current_question_index, match?.updated_at]);
 
   // Subscribe to match updates and player actions
   useEffect(() => {
-    if (!matchId) return;
+    if (!matchId || !currentUser) return;
 
     const channel = supabase
       .channel(`match:${matchId}`)
@@ -137,13 +147,13 @@ export const OnlineBattle = () => {
           table: 'player_actions',
           filter: `match_id=eq.${matchId}`,
         },
-        (payload) => {
+        async (payload) => {
           const action = payload.new as PlayerAction;
           setPlayerActions((prev) => [...prev, action]);
           
-          // Check if both players finished the question
-          if (action.user_id !== currentUser && waitingForOpponent) {
-            checkQuestionCompletion();
+          // Check if both players finished the question when opponent answers
+          if (action.user_id !== currentUser) {
+            await checkQuestionCompletion();
           }
         }
       )
@@ -152,7 +162,7 @@ export const OnlineBattle = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [matchId, currentUser, waitingForOpponent]);
+  }, [matchId, currentUser]);
 
   const handleTimeUp = async () => {
     if (!match || !currentUser) return;

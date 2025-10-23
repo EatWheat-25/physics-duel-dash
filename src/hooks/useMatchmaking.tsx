@@ -108,18 +108,20 @@ export const useMatchmaking = (subject: string, mode: string, rankTier: string) 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Listen for matches where user is either player1 or player2
       channel = supabase
-        .channel('matchmaking')
+        .channel(`matchmaking:${user.id}`)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
             table: 'matches',
-            filter: `player1_id=eq.${user.id},player2_id=eq.${user.id}`,
           },
           (payload) => {
-            setMatchId(payload.new.id);
+            if (payload.new.player1_id === user.id || payload.new.player2_id === user.id) {
+              setMatchId(payload.new.id);
+            }
           }
         )
         .subscribe();
