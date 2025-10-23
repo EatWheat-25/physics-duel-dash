@@ -83,9 +83,9 @@ const ModeSelection: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background/80 to-background text-white overflow-hidden relative">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white overflow-hidden relative">
       {/* Lighter dark tech atmosphere */}
-      <div className="absolute inset-0 bg-gradient-to-t from-background/40 via-transparent to-background/20 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20 pointer-events-none" />
       
       {/* Subtle particle effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
