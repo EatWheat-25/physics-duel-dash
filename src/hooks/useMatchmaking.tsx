@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
@@ -6,6 +6,7 @@ export const useMatchmaking = (subject: string, mode: string, rankTier: string) 
   const [inQueue, setInQueue] = useState(false);
   const [matchId, setMatchId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Join matchmaking queue
   const joinQueue = async () => {
@@ -29,8 +30,14 @@ export const useMatchmaking = (subject: string, mode: string, rankTier: string) 
 
     setInQueue(true);
 
-    // Try to find a match
-    await findMatch(user.id);
+    // Start continuous polling for matches
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+    
+    pollingIntervalRef.current = setInterval(async () => {
+      await findMatch(user.id);
+    }, 2000); // Poll every 2 seconds
   };
 
   // Find a match with another player
@@ -46,17 +53,33 @@ export const useMatchmaking = (subject: string, mode: string, rankTier: string) 
       .limit(1);
 
     if (error || !players || players.length === 0) {
+      console.log('No opponent found yet, continuing to search...');
       return;
     }
 
     const opponent = players[0];
+    console.log('Found opponent!', opponent);
 
-    // Fetch questions for this match
-    const { data: questions } = await supabase
+    // Stop polling once we found an opponent
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    // Fetch questions for this match - bypass type checking to avoid recursion
+    const questionsQuery: any = await (supabase as any)
       .from('questions')
       .select('*')
       .eq('subject', subject)
+      .eq('mode', mode)
       .limit(5);
+    
+    const questions = questionsQuery.data;
+
+    if (!questions || questions.length === 0) {
+      console.error('No questions found for this mode');
+      return;
+    }
 
     // Create match
     const { data: match, error: matchError } = await supabase
@@ -66,7 +89,7 @@ export const useMatchmaking = (subject: string, mode: string, rankTier: string) 
         player2_id: opponent.user_id,
         subject,
         mode,
-        questions: questions || [],
+        questions: questions,
         status: 'active',
         started_at: new Date().toISOString(),
       })
@@ -78,12 +101,15 @@ export const useMatchmaking = (subject: string, mode: string, rankTier: string) 
       return;
     }
 
+    console.log('Match created successfully!', match);
+
     // Remove both players from queue
     await supabase
       .from('matchmaking_queue')
       .delete()
       .in('user_id', [userId, opponent.user_id]);
 
+    setInQueue(false);
     setMatchId(match.id);
   };
 
@@ -91,6 +117,12 @@ export const useMatchmaking = (subject: string, mode: string, rankTier: string) 
   const leaveQueue = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Stop polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
 
     await supabase
       .from('matchmaking_queue')
@@ -142,6 +174,15 @@ export const useMatchmaking = (subject: string, mode: string, rankTier: string) 
       navigate(`/online-battle/${matchId}`);
     }
   }, [matchId, navigate]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
 
   return {
     inQueue,
