@@ -256,44 +256,28 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
               <div className="stat-label">Your Marks</div>
             </div>
             <div className="flex-1 mx-8">
-              {/* Tug of War Bar with Multiple Indicators */}
-              <div className="relative h-16 bg-black/40 rounded-lg border border-white/20 overflow-hidden">
+              {/* Tug of War Bar */}
+              <div className="relative h-6 bg-black/30 rounded-full overflow-hidden border border-white/10">
                 {/* Player (Green) side */}
-                <div className="absolute left-0 top-0 h-full flex items-center gap-1 px-2" style={{ width: `${Math.max(10, (playerMarks / (playerMarks + opponentMarks || 1)) * 100)}%` }}>
-                  <motion.div 
-                    className="h-10 flex-1 rounded bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.6)]"
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ duration: 0.5, delay: 0 }}
-                  />
-                  <motion.div 
-                    className="h-10 flex-1 rounded bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]"
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ duration: 0.5, delay: 0.1 }}
-                  />
-                </div>
+                <motion.div 
+                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-emerald-500 to-emerald-400"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.max(5, (playerMarks / (playerMarks + opponentMarks || 1)) * 100)}%` }}
+                  transition={{ duration: 0.5 }}
+                />
                 
                 {/* Opponent (Blue) side */}
-                <div className="absolute right-0 top-0 h-full flex items-center gap-1 px-2 justify-end" style={{ width: `${Math.max(10, (opponentMarks / (playerMarks + opponentMarks || 1)) * 100)}%` }}>
-                  <motion.div 
-                    className="h-10 flex-1 rounded bg-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.6)]"
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ duration: 0.5, delay: 0 }}
-                  />
-                  <motion.div 
-                    className="h-10 flex-1 rounded bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)]"
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ duration: 0.5, delay: 0.1 }}
-                  />
-                </div>
+                <motion.div 
+                  className="absolute right-0 top-0 h-full bg-gradient-to-l from-blue-500 to-blue-400"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.max(5, (opponentMarks / (playerMarks + opponentMarks || 1)) * 100)}%` }}
+                  transition={{ duration: 0.5 }}
+                />
                 
                 {/* Center dividing line */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-1 bg-white/60 shadow-[0_0_10px_rgba(255,255,255,0.8)] z-10" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-0.5 bg-white/40 z-10" />
               </div>
-              <div className="text-center text-sm text-white mt-2">
+              <div className="text-center text-xs text-muted-foreground mt-1.5">
                 {Math.round(progressPercentage)}% Complete
               </div>
             </div>
