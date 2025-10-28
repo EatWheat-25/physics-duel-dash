@@ -36,8 +36,14 @@ export const useMatchmaking = (subject: string, chapter: string) => {
         return;
       }
 
-      console.log('Successfully joined queue');
+      console.log('✅ Successfully joined queue for', subject, chapter);
       setInQueue(true);
+
+      // Log queue status for debugging
+      setTimeout(async () => {
+        const { data: queueData } = await supabase.from('queue').select('*');
+        console.log('📊 Current queue status:', queueData);
+      }, 1000);
 
       // Start heartbeat every 15 seconds
       if (heartbeatIntervalRef.current) {
