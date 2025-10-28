@@ -3,9 +3,13 @@ import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Users, X } from 'lucide-react';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 const MatchmakingScreen = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [queueCount, setQueueCount] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -13,8 +17,19 @@ const MatchmakingScreen = () => {
   const { joinQueue, leaveQueue } = useMatchmaking(subject, chapter);
 
   useEffect(() => {
+    console.log('🎮 MatchmakingScreen mounted - joining queue for', subject, chapter);
+    
     // Join queue on mount
     joinQueue();
+
+    // Check queue count periodically
+    const queueCheck = setInterval(async () => {
+      const { data, error } = await supabase.from('queue').select('*');
+      if (data) {
+        console.log('📊 Queue check - players in queue:', data.length, data);
+        setQueueCount(data.length);
+      }
+    }, 2000);
 
     // Start timer
     const timer = setInterval(() => {
@@ -23,6 +38,7 @@ const MatchmakingScreen = () => {
 
     return () => {
       clearInterval(timer);
+      clearInterval(queueCheck);
       leaveQueue();
     };
   }, []);
@@ -30,6 +46,26 @@ const MatchmakingScreen = () => {
   const handleCancel = () => {
     leaveQueue();
     navigate('/');
+  };
+
+  const handleForceMatch = async () => {
+    console.log('🔧 Manually triggering matchmaker...');
+    toast.info('Triggering matchmaker manually...');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('matchmaker_tick');
+      
+      console.log('🎯 Matchmaker result:', data, error);
+      
+      if (error) {
+        toast.error('Matchmaker failed: ' + error.message);
+      } else {
+        toast.success(`Matchmaker ran! Made ${data?.matched || 0} matches`);
+      }
+    } catch (err) {
+      console.error('❌ Force match error:', err);
+      toast.error('Failed to trigger matchmaker');
+    }
   };
 
   return (
@@ -74,16 +110,26 @@ const MatchmakingScreen = () => {
           <X className="w-6 h-6" />
         </button>
 
-        {/* Timer at Top Center */}
+        {/* Timer and Queue Info at Top Center */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="flex justify-center pt-8"
+          className="flex flex-col items-center gap-4 pt-8"
         >
           <div className="text-4xl font-bold text-primary">
             {elapsedTime}s
           </div>
+          <div className="text-sm text-muted-foreground">
+            Players in queue: {queueCount}
+          </div>
+          <Button 
+            onClick={handleForceMatch}
+            variant="outline"
+            size="sm"
+          >
+            Force Match (Test)
+          </Button>
         </motion.div>
 
         {/* Main Content */}
