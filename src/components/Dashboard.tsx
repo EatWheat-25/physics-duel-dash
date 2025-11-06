@@ -266,7 +266,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 onClick={() => navigate('/admin/questions')}
                 variant="default"
                 size="sm"
-                className="ml-2 text-white"
+                className="ml-2"
               >
                 Admin Dashboard
               </Button>
@@ -293,14 +293,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     <motion.div
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-6 cursor-pointer group rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
+                      className="p-6 cursor-pointer group rounded-xl border-2 border-white/50 backdrop-blur-sm"
+                      style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
                     >
-                      <div className="flex items-center justify-between gap-4 mb-6">
-                        <div className="flex items-center gap-4 flex-1">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="relative">
                           <Target className="w-10 h-10 text-white" />
-                          <h3 className="text-2xl font-black text-white uppercase tracking-wider">{selectedSubject} :: {selectedMode.replace('_', ' ')}</h3>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-white mb-1">SELECTED PROTOCOL</h3>
+                          <p className="text-white text-sm font-bold uppercase tracking-wider">{selectedSubject} :: {selectedMode.replace('_', ' ')}</p>
                         </div>
                         <ChevronRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" />
+                      </div>
+                      
+                      <div className="relative h-32 rounded-xl overflow-hidden border border-white/40 mb-4 bg-primary/5">
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-center">
+                            <Brain className="w-8 h-8 text-primary mx-auto mb-2" />
+                            <span className="text-white font-bold">READY FOR LAUNCH</span>
+                          </div>
+                        </div>
                       </div>
                       
                       <div className="text-xs text-white uppercase tracking-wider text-center">
@@ -392,21 +405,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="p-8 rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
+                className="p-6 rounded-xl border-2 border-white/30 backdrop-blur-sm"
+                style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
               >
-                <h4 className="text-2xl font-black text-white mb-6 uppercase tracking-wider">PROGRESS TRACKER</h4>
-                
-                {/* Subject Progress with Ranks */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-white/10 border border-white/20">
-                    <span className="text-white font-bold text-sm uppercase">Math</span>
-                    <span className="text-xs text-white/60">• {currentRank.displayName}</span>
+                <h4 className="text-lg font-bold text-white mb-4" style={{ fontFamily: 'Roboto, sans-serif' }}>NEURAL PROGRESS</h4>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-2xl">
+                    🏆
                   </div>
-
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-white/10 border border-white/20">
-                    <span className="text-white font-bold text-sm uppercase">Physics</span>
-                    <span className="text-xs text-white/60">• {currentRank.displayName}</span>
+                  <div>
+                    <p className="text-2xl font-bold text-white">{currentRank.displayName}</p>
+                    <p className="text-sm text-white/70">{currentRank.tier} Tier</p>
                   </div>
+                </div>
+                <div className="w-full bg-muted/30 rounded-full h-3 overflow-hidden">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(userData.currentPoints % 100)}%` }}
+                    transition={{ duration: 1.2 }}
+                  />
                 </div>
               </motion.div>
 
@@ -417,9 +435,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.5 }}
-                className="p-6 rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
+                className="p-6 rounded-xl border-2 border-white/30 backdrop-blur-sm"
+                style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
               >
-                <h4 className="text-2xl font-black text-white mb-6 uppercase tracking-wider">ANALYTICS</h4>
+                <h4 className="text-lg font-bold text-white mb-6" style={{ fontFamily: 'Roboto, sans-serif' }}>COMBAT ANALYTICS</h4>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 rounded-lg bg-white/10 border border-white/20">

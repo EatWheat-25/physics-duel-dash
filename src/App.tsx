@@ -17,7 +17,6 @@ import StepBattlePage from "./components/StepBattlePage";
 import BattlePageNew from "./components/BattlePageNew";
 import BattleLoader from "./components/BattleLoader";
 import Auth from "./pages/Auth";
-import Callback from "./pages/Callback";
 import Onboarding from "./pages/Onboarding";
 import AdminQuestions from "./pages/AdminQuestions";
 import AdminLogin from "./pages/AdminLogin";
@@ -37,7 +36,6 @@ const App = () => {
           <AuthProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
-              <Route path="/callback" element={<Callback />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/" element={<Index />} />
               <Route path="/subject-selection" element={<SubjectSelection />} />

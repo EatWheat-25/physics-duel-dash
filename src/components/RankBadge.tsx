@@ -71,7 +71,7 @@ const RankBadge: React.FC<RankBadgeProps> = ({
       >
         {rankData.emoji}
       </motion.span>
-      <span className={`drop-shadow-lg text-white ${isTopRank ? 'font-extrabold' : ''}`}>
+      <span className={`drop-shadow-lg ${isTopRank ? 'font-extrabold' : ''}`}>
         {rankData.displayName}
       </span>
       {isTopRank && (

@@ -1,19 +1,1 @@
 project_id = "qvunaswogfwhixecjpcn"
-
-[functions.enqueue]
-verify_jwt = true
-
-[functions.heartbeat]
-verify_jwt = true
-
-[functions.leave_queue]
-verify_jwt = true
-
-[functions.matchmaker_tick]
-verify_jwt = false
-
-[functions.cleanup_queue]
-verify_jwt = false
-
-[functions.game-ws]
-verify_jwt = false
