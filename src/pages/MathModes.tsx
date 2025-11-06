@@ -93,17 +93,13 @@ const MathModes: React.FC = () => {
   });
 
   const handleModeSelect = (modeId: string) => {
-    // Map UI IDs to actual GameMode values
-    const modeMapping = {
-      'A1': 'A1-Only',
-      'A2': 'All-Maths', 
-      'A2_ONLY': 'A2-Only',
-      'A2_INTEGRATION': 'A2-Integration'
-    };
-    
-    const actualMode = modeMapping[modeId] || modeId;
-    // Navigate back to main app with math battle mode
-    navigate(`/?mode=math&level=${actualMode}`, { replace: true });
+    // Navigate to matchmaking with subject and chapter
+    navigate('/matchmaking', { 
+      state: { 
+        subject: 'math', 
+        chapter: modeId 
+      } 
+    });
   };
 
   return (

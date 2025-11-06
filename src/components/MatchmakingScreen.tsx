@@ -9,8 +9,8 @@ const MatchmakingScreen = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  const { subject, mode, rankTier } = location.state || { subject: 'math', mode: 'A1', rankTier: 'Bronze' };
-  const { joinQueue, leaveQueue } = useMatchmaking(subject, mode, rankTier);
+  const { subject, chapter } = location.state || { subject: 'math', chapter: 'A1' };
+  const { joinQueue, leaveQueue } = useMatchmaking(subject, chapter);
 
   useEffect(() => {
     // Join queue on mount

@@ -1,145 +1,136 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
-export const useMatchmaking = (subject: string, mode: string, rankTier: string) => {
+interface MatchFoundPayload {
+  match_id: string;
+  opponent_display: string;
+  server_ws_url: string;
+}
+
+export const useMatchmaking = (subject: string, chapter: string) => {
   const [inQueue, setInQueue] = useState(false);
   const [matchId, setMatchId] = useState<string | null>(null);
+  const [opponentName, setOpponentName] = useState<string>('');
+  const [serverWsUrl, setServerWsUrl] = useState<string>('');
   const navigate = useNavigate();
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const channelRef = useRef<any>(null);
 
-  // Join matchmaking queue
+  // Join matchmaking queue via edge function
   const joinQueue = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('No user logged in');
+        return;
+      }
 
-    // Add to queue
-    const { error } = await supabase
-      .from('matchmaking_queue')
-      .insert({
-        user_id: user.id,
-        subject,
-        mode,
-        rank_tier: rankTier,
+      // Call enqueue edge function
+      const { error } = await supabase.functions.invoke('enqueue', {
+        body: { subject, chapter }
       });
 
-    if (error) {
-      console.error('Error joining queue:', error);
-      return;
-    }
-
-    setInQueue(true);
-
-    // Try to find a match
-    await findMatch(user.id);
-  };
-
-  // Find a match with another player
-  const findMatch = async (userId: string) => {
-    // Look for another player in queue (not yourself)
-    const { data: players, error } = await supabase
-      .from('matchmaking_queue')
-      .select('*')
-      .eq('subject', subject)
-      .eq('mode', mode)
-      .neq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1);
-
-    if (error || !players || players.length === 0) {
-      return;
-    }
-
-    const opponent = players[0];
-
-    // Fetch questions for this match
-    const { data: questions } = await supabase
-      .from('questions')
-      .select('*')
-      .eq('subject', subject)
-      .limit(5);
-
-    // Create match
-    const { data: match, error: matchError } = await supabase
-      .from('matches')
-      .insert({
-        player1_id: userId,
-        player2_id: opponent.user_id,
-        subject,
-        mode,
-        questions: questions || [],
-        status: 'active',
-        started_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (matchError) {
-      console.error('Error creating match:', matchError);
-      return;
-    }
-
-    // Remove both players from queue
-    await supabase
-      .from('matchmaking_queue')
-      .delete()
-      .in('user_id', [userId, opponent.user_id]);
-
-    setMatchId(match.id);
-  };
-
-  // Leave queue
-  const leaveQueue = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    await supabase
-      .from('matchmaking_queue')
-      .delete()
-      .eq('user_id', user.id);
-
-    setInQueue(false);
-  };
-
-  // Listen for match creation
-  useEffect(() => {
-    let channel: any;
-
-    const setupChannel = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      channel = supabase
-        .channel('matchmaking')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'matches',
-            filter: `player1_id=eq.${user.id},player2_id=eq.${user.id}`,
-          },
-          (payload) => {
-            setMatchId(payload.new.id);
-          }
-        )
-        .subscribe();
-    };
-
-    setupChannel();
-
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
+      if (error) {
+        console.error('Error joining queue:', error);
+        return;
       }
-    };
-  }, []);
+
+      console.log('✅ Successfully joined queue for', subject, chapter);
+      setInQueue(true);
+
+      // Log queue status for debugging
+      setTimeout(async () => {
+        const { data: queueData } = await supabase.from('queue').select('*');
+        console.log('📊 Current queue status:', queueData);
+      }, 1000);
+
+      // Start heartbeat every 15 seconds
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+      
+      heartbeatIntervalRef.current = setInterval(async () => {
+        const { error: hbError } = await supabase.functions.invoke('heartbeat');
+        if (hbError) {
+          console.error('Heartbeat error:', hbError);
+        }
+      }, 15000);
+
+      // Subscribe to match_found events
+      if (channelRef.current) {
+        await supabase.removeChannel(channelRef.current);
+      }
+
+      channelRef.current = supabase.channel(`user_${user.id}`)
+        .on('broadcast', { event: 'match_found' }, (payload: { payload: MatchFoundPayload }) => {
+          console.log('Match found!', payload);
+          const { match_id, opponent_display, server_ws_url } = payload.payload;
+          setMatchId(match_id);
+          setOpponentName(opponent_display);
+          setServerWsUrl(server_ws_url);
+          setInQueue(false);
+          
+          // Stop heartbeat
+          if (heartbeatIntervalRef.current) {
+            clearInterval(heartbeatIntervalRef.current);
+            heartbeatIntervalRef.current = null;
+          }
+        })
+        .subscribe();
+
+    } catch (error) {
+      console.error('Error in joinQueue:', error);
+    }
+  };
+
+  // Leave queue via edge function
+  const leaveQueue = async () => {
+    try {
+      // Stop heartbeat
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+
+      // Unsubscribe from channel
+      if (channelRef.current) {
+        await supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+
+      // Call leave_queue edge function
+      const { error } = await supabase.functions.invoke('leave_queue');
+      if (error) {
+        console.error('Error leaving queue:', error);
+      }
+
+      setInQueue(false);
+    } catch (error) {
+      console.error('Error in leaveQueue:', error);
+    }
+  };
 
   // Navigate to battle when match is found
   useEffect(() => {
     if (matchId) {
-      navigate(`/online-battle/${matchId}`);
+      navigate(`/online-battle/${matchId}`, { 
+        state: { opponentName, serverWsUrl }
+      });
     }
-  }, [matchId, navigate]);
+  }, [matchId, navigate, opponentName, serverWsUrl]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
+    };
+  }, []);
 
   return {
     inQueue,

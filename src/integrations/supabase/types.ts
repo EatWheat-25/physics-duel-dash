@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      match_events: {
+        Row: {
+          created_at: string
+          id: number
+          match_id: string
+          payload: Json | null
+          sender: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          match_id: string
+          payload?: Json | null
+          sender: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          match_id?: string
+          payload?: Json | null
+          sender?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_events_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches_new"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_events_sender_fkey"
+            columns: ["sender"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matches: {
         Row: {
           completed_at: string | null
@@ -64,6 +106,63 @@ export type Database = {
           winner_id?: string | null
         }
         Relationships: []
+      }
+      matches_new: {
+        Row: {
+          chapter: string
+          created_at: string
+          ended_at: string | null
+          id: string
+          p1: string
+          p1_score: number | null
+          p2: string
+          p2_score: number | null
+          state: string
+          subject: string
+          winner_id: string | null
+        }
+        Insert: {
+          chapter: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          p1: string
+          p1_score?: number | null
+          p2: string
+          p2_score?: number | null
+          state?: string
+          subject: string
+          winner_id?: string | null
+        }
+        Update: {
+          chapter?: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          p1?: string
+          p1_score?: number | null
+          p2?: string
+          p2_score?: number | null
+          state?: string
+          subject?: string
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matches_new_p1_fkey"
+            columns: ["p1"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_new_p2_fkey"
+            columns: ["p2"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       matchmaking_queue: {
         Row: {
@@ -135,6 +234,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      players: {
+        Row: {
+          display_name: string
+          id: string
+          mmr: number
+          region: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          display_name: string
+          id: string
+          mmr?: number
+          region?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          display_name?: string
+          id?: string
+          mmr?: number
+          region?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -216,6 +339,47 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      queue: {
+        Row: {
+          chapter: string
+          enqueued_at: string
+          id: string
+          last_heartbeat: string
+          mmr: number
+          player_id: string
+          region: string | null
+          subject: string
+        }
+        Insert: {
+          chapter: string
+          enqueued_at?: string
+          id?: string
+          last_heartbeat?: string
+          mmr: number
+          player_id: string
+          region?: string | null
+          subject: string
+        }
+        Update: {
+          chapter?: string
+          enqueued_at?: string
+          id?: string
+          last_heartbeat?: string
+          mmr?: number
+          player_id?: string
+          region?: string | null
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queue_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

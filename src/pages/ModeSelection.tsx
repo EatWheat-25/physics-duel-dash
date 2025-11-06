@@ -83,13 +83,62 @@ const ModeSelection: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-hidden relative">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white overflow-hidden relative">
+      {/* Lighter dark tech atmosphere */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20 pointer-events-none" />
+      
+      {/* Subtle particle effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div
+            key={`particle-${i}`}
+            className="absolute w-1 h-1 bg-game-neon rounded-full animate-float opacity-30"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 8}s`,
+              animationDuration: `${Math.random() * 15 + 10}s`,
+              filter: 'blur(0.5px)'
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Animated Circuit Grid */}
+      <div className="absolute inset-0 opacity-15 pointer-events-none">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            linear-gradient(90deg, hsl(188, 100%, 42%, 0.1) 1px, transparent 1px),
+            linear-gradient(0deg, hsl(193, 100%, 50%, 0.1) 1px, transparent 1px),
+            linear-gradient(45deg, hsl(175, 100%, 45%, 0.05) 1px, transparent 1px)
+          `,
+          backgroundSize: '60px 60px, 60px 60px, 120px 120px',
+          animation: 'gridMove 25s linear infinite'
+        }} />
+      </div>
+
+      {/* Floating Holographic Orbs - lighter */}
+      <div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full opacity-20 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle, hsl(188, 100%, 42%, 0.15) 0%, hsl(193, 100%, 50%, 0.08) 40%, transparent 70%)`,
+          filter: 'blur(40px)',
+          animation: 'float 8s ease-in-out infinite'
+        }} 
+      />
+      <div className="absolute bottom-1/3 left-1/5 w-80 h-80 rounded-full opacity-15 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle, hsl(193, 100%, 50%, 0.12) 0%, hsl(175, 100%, 45%, 0.06) 50%, transparent 80%)`,
+          filter: 'blur(35px)',
+          animation: 'float 10s ease-in-out infinite reverse'
+        }} 
+      />
+
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
         <div className="p-8">
           <Link 
             to="/" 
-            className="inline-flex items-center gap-3 text-muted-foreground hover:text-foreground transition-all duration-200 text-sm font-medium"
+            className="inline-flex items-center gap-3 text-white/70 hover:text-white transition-all duration-200 text-sm font-medium"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
@@ -107,10 +156,10 @@ const ModeSelection: React.FC = () => {
                 transition={{ duration: 0.8 }}
                 className="text-center mb-16"
               >
-                <h1 className="text-5xl font-bold mb-6 text-foreground">
+                <h1 className="text-5xl font-bold mb-6 text-white futuristic-heading">
                   Choose Your Subject
                 </h1>
-                <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                <p className="text-lg text-white/70 max-w-2xl mx-auto leading-relaxed">
                   Select your preferred subject to begin your learning journey
                 </p>
               </motion.div>
@@ -128,11 +177,11 @@ const ModeSelection: React.FC = () => {
                       className="cyber-card p-10 cursor-pointer group"
                     >
                       <div className="text-center">
-                        <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-all duration-300">
-                          <subject.icon className="w-8 h-8 text-primary" />
+                        <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-all duration-300">
+                          <subject.icon className="w-8 h-8 text-white" />
                         </div>
-                        <h2 className="text-2xl font-bold mb-4 text-foreground">{subject.title}</h2>
-                        <p className="text-muted-foreground leading-relaxed">
+                        <h2 className="text-2xl font-bold mb-4 text-white">{subject.title}</h2>
+                        <p className="text-white/70 leading-relaxed">
                           {subject.description}
                         </p>
                       </div>
@@ -153,15 +202,15 @@ const ModeSelection: React.FC = () => {
                 <div className="flex items-center justify-center gap-4 mb-4">
                   <button 
                     onClick={() => setSelectedSubject(null)}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-white/70 hover:text-white transition-colors"
                   >
                     <ArrowLeft className="w-6 h-6" />
                   </button>
-                  <h1 className="text-4xl font-bold text-foreground">
+                  <h1 className="text-4xl font-bold text-white futuristic-heading">
                     {selectedSubject === 'math' ? 'Mathematics' : 'Physics'} Modes
                   </h1>
                 </div>
-                <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                <p className="text-lg text-white/70 max-w-2xl mx-auto leading-relaxed">
                   Select your preferred difficulty level and start learning
                 </p>
               </motion.div>
@@ -179,15 +228,15 @@ const ModeSelection: React.FC = () => {
                       className="cyber-card p-8 cursor-pointer group"
                     >
                       <div className="text-center">
-                        <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-all duration-300">
-                          <span className="text-lg font-bold text-accent">
+                        <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-all duration-300">
+                          <span className="text-lg font-bold text-white">
                             {mode.id === 'A1' ? 'A1' : mode.id === 'A2_ONLY' ? 'A2' : 'A★'}
                           </span>
                         </div>
-                        <h3 className="text-xl font-bold mb-2 text-foreground">{mode.title}</h3>
-                        <p className="text-sm text-muted-foreground mb-3 font-medium">{mode.subtitle}</p>
-                        <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{mode.description}</p>
-                        <div className="inline-block px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-medium">
+                        <h3 className="text-xl font-bold mb-2 text-white">{mode.title}</h3>
+                        <p className="text-sm text-white/70 mb-3 font-medium">{mode.subtitle}</p>
+                        <p className="text-sm text-white/70 mb-4 leading-relaxed">{mode.description}</p>
+                        <div className="inline-block px-3 py-1 rounded-full bg-white/20 text-white text-xs font-medium">
                           {mode.difficulty}
                         </div>
                       </div>

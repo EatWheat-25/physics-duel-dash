@@ -256,15 +256,28 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
               <div className="stat-label">Your Marks</div>
             </div>
             <div className="flex-1 mx-8">
-              <div className="cyber-progress">
+              {/* Tug of War Bar */}
+              <div className="relative h-6 bg-black/30 rounded-full overflow-hidden border border-white/10">
+                {/* Player (Green) side */}
                 <motion.div 
-                  className="cyber-progress-fill"
+                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-emerald-500 to-emerald-400"
                   initial={{ width: 0 }}
-                  animate={{ width: `${progressPercentage}%` }}
+                  animate={{ width: `${Math.max(5, (playerMarks / (playerMarks + opponentMarks || 1)) * 100)}%` }}
                   transition={{ duration: 0.5 }}
                 />
+                
+                {/* Opponent (Blue) side */}
+                <motion.div 
+                  className="absolute right-0 top-0 h-full bg-gradient-to-l from-blue-500 to-blue-400"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.max(5, (opponentMarks / (playerMarks + opponentMarks || 1)) * 100)}%` }}
+                  transition={{ duration: 0.5 }}
+                />
+                
+                {/* Center dividing line */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-0.5 bg-white/40 z-10" />
               </div>
-              <div className="text-center text-sm text-muted-foreground mt-2">
+              <div className="text-center text-xs text-muted-foreground mt-1.5">
                 {Math.round(progressPercentage)}% Complete
               </div>
             </div>

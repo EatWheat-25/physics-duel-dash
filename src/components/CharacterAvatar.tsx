@@ -55,7 +55,7 @@ const CharacterAvatar: React.FC<CharacterAvatarProps> = ({
         className="flex flex-col items-center space-y-2"
       >
         {avatarContent}
-        <span className="text-xs font-medium text-center">{character.name}</span>
+        <span className="text-xs font-medium text-center text-white">{character.name}</span>
       </motion.div>
     );
   }
@@ -63,7 +63,7 @@ const CharacterAvatar: React.FC<CharacterAvatarProps> = ({
   return (
     <div onClick={onClick} className="flex flex-col items-center space-y-2">
       {avatarContent}
-      <span className="text-xs font-medium text-center">{character.name}</span>
+      <span className="text-xs font-medium text-center text-white">{character.name}</span>
     </div>
   );
 };
