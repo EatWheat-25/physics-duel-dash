@@ -17,3 +17,11 @@ verify_jwt = false
 
 [functions.game-ws]
 verify_jwt = false
+
+[edge_runtime.cron.matchmaker]
+name = "matchmaker_tick"
+schedule = "*/2 * * * * *"
+
+[edge_runtime.cron.cleanup]
+name = "cleanup_queue"
+schedule = "*/30 * * * * *"

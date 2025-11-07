@@ -111,7 +111,9 @@ Deno.serve(async (req) => {
               p2: bestMatch.player_id,
               subject: p1.subject,
               chapter: p1.chapter,
-              state: 'pending',
+              state: 'active',
+              p1_score: 0,
+              p2_score: 0,
             })
             .select()
             .single()
@@ -124,28 +126,7 @@ Deno.serve(async (req) => {
           // Remove both players from queue
           await supabase.from('queue').delete().in('player_id', [p1.player_id, bestMatch.player_id])
 
-          // Broadcast match found to both players via Realtime
-          const serverWsUrl = `wss://${Deno.env.get('SUPABASE_URL')?.split('//')[1]}/functions/v1/game-ws`
-
-          await supabase.channel(`user_${p1.player_id}`).send({
-            type: 'broadcast',
-            event: 'match_found',
-            payload: {
-              match_id: newMatch.id,
-              opponent_display: bestMatch.players?.display_name || 'Opponent',
-              server_ws_url: serverWsUrl,
-            },
-          })
-
-          await supabase.channel(`user_${bestMatch.player_id}`).send({
-            type: 'broadcast',
-            event: 'match_found',
-            payload: {
-              match_id: newMatch.id,
-              opponent_display: p1.players?.display_name || 'Opponent',
-              server_ws_url: serverWsUrl,
-            },
-          })
+          console.log(`✅ Match created: ${newMatch.id} | P1: ${p1.player_id} | P2: ${bestMatch.player_id}`)
 
           matched.add(p1.player_id)
           matched.add(bestMatch.player_id)

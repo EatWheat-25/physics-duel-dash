@@ -15,6 +15,7 @@ export const useMatchmaking = (subject: string, chapter: string) => {
   const navigate = useNavigate();
   const channelRef = useRef<any>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchUsername = async () => {
@@ -71,7 +72,7 @@ export const useMatchmaking = (subject: string, chapter: string) => {
       }
 
       channelRef.current = supabase
-        .channel(`queue_${user.id}`)
+        .channel(`matchmaking_${user.id}`)
         .on(
           'postgres_changes',
           {
@@ -93,6 +94,11 @@ export const useMatchmaking = (subject: string, chapter: string) => {
             setMatchId(match.id);
             setOpponentName(opponent?.display_name || 'Opponent');
             setInQueue(false);
+
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
           }
         )
         .on(
@@ -116,9 +122,16 @@ export const useMatchmaking = (subject: string, chapter: string) => {
             setMatchId(match.id);
             setOpponentName(opponent?.display_name || 'Opponent');
             setInQueue(false);
+
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log('Realtime subscription status:', status);
+        });
 
       pollingIntervalRef.current = setInterval(async () => {
         console.log('🔄 Polling for matches...');
@@ -149,8 +162,20 @@ export const useMatchmaking = (subject: string, chapter: string) => {
             clearInterval(pollingIntervalRef.current);
             pollingIntervalRef.current = null;
           }
+          if (heartbeatIntervalRef.current) {
+            clearInterval(heartbeatIntervalRef.current);
+            heartbeatIntervalRef.current = null;
+          }
         }
       }, 2000);
+
+      heartbeatIntervalRef.current = setInterval(async () => {
+        console.log('💓 Sending heartbeat...');
+        const { error } = await supabase.functions.invoke('heartbeat');
+        if (error) {
+          console.error('Heartbeat error:', error);
+        }
+      }, 5000);
 
     } catch (error) {
       console.error('Error in joinQueue:', error);
@@ -162,6 +187,11 @@ export const useMatchmaking = (subject: string, chapter: string) => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
+      }
+
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
       }
 
       if (channelRef.current) {
@@ -192,6 +222,9 @@ export const useMatchmaking = (subject: string, chapter: string) => {
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
+      }
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
       }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);

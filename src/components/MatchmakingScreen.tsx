@@ -107,12 +107,19 @@ const MatchmakingScreen = () => {
               <Users className="w-12 h-12 text-white" />
             </motion.div>
             
-            <h1 className="text-5xl font-bold mb-4">
+            <motion.h1
+              className="text-5xl font-bold mb-4"
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
               FINDING OPPONENT
-            </h1>
+            </motion.h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Searching for worthy opponent...
+              Searching for a real player to battle...
             </p>
+            <div className="text-sm text-muted-foreground/60 mb-4">
+              Subject: {subject} | Chapter: {chapter}
+            </div>
             
             <div className="flex items-center justify-center gap-2">
               <span className="text-muted-foreground">Searching</span>

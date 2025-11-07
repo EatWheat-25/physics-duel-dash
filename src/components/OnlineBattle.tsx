@@ -45,6 +45,8 @@ export const OnlineBattle = () => {
   const [playerActions, setPlayerActions] = useState<PlayerAction[]>([]);
   const [yourUsername, setYourUsername] = useState<string>('You');
   const [opponentUsername, setOpponentUsername] = useState<string>('Opponent');
+  const [matchReady, setMatchReady] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   // Get usernames from navigation state or fetch from database
   useEffect(() => {
@@ -130,17 +132,40 @@ export const OnlineBattle = () => {
     return () => clearInterval(timer);
   }, [timeLeft, match, waitingForOpponent]);
 
-  // Note: Question management needs to be implemented with the new schema
-  // This component currently expects questions but the schema doesn't store them in matches
   useEffect(() => {
-    if (!match) return;
-    // TODO: Implement question fetching and management
-    setTimeLeft(300); // Default 5 minutes
-    setCurrentStep(0);
-    setSelectedAnswer(null);
-    setShowFeedback(false);
-    setWaitingForOpponent(false);
-  }, [match]);
+    if (!match || !currentUser) return;
+
+    const checkBothPlayersReady = async () => {
+      console.log('Checking if both players are ready...');
+
+      if (match.state === 'active') {
+        console.log('Match is active, starting countdown...');
+        setMatchReady(true);
+        setCountdown(3);
+      }
+    };
+
+    checkBothPlayersReady();
+  }, [match, currentUser]);
+
+  useEffect(() => {
+    if (countdown === null || countdown === 0) return;
+
+    const timer = setTimeout(() => {
+      if (countdown > 1) {
+        setCountdown(countdown - 1);
+      } else {
+        setCountdown(null);
+        setTimeLeft(300);
+        setCurrentStep(0);
+        setSelectedAnswer(null);
+        setShowFeedback(false);
+        setWaitingForOpponent(false);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   // Subscribe to match updates and player actions
   useEffect(() => {
@@ -235,7 +260,35 @@ export const OnlineBattle = () => {
   if (!match || !currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-2xl">Loading battle...</div>
+        <CyberpunkBackground />
+        <div className="relative z-10 text-2xl">Loading battle...</div>
+      </div>
+    );
+  }
+
+  if (countdown !== null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center relative">
+        <CyberpunkBackground />
+        <motion.div
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="relative z-10 text-center"
+        >
+          <h2 className="text-3xl font-bold mb-8">Get Ready!</h2>
+          <motion.div
+            key={countdown}
+            initial={{ scale: 2, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.5, opacity: 0 }}
+            className="text-9xl font-bold text-primary"
+          >
+            {countdown}
+          </motion.div>
+          <div className="mt-8 text-xl text-muted-foreground">
+            {yourUsername} vs {opponentUsername}
+          </div>
+        </motion.div>
       </div>
     );
   }
