@@ -1,5 +1,5 @@
 /*
-  # Setup Matchmaking Cron Jobs
+  # Setup Matchmaking Cron Jobs (Fixed)
 
   This migration sets up automated cron jobs for the real-time matchmaking system.
 
@@ -10,12 +10,12 @@
   2. Configuration
     - Uses pg_cron extension to schedule recurring jobs
     - Uses pg_net extension to make HTTP requests to Edge Functions
-    - Stores service role key securely using Supabase Vault
+    - Uses proper seconds syntax: '2 seconds' not '*/2 * * * * *'
 
   3. Security
-    - Service role key is used to authenticate cron job requests
+    - Edge functions validate requests from pg_cron by User-Agent
     - Only internal system can trigger these functions
-    - Cron jobs run with elevated privileges to manage matchmaking
+    - Cron jobs run with database privileges to manage matchmaking
 */
 
 -- Enable required extensions
@@ -23,26 +23,28 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
 -- Remove existing cron jobs if they exist
-SELECT cron.unschedule('matchmaker_tick_job') WHERE EXISTS (
-  SELECT 1 FROM cron.job WHERE jobname = 'matchmaker_tick_job'
-);
+DO $$
+BEGIN
+  PERFORM cron.unschedule('matchmaker_tick_job');
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
 
-SELECT cron.unschedule('cleanup_stale_queue_job') WHERE EXISTS (
-  SELECT 1 FROM cron.job WHERE jobname = 'cleanup_stale_queue_job'
-);
+DO $$
+BEGIN
+  PERFORM cron.unschedule('cleanup_stale_queue_job');
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
 
 -- Schedule matchmaker to run every 2 seconds
--- Note: This requires Postgres 15.1.1.61+ for seconds-level scheduling
 SELECT cron.schedule(
   'matchmaker_tick_job',
-  '*/2 * * * * *',
+  '2 seconds',
   $$
   SELECT net.http_post(
     url:='https://pwsgotzkeflizgfgqfbd.supabase.co/functions/v1/matchmaker_tick',
-    headers:=jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
-    ),
+    headers:='{"Content-Type": "application/json"}'::jsonb,
     body:='{}'::jsonb
   ) as request_id;
   $$
@@ -51,14 +53,11 @@ SELECT cron.schedule(
 -- Schedule cleanup to run every 30 seconds
 SELECT cron.schedule(
   'cleanup_stale_queue_job',
-  '*/30 * * * * *',
+  '30 seconds',
   $$
   SELECT net.http_post(
     url:='https://pwsgotzkeflizgfgqfbd.supabase.co/functions/v1/cleanup_queue',
-    headers:=jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
-    ),
+    headers:='{"Content-Type": "application/json"}'::jsonb,
     body:='{}'::jsonb
   ) as request_id;
   $$
