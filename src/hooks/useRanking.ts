@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { UserRankData, RankHistory, getRankByPoints, getPointsForWin, getPointsForLoss, RankName } from '@/types/ranking';
+import { useAuth } from '@/contexts/AuthContext';
 
 const initialUserData: UserRankData = {
   username: "Player",
@@ -16,6 +17,17 @@ const initialUserData: UserRankData = {
 
 export const useRanking = () => {
   const [userData, setUserData] = useState<UserRankData>(initialUserData);
+  const { profile } = useAuth();
+
+  // Update username when profile loads
+  useEffect(() => {
+    if (profile?.username) {
+      setUserData(prevData => ({
+        ...prevData,
+        username: profile.username
+      }));
+    }
+  }, [profile]);
 
   const updateAfterBattle = useCallback((won: boolean) => {
     setUserData(prevData => {
