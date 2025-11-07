@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
@@ -33,6 +33,7 @@ interface PlayerAction {
 export const OnlineBattle = () => {
   const { matchId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [match, setMatch] = useState<Match | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -42,6 +43,35 @@ export const OnlineBattle = () => {
   const [tugOfWarPosition, setTugOfWarPosition] = useState(0);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
   const [playerActions, setPlayerActions] = useState<PlayerAction[]>([]);
+  const [yourUsername, setYourUsername] = useState<string>('You');
+  const [opponentUsername, setOpponentUsername] = useState<string>('Opponent');
+
+  // Get usernames from navigation state or fetch from database
+  useEffect(() => {
+    const fetchUsernames = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get your username from location state or profile
+      if (location.state?.yourUsername) {
+        setYourUsername(location.state.yourUsername);
+      } else {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+        if (profile) setYourUsername(profile.username);
+      }
+
+      // Get opponent username from location state
+      if (location.state?.opponentName) {
+        setOpponentUsername(location.state.opponentName);
+      }
+    };
+
+    fetchUsernames();
+  }, [location.state]);
 
   // Get current user
   useEffect(() => {
@@ -373,14 +403,16 @@ export const OnlineBattle = () => {
 
         {/* Scores */}
         <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className={`p-4 rounded-lg ${isPlayer1 ? 'bg-primary/20' : 'bg-secondary/20'}`}>
-            <div className="text-sm mb-2">YOU</div>
+          <div className={`p-4 rounded-lg border-2 ${isPlayer1 ? 'bg-primary/20 border-primary' : 'bg-secondary/20 border-secondary'}`}>
+            <div className="text-xs uppercase tracking-wide mb-1 text-muted-foreground">YOU</div>
+            <div className="text-lg font-semibold mb-2 truncate">{yourUsername}</div>
             <div className="text-3xl font-bold">
               {isPlayer1 ? match.player1_score : match.player2_score}
             </div>
           </div>
-          <div className={`p-4 rounded-lg ${!isPlayer1 ? 'bg-primary/20' : 'bg-secondary/20'}`}>
-            <div className="text-sm mb-2">OPPONENT</div>
+          <div className={`p-4 rounded-lg border-2 ${!isPlayer1 ? 'bg-primary/20 border-primary' : 'bg-secondary/20 border-secondary'}`}>
+            <div className="text-xs uppercase tracking-wide mb-1 text-muted-foreground">OPPONENT</div>
+            <div className="text-lg font-semibold mb-2 truncate">{opponentUsername}</div>
             <div className="text-3xl font-bold">
               {!isPlayer1 ? match.player1_score : match.player2_score}
             </div>

@@ -13,9 +13,29 @@ export const useMatchmaking = (subject: string, chapter: string) => {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [opponentName, setOpponentName] = useState<string>('');
   const [serverWsUrl, setServerWsUrl] = useState<string>('');
+  const [yourUsername, setYourUsername] = useState<string>('');
   const navigate = useNavigate();
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
+
+  // Fetch current user's username
+  useEffect(() => {
+    const fetchUsername = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          setYourUsername(profile.username);
+        }
+      }
+    };
+    fetchUsername();
+  }, []);
 
   // Join matchmaking queue via edge function
   const joinQueue = async () => {
@@ -115,10 +135,10 @@ export const useMatchmaking = (subject: string, chapter: string) => {
   useEffect(() => {
     if (matchId) {
       navigate(`/online-battle/${matchId}`, { 
-        state: { opponentName, serverWsUrl }
+        state: { opponentName, serverWsUrl, yourUsername }
       });
     }
-  }, [matchId, navigate, opponentName, serverWsUrl]);
+  }, [matchId, navigate, opponentName, serverWsUrl, yourUsername]);
 
   // Cleanup on unmount
   useEffect(() => {
