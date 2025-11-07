@@ -50,7 +50,7 @@ export const OnlineBattle = () => {
   useEffect(() => {
     const fetchUsernames = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user || !match) return;
 
       // Get your username from location state or profile
       if (location.state?.yourUsername) {
@@ -64,14 +64,23 @@ export const OnlineBattle = () => {
         if (profile) setYourUsername(profile.username);
       }
 
-      // Get opponent username from location state
+      // Get opponent username from location state or fetch from database
+      const opponentId = match.player1_id === user.id ? match.player2_id : match.player1_id;
+      
       if (location.state?.opponentName) {
         setOpponentUsername(location.state.opponentName);
+      } else {
+        const { data: opponentProfile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', opponentId)
+          .single();
+        if (opponentProfile) setOpponentUsername(opponentProfile.username);
       }
     };
 
     fetchUsernames();
-  }, [location.state]);
+  }, [location.state, match]);
 
   // Get current user
   useEffect(() => {
