@@ -7,11 +7,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // This function should be called by a cron job with service role
+    // Allow calls from cron jobs (no auth header) or with service role key
     const authHeader = req.headers.get('Authorization')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    
-    if (!authHeader || !authHeader.includes(serviceRoleKey || 'invalid')) {
+    const userAgent = req.headers.get('User-Agent') || ''
+
+    // Allow if: called by pg_cron (no auth but specific user agent) OR has valid service role
+    const isCronJob = !authHeader && userAgent.includes('pg_net')
+    const hasServiceRole = authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey)
+
+    if (!isCronJob && !hasServiceRole) {
       console.log('Unauthorized cleanup attempt')
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
