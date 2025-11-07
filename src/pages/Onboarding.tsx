@@ -47,7 +47,7 @@ export default function Onboarding() {
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (profile?.onboarding_completed) {
       navigate("/");
@@ -113,7 +113,7 @@ export default function Onboarding() {
           subjects: selectedSubjects,
           onboarding_completed: true,
         }, {
-          onConflict: 'id'
+          onConflict: "id", ignoreDuplicates: false
         });
 
         if (error) throw error;

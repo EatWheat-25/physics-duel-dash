@@ -27,7 +27,7 @@ export const useMatchmaking = (subject: string, chapter: string) => {
           .from('profiles')
           .select('username')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         
         if (profile) {
           setYourUsername(profile.username);
