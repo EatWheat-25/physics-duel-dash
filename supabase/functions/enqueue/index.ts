@@ -73,25 +73,36 @@ Deno.serve(async (req) => {
     const mmr = player?.mmr || 1000
 
     const { data: matchResult, error: matchError } = await supabase
-      .rpc('try_match_player', {
+      .rpc('try_match_player_enhanced', {
         p_player_id: user.id,
         p_subject: subject,
         p_chapter: chapter,
         p_mmr: mmr,
+        p_wait_seconds: 0,
       })
-      .single()
+      .maybeSingle()
 
     if (matchError) {
       console.error('Match error:', matchError)
     }
 
-    if (matchResult && (matchResult as any).matched) {
-      console.log(`Player ${user.id} matched immediately with ${(matchResult as any).opponent_id}`)
+    if (matchResult && matchResult.matched) {
+      console.log(`Player ${user.id} matched immediately with ${matchResult.opponent_id}`)
+
+      await supabase.from('player_activity').upsert({
+        player_id: user.id,
+        last_seen: new Date().toISOString(),
+      }, {
+        onConflict: 'player_id',
+        ignoreDuplicates: false
+      })
+
       return new Response(JSON.stringify({
         success: true,
         matched: true,
-        match_id: (matchResult as any).match_id,
-        opponent_name: (matchResult as any).opponent_name,
+        match_id: matchResult.match_id,
+        opponent_name: matchResult.opponent_name,
+        match_quality: matchResult.match_quality,
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -117,10 +128,10 @@ Deno.serve(async (req) => {
 
     console.log(`Player ${user.id} added to queue, waiting for opponent`)
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return new Response(JSON.stringify({
+      success: true,
       matched: false,
-      mmr 
+      mmr
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

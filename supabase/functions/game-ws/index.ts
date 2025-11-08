@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4'
+import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 
 // ELO calculation
 function calculateElo(winner: number, loser: number, kFactor = 32): { winner: number; loser: number } {

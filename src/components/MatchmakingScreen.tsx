@@ -9,7 +9,7 @@ const MatchmakingScreen = () => {
   const navigate = useNavigate();
 
   const { subject, chapter } = location.state || { subject: 'math', chapter: 'A1' };
-  const { joinQueue, leaveQueue } = useMatchmaking(subject, chapter);
+  const { joinQueue, leaveQueue, matchQuality } = useMatchmaking(subject, chapter);
 
   useEffect(() => {
     joinQueue();
@@ -97,11 +97,23 @@ const MatchmakingScreen = () => {
             <p className="text-xl text-muted-foreground mb-8">
               Searching for a real player to battle...
             </p>
-            <div className="text-sm text-muted-foreground/60">
+            <div className="text-sm text-muted-foreground/60 mb-4">
               Subject: {subject} | Chapter: {chapter}
             </div>
-            
-            <div className="flex items-center justify-center gap-2">
+
+            {matchQuality && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 px-4 py-2 bg-green-500/20 rounded-lg inline-block"
+              >
+                <p className="text-sm font-semibold text-green-400">
+                  Match Quality: {Math.round(matchQuality)}/100
+                </p>
+              </motion.div>
+            )}
+
+            <div className="flex items-center justify-center gap-2 mt-4">
               <span className="text-muted-foreground">Searching</span>
               <div className="flex gap-1">
                 {[0, 1, 2].map((i) => (

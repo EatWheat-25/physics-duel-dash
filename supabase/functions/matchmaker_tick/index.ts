@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4'
+import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { corsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
@@ -7,12 +7,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Allow calls from cron jobs (no auth header) or with service role key
     const authHeader = req.headers.get('Authorization')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const userAgent = req.headers.get('User-Agent') || ''
 
-    // Allow if: called by pg_cron (no auth but specific user agent) OR has valid service role
     const isCronJob = !authHeader && userAgent.includes('pg_net')
     const hasServiceRole = authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey)
 
@@ -29,120 +27,84 @@ Deno.serve(async (req) => {
       serviceRoleKey ?? ''
     )
 
-    console.log('Running matchmaker tick...')
+    console.log('🔄 Running matchmaker tick...')
 
-    // Get all queue entries grouped by subject and chapter
     const { data: queueEntries, error: queueError } = await supabase
       .from('queue')
-      .select('*, players(display_name, region)')
+      .select('*')
+      .gt('last_heartbeat', new Date(Date.now() - 45000).toISOString())
       .order('enqueued_at', { ascending: true })
 
     if (queueError || !queueEntries || queueEntries.length === 0) {
       console.log('No players in queue or error:', queueError)
-      return new Response(JSON.stringify({ matched: 0 }), {
+      return new Response(JSON.stringify({ matched: 0, message: 'No players in queue' }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    console.log(`Found ${queueEntries.length} players in queue`)
-
-    // Group by subject and chapter
-    const groups: { [key: string]: any[] } = {}
-    queueEntries.forEach((entry) => {
-      const key = `${entry.subject}:${entry.chapter}`
-      if (!groups[key]) groups[key] = []
-      groups[key].push(entry)
-    })
+    console.log(`📋 Found ${queueEntries.length} active players in queue`)
 
     let matchesMade = 0
+    const processedPlayers = new Set<string>()
 
-    // Try to match players in each group
-    for (const [groupKey, players] of Object.entries(groups)) {
-      if (players.length < 2) continue
+    for (const player of queueEntries) {
+      if (processedPlayers.has(player.player_id)) {
+        continue
+      }
 
-      console.log(`Attempting matches for ${groupKey} with ${players.length} players`)
+      const waitSeconds = Math.floor((Date.now() - new Date(player.enqueued_at).getTime()) / 1000)
 
-      // Sort by wait time (oldest first)
-      players.sort((a, b) => new Date(a.enqueued_at).getTime() - new Date(b.enqueued_at).getTime())
+      console.log(`⏳ Trying to match player ${player.player_id} (MMR: ${player.mmr}, waited: ${waitSeconds}s)`)
 
-      const matched = new Set<string>()
+      const { data: matchResult, error: matchError } = await supabase
+        .rpc('try_match_player_enhanced', {
+          p_player_id: player.player_id,
+          p_subject: player.subject,
+          p_chapter: player.chapter,
+          p_mmr: player.mmr,
+          p_wait_seconds: waitSeconds,
+        })
+        .maybeSingle()
 
-      for (let i = 0; i < players.length; i++) {
-        if (matched.has(players[i].player_id)) continue
+      if (matchError) {
+        console.error(`❌ Match error for player ${player.player_id}:`, matchError)
+        continue
+      }
 
-        const p1 = players[i]
-        const waitTime = Date.now() - new Date(p1.enqueued_at).getTime()
-        const mmrWindow = Math.min(150 + Math.floor(waitTime / 10000) * 50, 500) // Widen window over time
+      if (matchResult && matchResult.matched) {
+        console.log(`✅ Match created: ${matchResult.match_id}`)
+        console.log(`   Player 1: ${player.player_id} (MMR: ${player.mmr})`)
+        console.log(`   Player 2: ${matchResult.opponent_id}`)
+        console.log(`   Quality: ${matchResult.match_quality}/100`)
 
-        // Find best match
-        let bestMatch = null
-        let bestScore = Infinity
+        processedPlayers.add(player.player_id)
+        processedPlayers.add(matchResult.opponent_id)
+        matchesMade++
 
-        for (let j = i + 1; j < players.length; j++) {
-          if (matched.has(players[j].player_id)) continue
-
-          const p2 = players[j]
-          const mmrDiff = Math.abs(p1.mmr - p2.mmr)
-
-          if (mmrDiff <= mmrWindow) {
-            // Score based on MMR difference and region match
-            const regionBonus = p1.region === p2.region ? -50 : 0
-            const score = mmrDiff + regionBonus
-
-            if (score < bestScore) {
-              bestScore = score
-              bestMatch = p2
-            }
-          }
-        }
-
-        if (bestMatch) {
-          console.log(`Matching ${p1.player_id} (MMR: ${p1.mmr}) with ${bestMatch.player_id} (MMR: ${bestMatch.mmr})`)
-
-          // Fetch random questions for this match
-          const { data: questions } = await supabase
-            .from('questions')
-            .select('*')
-            .eq('subject', p1.subject)
-            .eq('chapter', p1.chapter)
-            .limit(5)
-
-          // Create match
-          const { data: newMatch, error: matchError } = await supabase
-            .from('matches_new')
-            .insert({
-              p1: p1.player_id,
-              p2: bestMatch.player_id,
-              subject: p1.subject,
-              chapter: p1.chapter,
-              state: 'active',
-              p1_score: 0,
-              p2_score: 0,
-            })
-            .select()
-            .single()
-
-          if (matchError) {
-            console.error('Error creating match:', matchError)
-            continue
-          }
-
-          // Remove both players from queue
-          await supabase.from('queue').delete().in('player_id', [p1.player_id, bestMatch.player_id])
-
-          console.log(`✅ Match created: ${newMatch.id} | P1: ${p1.player_id} | P2: ${bestMatch.player_id}`)
-
-          matched.add(p1.player_id)
-          matched.add(bestMatch.player_id)
-          matchesMade++
-        }
+        await supabase.from('player_activity').upsert([
+          { player_id: player.player_id, last_seen: new Date().toISOString() },
+          { player_id: matchResult.opponent_id, last_seen: new Date().toISOString() }
+        ], {
+          onConflict: 'player_id',
+          ignoreDuplicates: false
+        })
+      } else {
+        console.log(`⏸️  No suitable match found for player ${player.player_id}`)
       }
     }
 
-    console.log(`Matchmaker tick complete. Made ${matchesMade} matches`)
+    const cleanupResult = await supabase.rpc('cleanup_stale_queue_entries')
 
-    return new Response(JSON.stringify({ matched: matchesMade }), {
+    console.log(`🏁 Matchmaker tick complete`)
+    console.log(`   Matches made: ${matchesMade}`)
+    console.log(`   Stale entries cleaned: ${cleanupResult.data || 0}`)
+
+    return new Response(JSON.stringify({
+      matched: matchesMade,
+      cleaned: cleanupResult.data || 0,
+      queue_size: queueEntries.length - (matchesMade * 2)
+    }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

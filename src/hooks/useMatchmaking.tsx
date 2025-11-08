@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 interface MatchFoundPayload {
   match_id: string;
   opponent_name: string;
+  match_quality?: number;
 }
 
 export const useMatchmaking = (subject: string, chapter: string) => {
@@ -12,8 +13,10 @@ export const useMatchmaking = (subject: string, chapter: string) => {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [opponentName, setOpponentName] = useState<string>('');
   const [yourUsername, setYourUsername] = useState<string>('');
+  const [matchQuality, setMatchQuality] = useState<number | null>(null);
   const navigate = useNavigate();
   const channelRef = useRef<any>(null);
+  const heartbeatIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     const fetchUsername = async () => {
@@ -33,6 +36,27 @@ export const useMatchmaking = (subject: string, chapter: string) => {
     fetchUsername();
   }, []);
 
+  const startHeartbeat = () => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+    }
+
+    heartbeatIntervalRef.current = setInterval(async () => {
+      try {
+        await supabase.functions.invoke('heartbeat');
+      } catch (error) {
+        console.error('Heartbeat failed:', error);
+      }
+    }, 10000);
+  };
+
+  const stopHeartbeat = () => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+  };
+
   const joinQueue = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -44,7 +68,7 @@ export const useMatchmaking = (subject: string, chapter: string) => {
       console.log('🎯 Joining queue for', subject, chapter);
 
       const { data, error } = await supabase.functions.invoke('enqueue', {
-        body: { subject, chapter }
+        body: { subject, chapter, region: 'pk' }
       });
 
       if (error) {
@@ -58,12 +82,15 @@ export const useMatchmaking = (subject: string, chapter: string) => {
         console.log('🎉 Matched immediately!');
         setMatchId(data.match_id);
         setOpponentName(data.opponent_name);
+        setMatchQuality(data.match_quality);
         setInQueue(false);
         return;
       }
 
       setInQueue(true);
       console.log('⏳ Added to queue, waiting for opponent...');
+
+      startHeartbeat();
 
       if (channelRef.current) {
         await supabase.removeChannel(channelRef.current);
@@ -89,9 +116,17 @@ export const useMatchmaking = (subject: string, chapter: string) => {
               .eq('id', match.p2)
               .maybeSingle();
 
+            const { data: quality } = await supabase
+              .from('match_quality_metrics')
+              .select('quality_score')
+              .eq('match_id', match.id)
+              .maybeSingle();
+
             setMatchId(match.id);
             setOpponentName(opponent?.display_name || 'Opponent');
+            setMatchQuality(quality?.quality_score || null);
             setInQueue(false);
+            stopHeartbeat();
           }
         )
         .on(
@@ -112,9 +147,17 @@ export const useMatchmaking = (subject: string, chapter: string) => {
               .eq('id', match.p1)
               .maybeSingle();
 
+            const { data: quality } = await supabase
+              .from('match_quality_metrics')
+              .select('quality_score')
+              .eq('match_id', match.id)
+              .maybeSingle();
+
             setMatchId(match.id);
             setOpponentName(opponent?.display_name || 'Opponent');
+            setMatchQuality(quality?.quality_score || null);
             setInQueue(false);
+            stopHeartbeat();
           }
         )
         .subscribe((status) => {
@@ -123,11 +166,14 @@ export const useMatchmaking = (subject: string, chapter: string) => {
 
     } catch (error) {
       console.error('Error in joinQueue:', error);
+      stopHeartbeat();
     }
   };
 
   const leaveQueue = async () => {
     try {
+      stopHeartbeat();
+
       if (channelRef.current) {
         await supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -147,13 +193,14 @@ export const useMatchmaking = (subject: string, chapter: string) => {
   useEffect(() => {
     if (matchId) {
       navigate(`/online-battle/${matchId}`, {
-        state: { opponentName, yourUsername }
+        state: { opponentName, yourUsername, matchQuality }
       });
     }
-  }, [matchId, navigate, opponentName, yourUsername]);
+  }, [matchId, navigate, opponentName, yourUsername, matchQuality]);
 
   useEffect(() => {
     return () => {
+      stopHeartbeat();
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
@@ -163,6 +210,7 @@ export const useMatchmaking = (subject: string, chapter: string) => {
   return {
     inQueue,
     matchId,
+    matchQuality,
     joinQueue,
     leaveQueue,
   };
