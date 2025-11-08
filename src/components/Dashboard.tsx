@@ -164,18 +164,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             </div>
           </div>
 
-          {/* Matchmaking Timer - Center */}
-          {isMatchmaking && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            >
-              <div className="text-lg font-black text-white tracking-wider" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                {Math.floor(matchmakingTime / 60)}:{(matchmakingTime % 60).toString().padStart(2, '0')}
-              </div>
-            </motion.div>
-          )}
 
           {/* User Stats */}
           <div className="flex items-center gap-6">
