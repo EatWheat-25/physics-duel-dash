@@ -85,13 +85,13 @@ Deno.serve(async (req) => {
       console.error('Match error:', matchError)
     }
 
-    if (matchResult && matchResult.matched) {
-      console.log(`Player ${user.id} matched immediately with ${matchResult.opponent_id}`)
+    if (matchResult && (matchResult as any).matched) {
+      console.log(`Player ${user.id} matched immediately with ${(matchResult as any).opponent_id}`)
       return new Response(JSON.stringify({
         success: true,
         matched: true,
-        match_id: matchResult.match_id,
-        opponent_name: matchResult.opponent_name,
+        match_id: (matchResult as any).match_id,
+        opponent_name: (matchResult as any).opponent_name,
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
     })
   } catch (error) {
     console.error('Error in enqueue:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

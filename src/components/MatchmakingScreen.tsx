@@ -97,7 +97,7 @@ const MatchmakingScreen = () => {
             <p className="text-xl text-muted-foreground mb-8">
               Searching for a real player to battle...
             </p>
-            <div className="text-sm text-muted-foreground/60 mb-4">
+            <div className="text-sm text-muted-foreground/60">
               Subject: {subject} | Chapter: {chapter}
             </div>
             

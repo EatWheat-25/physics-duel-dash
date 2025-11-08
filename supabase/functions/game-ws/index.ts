@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
       }
     } catch (error) {
       console.error('Error handling message:', error)
-      socket.send(JSON.stringify({ type: 'error', message: error.message }))
+      socket.send(JSON.stringify({ type: 'error', message: (error as Error).message }))
     }
   }
 
