@@ -3,53 +3,23 @@ import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Users, X } from 'lucide-react';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
-import { MatchOfferModal } from './MatchOfferModal';
 
 const MatchmakingScreen = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
   const { subject, chapter } = location.state || { subject: 'math', chapter: 'A1' };
-  const { joinQueue, leaveQueue, offer, subscribeToOffer, matchId } = useMatchmaking(subject, chapter);
-  const [yourUsername, setYourUsername] = useState<string>('');
+  const { joinQueue, leaveQueue } = useMatchmaking(subject, chapter);
 
   useEffect(() => {
-    const startMatchmaking = async () => {
-      const result = await joinQueue();
-      if (result?.status === 'offered' && result.offerId && result.matchId) {
-        subscribeToOffer(result.offerId, result.matchId);
-      }
-    };
-
-    startMatchmaking();
+    joinQueue();
 
     return () => {
       leaveQueue();
     };
   }, []);
 
-  useEffect(() => {
-    if (matchId) {
-      navigate(`/online-battle/${matchId}`, {
-        state: { opponentName: offer?.opponentName, yourUsername }
-      });
-    }
-  }, [matchId, navigate, offer, yourUsername]);
-
   const handleCancel = () => {
-    leaveQueue();
-    navigate('/');
-  };
-
-  const handleAcceptOffer = () => {
-    if (offer?.matchId) {
-      navigate(`/online-battle/${offer.matchId}`, {
-        state: { opponentName: offer.opponentName, yourUsername }
-      });
-    }
-  };
-
-  const handleDeclineOffer = () => {
     leaveQueue();
     navigate('/');
   };
@@ -151,16 +121,6 @@ const MatchmakingScreen = () => {
           </motion.div>
         </div>
       </div>
-
-      {offer && (
-        <MatchOfferModal
-          offerId={offer.offerId}
-          matchId={offer.matchId}
-          opponentName={offer.opponentName}
-          onAccept={handleAcceptOffer}
-          onDecline={handleDeclineOffer}
-        />
-      )}
     </div>
   );
 };

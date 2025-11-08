@@ -12,7 +12,6 @@ export const useMatchmaking = (subject: string, chapter: string) => {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [opponentName, setOpponentName] = useState<string>('');
   const [yourUsername, setYourUsername] = useState<string>('');
-  const [offer, setOffer] = useState<any>(null);
   const navigate = useNavigate();
   const channelRef = useRef<any>(null);
 
@@ -42,66 +41,89 @@ export const useMatchmaking = (subject: string, chapter: string) => {
         return;
       }
 
-      console.log('🎯 Finding match for', subject, chapter);
+      console.log('🎯 Joining queue for', subject, chapter);
 
-      const { data, error } = await supabase.functions.invoke('find_match', {
-        body: { subject, region: 'pk' }
+      const { data, error } = await supabase.functions.invoke('enqueue', {
+        body: { subject, chapter }
       });
 
       if (error) {
-        console.error('Error finding match:', error);
+        console.error('Error joining queue:', error);
         return;
       }
 
-      console.log('✅ Find match response:', data);
+      console.log('✅ Enqueue response:', data);
 
-      if (data.status === 'offered') {
-        setOffer(data);
+      if (data.matched) {
+        console.log('🎉 Matched immediately!');
+        setMatchId(data.match_id);
+        setOpponentName(data.opponent_name);
         setInQueue(false);
-        return data;
+        return;
       }
 
-      if (data.status === 'waiting') {
-        setInQueue(true);
+      setInQueue(true);
+      console.log('⏳ Added to queue, waiting for opponent...');
+
+      if (channelRef.current) {
+        await supabase.removeChannel(channelRef.current);
       }
 
-      return data;
+      channelRef.current = supabase
+        .channel(`matchmaking_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'matches_new',
+            filter: `p1=eq.${user.id}`,
+          },
+          async (payload) => {
+            console.log('🎉 Match found (as p1)!', payload);
+            const match = payload.new as any;
+
+            const { data: opponent } = await supabase
+              .from('players')
+              .select('display_name')
+              .eq('id', match.p2)
+              .maybeSingle();
+
+            setMatchId(match.id);
+            setOpponentName(opponent?.display_name || 'Opponent');
+            setInQueue(false);
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'matches_new',
+            filter: `p2=eq.${user.id}`,
+          },
+          async (payload) => {
+            console.log('🎉 Match found (as p2)!', payload);
+            const match = payload.new as any;
+
+            const { data: opponent } = await supabase
+              .from('players')
+              .select('display_name')
+              .eq('id', match.p1)
+              .maybeSingle();
+
+            setMatchId(match.id);
+            setOpponentName(opponent?.display_name || 'Opponent');
+            setInQueue(false);
+          }
+        )
+        .subscribe((status) => {
+          console.log('Realtime subscription status:', status);
+        });
+
     } catch (error) {
       console.error('Error in joinQueue:', error);
     }
-  };
-
-  const subscribeToOffer = (offerId: string, matchId: string) => {
-    const { data: { user } } = supabase.auth.getUser();
-
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
-
-    channelRef.current = supabase
-      .channel(`offer:${offerId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'match_offers',
-          filter: `id=eq.${offerId}`
-        },
-        (payload) => {
-          console.log('Offer update:', payload);
-          const row = payload.new as any;
-
-          if (row?.state === 'confirmed') {
-            setMatchId(matchId);
-            setInQueue(false);
-          } else if (row?.state === 'expired' || row?.state === 'declined') {
-            setOffer(null);
-            setInQueue(false);
-          }
-        }
-      )
-      .subscribe();
   };
 
   const leaveQueue = async () => {
@@ -111,13 +133,12 @@ export const useMatchmaking = (subject: string, chapter: string) => {
         channelRef.current = null;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('queue').delete().eq('player_id', user.id);
+      const { error } = await supabase.functions.invoke('leave_queue');
+      if (error) {
+        console.error('Error leaving queue:', error);
       }
 
       setInQueue(false);
-      setOffer(null);
     } catch (error) {
       console.error('Error in leaveQueue:', error);
     }
@@ -142,9 +163,7 @@ export const useMatchmaking = (subject: string, chapter: string) => {
   return {
     inQueue,
     matchId,
-    offer,
     joinQueue,
     leaveQueue,
-    subscribeToOffer,
   };
 };
