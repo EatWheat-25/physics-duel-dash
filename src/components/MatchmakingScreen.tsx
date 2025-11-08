@@ -6,7 +6,6 @@ import { useMatchmaking } from '@/hooks/useMatchmaking';
 import { MatchOfferModal } from './MatchOfferModal';
 
 const MatchmakingScreen = () => {
-  const [elapsedTime, setElapsedTime] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -24,12 +23,7 @@ const MatchmakingScreen = () => {
 
     startMatchmaking();
 
-    const timer = setInterval(() => {
-      setElapsedTime((prev) => prev + 1);
-    }, 1000);
-
     return () => {
-      clearInterval(timer);
       leaveQueue();
     };
   }, []);
@@ -101,18 +95,6 @@ const MatchmakingScreen = () => {
         >
           <X className="w-6 h-6" />
         </button>
-
-        {/* Timer at Top Center */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="flex justify-center pt-8"
-        >
-          <div className="text-4xl font-bold text-primary">
-            {elapsedTime}s
-          </div>
-        </motion.div>
 
         {/* Main Content */}
         <div className="flex-1 flex items-center justify-center">
