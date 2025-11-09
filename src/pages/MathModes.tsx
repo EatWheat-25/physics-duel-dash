@@ -93,12 +93,11 @@ const MathModes: React.FC = () => {
   });
 
   const handleModeSelect = (modeId: string) => {
-    // Navigate to matchmaking with subject and chapter
-    navigate('/matchmaking', { 
-      state: { 
-        subject: 'math', 
-        chapter: modeId 
-      } 
+    navigate('/battle', {
+      state: {
+        subject: 'math',
+        chapter: modeId
+      }
     });
   };
 

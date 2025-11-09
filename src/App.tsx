@@ -11,7 +11,6 @@ import SubjectSelection from "./pages/SubjectSelection";
 import MathModes from "./pages/MathModes";
 import PhysicsModes from "./pages/PhysicsModes";
 import ModeSelection from "./pages/ModeSelection";
-import MatchmakingScreen from "./components/MatchmakingScreen";
 import GameModes from "./components/GameModes";
 import StepBattlePage from "./components/StepBattlePage";
 import BattlePageNew from "./components/BattlePageNew";
@@ -43,7 +42,6 @@ const App = () => {
               <Route path="/physics-modes" element={<PhysicsModes />} />
               <Route path="/modes" element={<ModeSelection />} />
               <Route path="/game-modes" element={<GameModes />} />
-              <Route path="/matchmaking" element={<MatchmakingScreen />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/questions" element={<AdminQuestions />} />
               <Route path="/battle" element={<BattleLoader />} />
