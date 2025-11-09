@@ -6,7 +6,14 @@ import { CharacterProvider } from "@/hooks/useCharacter";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import Index from "./pages/Index";
-import NewHome from "./pages/NewHome";
+import Home from "./routes/Home";
+import DailyChallenge from "./routes/DailyChallenge";
+import Study from "./routes/Study";
+import BattleQueue from "./routes/BattleQueue";
+import Modules from "./routes/Modules";
+import Challenges from "./routes/Challenges";
+import Progression from "./routes/Progression";
+import Shop from "./routes/Shop";
 import NotFound from "./pages/NotFound";
 import ModeSelection from "./pages/ModeSelection";
 import GameModes from "./components/GameModes";
@@ -34,7 +41,14 @@ const App = () => {
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/" element={<NewHome />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/daily-challenge" element={<DailyChallenge />} />
+              <Route path="/study" element={<Study />} />
+              <Route path="/battle/queue" element={<BattleQueue />} />
+              <Route path="/modules" element={<Modules />} />
+              <Route path="/challenges" element={<Challenges />} />
+              <Route path="/progression" element={<Progression />} />
+              <Route path="/shop" element={<Shop />} />
               <Route path="/old-home" element={<Index />} />
               <Route path="/modes" element={<ModeSelection />} />
               <Route path="/game-modes" element={<GameModes />} />
