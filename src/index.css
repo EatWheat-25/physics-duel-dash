@@ -7,36 +7,36 @@ All colors MUST be HSL.
 */
 
 @layer base {
-  /* === Ultra Dark Cyber Theme === */
+  /* === Dark Charcoal Theme === */
   
-  /* Core Colors - Ultra Dark */
-  --background: 240 25% 4%;           /* Almost black #0a0a14 */
-  --foreground: 210 15% 90%;          /* Light gray text */
+  /* Core Colors - Charcoal Dark */
+  --background: 220 13% 10%;           /* Dark charcoal #1a1a1f */
+  --foreground: 0 0% 98%;              /* Nearly white text */
   
-  --card: 240 20% 6%;                 /* Very dark panels */
-  --card-foreground: 210 15% 90%;
+  --card: 220 13% 15%;                 /* Slightly lighter panels */
+  --card-foreground: 0 0% 98%;
   
-  --popover: 240 25% 5%;
-  --popover-foreground: 210 15% 90%;
+  --popover: 220 13% 12%;
+  --popover-foreground: 0 0% 98%;
   
-  --primary: 180 100% 50%;            /* Vibrant cyan */
-  --primary-foreground: 240 25% 4%;
+  --primary: 210 40% 98%;              /* White/Light */
+  --primary-foreground: 220 13% 10%;
   
-  --secondary: 280 100% 65%;          /* Bright purple */
-  --secondary-foreground: 240 25% 4%;
+  --secondary: 220 13% 18%;            /* Darker grey */
+  --secondary-foreground: 0 0% 98%;
   
-  --muted: 240 15% 10%;
-  --muted-foreground: 210 10% 50%;
+  --muted: 220 13% 20%;
+  --muted-foreground: 0 0% 65%;
   
-  --accent: 320 90% 60%;              /* Hot pink accent */
-  --accent-foreground: 240 25% 4%;
+  --accent: 28 88% 62%;                /* Orange accent */
+  --accent-foreground: 220 13% 10%;
   
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 15% 90%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
   
-  --border: 240 20% 15%;
-  --input: 240 20% 8%;
-  --ring: 180 100% 50%;
+  --border: 220 13% 25%;
+  --input: 220 13% 18%;
+  --ring: 28 88% 62%;
   
   /* Vibrant Gradients */
   --gradient-cyan-purple: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(280, 100%, 65%));
@@ -120,7 +120,7 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-    background: linear-gradient(135deg, hsl(240, 25%, 4%), hsl(240, 30%, 6%));
+    background: hsl(220, 13%, 10%);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
   }
@@ -129,41 +129,14 @@ All colors MUST be HSL.
     font-family: 'Roboto', sans-serif;
   }
 
-  /* Subtle Futuristic Tech Grid Pattern */
+  /* Remove decorative patterns for clean look */
   body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: 
-      var(--pattern-grid),
-      var(--pattern-circuit),
-      linear-gradient(45deg, transparent 40%, hsl(188, 60%, 80%, 0.05) 50%, transparent 60%),
-      linear-gradient(-45deg, transparent 40%, hsl(193, 60%, 75%, 0.05) 50%, transparent 60%);
-    background-size: 60px 60px, 80px 80px, 200px 200px, 300px 300px;
-    background-position: 0 0, 40px 40px, 0 0, 150px 150px;
-    animation: gridFloat 30s ease-in-out infinite, gridPulse 12s ease-in-out infinite alternate;
-    pointer-events: none;
-    z-index: -2;
+    display: none;
   }
 
-  /* Soft floating holographic elements */
+  /* Remove decorative glow */
   body::after {
-    content: '';
-    position: fixed;
-    top: -5%;
-    left: -5%;
-    width: 110%;
-    height: 110%;
-    background: 
-      radial-gradient(circle at 25% 25%, hsl(188, 80%, 85%, 0.08) 0%, transparent 40%),
-      radial-gradient(circle at 75% 75%, hsl(193, 80%, 80%, 0.06) 0%, transparent 40%),
-      radial-gradient(circle at 50% 50%, hsl(175, 70%, 85%, 0.04) 0%, transparent 30%);
-    animation: particleFloat 35s ease-in-out infinite;
-    pointer-events: none;
-    z-index: -1;
+    display: none;
   }
 
   @keyframes gridFloat {

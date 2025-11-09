@@ -91,19 +91,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
   ];
 
   return (
-    <div className="min-h-screen text-foreground overflow-hidden relative">
-      {/* Space Background */}
-      <SpaceBackground />
+    <div className="min-h-screen text-foreground overflow-hidden relative bg-background">
+      {/* Removed Space Background for solid dark theme */}
 
-      {/* White Navigation Header */}
+      {/* Dark Navigation Header */}
       <motion.div 
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="relative z-10 mx-4 mt-4 px-8 py-4 rounded-[3rem] backdrop-blur-xl bg-white/10 border border-white/20"
-        style={{ 
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-        }}
+        className="relative z-10 mx-4 mt-4 px-8 py-4 rounded-3xl bg-card border border-border"
       >
         <div className="flex items-center justify-between relative">
           {/* Logo */}
@@ -112,10 +108,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               whileHover={{ scale: 1.05 }}
               className="flex items-center gap-3"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
-                <Cpu className="w-6 h-6 text-white font-bold" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-500 flex items-center justify-center">
+                <Cpu className="w-6 h-6 text-background font-bold" />
               </div>
-              <h1 className="text-3xl font-black text-white" style={{ fontFamily: 'Roboto, sans-serif' }}>BATTLE NERDS</h1>
+              <h1 className="text-2xl font-black text-foreground tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>BATTLE NERDS</h1>
             </motion.div>
           
             {/* Navigation */}
@@ -127,10 +123,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                   onClick={() => setSelectedTab(item.id)}
-                  className={`px-5 py-2.5 text-sm font-black uppercase tracking-wider transition-all duration-300 rounded-2xl relative overflow-hidden ${
+                  className={`px-5 py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 rounded-xl relative overflow-hidden ${
                     selectedTab === item.id 
-                      ? 'text-gray-900 bg-white' 
-                      : 'text-white hover:text-gray-900 hover:bg-white/90'
+                      ? 'text-background bg-foreground' 
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                   style={{ fontFamily: 'Roboto, sans-serif' }}
                 >
@@ -146,27 +142,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             {/* Stats */}
             <div className="flex items-center gap-4 text-sm">
               <motion.div 
-                whileHover={{ scale: 1.1 }}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/20 backdrop-blur-sm"
+                whileHover={{ scale: 1.05 }}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted border border-border"
               >
-                <Trophy className="w-5 h-5 text-white" />
-                <span className="font-black text-white text-base">{userData.currentPoints}</span>
+                <Trophy className="w-4 h-4 text-muted-foreground" />
+                <span className="font-bold text-foreground text-sm">{userData.currentPoints}</span>
               </motion.div>
               
               <motion.div 
-                whileHover={{ scale: 1.1 }}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/20 backdrop-blur-sm"
+                whileHover={{ scale: 1.05 }}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted border border-border"
               >
-                <Target className="w-5 h-5 text-white" />
-                <span className="font-black text-white text-base">{userData.accuracy}%</span>
+                <Target className="w-4 h-4 text-muted-foreground" />
+                <span className="font-bold text-foreground text-sm">{userData.accuracy}%</span>
               </motion.div>
               
               <motion.div 
-                whileHover={{ scale: 1.1 }}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/20 backdrop-blur-sm"
+                whileHover={{ scale: 1.05 }}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted border border-border"
               >
-                <Zap className="w-5 h-5 text-white" />
-                <span className="font-black text-white text-base">{userData.winStreak}</span>
+                <Zap className="w-4 h-4 text-muted-foreground" />
+                <span className="font-bold text-foreground text-sm">{userData.winStreak}</span>
               </motion.div>
             </div>
             
@@ -184,23 +180,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             
             {/* User Info */}
             <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-white/20 backdrop-blur-sm"
+              whileHover={{ scale: 1.02 }}
+              className="flex items-center gap-3 px-4 py-2 rounded-xl bg-muted border border-border"
             >
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center text-base font-black text-white">
+              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-sm font-black text-background">
                 {userData.username.charAt(0).toUpperCase()}
               </div>
-              <span className="text-white font-black text-base">{userData.username}</span>
+              <div className="flex flex-col">
+                <span className="text-foreground font-bold text-xs leading-tight">no</span>
+                <span className="text-foreground font-bold text-xs leading-tight">brrainer</span>
+              </div>
             </motion.div>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <motion.button 
-                  whileHover={{ scale: 1.1, rotate: 90 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="p-3 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all duration-300"
+                  whileHover={{ scale: 1.05, rotate: 90 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-2 rounded-xl bg-muted hover:bg-muted/80 border border-border transition-all duration-300"
                 >
-                  <Settings className="w-6 h-6 text-white" />
+                  <Settings className="w-5 h-5 text-foreground" />
                 </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -257,17 +256,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     <motion.div
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-6 cursor-pointer group rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
+                      className="p-6 cursor-pointer group rounded-2xl border border-border bg-card"
                     >
-                      <div className="flex items-center justify-between gap-4 mb-6">
-                        <div className="flex items-center gap-4 flex-1">
-                          <Target className="w-10 h-10 text-white" />
-                          <h3 className="text-2xl font-black text-white uppercase tracking-wider">{selectedSubject} :: {selectedMode.replace('_', ' ')}</h3>
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-3 flex-1">
+                          <Target className="w-8 h-8 text-foreground" />
+                          <h3 className="text-lg font-bold text-foreground uppercase tracking-wide">{selectedSubject} :: {selectedMode.replace('_', ' ')}</h3>
                         </div>
-                        <ChevronRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" />
+                        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
                       </div>
                       
-                      <div className="text-xs text-white uppercase tracking-wider text-center">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider text-center">
                         ◦ CLICK TO CHANGE ◦
                       </div>
                     </motion.div>
@@ -277,30 +276,29 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     <motion.div
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-6 cursor-pointer group rounded-xl border-2 border-white/30 backdrop-blur-sm"
-                      style={{ backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
+                      className="p-6 cursor-pointer group rounded-2xl border border-border bg-card"
                     >
-                      <div className="flex items-center gap-4 mb-6">
+                      <div className="flex items-center gap-4 mb-4">
                         <div className="relative">
-                          <BookOpen className="w-10 h-10 text-white" />
+                          <BookOpen className="w-8 h-8 text-foreground" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-xl font-bold text-white mb-1">SELECT PROTOCOL</h3>
-                          <p className="text-white text-sm font-bold uppercase tracking-wider">MATH :: PHYSICS</p>
+                          <h3 className="text-lg font-bold text-foreground mb-1">SELECT PROTOCOL</h3>
+                          <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">MATH :: PHYSICS</p>
                         </div>
-                        <ChevronRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" />
+                        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
                       </div>
                       
-                      <div className="relative h-32 rounded-xl overflow-hidden border border-white/20 mb-4 bg-white/5">
+                      <div className="relative h-32 rounded-xl overflow-hidden border border-border mb-4 bg-muted/50">
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="text-center">
-                            <Rocket className="w-8 h-8 text-white mx-auto mb-2" />
-                            <span className="text-white font-medium">Choose Your Path</span>
+                            <Rocket className="w-8 h-8 text-foreground mx-auto mb-2" />
+                            <span className="text-foreground font-medium">Choose Your Path</span>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="text-xs text-white uppercase tracking-wider text-center">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider text-center">
                         ◦ CLICK TO SELECT ◦
                       </div>
                     </motion.div>
@@ -316,7 +314,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleStartSelectedMode}
-                    className="w-full py-6 text-xl font-bold relative group rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-gray-900"
+                    className="w-full py-5 text-lg font-bold relative group rounded-xl bg-accent text-background hover:bg-accent/90 transition-colors"
                     style={{ fontFamily: 'Roboto, sans-serif' }}
                   >
                     <div className="flex items-center justify-center gap-4">
@@ -332,8 +330,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                       transition={{ duration: 0.8, delay: 0.3 }}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className="w-full py-6 font-bold text-xl rounded-xl border-2 border-primary/50 backdrop-blur-sm text-white hover:bg-primary/10 transition-all duration-300 flex items-center justify-center gap-4"
-                      style={{ fontFamily: 'Roboto, sans-serif', backgroundColor: 'rgba(15, 15, 25, 0.95)' }}
+                      className="w-full py-5 font-bold text-lg rounded-xl border border-border bg-card text-foreground hover:bg-muted transition-all duration-300 flex items-center justify-center gap-4"
+                      style={{ fontFamily: 'Roboto, sans-serif' }}
                     >
                       <BookOpen className="w-8 h-8" />
                       <span>SELECT PROTOCOL</span>
@@ -356,20 +354,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="p-8 rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
+                className="p-6 rounded-2xl border border-border bg-card"
               >
-                <h4 className="text-2xl font-black text-white mb-6 uppercase tracking-wider">PROGRESS TRACKER</h4>
+                <h4 className="text-xl font-bold text-foreground mb-6 uppercase tracking-wide">PROGRESS TRACKER</h4>
                 
                 {/* Subject Progress with Ranks */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-white/10 border border-white/20">
-                    <span className="text-white font-bold text-sm uppercase">Math</span>
-                    <span className="text-xs text-white/60">• {currentRank.displayName}</span>
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted border border-border">
+                    <span className="text-foreground font-bold text-sm uppercase">MATH</span>
+                    <span className="text-xs text-muted-foreground">• {currentRank.displayName}</span>
                   </div>
 
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-white/10 border border-white/20">
-                    <span className="text-white font-bold text-sm uppercase">Physics</span>
-                    <span className="text-xs text-white/60">• {currentRank.displayName}</span>
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted border border-border">
+                    <span className="text-foreground font-bold text-sm uppercase">PHYSICS</span>
+                    <span className="text-xs text-muted-foreground">• {currentRank.displayName}</span>
                   </div>
                 </div>
               </motion.div>
@@ -381,24 +379,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 initial={{ x: 100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.5 }}
-                className="p-6 rounded-3xl border-2 border-white/50 backdrop-blur-xl bg-white/10"
+                className="p-6 rounded-2xl border border-border bg-card"
               >
-                <h4 className="text-2xl font-black text-white mb-6 uppercase tracking-wider">ANALYTICS</h4>
+                <h4 className="text-xl font-bold text-foreground mb-6 uppercase tracking-wide">ANALYTICS</h4>
                 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 rounded-lg bg-white/10 border border-white/20">
-                    <div className="text-2xl font-bold text-white mb-1">{userData.winStreak}</div>
-                    <div className="text-xs text-white/70 uppercase tracking-wider">Streak</div>
+                  <div className="text-center p-3 rounded-lg bg-muted border border-border">
+                    <div className="text-2xl font-bold text-foreground mb-1">{userData.winStreak}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">STREAK</div>
                   </div>
                   
-                  <div className="text-center p-3 rounded-lg bg-white/10 border border-white/20">
-                    <div className="text-2xl font-bold text-white mb-1">{userData.totalMatches}</div>
-                    <div className="text-xs text-white/70 uppercase tracking-wider">Battles</div>
+                  <div className="text-center p-3 rounded-lg bg-muted border border-border">
+                    <div className="text-2xl font-bold text-foreground mb-1">{userData.totalMatches}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">BATTLES</div>
                   </div>
                 </div>
                 
-                <div className="mt-4 p-3 rounded-lg bg-white/10 border border-white/20 flex items-center justify-between">
-                  <span className="text-white/70 text-sm font-medium">Current Rank</span>
+                <div className="mt-4 p-3 rounded-lg bg-muted border border-border flex items-center justify-between">
+                  <span className="text-muted-foreground text-sm font-medium">Current Rank</span>
                   <RankBadge rank={userData.currentRank} size="sm" />
                 </div>
               </motion.div>
@@ -409,8 +407,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
         {selectedTab !== "PLAY" && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <h3 className="text-4xl font-bold mb-4 text-white">Coming Soon</h3>
-              <p className="text-xl text-white/70">{selectedTab} section is under development</p>
+              <h3 className="text-4xl font-bold mb-4 text-foreground">Coming Soon</h3>
+              <p className="text-xl text-muted-foreground">{selectedTab} section is under development</p>
             </div>
           </div>
         )}
