@@ -139,22 +139,8 @@ export const OnlineBattle = () => {
       console.log('Checking if both players are ready...');
 
       if (match.state === 'active') {
-        console.log('Match is active, starting countdown...');
+        console.log('Match is active, starting immediately...');
         setMatchReady(true);
-        setCountdown(3);
-      }
-    };
-
-    checkBothPlayersReady();
-  }, [match, currentUser]);
-
-  useEffect(() => {
-    if (countdown === null || countdown === 0) return;
-
-    const timer = setTimeout(() => {
-      if (countdown > 1) {
-        setCountdown(countdown - 1);
-      } else {
         setCountdown(null);
         setTimeLeft(300);
         setCurrentStep(0);
@@ -162,10 +148,12 @@ export const OnlineBattle = () => {
         setShowFeedback(false);
         setWaitingForOpponent(false);
       }
-    }, 1000);
+    };
 
-    return () => clearTimeout(timer);
-  }, [countdown]);
+    checkBothPlayersReady();
+  }, [match, currentUser]);
+
+  // Countdown removed - instant start
 
   // Subscribe to match updates and player actions
   useEffect(() => {

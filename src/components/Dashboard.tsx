@@ -35,43 +35,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
   const { selectedCharacter, setCharacterSelectionOpen } = useCharacter();
   const { isAdmin } = useIsAdmin();
   const { signOut } = useAuth();
-  const [isMatchmaking, setIsMatchmaking] = useState(false);
-  const [matchmakingTime, setMatchmakingTime] = useState(0);
-  
   const currentRank = getRankByPoints(userData.currentPoints);
   
   const selectedSubject = searchParams.get('subject');
   const selectedMode = searchParams.get('mode');
 
-  useEffect(() => {
-    if (isMatchmaking) {
-      const timer = setInterval(() => {
-        setMatchmakingTime((prev) => {
-          if (prev >= 9) {
-            clearInterval(timer);
-            setIsMatchmaking(false);
-            // Navigate to battle
-            if (selectedSubject === 'math') {
-              navigate('/battle', { state: { level: selectedMode } });
-            } else {
-              navigate('/physics-battle', { state: { level: selectedMode } });
-            }
-            return 0;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-
-      return () => {
-        clearInterval(timer);
-      };
-    }
-  }, [isMatchmaking, selectedSubject, selectedMode, navigate]);
-
   const handleStartSelectedMode = () => {
     if (selectedSubject && selectedMode) {
-      setIsMatchmaking(true);
-      setMatchmakingTime(0);
+      // INSTANT START - NO DELAYS
+      if (selectedSubject === 'math') {
+        navigate('/battle', { state: { subject: 'math', chapter: selectedMode } });
+      } else {
+        navigate('/physics-battle', { state: { subject: 'physics', chapter: selectedMode } });
+      }
     }
   };
 
