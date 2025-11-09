@@ -35,10 +35,10 @@ export default function BattleLoader() {
         <h1 className="text-2xl font-bold">No Questions Available</h1>
         <p>No questions found for {subject} - {chapter}</p>
         <button
-          onClick={() => navigate('/math-modes')}
+          onClick={() => navigate('/')}
           className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
         >
-          Back to Modes
+          Back to Dashboard
         </button>
       </div>
     );
@@ -47,8 +47,8 @@ export default function BattleLoader() {
   return (
     <StepBattlePage
       questions={questions}
-      onBattleEnd={() => navigate('/math-modes')}
-      onGoBack={() => navigate('/math-modes')}
+      onBattleEnd={() => navigate('/')}
+      onGoBack={() => navigate('/')}
     />
   );
 }
