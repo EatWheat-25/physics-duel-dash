@@ -32,7 +32,6 @@ Deno.serve(async (req) => {
     const { data: queueEntries, error: queueError } = await supabase
       .from('queue')
       .select('*')
-      .gt('last_heartbeat', new Date(Date.now() - 45000).toISOString())
       .order('enqueued_at', { ascending: true })
 
     if (queueError || !queueEntries || queueEntries.length === 0) {
