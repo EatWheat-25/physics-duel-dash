@@ -58,10 +58,14 @@ export const useMatchmaking = (subject: string, chapter: string) => {
 
       if (data.matched) {
         console.log('🎉 Matched immediately!');
-        setMatchId(data.match_id);
-        setOpponentName(data.opponent_name);
-        setMatchQuality(data.match_quality);
-        setInQueue(false);
+        // Navigate immediately without setting up subscriptions
+        navigate(`/online-battle/${data.match_id}`, {
+          state: { 
+            opponentName: data.opponent_name, 
+            yourUsername, 
+            matchQuality: data.match_quality 
+          }
+        });
         return;
       }
 
