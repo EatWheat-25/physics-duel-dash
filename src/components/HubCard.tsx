@@ -1,17 +1,27 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Atom, BookOpen, Swords } from 'lucide-react';
 import { SegmentedSubject } from './SegmentedSubject';
+import { ModeDropdown } from './ModeDropdown';
 import { Tile } from './Tile';
 import { useSubjectStore } from '@/store/useSubjectStore';
+import { GameMode } from '@/types/gameMode';
 
 export function HubCard() {
   const navigate = useNavigate();
   const { subject } = useSubjectStore();
+  const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const handleNavigation = (path: string) => {
     navigate(`${path}?subject=${subject}`);
+  };
+
+  const handleBattleClick = () => {
+    if (selectedMode) {
+      navigate(`/battle/queue?subject=${subject}&mode=${selectedMode}`);
+    }
   };
 
   return (
@@ -51,13 +61,16 @@ export function HubCard() {
         />
 
         <div className="relative z-10 p-8 space-y-6">
-          <div className="flex items-center justify-between gap-4">
-            <h1
-              className="text-2xl md:text-3xl font-bold"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              Choose Your Path
-            </h1>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1">
+              <ModeDropdown selectedMode={selectedMode} onSelectMode={setSelectedMode} />
+              <h1
+                className="text-2xl md:text-3xl font-bold"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                Choose Your Path
+              </h1>
+            </div>
             <SegmentedSubject />
           </div>
 
@@ -99,12 +112,33 @@ export function HubCard() {
                 onClick={() => handleNavigation('/study')}
               />
 
-              <Tile
-                icon={Swords}
-                title="1V1 BATTLE ARENA"
-                subtitle="A1 & A2 • Chapter Competitive • Quick Match • Ranked"
-                onClick={() => handleNavigation('/battle/queue')}
-              />
+              <motion.div
+                animate={
+                  selectedMode && !prefersReducedMotion
+                    ? {
+                        boxShadow: [
+                          '0 0 30px rgba(154,91,255,0.3)',
+                          '0 0 40px rgba(154,91,255,0.5)',
+                          '0 0 30px rgba(154,91,255,0.3)',
+                        ],
+                      }
+                    : {}
+                }
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                className="rounded-2xl"
+              >
+                <Tile
+                  icon={Swords}
+                  title="1V1 BATTLE ARENA"
+                  subtitle={
+                    selectedMode
+                      ? 'Ready to Battle! • Click to Start'
+                      : 'Select a mode first to battle'
+                  }
+                  onClick={handleBattleClick}
+                  className={selectedMode ? '' : 'opacity-60 cursor-not-allowed'}
+                />
+              </motion.div>
             </div>
           </div>
 
