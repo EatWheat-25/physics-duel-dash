@@ -72,63 +72,42 @@ export const useMatchmaking = (subject: string, chapter: string) => {
       setInQueue(true);
       console.log('⏳ Added to queue, waiting for opponent...');
 
-      if (channelRef.current) {
-        await supabase.removeChannel(channelRef.current);
-      }
+      // Poll for matches every 500ms as primary mechanism (realtime as backup)
+      const pollInterval = setInterval(async () => {
+        console.log('🔍 Polling for match...');
+        const { data: matches } = await supabase
+          .from('matches_new')
+          .select('*')
+          .or(`p1.eq.${user.id},p2.eq.${user.id}`)
+          .order('created_at', { ascending: false })
+          .limit(1);
 
-      channelRef.current = supabase
-        .channel(`matchmaking_${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'matches_new',
-            filter: `p1=eq.${user.id}`,
-          },
-          async (payload) => {
-            console.log('🎉 Match found (as p1)!', payload);
-            const match = payload.new as any;
+        if (matches && matches.length > 0) {
+          const match = matches[0];
+          console.log('🎉 Match found via polling!', match);
+          
+          clearInterval(pollInterval);
+          
+          const opponentId = match.p1 === user.id ? match.p2 : match.p1;
+          const { data: opponent } = await supabase
+            .from('players')
+            .select('display_name')
+            .eq('id', opponentId)
+            .maybeSingle();
 
-            const { data: opponent } = await supabase
-              .from('players')
-              .select('display_name')
-              .eq('id', match.p2)
-              .maybeSingle();
+          // Navigate immediately
+          navigate(`/online-battle/${match.id}`, {
+            state: { 
+              opponentName: opponent?.display_name || 'Opponent', 
+              yourUsername, 
+              matchQuality: null 
+            }
+          });
+        }
+      }, 500);
 
-            setMatchId(match.id);
-            setOpponentName(opponent?.display_name || 'Opponent');
-            setMatchQuality(null);
-            setInQueue(false);
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'matches_new',
-            filter: `p2=eq.${user.id}`,
-          },
-          async (payload) => {
-            console.log('🎉 Match found (as p2)!', payload);
-            const match = payload.new as any;
-
-            const { data: opponent } = await supabase
-              .from('players')
-              .select('display_name')
-              .eq('id', match.p1)
-              .maybeSingle();
-
-            setMatchId(match.id);
-            setOpponentName(opponent?.display_name || 'Opponent');
-            setMatchQuality(null);
-            setInQueue(false);
-          }
-        )
-        .subscribe((status) => {
-          console.log('Realtime subscription status:', status);
-        });
+      // Store interval ref for cleanup
+      (channelRef as any).pollInterval = pollInterval;
 
     } catch (error) {
       console.error('Error in joinQueue:', error);
@@ -137,6 +116,11 @@ export const useMatchmaking = (subject: string, chapter: string) => {
 
   const leaveQueue = async () => {
     try {
+      // Clear polling interval
+      if (channelRef.current && (channelRef as any).pollInterval) {
+        clearInterval((channelRef as any).pollInterval);
+      }
+
       if (channelRef.current) {
         await supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -163,6 +147,10 @@ export const useMatchmaking = (subject: string, chapter: string) => {
 
   useEffect(() => {
     return () => {
+      // Cleanup polling interval
+      if (channelRef.current && (channelRef as any).pollInterval) {
+        clearInterval((channelRef as any).pollInterval);
+      }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
