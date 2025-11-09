@@ -22,6 +22,12 @@ export default {
 				'sans': ['Inter', 'sans-serif'],
 				'heading': ['Roboto', 'sans-serif'],
 			},
+			backgroundImage: {
+				'gradient-cyan-purple': 'linear-gradient(135deg, hsl(180, 100%, 50%), hsl(280, 100%, 65%))',
+				'gradient-pink-purple': 'linear-gradient(135deg, hsl(320, 90%, 60%), hsl(280, 100%, 65%))',
+				'gradient-cyan-pink': 'linear-gradient(135deg, hsl(180, 100%, 50%), hsl(320, 90%, 60%))',
+				'gradient-title': 'linear-gradient(90deg, hsl(180, 100%, 60%), hsl(280, 100%, 70%))',
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',

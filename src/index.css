@@ -7,53 +7,50 @@ All colors MUST be HSL.
 */
 
 @layer base {
-  /* === Space Academy Theme === */
+  /* === Ultra Dark Cyber Theme === */
   
-  /* Core Colors - Dark Space */
-  --background: 240 20% 6%;           /* Deep space black */
-  --foreground: 40 10% 95%;           /* Warm white text */
+  /* Core Colors - Ultra Dark */
+  --background: 240 25% 4%;           /* Almost black #0a0a14 */
+  --foreground: 210 15% 90%;          /* Light gray text */
   
-  --card: 240 15% 10%;                /* Dark panels */
-  --card-foreground: 40 10% 95%;
+  --card: 240 20% 6%;                 /* Very dark panels */
+  --card-foreground: 210 15% 90%;
   
-  --popover: 240 20% 8%;
-  --popover-foreground: 40 10% 95%;
+  --popover: 240 25% 5%;
+  --popover-foreground: 210 15% 90%;
   
-  --primary: 45 95% 60%;              /* Golden yellow */
-  --primary-foreground: 240 20% 10%;
+  --primary: 180 100% 50%;            /* Vibrant cyan */
+  --primary-foreground: 240 25% 4%;
   
-  --secondary: 40 80% 50%;            /* Amber/orange */
-  --secondary-foreground: 240 20% 10%;
+  --secondary: 280 100% 65%;          /* Bright purple */
+  --secondary-foreground: 240 25% 4%;
   
-  --muted: 240 10% 15%;
-  --muted-foreground: 240 5% 60%;
+  --muted: 240 15% 10%;
+  --muted-foreground: 210 10% 50%;
   
-  --accent: 35 90% 55%;               /* Bright orange accent */
-  --accent-foreground: 240 20% 10%;
+  --accent: 320 90% 60%;              /* Hot pink accent */
+  --accent-foreground: 240 25% 4%;
   
   --destructive: 0 84% 60%;
-  --destructive-foreground: 40 10% 95%;
+  --destructive-foreground: 210 15% 90%;
   
-  --border: 240 15% 18%;
-  --input: 240 15% 12%;
-  --ring: 45 95% 60%;
+  --border: 240 20% 15%;
+  --input: 240 20% 8%;
+  --ring: 180 100% 50%;
   
-  /* Custom Space Variables */
-  --space-gold: 45 95% 60%;
-  --space-amber: 40 80% 50%;
-  --space-void: 240 20% 4%;
+  /* Vibrant Gradients */
+  --gradient-cyan-purple: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(280, 100%, 65%));
+  --gradient-pink-purple: linear-gradient(135deg, hsl(320, 90%, 60%), hsl(280, 100%, 65%));
+  --gradient-cyan-pink: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(320, 90%, 60%));
+  --gradient-title: linear-gradient(90deg, hsl(180, 100%, 60%), hsl(280, 100%, 70%));
   
-  /* Battle Colors */
-  --battle-primary: 120 60% 45%;      /* Green for player */
-  --battle-danger: 0 84% 60%;         /* Red for opponent */
-    --shadow-cyber: 0 10px 40px hsl(180, 100%, 50%, 0.4);
-    --shadow-neon: 0 0 60px hsl(280, 100%, 70%, 0.5);
-    --shadow-accent: 0 0 50px hsl(320, 100%, 60%, 0.4);
-    --shadow-hologram: 0 8px 32px hsl(180, 100%, 50%, 0.2), 0 0 60px hsl(280, 100%, 70%, 0.3);
-    --glow-primary: drop-shadow(0 0 25px hsl(180, 100%, 50%, 0.6));
-    --glow-accent: drop-shadow(0 0 30px hsl(280, 100%, 70%, 0.5));
-    --glow-robot: 0 0 50px hsl(180, 100%, 50%, 0.5), 0 0 100px hsl(280, 100%, 70%, 0.4), 0 0 150px hsl(320, 100%, 60%, 0.3);
-    --glow-panel: 0 4px 20px hsl(180, 100%, 50%, 0.1), inset 0 1px 0 hsl(180, 100%, 50%, 0.2);
+  /* Shadow & Glow Effects */
+  --shadow-cyan: 0 0 40px hsl(180, 100%, 50%, 0.4);
+  --shadow-purple: 0 0 40px hsl(280, 100%, 65%, 0.4);
+  --shadow-pink: 0 0 40px hsl(320, 90%, 60%, 0.4);
+  --glow-cyan: drop-shadow(0 0 20px hsl(180, 100%, 50%, 0.6));
+  --glow-purple: drop-shadow(0 0 20px hsl(280, 100%, 65%, 0.6));
+  --glow-pink: drop-shadow(0 0 20px hsl(320, 90%, 60%, 0.6));
     
     /* Advanced Holographic Glass Effects */
     --glass-bg: rgba(0, 20, 40, 0.1);
@@ -123,7 +120,7 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-    background: var(--gradient-bg);
+    background: linear-gradient(135deg, hsl(240, 25%, 4%), hsl(240, 30%, 6%));
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
   }
