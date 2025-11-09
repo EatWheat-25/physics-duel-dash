@@ -7,50 +7,53 @@ All colors MUST be HSL.
 */
 
 @layer base {
-  /* === Dark Charcoal Theme === */
+  /* === Space Academy Theme === */
   
-  /* Core Colors - Charcoal Dark */
-  --background: 220 13% 10%;           /* Dark charcoal #1a1a1f */
-  --foreground: 0 0% 98%;              /* Nearly white text */
+  /* Core Colors - Dark Space */
+  --background: 240 20% 6%;           /* Deep space black */
+  --foreground: 40 10% 95%;           /* Warm white text */
   
-  --card: 220 13% 15%;                 /* Slightly lighter panels */
-  --card-foreground: 0 0% 98%;
+  --card: 240 15% 10%;                /* Dark panels */
+  --card-foreground: 40 10% 95%;
   
-  --popover: 220 13% 12%;
-  --popover-foreground: 0 0% 98%;
+  --popover: 240 20% 8%;
+  --popover-foreground: 40 10% 95%;
   
-  --primary: 210 40% 98%;              /* White/Light */
-  --primary-foreground: 220 13% 10%;
+  --primary: 45 95% 60%;              /* Golden yellow */
+  --primary-foreground: 240 20% 10%;
   
-  --secondary: 220 13% 18%;            /* Darker grey */
-  --secondary-foreground: 0 0% 98%;
+  --secondary: 40 80% 50%;            /* Amber/orange */
+  --secondary-foreground: 240 20% 10%;
   
-  --muted: 220 13% 20%;
-  --muted-foreground: 0 0% 65%;
+  --muted: 240 10% 15%;
+  --muted-foreground: 240 5% 60%;
   
-  --accent: 28 88% 62%;                /* Orange accent */
-  --accent-foreground: 220 13% 10%;
+  --accent: 35 90% 55%;               /* Bright orange accent */
+  --accent-foreground: 240 20% 10%;
   
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 40 10% 95%;
   
-  --border: 220 13% 25%;
-  --input: 220 13% 18%;
-  --ring: 28 88% 62%;
+  --border: 240 15% 18%;
+  --input: 240 15% 12%;
+  --ring: 45 95% 60%;
   
-  /* Vibrant Gradients */
-  --gradient-cyan-purple: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(280, 100%, 65%));
-  --gradient-pink-purple: linear-gradient(135deg, hsl(320, 90%, 60%), hsl(280, 100%, 65%));
-  --gradient-cyan-pink: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(320, 90%, 60%));
-  --gradient-title: linear-gradient(90deg, hsl(180, 100%, 60%), hsl(280, 100%, 70%));
+  /* Custom Space Variables */
+  --space-gold: 45 95% 60%;
+  --space-amber: 40 80% 50%;
+  --space-void: 240 20% 4%;
   
-  /* Shadow & Glow Effects */
-  --shadow-cyan: 0 0 40px hsl(180, 100%, 50%, 0.4);
-  --shadow-purple: 0 0 40px hsl(280, 100%, 65%, 0.4);
-  --shadow-pink: 0 0 40px hsl(320, 90%, 60%, 0.4);
-  --glow-cyan: drop-shadow(0 0 20px hsl(180, 100%, 50%, 0.6));
-  --glow-purple: drop-shadow(0 0 20px hsl(280, 100%, 65%, 0.6));
-  --glow-pink: drop-shadow(0 0 20px hsl(320, 90%, 60%, 0.6));
+  /* Battle Colors */
+  --battle-primary: 120 60% 45%;      /* Green for player */
+  --battle-danger: 0 84% 60%;         /* Red for opponent */
+    --shadow-cyber: 0 10px 40px hsl(180, 100%, 50%, 0.4);
+    --shadow-neon: 0 0 60px hsl(280, 100%, 70%, 0.5);
+    --shadow-accent: 0 0 50px hsl(320, 100%, 60%, 0.4);
+    --shadow-hologram: 0 8px 32px hsl(180, 100%, 50%, 0.2), 0 0 60px hsl(280, 100%, 70%, 0.3);
+    --glow-primary: drop-shadow(0 0 25px hsl(180, 100%, 50%, 0.6));
+    --glow-accent: drop-shadow(0 0 30px hsl(280, 100%, 70%, 0.5));
+    --glow-robot: 0 0 50px hsl(180, 100%, 50%, 0.5), 0 0 100px hsl(280, 100%, 70%, 0.4), 0 0 150px hsl(320, 100%, 60%, 0.3);
+    --glow-panel: 0 4px 20px hsl(180, 100%, 50%, 0.1), inset 0 1px 0 hsl(180, 100%, 50%, 0.2);
     
     /* Advanced Holographic Glass Effects */
     --glass-bg: rgba(0, 20, 40, 0.1);
@@ -120,7 +123,7 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-    background: hsl(220, 13%, 10%);
+    background: var(--gradient-bg);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
   }
@@ -129,14 +132,41 @@ All colors MUST be HSL.
     font-family: 'Roboto', sans-serif;
   }
 
-  /* Remove decorative patterns for clean look */
+  /* Subtle Futuristic Tech Grid Pattern */
   body::before {
-    display: none;
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: 
+      var(--pattern-grid),
+      var(--pattern-circuit),
+      linear-gradient(45deg, transparent 40%, hsl(188, 60%, 80%, 0.05) 50%, transparent 60%),
+      linear-gradient(-45deg, transparent 40%, hsl(193, 60%, 75%, 0.05) 50%, transparent 60%);
+    background-size: 60px 60px, 80px 80px, 200px 200px, 300px 300px;
+    background-position: 0 0, 40px 40px, 0 0, 150px 150px;
+    animation: gridFloat 30s ease-in-out infinite, gridPulse 12s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: -2;
   }
 
-  /* Remove decorative glow */
+  /* Soft floating holographic elements */
   body::after {
-    display: none;
+    content: '';
+    position: fixed;
+    top: -5%;
+    left: -5%;
+    width: 110%;
+    height: 110%;
+    background: 
+      radial-gradient(circle at 25% 25%, hsl(188, 80%, 85%, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 75% 75%, hsl(193, 80%, 80%, 0.06) 0%, transparent 40%),
+      radial-gradient(circle at 50% 50%, hsl(175, 70%, 85%, 0.04) 0%, transparent 30%);
+    animation: particleFloat 35s ease-in-out infinite;
+    pointer-events: none;
+    z-index: -1;
   }
 
   @keyframes gridFloat {
