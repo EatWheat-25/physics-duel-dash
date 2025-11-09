@@ -6,6 +6,7 @@ import { CharacterProvider } from "@/hooks/useCharacter";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import Index from "./pages/Index";
+import NewHome from "./pages/NewHome";
 import NotFound from "./pages/NotFound";
 import ModeSelection from "./pages/ModeSelection";
 import GameModes from "./components/GameModes";
@@ -33,7 +34,8 @@ const App = () => {
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/" element={<Index />} />
+              <Route path="/" element={<NewHome />} />
+              <Route path="/old-home" element={<Index />} />
               <Route path="/modes" element={<ModeSelection />} />
               <Route path="/game-modes" element={<GameModes />} />
             <Route path="/admin/login" element={<AdminLogin />} />

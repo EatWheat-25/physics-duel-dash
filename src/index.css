@@ -7,8 +7,23 @@ All colors MUST be HSL.
 */
 
 @layer base {
+  :root {
+    /* === Neon Sci-Fi Theme === */
+    --pink: #ff4dd8;
+    --purple: #7b5cff;
+    --violet: #9a5bff;
+    --magenta: #f237d4;
+    --blue: #58c4ff;
+    --aqua: #5ef1ff;
+    --indigo: #4b5dff;
+    --neon-card: rgba(255,255,255,0.08);
+    --neon-border: rgba(255,255,255,0.18);
+    --text-primary: #eaf0ff;
+    --text-dim: #b8c2ff;
+  }
+
   /* === Space Academy Theme === */
-  
+
   /* Core Colors - Dark Space */
   --background: 240 20% 6%;           /* Deep space black */
   --foreground: 40 10% 95%;           /* Warm white text */
