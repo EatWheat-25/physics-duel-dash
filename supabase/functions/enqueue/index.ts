@@ -72,41 +72,61 @@ Deno.serve(async (req) => {
 
     const mmr = player?.mmr || 1000
 
-    const { data: matchResult, error: matchError } = await supabase
-      .rpc('try_match_player_enhanced', {
-        p_player_id: user.id,
-        p_subject: subject,
-        p_chapter: chapter,
-        p_mmr: mmr,
-        p_wait_seconds: 0,
-      })
-      .maybeSingle()
+    // Try to find an opponent waiting in queue
+    const { data: waitingPlayers } = await supabase
+      .from('queue')
+      .select('*')
+      .eq('subject', subject)
+      .eq('chapter', chapter)
+      .neq('player_id', user.id)
+      .order('enqueued_at', { ascending: true })
+      .limit(1)
 
-    if (matchError) {
-      console.error('Match error:', matchError)
-    }
+    if (waitingPlayers && waitingPlayers.length > 0) {
+      const opponent = waitingPlayers[0]
+      
+      // Get opponent's display name
+      const { data: opponentPlayer } = await supabase
+        .from('players')
+        .select('display_name')
+        .eq('id', opponent.player_id)
+        .maybeSingle()
 
-    if (matchResult && matchResult.matched) {
-      console.log(`Player ${user.id} matched immediately with ${matchResult.opponent_id}`)
+      // Create the match
+      const { data: newMatch, error: matchError } = await supabase
+        .from('matches_new')
+        .insert({
+          p1: user.id,
+          p2: opponent.player_id,
+          subject,
+          chapter,
+          state: 'active'
+        })
+        .select()
+        .single()
 
-      await supabase.from('player_activity').upsert({
-        player_id: user.id,
-        last_seen: new Date().toISOString(),
-      }, {
-        onConflict: 'player_id',
-        ignoreDuplicates: false
-      })
+      if (matchError) {
+        console.error('Failed to create match:', matchError)
+      } else {
+        // Remove both players from queue
+        await supabase
+          .from('queue')
+          .delete()
+          .in('player_id', [user.id, opponent.player_id])
 
-      return new Response(JSON.stringify({
-        success: true,
-        matched: true,
-        match_id: matchResult.match_id,
-        opponent_name: matchResult.opponent_name,
-        match_quality: matchResult.match_quality,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+        console.log(`Instant match created: ${newMatch.id}`)
+
+        return new Response(JSON.stringify({
+          success: true,
+          matched: true,
+          match_id: newMatch.id,
+          opponent_name: opponentPlayer?.display_name || 'Opponent',
+          match_quality: 100,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
     }
 
     const { error: queueError } = await supabase.from('queue').upsert({
