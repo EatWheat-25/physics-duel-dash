@@ -5,7 +5,8 @@ import { BottomNav } from '@/components/BottomNav';
 import { TopLeftSelect } from '@/components/TopLeftSelect';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function Lobby() {
   const [searchParams] = useSearchParams();
@@ -138,11 +139,34 @@ export default function Lobby() {
     }
   };
 
+  const handleBack = async () => {
+    if (isQueued) {
+      await handleLeaveQueue();
+    }
+    navigate('/');
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden">
       <Starfield />
 
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleBack}
+          className="gap-2 font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[var(--violet)]"
+          style={{
+            background: 'rgba(255,255,255,0.05)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'var(--text-primary)',
+          }}
+          aria-label="Go back to home"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back</span>
+        </Button>
         <TopLeftSelect />
       </div>
 
