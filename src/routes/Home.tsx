@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Starfield } from '@/components/Starfield';
 import { HubCard } from '@/components/HubCard';
 import { BottomNav } from '@/components/BottomNav';
+import { TopLeftSelect } from '@/components/TopLeftSelect';
 
 export default function Home() {
   useEffect(() => {
@@ -11,6 +12,10 @@ export default function Home() {
   return (
     <div className="relative min-h-screen overflow-hidden flex items-center justify-center">
       <Starfield />
+
+      <div className="absolute top-4 left-4 z-20">
+        <TopLeftSelect />
+      </div>
 
       <div
         className="absolute inset-0 pointer-events-none"

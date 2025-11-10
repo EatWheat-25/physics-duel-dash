@@ -3,7 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, Trophy, Zap, TrendingUp, ShoppingBag } from 'lucide-react';
 import { useSubjectStore } from '@/store/useSubjectStore';
 
-export function BottomNav() {
+interface BottomNavProps {
+  onBattleClick?: () => void;
+}
+
+export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { subject } = useSubjectStore();
@@ -53,7 +57,7 @@ export function BottomNav() {
             return (
               <motion.button
                 key={item.label}
-                onClick={() => handleNavigation(item.path)}
+                onClick={onBattleClick || (() => handleNavigation(item.path))}
                 className="relative px-6 md:px-8 py-3 md:py-4 rounded-full font-bold text-xs md:text-sm uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914]"
                 style={{
                   background: 'linear-gradient(135deg, var(--magenta), var(--violet))',

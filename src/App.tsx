@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import Index from "./pages/Index";
 import Home from "./routes/Home";
+import Lobby from "./routes/Lobby";
 import DailyChallenge from "./routes/DailyChallenge";
 import Study from "./routes/Study";
 import BattleQueue from "./routes/BattleQueue";
@@ -42,6 +43,7 @@ const App = () => {
               <Route path="/auth" element={<Auth />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/" element={<Home />} />
+              <Route path="/lobby" element={<Lobby />} />
               <Route path="/daily-challenge" element={<DailyChallenge />} />
               <Route path="/study" element={<Study />} />
               <Route path="/battle/queue" element={<BattleQueue />} />
