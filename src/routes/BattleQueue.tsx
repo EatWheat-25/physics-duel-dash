@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Swords, ChevronDown } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Swords, ChevronDown, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Starfield } from '@/components/Starfield';
 import { BottomNav } from '@/components/BottomNav';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 
 export default function BattleQueue() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const subject = searchParams.get('subject') || 'physics';
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -28,9 +29,20 @@ export default function BattleQueue() {
       <Starfield />
 
       <div className="relative z-10 min-h-screen px-4 sm:px-6 lg:px-8 py-8 pb-32">
-        {/* Mode Selector - Top Left */}
+        {/* Back Button & Mode Selector - Top Left */}
         <div className="max-w-7xl mx-auto mb-8">
-          <div className="relative inline-block">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="gap-2 font-bold uppercase tracking-wider bg-card/80 backdrop-blur-xl border border-border hover:border-primary/40"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </Button>
+            
+            <div className="relative inline-block">
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="flex items-center gap-3 px-6 py-3 rounded-2xl text-sm font-bold uppercase tracking-wider transition-all duration-300 bg-card/80 backdrop-blur-xl border border-border hover:border-primary/40 text-foreground"
@@ -70,6 +82,7 @@ export default function BattleQueue() {
                 </motion.div>
               )}
             </AnimatePresence>
+            </div>
           </div>
         </div>
 
