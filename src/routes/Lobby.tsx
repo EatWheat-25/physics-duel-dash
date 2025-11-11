@@ -16,12 +16,9 @@ const subjects = [
 ];
 
 const grades = [
-  { id: 'grade-9' as Grade, name: 'Grade 9', level: 'Foundation' },
-  { id: 'grade-10' as Grade, name: 'Grade 10', level: 'Intermediate' },
-  { id: 'grade-11' as Grade, name: 'Grade 11', level: 'Advanced' },
-  { id: 'grade-12' as Grade, name: 'Grade 12', level: 'Advanced' },
-  { id: 'as-level' as Grade, name: 'AS Level', level: 'Expert' },
-  { id: 'a2-level' as Grade, name: 'A2 Level', level: 'Expert' },
+  { id: 'as-level' as Grade, name: 'AS Level', level: 'AS Only' },
+  { id: 'a2-level' as Grade, name: 'A2 Level', level: 'A2 Only' },
+  { id: 'grade-12' as Grade, name: 'AS + A2', level: 'Composite' },
 ];
 
 export default function Lobby() {
@@ -327,7 +324,7 @@ export default function Lobby() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
                   {grades.map((grade, index) => (
                     <motion.button
                       key={grade.id}
