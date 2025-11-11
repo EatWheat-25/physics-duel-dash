@@ -99,9 +99,11 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
    npm run dev
    ```
 
-### How It Works
+### Instant Matchmaking (Current Implementation)
 
-**Instant Matching Flow (NOT Offer/Accept):**
+Users click **Start Battle** → `enqueue` tries to pair instantly; otherwise `matchmaker_tick` (2s) pairs waiting players. The client listens to **Realtime INSERT** on `public.matches_new` for the current user (two filters: `player1_id` and `player2_id`), then navigates immediately to `/battle/:matchId`. In battle, both clients connect to `game-ws`, send `ready`, receive `game_start`, and play with live `score_update` and `match_end`.
+
+**Detailed Flow:**
 
 ```
 Player clicks "Start Battle"
@@ -158,7 +160,15 @@ Battle begins with live score updates via WebSocket
 - Client-side navigation lock prevents duplicate navigations
 - Heartbeat failures (3 consecutive) auto-remove from queue
 
-### 5-Minute Acceptance Test
+### 5-Minute Test
+
+1. Open two browsers, log into different accounts
+2. Queue both on same mode → both navigate ≤2s
+3. See `game_start` → answer a few questions → see live scores → end screen
+
+If navigation stalls, verify realtime publication + RLS policy on `matches_new`.
+
+**Detailed Test Steps:**
 
 ```bash
 # Terminal: Start dev server
