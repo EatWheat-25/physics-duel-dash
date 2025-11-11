@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 
 export function HeaderUserMenu() {
+  const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -60,6 +62,25 @@ export function HeaderUserMenu() {
                   boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
                 }}
               >
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate('/profile');
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--violet)]"
+                  style={{ color: 'var(--text-primary)' }}
+                  role="menuitem"
+                >
+                  <User className="w-4 h-4" />
+                  <span className="font-medium text-sm">Profile</span>
+                </button>
+
+                <div
+                  className="h-px"
+                  style={{ background: 'rgba(255,255,255,0.1)' }}
+                  role="separator"
+                />
+
                 <button
                   onClick={() => {
                     setIsOpen(false);

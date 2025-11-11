@@ -1,18 +1,21 @@
 import { useEffect } from 'react';
 import { Starfield } from '@/components/Starfield';
+import { HubCard } from '@/components/HubCard';
 import { BottomNav } from '@/components/BottomNav';
-import { PlayerHubCard } from '@/components/hub/PlayerHubCard';
-import { QuickActionsStrip } from '@/components/hub/QuickActionsStrip';
 import { HeaderUserMenu } from '@/components/hub/HeaderUserMenu';
 
 export default function Home() {
   useEffect(() => {
-    document.title = 'Player Hub | BattleNerds';
+    document.title = 'Choose Your Path | BattleNerds';
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col">
+    <div className="relative min-h-screen overflow-hidden flex items-center justify-center">
       <Starfield />
+
+      <div className="absolute top-4 right-4 z-20">
+        <HeaderUserMenu />
+      </div>
 
       <div
         className="absolute inset-0 pointer-events-none"
@@ -22,18 +25,11 @@ export default function Home() {
         }}
       />
 
-      <header className="relative z-20 w-full max-w-[1200px] mx-auto px-6 pt-6 flex justify-end">
-        <HeaderUserMenu />
-      </header>
+      <div className="relative z-10 w-full px-4 sm:px-6 lg:px-8 py-8">
+        <HubCard />
+      </div>
 
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center gap-6 px-4 py-8">
-        <PlayerHubCard />
-        <QuickActionsStrip />
-      </main>
-
-      <footer className="relative z-20 pb-8">
-        <BottomNav />
-      </footer>
+      <BottomNav />
     </div>
   );
 }
