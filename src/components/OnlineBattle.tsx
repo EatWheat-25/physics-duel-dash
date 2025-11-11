@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { ArrowLeft } from 'lucide-react';
-import CyberpunkBackground from './CyberpunkBackground';
+import { Starfield } from './Starfield';
 import TugOfWarBar from './TugOfWarBar';
 
 interface Match {
@@ -247,8 +247,14 @@ export const OnlineBattle = () => {
 
   if (!match || !currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <CyberpunkBackground />
+      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        <Starfield />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)',
+          }}
+        />
         <div className="relative z-10 text-2xl">Loading battle...</div>
       </div>
     );
@@ -256,8 +262,14 @@ export const OnlineBattle = () => {
 
   if (countdown !== null) {
     return (
-      <div className="min-h-screen flex items-center justify-center relative">
-        <CyberpunkBackground />
+      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        <Starfield />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)',
+          }}
+        />
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -293,8 +305,14 @@ export const OnlineBattle = () => {
     const draw = !match.winner_id;
 
     return (
-      <div className="min-h-screen relative flex items-center justify-center">
-        <CyberpunkBackground />
+      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        <Starfield />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)',
+          }}
+        />
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -315,17 +333,27 @@ export const OnlineBattle = () => {
   }
 
   return (
-    <div className="min-h-screen relative">
-      <CyberpunkBackground />
+    <div className="relative min-h-screen overflow-hidden flex flex-col">
+      <Starfield />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)',
+        }}
+      />
       
-      <div className="relative z-10 container mx-auto px-4 py-8">
+      <div className="relative z-10 container mx-auto px-4 py-8 flex-1">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <Button variant="ghost" onClick={() => navigate('/')}>
-            <ArrowLeft className="mr-2" />
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate('/')}
+            className="backdrop-blur-sm bg-card/50 border border-border/50 hover:bg-card/70 hover:border-border"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Leave Match
           </Button>
-          <div className="text-2xl font-bold">
+          <div className="text-2xl font-bold backdrop-blur-sm bg-card/50 px-6 py-2 rounded-xl border border-border/50">
             {match.subject} - {match.chapter}
           </div>
         </div>
@@ -336,47 +364,63 @@ export const OnlineBattle = () => {
         </div>
 
         {/* Timer */}
-        <div className="mb-6 bg-card p-4 rounded-lg relative">
+        <div className="mb-6 backdrop-blur-sm bg-card/50 p-6 rounded-2xl border border-border/50 relative shadow-lg">
           <Button 
             variant="ghost" 
             size="icon"
             onClick={() => navigate(-1)}
-            className="absolute left-2 top-2"
+            className="absolute left-3 top-3 hover:bg-background/50"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="text-center mb-2">
-            <div className="text-3xl font-bold">
+          <div className="text-center mb-3">
+            <div className="text-4xl font-bold">
               {minutes}:{seconds.toString().padStart(2, '0')}
             </div>
-            <div className="text-sm text-muted-foreground">Time Remaining</div>
+            <div className="text-sm text-muted-foreground mt-1">Time Remaining</div>
           </div>
           <Progress value={timeProgress} className="h-2" />
         </div>
 
         {/* Scores */}
         <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className={`p-4 rounded-lg border-2 ${isPlayer1 ? 'bg-primary/20 border-primary' : 'bg-secondary/20 border-secondary'}`}>
-            <div className="text-xs uppercase tracking-wide mb-1 text-muted-foreground">YOU</div>
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className={`p-6 rounded-2xl backdrop-blur-sm border-2 shadow-lg ${
+              isPlayer1 
+                ? 'bg-primary/10 border-primary/50' 
+                : 'bg-card/50 border-border/50'
+            }`}
+          >
+            <div className="text-xs uppercase tracking-wide mb-2 text-muted-foreground">YOU</div>
             <div className="text-lg font-semibold mb-2 truncate">{yourUsername}</div>
-            <div className="text-3xl font-bold">
+            <div className="text-4xl font-bold">
               {isPlayer1 ? match.p1_score : match.p2_score}
             </div>
-          </div>
-          <div className={`p-4 rounded-lg border-2 ${!isPlayer1 ? 'bg-primary/20 border-primary' : 'bg-secondary/20 border-secondary'}`}>
-            <div className="text-xs uppercase tracking-wide mb-1 text-muted-foreground">OPPONENT</div>
+          </motion.div>
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className={`p-6 rounded-2xl backdrop-blur-sm border-2 shadow-lg ${
+              !isPlayer1 
+                ? 'bg-primary/10 border-primary/50' 
+                : 'bg-card/50 border-border/50'
+            }`}
+          >
+            <div className="text-xs uppercase tracking-wide mb-2 text-muted-foreground">OPPONENT</div>
             <div className="text-lg font-semibold mb-2 truncate">{opponentUsername}</div>
-            <div className="text-3xl font-bold">
+            <div className="text-4xl font-bold">
               {!isPlayer1 ? match.p1_score : match.p2_score}
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Battle Area - TODO: Implement question display */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-card p-8 rounded-lg text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="backdrop-blur-sm bg-card/50 p-8 rounded-2xl border border-border/50 text-center shadow-lg"
         >
           <h2 className="text-3xl font-bold mb-4">Battle System Under Construction</h2>
           <p className="text-muted-foreground mb-4">The online battle system needs to be fully implemented with the new schema.</p>
