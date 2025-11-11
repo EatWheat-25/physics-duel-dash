@@ -28,7 +28,7 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
   const navItems = [
     { icon: BookOpen, label: 'Modules', path: '/modules' },
     { icon: Trophy, label: 'Challenges', path: '/challenges' },
-    { icon: Zap, label: 'BATTLE!', path: '/profile', emphasized: true, excludeSubject: true },
+    { icon: Zap, label: 'BATTLE!', path: '/lobby', emphasized: true, excludeSubject: true },
     { icon: TrendingUp, label: 'Progression', path: '/progression' },
     { icon: ShoppingBag, label: 'Shop', path: '/shop', excludeSubject: true },
   ];
