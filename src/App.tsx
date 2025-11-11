@@ -15,6 +15,8 @@ import Modules from "./routes/Modules";
 import Challenges from "./routes/Challenges";
 import Progression from "./routes/Progression";
 import Shop from "./routes/Shop";
+import Customize from "./routes/Customize";
+import Loadout from "./routes/Loadout";
 import NotFound from "./pages/NotFound";
 import ModeSelection from "./pages/ModeSelection";
 import GameModes from "./components/GameModes";
@@ -51,6 +53,8 @@ const App = () => {
               <Route path="/challenges" element={<Challenges />} />
               <Route path="/progression" element={<Progression />} />
               <Route path="/shop" element={<Shop />} />
+              <Route path="/customize" element={<Customize />} />
+              <Route path="/loadout" element={<Loadout />} />
               <Route path="/old-home" element={<Index />} />
               <Route path="/modes" element={<ModeSelection />} />
               <Route path="/game-modes" element={<GameModes />} />
