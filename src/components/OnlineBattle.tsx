@@ -336,7 +336,15 @@ export const OnlineBattle = () => {
         </div>
 
         {/* Timer */}
-        <div className="mb-6 bg-card p-4 rounded-lg">
+        <div className="mb-6 bg-card p-4 rounded-lg relative">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="absolute left-2 top-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
           <div className="text-center mb-2">
             <div className="text-3xl font-bold">
               {minutes}:{seconds.toString().padStart(2, '0')}
