@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Starfield } from '@/components/Starfield';
 import { BottomNav } from '@/components/BottomNav';
-import { PlayerHubCard } from '@/components/hub/PlayerHubCard';
 import { HeaderUserMenu } from '@/components/hub/HeaderUserMenu';
 
 export default function Home() {
@@ -26,7 +25,7 @@ export default function Home() {
       </header>
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center gap-6 px-4 py-8">
-        <PlayerHubCard />
+        {/* Main content will go here */}
       </main>
 
       <footer className="relative z-20 pb-8">
