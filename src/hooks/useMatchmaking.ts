@@ -36,6 +36,7 @@ export function useMatchmaking() {
   const burstPollRef = useRef<number | null>(null);
   const slowPollRef = useRef<number | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const catchAllChannelRef = useRef<RealtimeChannel | null>(null);
   const consecutiveHeartbeatFailures = useRef(0);
   const isJoiningRef = useRef(false);
   const userIdRef = useRef<string | null>(null);
@@ -63,6 +64,11 @@ export function useMatchmaking() {
       channelRef.current = null;
     }
 
+    if (catchAllChannelRef.current) {
+      supabase.removeChannel(catchAllChannelRef.current);
+      catchAllChannelRef.current = null;
+    }
+
     consecutiveHeartbeatFailures.current = 0;
     navLockRef.current = false;
     isJoiningRef.current = false;
@@ -77,6 +83,12 @@ export function useMatchmaking() {
     console.log(`REALTIME: INSERT seen matchId=${matchRow.id}`);
 
     navLockRef.current = true;
+
+    if (catchAllChannelRef.current) {
+      supabase.removeChannel(catchAllChannelRef.current);
+      catchAllChannelRef.current = null;
+    }
+
     cleanup();
 
     setState(prev => ({
@@ -132,6 +144,7 @@ export function useMatchmaking() {
 
     return new Promise<void>((resolve) => {
       console.log('SUBSCRIBE: Starting for user', userId);
+      console.log('SUBSCRIBE filters:', `${P1_COL}=eq.${userId}`, `${P2_COL}=eq.${userId}`);
 
       const channel = supabase
         .channel(`match-${userId}-${Date.now()}`)
@@ -144,7 +157,7 @@ export function useMatchmaking() {
             filter: `${P1_COL}=eq.${userId}`,
           },
           (payload) => {
-            console.log('SUBSCRIBE: INSERT event (p1 filter)');
+            console.log('SUBSCRIBE: INSERT event (p1 filter)', payload.new);
             handleInsert(payload.new);
           }
         )
@@ -157,7 +170,7 @@ export function useMatchmaking() {
             filter: `${P2_COL}=eq.${userId}`,
           },
           (payload) => {
-            console.log('SUBSCRIBE: INSERT event (p2 filter)');
+            console.log('SUBSCRIBE: INSERT event (p2 filter)', payload.new);
             handleInsert(payload.new);
           }
         )
@@ -243,6 +256,44 @@ export function useMatchmaking() {
       userIdRef.current = user.id;
 
       await subscribeToMatches(user.id);
+
+      console.log('CATCHALL: Starting 5s catch-all listener');
+      const catchAll = supabase
+        .channel(`match-catchall-${user.id}-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'matches_new',
+          },
+          (payload: any) => {
+            const row = payload.new || payload.record || {};
+            const uid = user.id;
+            const p1 = row.player1_id ?? row.p1_id ?? row.p1;
+            const p2 = row.player2_id ?? row.p2_id ?? row.p2;
+            console.log('CATCHALL INSERT:', row.id, { p1, p2, uid, fullRow: row });
+            if (uid && (uid === p1 || uid === p2)) {
+              console.log('CATCHALL: Match found for this user, navigating');
+              handleInsert(row);
+            } else {
+              console.log('CATCHALL: Match not for this user, ignoring');
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('CATCHALL status:', status);
+        });
+
+      catchAllChannelRef.current = catchAll;
+
+      setTimeout(() => {
+        console.log('CATCHALL: 5s timeout, removing catch-all listener');
+        if (catchAllChannelRef.current) {
+          supabase.removeChannel(catchAllChannelRef.current);
+          catchAllChannelRef.current = null;
+        }
+      }, 5000);
 
       console.log('ENQUEUE: sending');
       const { data, error } = await supabase.functions.invoke('enqueue', {
