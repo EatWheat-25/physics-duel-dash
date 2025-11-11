@@ -1,6 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { corsHeaders } from '../_shared/cors.ts'
 
+interface MatchResult {
+  matched: boolean
+  match_id?: string
+  opponent_id?: string
+  match_quality?: number
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -64,7 +71,7 @@ Deno.serve(async (req) => {
           p_mmr: player.mmr,
           p_wait_seconds: waitSeconds,
         })
-        .maybeSingle()
+        .maybeSingle() as { data: MatchResult | null, error: any }
 
       if (matchError) {
         console.error(`❌ Match error for player ${player.player_id}:`, matchError)
