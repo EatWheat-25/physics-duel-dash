@@ -32,23 +32,30 @@ export function useMatchmaking() {
   });
 
   const navLockRef = useRef(false);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const rehydrateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatIntervalRef = useRef<number | null>(null);
+  const burstPollRef = useRef<number | null>(null);
+  const slowPollRef = useRef<number | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const consecutiveHeartbeatFailures = useRef(0);
   const isJoiningRef = useRef(false);
+  const userIdRef = useRef<string | null>(null);
 
   const cleanup = useCallback(() => {
     console.log('QUEUE: Cleaning up matchmaking resources');
 
     if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
+      window.clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = null;
     }
 
-    if (rehydrateIntervalRef.current) {
-      clearInterval(rehydrateIntervalRef.current);
-      rehydrateIntervalRef.current = null;
+    if (burstPollRef.current) {
+      window.clearInterval(burstPollRef.current);
+      burstPollRef.current = null;
+    }
+
+    if (slowPollRef.current) {
+      window.clearInterval(slowPollRef.current);
+      slowPollRef.current = null;
     }
 
     if (channelRef.current) {
@@ -92,15 +99,14 @@ export function useMatchmaking() {
   }, [navigate, cleanup]);
 
   const rehydrateActiveMatch = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    if (!userIdRef.current || navLockRef.current) return;
 
+    try {
       const { data, error } = await supabase
         .from('matches_new')
         .select('*')
-        .or(`${P1_COL}.eq.${user.id},${P2_COL}.eq.${user.id}`)
-        .in('state', ['pending', 'active'])
+        .or(`${P1_COL}.eq.${userIdRef.current},${P2_COL}.eq.${userIdRef.current}`)
+        .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -119,51 +125,55 @@ export function useMatchmaking() {
     }
   }, [handleInsert]);
 
-  const setupRealtimeSubscription = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.error('SUBSCRIBE: No authenticated user found');
-      return;
-    }
-
-    console.log('SUBSCRIBE: Started for user', user.id);
-
+  const subscribeToMatches = useCallback(async (userId: string) => {
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
     }
 
-    const channel = supabase
-      .channel(`match-notify-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'matches_new',
-          filter: `${P1_COL}=eq.${user.id}`,
-        },
-        (payload) => handleInsert(payload.new)
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'matches_new',
-          filter: `${P2_COL}=eq.${user.id}`,
-        },
-        (payload) => handleInsert(payload.new)
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('SUBSCRIBE: Successfully subscribed to match notifications');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('SUBSCRIBE: Subscription error');
-          toast.error('Connection error, please try again');
-        }
-      });
+    return new Promise<void>((resolve) => {
+      console.log('SUBSCRIBE: Starting for user', userId);
 
-    channelRef.current = channel;
+      const channel = supabase
+        .channel(`match-${userId}-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'matches_new',
+            filter: `${P1_COL}=eq.${userId}`,
+          },
+          (payload) => {
+            console.log('SUBSCRIBE: INSERT event (p1 filter)');
+            handleInsert(payload.new);
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'matches_new',
+            filter: `${P2_COL}=eq.${userId}`,
+          },
+          (payload) => {
+            console.log('SUBSCRIBE: INSERT event (p2 filter)');
+            handleInsert(payload.new);
+          }
+        )
+        .subscribe((status) => {
+          console.log('SUBSCRIBE:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('SUBSCRIBE: ready');
+            resolve();
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('SUBSCRIBE: Subscription error');
+            toast.error('Connection error, please try again');
+          }
+        });
+
+      channelRef.current = channel;
+    });
   }, [handleInsert]);
 
   const startHeartbeat = useCallback(async () => {
@@ -198,23 +208,11 @@ export function useMatchmaking() {
     };
 
     if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
+      window.clearInterval(heartbeatIntervalRef.current);
     }
 
-    heartbeatIntervalRef.current = setInterval(sendHeartbeat, 5000);
+    heartbeatIntervalRef.current = window.setInterval(sendHeartbeat, 5000);
   }, [cleanup]);
-
-  const startRehydratePoll = useCallback(() => {
-    if (rehydrateIntervalRef.current) {
-      clearInterval(rehydrateIntervalRef.current);
-    }
-
-    rehydrateIntervalRef.current = setInterval(() => {
-      if (!navLockRef.current && state.status === 'queuing') {
-        rehydrateActiveMatch();
-      }
-    }, 1500);
-  }, [rehydrateActiveMatch, state.status]);
 
   const joinQueue = useCallback(async ({ subject, chapter, region }: JoinQueueParams) => {
     if (isJoiningRef.current) {
@@ -227,15 +225,26 @@ export function useMatchmaking() {
       return;
     }
 
+    if (navLockRef.current) {
+      console.log('QUEUE: Navigation in progress, ignoring join');
+      return;
+    }
+
     isJoiningRef.current = true;
     setState(prev => ({ ...prev, status: 'joining', error: null }));
 
     console.log(`QUEUE: Joining queue for ${subject}/${chapter}`);
 
     try {
-      await setupRealtimeSubscription();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('No authenticated user');
+      }
+      userIdRef.current = user.id;
 
-      console.log('ENQUEUE: Sending request');
+      await subscribeToMatches(user.id);
+
+      console.log('ENQUEUE: sending');
       const { data, error } = await supabase.functions.invoke('enqueue', {
         body: { subject, chapter, region },
       });
@@ -244,29 +253,49 @@ export function useMatchmaking() {
         throw error;
       }
 
-      console.log('ENQUEUE: Response received', data);
+      console.log('ENQUEUE: response received', data);
 
-      if (data.matched && data.match) {
-        console.log(`ENQUEUE: Instant match found, matchId=${data.match.id}`);
+      if (data?.matched && data?.match) {
+        console.log(`ENQUEUE: matched ${data.match.id}`);
         handleInsert(data.match);
-      } else {
-        console.log('ENQUEUE: No instant match, subscribing and waiting');
-
-        setState(prev => ({
-          ...prev,
-          status: 'queuing',
-          queueStartTime: Date.now(),
-        }));
-
-        toast.success('Finding opponent...');
-
-        await rehydrateActiveMatch();
-
-        if (!navLockRef.current) {
-          startHeartbeat();
-          startRehydratePoll();
-        }
+        return;
       }
+
+      const t0 = Date.now();
+      const burst = window.setInterval(async () => {
+        if (Date.now() - t0 > 5000 || navLockRef.current) {
+          console.log('REHYDRATE: burst poll complete');
+          window.clearInterval(burst);
+          burstPollRef.current = null;
+          return;
+        }
+        await rehydrateActiveMatch();
+      }, 400);
+      burstPollRef.current = burst;
+
+      await rehydrateActiveMatch();
+
+      setState(prev => ({
+        ...prev,
+        status: 'queuing',
+        queueStartTime: Date.now(),
+      }));
+
+      toast.success('Finding opponent...');
+
+      startHeartbeat();
+
+      setTimeout(() => {
+        if (slowPollRef.current) {
+          window.clearInterval(slowPollRef.current);
+        }
+        slowPollRef.current = window.setInterval(async () => {
+          if (!navLockRef.current && state.status === 'queuing') {
+            await rehydrateActiveMatch();
+          }
+        }, 1500);
+      }, 5000);
+
     } catch (error: any) {
       console.error('ENQUEUE: Failed to join queue:', error);
       setState(prev => ({
@@ -278,7 +307,7 @@ export function useMatchmaking() {
     } finally {
       isJoiningRef.current = false;
     }
-  }, [state.status, setupRealtimeSubscription, handleInsert, rehydrateActiveMatch, startHeartbeat, startRehydratePoll]);
+  }, [state.status, subscribeToMatches, handleInsert, rehydrateActiveMatch, startHeartbeat]);
 
   const leaveQueue = useCallback(async () => {
     console.log('QUEUE: Leaving queue');
