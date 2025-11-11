@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Palette } from 'lucide-react';
 import { Starfield } from '@/components/Starfield';
-import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 
 export default function Customize() {
@@ -35,7 +34,7 @@ export default function Customize() {
         </Button>
       </div>
 
-      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 pb-32">
+      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-12">
           <div className="inline-block mb-4">
             <Palette
@@ -84,8 +83,6 @@ export default function Customize() {
           </p>
         </div>
       </div>
-
-      <BottomNav />
     </div>
   );
 }

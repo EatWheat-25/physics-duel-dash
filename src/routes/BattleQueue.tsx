@@ -3,7 +3,6 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Swords, ChevronDown, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Starfield } from '@/components/Starfield';
-import { BottomNav } from '@/components/BottomNav';
 import { GameMode } from '@/types/gameMode';
 import { Button } from '@/components/ui/button';
 
@@ -28,7 +27,7 @@ export default function BattleQueue() {
     <div className="relative min-h-screen overflow-hidden bg-background">
       <Starfield />
 
-      <div className="relative z-10 min-h-screen px-4 sm:px-6 lg:px-8 py-8 pb-32">
+      <div className="relative z-10 min-h-screen px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button & Mode Selector - Top Left */}
         <div className="max-w-7xl mx-auto mb-8">
           <div className="flex items-center gap-2">
@@ -147,8 +146,6 @@ export default function BattleQueue() {
           </motion.div>
         </div>
       </div>
-
-      <BottomNav />
     </div>
   );
 }
