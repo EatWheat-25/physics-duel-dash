@@ -26,28 +26,28 @@ All colors MUST be HSL.
 
   /* Core Colors - Dark Space */
   --background: 240 20% 6%;           /* Deep space black */
-  --foreground: 40 10% 95%;           /* Warm white text */
-  
+  --foreground: 0 0% 100%;            /* Pure white text */
+
   --card: 240 15% 10%;                /* Dark panels */
-  --card-foreground: 40 10% 95%;
+  --card-foreground: 0 0% 100%;       /* Pure white text */
   
   --popover: 240 20% 8%;
-  --popover-foreground: 40 10% 95%;
-  
+  --popover-foreground: 0 0% 100%;
+
   --primary: 45 95% 60%;              /* Golden yellow */
   --primary-foreground: 240 20% 10%;
-  
+
   --secondary: 40 80% 50%;            /* Amber/orange */
   --secondary-foreground: 240 20% 10%;
-  
+
   --muted: 240 10% 15%;
-  --muted-foreground: 240 5% 60%;
-  
+  --muted-foreground: 0 0% 85%;
+
   --accent: 35 90% 55%;               /* Bright orange accent */
-  --accent-foreground: 240 20% 10%;
-  
+  --accent-foreground: 0 0% 100%;
+
   --destructive: 0 84% 60%;
-  --destructive-foreground: 40 10% 95%;
+  --destructive-foreground: 0 0% 100%;
   
   --border: 240 15% 18%;
   --input: 240 15% 12%;
@@ -100,25 +100,25 @@ All colors MUST be HSL.
   .dark {
     /* Enhanced ultra-dark theme */
     --background: 222 40% 3%;
-    --foreground: 210 50% 98%;
-    
+    --foreground: 0 0% 100%;
+
     --card: 222 45% 6%;
-    --card-foreground: 210 45% 95%;
-    
+    --card-foreground: 0 0% 100%;
+
     --popover: 222 50% 4%;
-    --popover-foreground: 210 50% 98%;
-    
+    --popover-foreground: 0 0% 100%;
+
     --primary: 180 100% 45%;
     --primary-foreground: 222 40% 3%;
-    
+
     --secondary: 222 35% 8%;
-    --secondary-foreground: 210 45% 90%;
-    
+    --secondary-foreground: 0 0% 100%;
+
     --muted: 222 40% 7%;
-    --muted-foreground: 210 25% 70%;
+    --muted-foreground: 0 0% 85%;
     
     --accent: 280 100% 65%;
-    --accent-foreground: 210 50% 98%;
+    --accent-foreground: 0 0% 100%;
     
     --border: 222 40% 12%;
     --input: 222 35% 9%;
