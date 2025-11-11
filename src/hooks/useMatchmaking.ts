@@ -33,10 +33,7 @@ export function useMatchmaking() {
 
   const navLockRef = useRef(false);
   const heartbeatIntervalRef = useRef<number | null>(null);
-  const burstPollRef = useRef<number | null>(null);
-  const slowPollRef = useRef<number | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const catchAllChannelRef = useRef<RealtimeChannel | null>(null);
   const consecutiveHeartbeatFailures = useRef(0);
   const isJoiningRef = useRef(false);
   const userIdRef = useRef<string | null>(null);
@@ -49,24 +46,9 @@ export function useMatchmaking() {
       heartbeatIntervalRef.current = null;
     }
 
-    if (burstPollRef.current) {
-      window.clearInterval(burstPollRef.current);
-      burstPollRef.current = null;
-    }
-
-    if (slowPollRef.current) {
-      window.clearInterval(slowPollRef.current);
-      slowPollRef.current = null;
-    }
-
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
-    }
-
-    if (catchAllChannelRef.current) {
-      supabase.removeChannel(catchAllChannelRef.current);
-      catchAllChannelRef.current = null;
     }
 
     consecutiveHeartbeatFailures.current = 0;
@@ -83,12 +65,6 @@ export function useMatchmaking() {
     console.log(`REALTIME: INSERT seen matchId=${matchRow.id}`);
 
     navLockRef.current = true;
-
-    if (catchAllChannelRef.current) {
-      supabase.removeChannel(catchAllChannelRef.current);
-      catchAllChannelRef.current = null;
-    }
-
     cleanup();
 
     setState(prev => ({
@@ -137,50 +113,58 @@ export function useMatchmaking() {
     }
   }, [handleInsert]);
 
-  const subscribeToMatches = useCallback(async (userId: string) => {
+  const subscribeToNotifications = useCallback(async (userId: string) => {
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
     }
 
     return new Promise<void>((resolve) => {
-      console.log('SUBSCRIBE: Starting for user', userId);
-      console.log('SUBSCRIBE filters:', `${P1_COL}=eq.${userId}`, `${P2_COL}=eq.${userId}`);
+      console.log('MN SUBSCRIBE: Starting for user', userId);
 
       const channel = supabase
-        .channel(`match-${userId}-${Date.now()}`)
+        .channel(`mn-${userId}-${Date.now()}`)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'matches_new',
-            filter: `${P1_COL}=eq.${userId}`,
+            table: 'match_notifications',
+            filter: `user_id=eq.${userId}`,
           },
-          (payload) => {
-            console.log('SUBSCRIBE: INSERT event (p1 filter)', payload.new);
-            handleInsert(payload.new);
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'matches_new',
-            filter: `${P2_COL}=eq.${userId}`,
-          },
-          (payload) => {
-            console.log('SUBSCRIBE: INSERT event (p2 filter)', payload.new);
-            handleInsert(payload.new);
+          async (payload: any) => {
+            const matchId = payload?.new?.match_id;
+            console.log('MN INSERT: notification received', { matchId, payload: payload.new });
+
+            if (!matchId || navLockRef.current) {
+              console.log('MN INSERT: ignoring (no matchId or nav locked)');
+              return;
+            }
+
+            console.log('MN INSERT: fetching match', matchId);
+            const { data, error } = await supabase
+              .from('matches_new')
+              .select('*')
+              .eq('id', matchId)
+              .maybeSingle();
+
+            if (error) {
+              console.error('MN INSERT: error fetching match', error);
+              return;
+            }
+
+            if (data) {
+              console.log('MN INSERT: match fetched, navigating', data.id);
+              handleInsert(data);
+            }
           }
         )
         .subscribe((status) => {
-          console.log('SUBSCRIBE:', status);
+          console.log('MN SUBSCRIBE:', status);
           if (status === 'SUBSCRIBED') {
-            console.log('SUBSCRIBE: ready');
+            console.log('MN SUBSCRIBE: ready');
             resolve();
           } else if (status === 'CHANNEL_ERROR') {
-            console.error('SUBSCRIBE: Subscription error');
+            console.error('MN SUBSCRIBE: subscription error');
             toast.error('Connection error, please try again');
           }
         });
@@ -255,45 +239,7 @@ export function useMatchmaking() {
       }
       userIdRef.current = user.id;
 
-      await subscribeToMatches(user.id);
-
-      console.log('CATCHALL: Starting 5s catch-all listener');
-      const catchAll = supabase
-        .channel(`match-catchall-${user.id}-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'matches_new',
-          },
-          (payload: any) => {
-            const row = payload.new || payload.record || {};
-            const uid = user.id;
-            const p1 = row.player1_id ?? row.p1_id ?? row.p1;
-            const p2 = row.player2_id ?? row.p2_id ?? row.p2;
-            console.log('CATCHALL INSERT:', row.id, { p1, p2, uid, fullRow: row });
-            if (uid && (uid === p1 || uid === p2)) {
-              console.log('CATCHALL: Match found for this user, navigating');
-              handleInsert(row);
-            } else {
-              console.log('CATCHALL: Match not for this user, ignoring');
-            }
-          }
-        )
-        .subscribe((status) => {
-          console.log('CATCHALL status:', status);
-        });
-
-      catchAllChannelRef.current = catchAll;
-
-      setTimeout(() => {
-        console.log('CATCHALL: 5s timeout, removing catch-all listener');
-        if (catchAllChannelRef.current) {
-          supabase.removeChannel(catchAllChannelRef.current);
-          catchAllChannelRef.current = null;
-        }
-      }, 5000);
+      await subscribeToNotifications(user.id);
 
       console.log('ENQUEUE: sending');
       const { data, error } = await supabase.functions.invoke('enqueue', {
@@ -312,20 +258,6 @@ export function useMatchmaking() {
         return;
       }
 
-      const t0 = Date.now();
-      const burst = window.setInterval(async () => {
-        if (Date.now() - t0 > 5000 || navLockRef.current) {
-          console.log('REHYDRATE: burst poll complete');
-          window.clearInterval(burst);
-          burstPollRef.current = null;
-          return;
-        }
-        await rehydrateActiveMatch();
-      }, 400);
-      burstPollRef.current = burst;
-
-      await rehydrateActiveMatch();
-
       setState(prev => ({
         ...prev,
         status: 'queuing',
@@ -335,17 +267,6 @@ export function useMatchmaking() {
       toast.success('Finding opponent...');
 
       startHeartbeat();
-
-      setTimeout(() => {
-        if (slowPollRef.current) {
-          window.clearInterval(slowPollRef.current);
-        }
-        slowPollRef.current = window.setInterval(async () => {
-          if (!navLockRef.current && state.status === 'queuing') {
-            await rehydrateActiveMatch();
-          }
-        }, 1500);
-      }, 5000);
 
     } catch (error: any) {
       console.error('ENQUEUE: Failed to join queue:', error);
@@ -358,7 +279,7 @@ export function useMatchmaking() {
     } finally {
       isJoiningRef.current = false;
     }
-  }, [state.status, subscribeToMatches, handleInsert, rehydrateActiveMatch, startHeartbeat]);
+  }, [state.status, subscribeToNotifications, handleInsert, startHeartbeat]);
 
   const leaveQueue = useCallback(async () => {
     console.log('QUEUE: Leaving queue');
