@@ -119,6 +119,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({
           success: true,
           matched: true,
+          match: newMatch,
           match_id: newMatch.id,
           opponent_name: opponentPlayer?.display_name || 'Opponent',
           match_quality: 100,
