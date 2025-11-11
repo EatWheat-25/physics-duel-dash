@@ -1,9 +1,13 @@
 import { useEffect } from 'react';
-import { ShoppingBag } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ShoppingBag, ArrowLeft } from 'lucide-react';
 import { Starfield } from '@/components/Starfield';
 import { BottomNav } from '@/components/BottomNav';
+import { Button } from '@/components/ui/button';
 
 export default function Shop() {
+  const navigate = useNavigate();
+
   useEffect(() => {
     document.title = 'Shop | BattleNerds';
   }, []);
@@ -11,6 +15,25 @@ export default function Shop() {
   return (
     <div className="relative min-h-screen overflow-hidden">
       <Starfield />
+
+      <div className="absolute top-4 left-4 z-20">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate('/')}
+          className="gap-2 font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[var(--violet)]"
+          style={{
+            background: 'rgba(255,255,255,0.05)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'white',
+          }}
+          aria-label="Go back to home"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back</span>
+        </Button>
+      </div>
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 pb-32">
         <div className="text-center mb-12">
