@@ -57,7 +57,13 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
             return (
               <motion.button
                 key={item.label}
-                onClick={onBattleClick || (() => handleNavigation(item.path, item.excludeSubject))}
+                onClick={() => {
+                  if (onBattleClick) {
+                    onBattleClick();
+                  } else {
+                    handleNavigation(item.path, item.excludeSubject);
+                  }
+                }}
                 className="relative px-6 md:px-8 py-3 md:py-4 rounded-full font-bold text-xs md:text-sm uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914]"
                 style={{
                   background: 'linear-gradient(135deg, var(--magenta), var(--violet))',
