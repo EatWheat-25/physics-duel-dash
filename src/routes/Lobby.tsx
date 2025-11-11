@@ -200,7 +200,7 @@ export default function Lobby() {
         </Button>
       </div>
 
-      <div className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 pb-32 pt-20">
+      <div className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 py-20">
         <div className="w-full max-w-6xl">
           <AnimatePresence mode="wait">
             {step === 'subject' && (
