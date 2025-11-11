@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Starfield } from '@/components/Starfield';
+import { BottomNav } from '@/components/BottomNav';
 import { PlayerHubCard } from '@/components/hub/PlayerHubCard';
 import { QuickActionsStrip } from '@/components/hub/QuickActionsStrip';
 import { HeaderUserMenu } from '@/components/hub/HeaderUserMenu';
@@ -29,6 +30,10 @@ export default function Home() {
         <PlayerHubCard />
         <QuickActionsStrip />
       </main>
+
+      <footer className="relative z-20 pb-8">
+        <BottomNav />
+      </footer>
     </div>
   );
 }
