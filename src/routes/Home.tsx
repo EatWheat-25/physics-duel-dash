@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { Starfield } from '@/components/Starfield';
 import { BottomNav } from '@/components/BottomNav';
 import { HeaderUserMenu } from '@/components/hub/HeaderUserMenu';
+import { PlayerCard } from '@/components/hub/PlayerCard';
+import { QuickActionsStrip } from '@/components/hub/QuickActionsStrip';
 
 export default function Home() {
   useEffect(() => {
@@ -9,7 +11,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col">
+    <div className="relative min-h-screen overflow-hidden flex flex-col justify-between">
       <Starfield />
 
       <div
@@ -24,8 +26,9 @@ export default function Home() {
         <HeaderUserMenu />
       </header>
 
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center gap-6 px-4 py-8">
-        {/* Main content will go here */}
+      <main className="relative z-10 flex flex-col items-center justify-center gap-6 px-4 py-8">
+        <PlayerCard />
+        <QuickActionsStrip />
       </main>
 
       <footer className="relative z-20 pb-8">
