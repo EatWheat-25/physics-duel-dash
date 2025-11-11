@@ -141,10 +141,16 @@ All colors MUST be HSL.
     background: var(--gradient-bg);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
+    color: white;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Roboto', sans-serif;
+    color: white;
+  }
+
+  p, span, div, a, button, label, input, textarea {
+    color: inherit;
   }
 
   /* Subtle Futuristic Tech Grid Pattern */
