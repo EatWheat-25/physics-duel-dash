@@ -74,12 +74,11 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ---
 
-## Matchmaking System Quickstart
+## Instant Matching Architecture
 
 ### Prerequisites
 - Node.js 18+
-- Supabase CLI (`npm i -g supabase`)
-- Supabase project (local or hosted)
+- Supabase project (hosted)
 
 ### Setup
 
@@ -95,106 +94,110 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
    VITE_SUPABASE_ANON_KEY=your_anon_key
    ```
 
-3. **Start local Supabase (optional for local dev):**
-   ```bash
-   supabase start
-   ```
-
-4. **Apply migrations:**
-   ```bash
-   supabase db reset --linked
-   # OR for remote project:
-   supabase db push
-   ```
-
-5. **Deploy edge functions:**
-   ```bash
-   supabase functions deploy find_match
-   supabase functions deploy accept_offer
-   supabase functions deploy decline_offer
-   supabase functions deploy sweeper
-   ```
-
-6. **Schedule sweeper cron job:**
-
-   Via Supabase Dashboard → Database → SQL Editor:
-   ```sql
-   SELECT cron.schedule(
-     'sweeper_job',
-     '10 seconds',
-     $$
-     SELECT net.http_post(
-       url:='https://your-project-ref.supabase.co/functions/v1/sweeper',
-       headers:='{"Content-Type": "application/json"}'::jsonb,
-       body:='{}'::jsonb
-     ) as request_id;
-     $$
-   );
-   ```
-
-7. **Start dev server:**
+3. **Start dev server:**
    ```bash
    npm run dev
    ```
 
-### Testing Matchmaking Flow
+### How It Works
 
-**Two-player test:**
-
-1. Open two browser windows (use incognito for second user)
-2. Sign up/log in as two different users
-3. Both navigate to matchmaking for the same subject
-4. Both click "Find Match"
-5. Within 2-5 seconds, both should see the **Match Offer Modal** with 15-second countdown
-6. Both click "Accept"
-7. Both are redirected to `/online-battle/:matchId`
-
-**Expected behavior:**
-- If one declines → both return to waiting/queue
-- If timeout (15s) → offer expires, both requeued
-- If both accept → match is created and confirmed
-
-### Architecture Overview
-
-**Event-Driven Flow:**
+**Instant Matching Flow (NOT Offer/Accept):**
 
 ```
-Player clicks "Find Match"
+Player clicks "Start Battle"
   ↓
-Calls find_match Edge Function (with advisory lock)
+Client calls enqueue Edge Function
   ↓
-Checks queue for compatible opponent (dynamic MMR based on wait time)
+enqueue checks queue table for waiting opponent (same subject/chapter)
   ↓
-IF MATCH FOUND:
-  - Creates match_offer (15s expiration)
-  - Updates queue status to "offered"
-  - Returns offer to both players
+IF OPPONENT FOUND (instant match):
+  - Creates matches_new row immediately
+  - Removes both players from queue
+  - Returns match_id to calling player
+  - Other player receives INSERT via Realtime subscription
+  - Both navigate to /battle/:matchId (0-200ms)
   ↓
-Frontend shows Accept/Decline modal
+ELSE (no opponent):
+  - Player added to queue
+  - Client starts 5s heartbeat loop
+  - Client subscribes to Realtime for matches_new INSERT
+  - matchmaker_tick cron runs every 2 seconds
+  - When cron finds match → creates matches_new row
+  - Both players receive INSERT via Realtime
+  - Both navigate to /battle/:matchId (0-2s worst case)
   ↓
-Player clicks Accept → calls accept_offer RPC
+Both players connect to WebSocket (game-ws)
   ↓
-When BOTH accept:
-  - Creates matches_new row
-  - Updates offer state to "confirmed"
-  - Postgres_changes subscription notifies both clients
+Both send ready signal
   ↓
-Both navigate to battle page
+Server broadcasts game_start when both ready
+  ↓
+Battle begins with live score updates via WebSocket
 ```
 
-**Sweeper (cron):**
-- Runs every 10 seconds
-- Finds expired pending offers
-- Returns players to "waiting" status
-- Allows them to be matched again
+**Key Timings:**
+- Best case (opponent waiting): 0-200ms
+- Worst case (waiting for cron pairing): 0-2 seconds
+- matchmaker_tick cron interval: **2 seconds**
+- Heartbeat interval: 5 seconds
+- Queue cleanup: 30 seconds (removes stale entries)
 
 **Database Tables:**
-- `queue` - Active matchmaking queue with status tracking
-- `match_offers` - Pending offers with accept/decline state
-- `matches_new` - Confirmed matches ready for battle
+- `queue` - Active matchmaking queue (UNIQUE constraint on player_id)
+- `matches_new` - Match records (Realtime enabled)
 - `players` - Player profiles with MMR
+- `match_events` - WebSocket event log
+
+**Realtime Configuration:**
+- Realtime enabled for `public.matches_new`
+- Client subscribes with TWO filters (p1 and p2) to handle OR limitation
+- RLS policy: users can only see matches where they are p1 or p2
 
 **Concurrency Safety:**
-- Advisory locks prevent double-matching
-- `FOR UPDATE SKIP LOCKED` prevents race conditions
-- Idempotent RPCs safe under retries
+- UNIQUE constraint on queue.player_id prevents duplicate entries
+- Client-side navigation lock prevents duplicate navigations
+- Heartbeat failures (3 consecutive) auto-remove from queue
+
+### 5-Minute Acceptance Test
+
+```bash
+# Terminal: Start dev server
+npm run dev
+```
+
+**Browser Window 1:**
+1. Open http://localhost:5173
+2. Sign in as user1@test.com
+3. Navigate to Battle Queue (select Physics or Math)
+4. Select "A1-Only" mode from dropdown
+5. Click "Start Battle" button
+6. See "Searching for opponent..." with timer
+
+**Browser Window 2 (Incognito):**
+1. Open http://localhost:5173 in incognito
+2. Sign in as user2@test.com
+3. Navigate to Battle Queue (same subject as Window 1)
+4. Select "A1-Only" mode from dropdown
+5. Click "Start Battle" button
+
+**Expected Results:**
+- Both windows navigate to `/battle/:matchId` within 0-2 seconds
+- Both see "Waiting for players to ready up..." screen
+- After both ready: countdown "3...2...1...START!"
+- Both see timer, scores, and "Battle System Active" message
+- Real-time score updates via WebSocket (WS connected)
+
+**Console Breadcrumbs to Verify:**
+- Window 1: "QUEUE: Joined successfully, starting heartbeat loop"
+- Window 2: "REALTIME: Match INSERT detected, matchId=..."
+- Both: "WS: Connected successfully"
+- Both: "WS: Received game_start"
+
+**Troubleshooting:**
+
+| Issue | Solution |
+|-------|----------|
+| No match after 10s | Check matchmaker_tick cron is running (Supabase Dashboard → Database → Cron Jobs) |
+| Navigation doesn't happen | Verify Realtime enabled for matches_new (Dashboard → Database → Publications) |
+| WebSocket fails to connect | Check JWT token is valid (inspect Network tab for WS upgrade) |
+| "Connection lost" toast | Check heartbeat edge function is deployed and accessible |

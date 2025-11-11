@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Starfield } from './Starfield';
 import TugOfWarBar from './TugOfWarBar';
+import { connectGameWS, sendReady, type ServerEvent } from '@/lib/ws';
+import { toast } from 'sonner';
 
 interface Match {
   id: string;
@@ -22,76 +24,27 @@ interface Match {
   ended_at?: string;
 }
 
-interface PlayerAction {
-  user_id: string;
-  question_index: number;
-  step_index: number;
-  is_correct: boolean;
-  marks_earned: number;
-}
-
 export const OnlineBattle = () => {
   const { matchId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const [match, setMatch] = useState<Match | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [tugOfWarPosition, setTugOfWarPosition] = useState(0);
-  const [waitingForOpponent, setWaitingForOpponent] = useState(false);
-  const [playerActions, setPlayerActions] = useState<PlayerAction[]>([]);
   const [yourUsername, setYourUsername] = useState<string>('You');
   const [opponentUsername, setOpponentUsername] = useState<string>('Opponent');
-  const [matchReady, setMatchReady] = useState(false);
+  const [connectionState, setConnectionState] = useState<'connecting' | 'waiting_ready' | 'playing' | 'ended'>('connecting');
+  const [opponentReady, setOpponentReady] = useState(false);
+  const [youReady, setYouReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
-  // Get usernames from navigation state or fetch from database
-  useEffect(() => {
-    const fetchUsernames = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !match) return;
+  const wsRef = useRef<WebSocket | null>(null);
 
-      // Get your username from location state or profile
-      if (location.state?.yourUsername) {
-        setYourUsername(location.state.yourUsername);
-      } else {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', user.id)
-          .maybeSingle();
-        if (profile) setYourUsername(profile.username);
-      }
-
-      // Get opponent username from location state or fetch from database
-      const opponentId = match.p1 === user.id ? match.p2 : match.p1;
-      
-      if (location.state?.opponentName) {
-        setOpponentUsername(location.state.opponentName);
-      } else {
-        const { data: opponentProfile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', opponentId)
-          .maybeSingle();
-        if (opponentProfile) setOpponentUsername(opponentProfile.username);
-      }
-    };
-
-    fetchUsernames();
-  }, [location.state, match]);
-
-  // Get current user
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setCurrentUser(data.user?.id || null);
     });
   }, []);
 
-  // Fetch match data
   useEffect(() => {
     if (!matchId) return;
 
@@ -104,10 +57,12 @@ export const OnlineBattle = () => {
 
       if (error) {
         console.error('Error fetching match:', error);
+        toast.error('Failed to load match');
         return;
       }
 
       if (data) {
+        console.log('Match loaded:', data);
         setMatch(data as Match);
       }
     };
@@ -115,147 +70,155 @@ export const OnlineBattle = () => {
     fetchMatch();
   }, [matchId]);
 
-  // Timer countdown
   useEffect(() => {
-    if (!match || match.state !== 'active' || timeLeft <= 0 || waitingForOpponent) return;
+    const fetchUsernames = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !match) return;
 
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          handleTimeUp();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (profile) setYourUsername(profile.username);
 
-    return () => clearInterval(timer);
-  }, [timeLeft, match, waitingForOpponent]);
-
-  useEffect(() => {
-    if (!match || !currentUser) return;
-
-    const checkBothPlayersReady = async () => {
-      console.log('Checking if both players are ready...');
-
-      if (match.state === 'active') {
-        console.log('Match is active, starting immediately...');
-        setMatchReady(true);
-        setCountdown(null);
-        setTimeLeft(300);
-        setCurrentStep(0);
-        setSelectedAnswer(null);
-        setShowFeedback(false);
-        setWaitingForOpponent(false);
-      }
+      const opponentId = match.p1 === user.id ? match.p2 : match.p1;
+      const { data: opponentProfile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', opponentId)
+        .maybeSingle();
+      if (opponentProfile) setOpponentUsername(opponentProfile.username);
     };
 
-    checkBothPlayersReady();
-  }, [match, currentUser]);
+    fetchUsernames();
+  }, [match]);
 
-  // Countdown removed - instant start
-
-  // Subscribe to match updates and player actions
   useEffect(() => {
-    if (!matchId || !currentUser) return;
+    if (!matchId || !currentUser || !match) return;
 
-    const channel = supabase
-      .channel(`match:${matchId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'matches_new',
-          filter: `id=eq.${matchId}`,
+    const setupWebSocket = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.error('WS: No access token found');
+        toast.error('Authentication error');
+        return;
+      }
+
+      console.log('WS: Setting up WebSocket connection');
+
+      const ws = connectGameWS({
+        matchId,
+        token: session.access_token,
+        onConnected: (event) => {
+          console.log('WS: Connected as', event.player);
+          setConnectionState('waiting_ready');
+          sendReady(ws);
+          setYouReady(true);
+          toast.success('Connected to battle server');
         },
-        (payload) => {
-          setMatch(payload.new as Match);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'player_actions',
-          filter: `match_id=eq.${matchId}`,
-        },
-        async (payload) => {
-          const action = payload.new as PlayerAction;
-          setPlayerActions((prev) => [...prev, action]);
-          
-          // Check if both players finished the question when opponent answers
-          if (action.user_id !== currentUser) {
-            await checkQuestionCompletion();
+        onPlayerReady: (event) => {
+          console.log('WS: Player ready event:', event.player);
+          if (event.player === 'p1' || event.player === 'p2') {
+            const isOpponent = (match.p1 === currentUser && event.player === 'p2') ||
+                               (match.p2 === currentUser && event.player === 'p1');
+            if (isOpponent) {
+              setOpponentReady(true);
+            }
           }
-        }
-      )
-      .subscribe();
+        },
+        onGameStart: (event) => {
+          console.log('WS: Game starting');
+          toast.success('Battle begins!');
+          setConnectionState('playing');
+          setCountdown(3);
+        },
+        onScoreUpdate: (event) => {
+          console.log(`WS: Score update - p1: ${event.p1_score}, p2: ${event.p2_score}`);
+          setMatch(prev => prev ? {
+            ...prev,
+            p1_score: event.p1_score,
+            p2_score: event.p2_score,
+          } : null);
+          if (event.time_left !== undefined) {
+            setTimeLeft(event.time_left);
+          }
+        },
+        onOpponentDisconnect: (event) => {
+          console.log('WS: Opponent disconnected');
+          toast.warning(`Opponent disconnected: ${event.reason}`);
+          if (event.you_win) {
+            toast.success('You win by forfeit!');
+            setTimeout(() => navigate('/'), 5000);
+          }
+        },
+        onMatchEnd: (event) => {
+          console.log('WS: Match ended');
+          setConnectionState('ended');
+          setMatch(prev => prev ? {
+            ...prev,
+            state: 'ended',
+            winner_id: event.winner_id || undefined,
+            p1_score: event.final_scores.p1,
+            p2_score: event.final_scores.p2,
+          } : null);
+        },
+        onError: (error) => {
+          console.error('WS: Error:', error);
+          toast.error(`Connection error: ${error.message}`);
+        },
+        onClose: () => {
+          console.log('WS: Connection closed');
+          if (connectionState !== 'ended') {
+            toast.error('Connection to server lost');
+          }
+        },
+      });
+
+      wsRef.current = ws;
+    };
+
+    setupWebSocket();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (wsRef.current) {
+        console.log('WS: Cleaning up connection');
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
-  }, [matchId, currentUser]);
+  }, [matchId, currentUser, match, navigate, connectionState]);
 
-  const handleTimeUp = async () => {
-    if (!match || !currentUser) return;
-    setWaitingForOpponent(true);
-    await checkQuestionCompletion();
-  };
+  useEffect(() => {
+    if (countdown !== null && countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (countdown === 0) {
+      setCountdown(null);
+      setTimeLeft(300);
+    }
+  }, [countdown]);
 
-  const checkQuestionCompletion = async () => {
-    // TODO: Implement with new schema
-    console.log('Check question completion - needs implementation');
-  };
-
-  const evaluateQuestionWinner = async () => {
-    // TODO: Implement with new schema
-    console.log('Evaluate question winner - needs implementation');
-  };
-
-  const handleAnswer = async (answerIndex: number) => {
-    // TODO: Implement with new schema and match_events
-    console.log('Handle answer - needs implementation', answerIndex);
-  };
-
-  const handleNextStep = async () => {
-    // TODO: Implement with new schema
-    console.log('Handle next step - needs implementation');
-  };
-
-  const endMatch = async (finalP1Score?: number, finalP2Score?: number) => {
-    if (!match) return;
-
-    const p1Score = finalP1Score ?? match.p1_score;
-    const p2Score = finalP2Score ?? match.p2_score;
-
-    const winnerId = p1Score > p2Score ? match.p1 :
-                     p2Score > p1Score ? match.p2 : null;
-
-    await supabase
-      .from('matches_new')
-      .update({
-        state: 'ended',
-        winner_id: winnerId,
-        p1_score: p1Score,
-        p2_score: p2Score,
-        ended_at: new Date().toISOString(),
-      })
-      .eq('id', match.id);
-  };
+  useEffect(() => {
+    if (connectionState === 'playing' && timeLeft > 0) {
+      const timer = setInterval(() => {
+        setTimeLeft(prev => Math.max(0, prev - 1));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [connectionState, timeLeft]);
 
   if (!match || !currentUser) {
     return (
       <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
         <Starfield />
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)',
-          }}
-        />
-        <div className="relative z-10 text-2xl">Loading battle...</div>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+          <div className="text-2xl">Loading battle...</div>
+        </div>
       </div>
     );
   }
@@ -264,26 +227,11 @@ export const OnlineBattle = () => {
     return (
       <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
         <Starfield />
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)',
-          }}
-        />
-        <motion.div
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="relative z-10 text-center"
-        >
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
+        <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative z-10 text-center">
           <h2 className="text-3xl font-bold mb-8">Get Ready!</h2>
-          <motion.div
-            key={countdown}
-            initial={{ scale: 2, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.5, opacity: 0 }}
-            className="text-9xl font-bold text-primary"
-          >
-            {countdown}
+          <motion.div key={countdown} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className="text-9xl font-bold text-primary">
+            {countdown === 0 ? 'START!' : countdown}
           </motion.div>
           <div className="mt-8 text-xl text-muted-foreground">
             {yourUsername} vs {opponentUsername}
@@ -294,30 +242,20 @@ export const OnlineBattle = () => {
   }
 
   const isPlayer1 = currentUser === match.p1;
-
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const totalTime = 300;
   const timeProgress = (timeLeft / totalTime) * 100;
 
-  if (match.state === 'ended') {
+  if (match.state === 'ended' || connectionState === 'ended') {
     const won = match.winner_id === currentUser;
     const draw = !match.winner_id;
 
     return (
       <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
         <Starfield />
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)',
-          }}
-        />
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="relative z-10 text-center"
-        >
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
+        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative z-10 text-center">
           <h1 className="text-6xl font-bold mb-4">
             {draw ? 'DRAW!' : won ? 'VICTORY!' : 'DEFEAT'}
           </h1>
@@ -335,21 +273,11 @@ export const OnlineBattle = () => {
   return (
     <div className="relative min-h-screen overflow-hidden flex flex-col">
       <Starfield />
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)',
-        }}
-      />
-      
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
+
       <div className="relative z-10 container mx-auto px-4 py-8 flex-1">
-        {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate('/')}
-            className="backdrop-blur-sm bg-card/50 border border-border/50 hover:bg-card/70 hover:border-border"
-          >
+          <Button variant="ghost" onClick={() => navigate('/')} className="backdrop-blur-sm bg-card/50 border border-border/50 hover:bg-card/70 hover:border-border">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Leave Match
           </Button>
@@ -358,72 +286,54 @@ export const OnlineBattle = () => {
           </div>
         </div>
 
-        {/* Tug of War Bar */}
         <div className="mb-8">
-          <TugOfWarBar position={tugOfWarPosition} maxSteps={5} />
+          <TugOfWarBar position={0} maxSteps={5} />
         </div>
 
-        {/* Timer */}
-        <div className="mb-6 backdrop-blur-sm bg-card/50 p-6 rounded-2xl border border-border/50 relative shadow-lg">
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="absolute left-3 top-3 hover:bg-background/50"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="text-center mb-3">
-            <div className="text-4xl font-bold">
-              {minutes}:{seconds.toString().padStart(2, '0')}
-            </div>
-            <div className="text-sm text-muted-foreground mt-1">Time Remaining</div>
-          </div>
-          <Progress value={timeProgress} className="h-2" />
-        </div>
-
-        {/* Scores */}
-        <div className="grid grid-cols-2 gap-4 mb-8">
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className={`p-6 rounded-2xl backdrop-blur-sm border-2 shadow-lg ${
-              isPlayer1 
-                ? 'bg-primary/10 border-primary/50' 
-                : 'bg-card/50 border-border/50'
-            }`}
-          >
-            <div className="text-xs uppercase tracking-wide mb-2 text-muted-foreground">YOU</div>
-            <div className="text-lg font-semibold mb-2 truncate">{yourUsername}</div>
-            <div className="text-4xl font-bold">
-              {isPlayer1 ? match.p1_score : match.p2_score}
+        {connectionState === 'waiting_ready' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-card/50 p-8 rounded-2xl border border-border/50 text-center shadow-lg mb-6">
+            <h2 className="text-2xl font-bold mb-4">Waiting for players to ready up...</h2>
+            <div className="flex justify-center gap-8">
+              <div className={`flex items-center gap-2 ${youReady ? 'text-green-500' : 'text-muted-foreground'}`}>
+                {youReady ? '✓' : '○'} You {youReady && '(Ready)'}
+              </div>
+              <div className={`flex items-center gap-2 ${opponentReady ? 'text-green-500' : 'text-muted-foreground'}`}>
+                {opponentReady ? '✓' : '○'} {opponentUsername} {opponentReady && '(Ready)'}
+              </div>
             </div>
           </motion.div>
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className={`p-6 rounded-2xl backdrop-blur-sm border-2 shadow-lg ${
-              !isPlayer1 
-                ? 'bg-primary/10 border-primary/50' 
-                : 'bg-card/50 border-border/50'
-            }`}
-          >
-            <div className="text-xs uppercase tracking-wide mb-2 text-muted-foreground">OPPONENT</div>
-            <div className="text-lg font-semibold mb-2 truncate">{opponentUsername}</div>
-            <div className="text-4xl font-bold">
-              {!isPlayer1 ? match.p1_score : match.p2_score}
-            </div>
-          </motion.div>
-        </div>
+        )}
 
-        {/* Battle Area - TODO: Implement question display */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="backdrop-blur-sm bg-card/50 p-8 rounded-2xl border border-border/50 text-center shadow-lg"
-        >
-          <h2 className="text-3xl font-bold mb-4">Battle System Under Construction</h2>
-          <p className="text-muted-foreground mb-4">The online battle system needs to be fully implemented with the new schema.</p>
+        {connectionState === 'playing' && (
+          <>
+            <div className="mb-6 backdrop-blur-sm bg-card/50 p-6 rounded-2xl border border-border/50 relative shadow-lg">
+              <div className="text-center mb-3">
+                <div className="text-4xl font-bold">
+                  {minutes}:{seconds.toString().padStart(2, '0')}
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">Time Remaining</div>
+              </div>
+              <Progress value={timeProgress} className="h-2" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className={`p-6 rounded-2xl backdrop-blur-sm border-2 shadow-lg ${isPlayer1 ? 'bg-primary/10 border-primary/50' : 'bg-card/50 border-border/50'}`}>
+                <div className="text-xs uppercase tracking-wide mb-2 text-muted-foreground">YOU</div>
+                <div className="text-lg font-semibold mb-2 truncate">{yourUsername}</div>
+                <div className="text-4xl font-bold">{isPlayer1 ? match.p1_score : match.p2_score}</div>
+              </motion.div>
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className={`p-6 rounded-2xl backdrop-blur-sm border-2 shadow-lg ${!isPlayer1 ? 'bg-primary/10 border-primary/50' : 'bg-card/50 border-border/50'}`}>
+                <div className="text-xs uppercase tracking-wide mb-2 text-muted-foreground">OPPONENT</div>
+                <div className="text-lg font-semibold mb-2 truncate">{opponentUsername}</div>
+                <div className="text-4xl font-bold">{!isPlayer1 ? match.p1_score : match.p2_score}</div>
+              </motion.div>
+            </div>
+          </>
+        )}
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-card/50 p-8 rounded-2xl border border-border/50 text-center shadow-lg">
+          <h2 className="text-3xl font-bold mb-4">Battle System Active</h2>
+          <p className="text-muted-foreground mb-4">WebSocket connected. Question display and gameplay coming soon.</p>
           <p className="text-sm text-muted-foreground">Match ID: {matchId}</p>
         </motion.div>
       </div>

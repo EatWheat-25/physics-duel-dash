@@ -1,3 +1,11 @@
+# ARCHIVED: Offer/Accept Matchmaking Proposal
+
+**⚠️ NOTE: This design was NOT implemented. The current system uses Instant Matching instead.**
+
+See README.md for the actual implementation details.
+
+---
+
 # PR: Production-Viable Event-Driven Matchmaking System
 
 ## Summary
