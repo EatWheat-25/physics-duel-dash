@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Starfield } from '@/components/Starfield';
-import { BottomNav } from '@/components/BottomNav';
 import { PlayerHubCard } from '@/components/hub/PlayerHubCard';
 import { QuickActionsStrip } from '@/components/hub/QuickActionsStrip';
 import { Button } from '@/components/ui/button';
@@ -45,12 +44,10 @@ export default function Profile() {
         </Button>
       </div>
 
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center gap-6 px-4 py-16 pb-32">
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center gap-6 px-4 py-16">
         <PlayerHubCard />
         <QuickActionsStrip />
       </main>
-
-      <BottomNav />
     </div>
   );
 }

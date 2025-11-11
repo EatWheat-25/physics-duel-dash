@@ -5,8 +5,6 @@ import { Starfield } from '@/components/Starfield';
 import { NeonText } from '@/components/NeonText';
 import { GlowCard } from '@/components/GlowCard';
 import { PillTabs } from '@/components/PillTabs';
-import { Dock } from '@/components/Dock';
-
 export const onStartDailyChallenge = () => console.log('Daily Challenge Started');
 export const onStartStudyMode = () => console.log('Study Mode Started');
 export const onStartBattleArena = () => console.log('Battle Arena Started');
@@ -149,14 +147,6 @@ export default function NewHome() {
           </p>
         </motion.div>
       </div>
-
-      <Dock
-        onModules={() => console.log('Modules')}
-        onChallenges={() => console.log('Challenges')}
-        onBattle={onPressBattle}
-        onProgression={() => console.log('Progression')}
-        onShop={() => console.log('Shop')}
-      />
     </div>
   );
 }
