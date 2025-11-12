@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Starfield } from '@/components/Starfield';
-import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, ArrowLeft, BookOpen, GraduationCap, Zap } from 'lucide-react';
+import { ArrowLeft, BookOpen, GraduationCap, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useBattleQueueStore } from '@/store/useBattleQueueStore';
 
 type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'grade-9' | 'grade-10' | 'grade-11' | 'grade-12' | 'as-level' | 'a2-level';
@@ -23,70 +23,14 @@ const grades = [
 
 export default function Lobby() {
   const navigate = useNavigate();
+  const { setPendingBattle } = useBattleQueueStore();
   const [step, setStep] = useState<'subject' | 'grade' | 'ready'>('subject');
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
-  const [isQueued, setIsQueued] = useState(false);
-  const [queueTime, setQueueTime] = useState(0);
 
   useEffect(() => {
     document.title = 'Battle Lobby | BattleNerds';
   }, []);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isQueued) {
-      interval = setInterval(() => {
-        setQueueTime((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isQueued]);
-
-  useEffect(() => {
-    if (!isQueued) return;
-
-    const checkQueue = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const channel = supabase
-        .channel(`queue:${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'matches_new',
-            filter: `p1=eq.${user.id},p2=eq.${user.id}`,
-          },
-          async (payload) => {
-            console.log('Match found!', payload);
-            const matchId = payload.new.id;
-
-            const { data: opponentData } = await supabase
-              .from('players')
-              .select('display_name')
-              .eq('id', payload.new.p1 === user.id ? payload.new.p2 : payload.new.p1)
-              .maybeSingle();
-
-            navigate(`/online-battle/${matchId}`, {
-              state: {
-                yourUsername: 'You',
-                opponentName: opponentData?.display_name || 'Opponent',
-              },
-            });
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    };
-
-    checkQueue();
-  }, [isQueued, navigate]);
 
   const handleSubjectSelect = (subject: Subject) => {
     setSelectedSubject(subject);
@@ -98,75 +42,24 @@ export default function Lobby() {
     setStep('ready');
   };
 
-  const handleStartQueue = async () => {
+  const handleStartQueue = () => {
     if (!selectedSubject || !selectedGrade) return;
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.error('No active session');
-        return;
-      }
+    // Map grade to GameMode format
+    const modeMap: Record<Grade, string> = {
+      'as-level': 'AS Level',
+      'a2-level': 'A2 Level', 
+      'grade-9': 'Grade 9',
+      'grade-10': 'Grade 10',
+      'grade-11': 'Grade 11',
+      'grade-12': 'AS + A2'
+    };
 
-      setIsQueued(true);
-      setQueueTime(0);
-
-      const { data, error } = await supabase.functions.invoke('enqueue', {
-        body: {
-          subject: selectedSubject,
-          chapter: 'mechanics',
-          region: null,
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (error) {
-        console.error('Queue error:', error);
-        setIsQueued(false);
-        return;
-      }
-
-      console.log('Queue response:', data);
-
-      if (data.matched) {
-        navigate(`/online-battle/${data.match_id}`, {
-          state: {
-            yourUsername: 'You',
-            opponentName: data.opponent_name || 'Opponent',
-          },
-        });
-      }
-    } catch (error) {
-      console.error('Failed to queue:', error);
-      setIsQueued(false);
-    }
+    setPendingBattle(modeMap[selectedGrade] as any, selectedSubject);
+    navigate('/');
   };
 
-  const handleLeaveQueue = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      await supabase.functions.invoke('leave_queue', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      setIsQueued(false);
-      setQueueTime(0);
-    } catch (error) {
-      console.error('Failed to leave queue:', error);
-    }
-  };
-
-  const handleBack = async () => {
-    if (isQueued) {
-      await handleLeaveQueue();
-    }
-
+  const handleBack = () => {
     if (step === 'grade') {
       setStep('subject');
       setSelectedGrade(null);
@@ -379,7 +272,7 @@ export default function Lobby() {
               </motion.div>
             )}
 
-            {step === 'ready' && !isQueued && (
+            {step === 'ready' && (
               <motion.div
                 key="ready"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -471,53 +364,6 @@ export default function Lobby() {
                   <p className="text-sm mt-6" style={{ color: 'var(--text-dim)' }}>
                     Click to find an opponent and start your match!
                   </p>
-                </div>
-              </motion.div>
-            )}
-
-            {isQueued && (
-              <motion.div
-                key="queued"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="flex items-center justify-center"
-              >
-                <div
-                  className="rounded-3xl p-12 text-center max-w-2xl w-full"
-                  style={{
-                    background: 'rgba(255,255,255,0.08)',
-                    backdropFilter: 'blur(40px)',
-                    border: '1px solid rgba(255,255,255,0.18)',
-                    boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-                  }}
-                >
-                  <h1
-                    className="text-4xl md:text-5xl font-bold mb-8"
-                    style={{ color: 'var(--text-primary)' }}
-                  >
-                    Finding Opponent...
-                  </h1>
-
-                  <Loader2 className="w-20 h-20 mx-auto mb-8 animate-spin" style={{ color: 'var(--violet)' }} />
-
-                  <p className="text-3xl font-bold mb-8" style={{ color: 'var(--text-primary)' }}>
-                    {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
-                  </p>
-
-                  <motion.button
-                    onClick={handleLeaveQueue}
-                    className="px-8 py-3 rounded-full font-bold uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)]"
-                    style={{
-                      background: 'rgba(255,255,255,0.1)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      color: 'var(--text-primary)',
-                    }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Cancel Search
-                  </motion.button>
                 </div>
               </motion.div>
             )}

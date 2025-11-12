@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, Trophy, Zap, TrendingUp, ShoppingBag } from 'lucide-react';
 import { useSubjectStore } from '@/store/useSubjectStore';
+import { useBattleQueueStore } from '@/store/useBattleQueueStore';
 
 interface BottomNavProps {
   onBattleClick?: () => void;
@@ -11,6 +12,7 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { subject } = useSubjectStore();
+  const { pendingBattle } = useBattleQueueStore();
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const handleNavigation = (path: string, excludeSubject = false) => {
@@ -54,6 +56,8 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
           const active = isActive(item.path);
 
           if (item.emphasized) {
+            const isReadyToStart = !!pendingBattle && !!onBattleClick;
+            
             return (
               <motion.button
                 key={item.label}
@@ -64,23 +68,33 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
                     handleNavigation(item.path, item.excludeSubject);
                   }
                 }}
-                className="relative px-6 md:px-8 py-3 md:py-4 rounded-full font-bold text-xs md:text-sm uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914]"
+                className="relative px-8 md:px-10 py-4 md:py-5 rounded-full font-bold text-sm md:text-base uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914] scale-125 -translate-y-2"
                 style={{
-                  background: 'linear-gradient(135deg, var(--magenta), var(--violet))',
+                  background: isReadyToStart 
+                    ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                    : 'linear-gradient(135deg, var(--magenta), var(--violet))',
                   color: 'white',
-                  boxShadow: '0 0 30px rgba(242,55,212,0.4)',
+                  boxShadow: isReadyToStart
+                    ? '0 0 40px rgba(239,68,68,0.6), 0 4px 20px rgba(0,0,0,0.3)'
+                    : '0 0 40px rgba(242,55,212,0.5), 0 4px 20px rgba(0,0,0,0.3)',
                 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.35, translateY: -10 }}
+                whileTap={{ scale: 1.15, translateY: -8 }}
                 animate={
                   prefersReducedMotion
                     ? {}
                     : {
-                        boxShadow: [
-                          '0 0 30px rgba(242,55,212,0.4)',
-                          '0 0 40px rgba(242,55,212,0.6)',
-                          '0 0 30px rgba(242,55,212,0.4)',
-                        ],
+                        boxShadow: isReadyToStart
+                          ? [
+                              '0 0 30px rgba(239,68,68,0.5)',
+                              '0 0 40px rgba(239,68,68,0.7)',
+                              '0 0 30px rgba(239,68,68,0.5)',
+                            ]
+                          : [
+                              '0 0 30px rgba(242,55,212,0.4)',
+                              '0 0 40px rgba(242,55,212,0.6)',
+                              '0 0 30px rgba(242,55,212,0.4)',
+                            ],
                       }
                 }
                 transition={{
@@ -88,11 +102,13 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
                   repeat: Infinity,
                   ease: 'easeInOut',
                 }}
-                aria-label={item.label}
+                aria-label={isReadyToStart ? 'Start Battle' : item.label}
                 aria-current={active ? 'page' : undefined}
               >
                 <Icon className="w-4 h-4 md:w-5 md:h-5 inline mr-2" />
-                <span className="hidden sm:inline">{item.label}</span>
+                <span className="hidden sm:inline">
+                  {isReadyToStart ? 'START' : item.label}
+                </span>
                 <span className="sm:hidden">
                   <Icon className="w-5 h-5" />
                 </span>

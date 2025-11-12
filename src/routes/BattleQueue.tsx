@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Swords, ChevronDown, ArrowLeft, Loader2 } from 'lucide-react';
+import { Swords, ChevronDown, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Starfield } from '@/components/Starfield';
 import { GameMode } from '@/types/gameMode';
 import { Button } from '@/components/ui/button';
-import { useMatchmaking } from '@/hooks/useMatchmaking';
+import { useBattleQueueStore } from '@/store/useBattleQueueStore';
 
 export default function BattleQueue() {
   const [searchParams] = useSearchParams();
@@ -13,32 +13,16 @@ export default function BattleQueue() {
   const subject = searchParams.get('subject') || 'physics';
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const { status, joinQueue, leaveQueue, queueStartTime } = useMatchmaking();
-  const [elapsedTime, setElapsedTime] = useState(0);
+  const { setPendingBattle } = useBattleQueueStore();
 
   useEffect(() => {
     document.title = '1v1 Battle Arena | BattleNerds';
   }, []);
 
-  useEffect(() => {
-    if (status === 'queuing' && queueStartTime) {
-      const interval = setInterval(() => {
-        setElapsedTime(Math.floor((Date.now() - queueStartTime) / 1000));
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [status, queueStartTime]);
-
-  const handleStartBattle = async () => {
+  const handleStartBattle = () => {
     if (!selectedMode) return;
-
-    const chapter = selectedMode;
-    await joinQueue({ subject, chapter });
-  };
-
-  const handleLeaveQueue = async () => {
-    await leaveQueue();
-    setElapsedTime(0);
+    setPendingBattle(selectedMode, subject);
+    navigate('/');
   };
 
   const modes: { id: GameMode; title: string; emoji: string }[] = [
@@ -143,54 +127,20 @@ export default function BattleQueue() {
               A1 & A2 • Chapter Competitive
             </p>
 
-            {/* Battle Button or Queue Status */}
+            {/* Battle Button */}
             <div className="flex flex-col items-center gap-4 mt-8">
-              {status === 'idle' || status === 'error' ? (
-                <Button
-                  onClick={handleStartBattle}
-                  disabled={!selectedMode || status === 'joining'}
-                  className={`px-12 py-6 text-lg font-bold uppercase tracking-wider rounded-2xl transition-all duration-500 ${
-                    selectedMode && status !== 'joining'
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/50 hover:shadow-xl hover:shadow-purple-500/60 hover:scale-105'
-                      : 'bg-muted text-muted-foreground cursor-not-allowed'
-                  }`}
-                >
-                  {status === 'joining' ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 inline-block animate-spin" />
-                      Joining...
-                    </>
-                  ) : (
-                    <>
-                      <Swords className="w-5 h-5 mr-2 inline-block" />
-                      {selectedMode ? 'Start Battle' : 'Select a Mode'}
-                    </>
-                  )}
-                </Button>
-              ) : status === 'queuing' ? (
-                <div className="flex flex-col items-center gap-4">
-                  <div className="flex items-center gap-3 text-lg">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                    <span className="font-bold">Searching for opponent...</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Time in queue: {elapsedTime}s
-                  </div>
-                  <Button
-                    onClick={handleLeaveQueue}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                  >
-                    Cancel Search
-                  </Button>
-                </div>
-              ) : status === 'matched' ? (
-                <div className="flex items-center gap-3 text-lg text-green-500 font-bold">
-                  <Swords className="w-6 h-6" />
-                  Match found! Connecting...
-                </div>
-              ) : null}
+              <Button
+                onClick={handleStartBattle}
+                disabled={!selectedMode}
+                className={`px-12 py-6 text-lg font-bold uppercase tracking-wider rounded-2xl transition-all duration-500 ${
+                  selectedMode
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/50 hover:shadow-xl hover:shadow-purple-500/60 hover:scale-105'
+                    : 'bg-muted text-muted-foreground cursor-not-allowed'
+                }`}
+              >
+                <Swords className="w-5 h-5 mr-2 inline-block" />
+                {selectedMode ? 'Start Battle' : 'Select a Mode'}
+              </Button>
             </div>
 
             {!selectedMode && (
