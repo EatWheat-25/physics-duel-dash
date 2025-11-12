@@ -68,18 +68,18 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
                     handleNavigation(item.path, item.excludeSubject);
                   }
                 }}
-                className="relative px-6 md:px-8 py-3 md:py-4 rounded-full font-bold text-xs md:text-sm uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914]"
+                className="relative px-8 md:px-10 py-4 md:py-5 rounded-full font-bold text-sm md:text-base uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914] scale-125 -translate-y-2"
                 style={{
                   background: isReadyToStart 
                     ? 'linear-gradient(135deg, #ef4444, #dc2626)'
                     : 'linear-gradient(135deg, var(--magenta), var(--violet))',
                   color: 'white',
                   boxShadow: isReadyToStart
-                    ? '0 0 30px rgba(239,68,68,0.5)'
-                    : '0 0 30px rgba(242,55,212,0.4)',
+                    ? '0 0 40px rgba(239,68,68,0.6), 0 4px 20px rgba(0,0,0,0.3)'
+                    : '0 0 40px rgba(242,55,212,0.5), 0 4px 20px rgba(0,0,0,0.3)',
                 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.35, translateY: -10 }}
+                whileTap={{ scale: 1.15, translateY: -8 }}
                 animate={
                   prefersReducedMotion
                     ? {}
