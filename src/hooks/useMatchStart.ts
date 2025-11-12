@@ -5,11 +5,12 @@ type StartArgs = { subject: string; mode: string };
 type Navigate = (matchId: string) => void;
 
 export function useMatchStart(userId: string, onNavigate: Navigate) {
-  let gotMatch = false;
   let channel: RealtimeChannel | null = null;
+  let gotMatch = false;
 
   async function subscribe() {
     if (channel) return;
+    console.log('MN TEST: subscribing…');
     channel = supabase.channel(`mn_${userId}`);
     channel.on(
       'postgres_changes',
@@ -39,6 +40,7 @@ export function useMatchStart(userId: string, onNavigate: Navigate) {
   async function start({ subject, mode }: StartArgs) {
     console.log('QUEUE: start', { subject, mode });
     await subscribe();
+    console.log('MN TEST: subscribed, invoking enqueue…');
     const { data, error } = await supabase.functions.invoke('enqueue', {
       body: { subject, mode },
     });

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Starfield } from '@/components/Starfield';
 import { supabase } from '@/integrations/supabase/client';
+import { useMatchStart } from '@/hooks/useMatchStart';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, ArrowLeft, BookOpen, GraduationCap, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,10 +29,27 @@ export default function Lobby() {
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
   const [isQueued, setIsQueued] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = 'Battle Lobby | BattleNerds';
+
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+      }
+    };
+    fetchUser();
   }, []);
+
+  const { start: startMatch, cleanup: cleanupMatch } = useMatchStart(
+    userId || '',
+    (matchId) => {
+      setIsQueued(false);
+      navigate(`/online-battle/${matchId}`);
+    }
+  );
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -44,49 +62,10 @@ export default function Lobby() {
   }, [isQueued]);
 
   useEffect(() => {
-    if (!isQueued) return;
-
-    const checkQueue = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const channel = supabase
-        .channel(`queue:${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'matches_new',
-            filter: `p1=eq.${user.id},p2=eq.${user.id}`,
-          },
-          async (payload) => {
-            console.log('Match found!', payload);
-            const matchId = payload.new.id;
-
-            const { data: opponentData } = await supabase
-              .from('players')
-              .select('display_name')
-              .eq('id', payload.new.p1 === user.id ? payload.new.p2 : payload.new.p1)
-              .maybeSingle();
-
-            navigate(`/online-battle/${matchId}`, {
-              state: {
-                yourUsername: 'You',
-                opponentName: opponentData?.display_name || 'Opponent',
-              },
-            });
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
+    return () => {
+      cleanupMatch();
     };
-
-    checkQueue();
-  }, [isQueued, navigate]);
+  }, [cleanupMatch]);
 
   const handleSubjectSelect = (subject: Subject) => {
     setSelectedSubject(subject);
@@ -99,47 +78,18 @@ export default function Lobby() {
   };
 
   const handleStartQueue = async () => {
-    if (!selectedSubject || !selectedGrade) return;
+    if (!selectedSubject || !selectedGrade || !userId) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.error('No active session');
-        return;
-      }
-
       setIsQueued(true);
       setQueueTime(0);
 
-      const { data, error } = await supabase.functions.invoke('enqueue', {
-        body: {
-          subject: selectedSubject,
-          chapter: 'mechanics',
-          region: null,
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+      await startMatch({
+        subject: selectedSubject,
+        mode: 'Ranked',
       });
-
-      if (error) {
-        console.error('Queue error:', error);
-        setIsQueued(false);
-        return;
-      }
-
-      console.log('Queue response:', data);
-
-      if (data.matched) {
-        navigate(`/online-battle/${data.match_id}`, {
-          state: {
-            yourUsername: 'You',
-            opponentName: data.opponent_name || 'Opponent',
-          },
-        });
-      }
     } catch (error) {
-      console.error('Failed to queue:', error);
+      console.error('Failed to start queue:', error);
       setIsQueued(false);
     }
   };
@@ -155,6 +105,7 @@ export default function Lobby() {
         },
       });
 
+      cleanupMatch();
       setIsQueued(false);
       setQueueTime(0);
     } catch (error) {
