@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
         continue
       }
 
-      if (matchResult && matchResult.matched && matchResult.opponent_id) {
+      if (matchResult && matchResult.matched) {
         console.log(`✅ Match created: ${matchResult.match_id}`)
         console.log(`   Player 1: ${player.player_id} (MMR: ${player.mmr})`)
         console.log(`   Player 2: ${matchResult.opponent_id}`)
