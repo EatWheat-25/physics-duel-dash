@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
+import { z } from 'npm:zod@3.23.8'
 
 // ELO calculation
 function calculateElo(winner: number, loser: number, kFactor = 32): { winner: number; loser: number } {
@@ -22,6 +23,28 @@ interface GameState {
   p2Score: number
   gameActive: boolean
 }
+
+// Validation schemas
+const ReadyMessageSchema = z.object({
+  type: z.literal('ready')
+})
+
+const AnswerSubmitSchema = z.object({
+  type: z.literal('answer_submit'),
+  question_id: z.string().min(1).max(100),
+  answer: z.number().int().min(0).max(10),
+  marks_earned: z.number().int().min(0).max(10)
+})
+
+const QuestionCompleteSchema = z.object({
+  type: z.literal('question_complete')
+})
+
+const ClientMessageSchema = z.discriminatedUnion('type', [
+  ReadyMessageSchema,
+  AnswerSubmitSchema,
+  QuestionCompleteSchema
+])
 
 const games = new Map<string, GameState>()
 
@@ -100,7 +123,21 @@ Deno.serve(async (req) => {
 
   socket.onmessage = async (event) => {
     try {
-      const message = JSON.parse(event.data)
+      const rawMessage = JSON.parse(event.data)
+      
+      // Validate message
+      const validation = ClientMessageSchema.safeParse(rawMessage)
+      if (!validation.success) {
+        console.error('Invalid message format:', validation.error)
+        socket.send(JSON.stringify({ 
+          type: 'error', 
+          message: 'Invalid message format',
+          details: validation.error.issues 
+        }))
+        return
+      }
+      
+      const message = validation.data
       console.log(`Received message from ${user.id}:`, message.type)
 
       // Log event to match_events

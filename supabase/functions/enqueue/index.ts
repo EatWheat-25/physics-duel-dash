@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
+import { z } from 'npm:zod@3.23.8'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -35,7 +36,25 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { subject, chapter, region } = await req.json()
+    const requestBody = await req.json()
+    
+    // Validate input
+    const EnqueueSchema = z.object({
+      subject: z.enum(['math', 'physics', 'chemistry']),
+      chapter: z.string().min(1).max(100).trim(),
+      region: z.string().max(50).optional()
+    })
+    
+    const validation = EnqueueSchema.safeParse(requestBody)
+    if (!validation.success) {
+      console.error('Validation error:', validation.error)
+      return new Response(
+        JSON.stringify({ error: 'Invalid input', details: validation.error.issues }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    const { subject, chapter, region } = validation.data
     if (!subject || !chapter) {
       return new Response(JSON.stringify({ error: 'Missing subject or chapter' }), {
         status: 400,
