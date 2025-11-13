@@ -148,24 +148,15 @@ export default function BattleQueue() {
               {status === 'idle' || status === 'error' ? (
                 <Button
                   onClick={handleStartBattle}
-                  disabled={!selectedMode || status === 'joining'}
+                  disabled={!selectedMode}
                   className={`px-12 py-6 text-lg font-bold uppercase tracking-wider rounded-2xl transition-all duration-500 ${
-                    selectedMode && status !== 'joining'
+                    selectedMode
                       ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/50 hover:shadow-xl hover:shadow-purple-500/60 hover:scale-105'
                       : 'bg-muted text-muted-foreground cursor-not-allowed'
                   }`}
                 >
-                  {status === 'joining' ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 inline-block animate-spin" />
-                      Joining...
-                    </>
-                  ) : (
-                    <>
-                      <Swords className="w-5 h-5 mr-2 inline-block" />
-                      {selectedMode ? 'Start Battle' : 'Select a Mode'}
-                    </>
-                  )}
+                  <Swords className="w-5 h-5 mr-2 inline-block" />
+                  {selectedMode ? 'Start Battle' : 'Select a Mode'}
                 </Button>
               ) : status === 'queuing' ? (
                 <div className="flex flex-col items-center gap-4">

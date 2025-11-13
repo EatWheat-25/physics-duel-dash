@@ -18,6 +18,9 @@ verify_jwt = false
 [functions.game-ws]
 verify_jwt = false
 
+[functions.admin-auth]
+verify_jwt = true
+
 [edge_runtime.cron.matchmaker]
 name = "matchmaker_tick"
 schedule = "*/2 * * * * *"

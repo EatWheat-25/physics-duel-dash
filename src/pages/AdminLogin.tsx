@@ -9,8 +9,6 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Shield, ArrowLeft } from 'lucide-react';
 
-const ADMIN_CODE = "NEURAL2024"; // Admin access code
-
 export default function AdminLogin() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,37 +24,25 @@ export default function AdminLogin() {
       return;
     }
 
-    if (code !== ADMIN_CODE) {
-      toast.error('Invalid admin code');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      // Add user to admin role
-      const { error } = await supabase
-        .from('user_roles')
-        .insert({ user_id: user.id, role: 'admin' });
+      const { data, error } = await supabase.functions.invoke('admin-auth', {
+        body: { adminCode: code }
+      });
 
-      if (error) {
-        // Check if already admin
-        if (error.code === '23505') { // Unique constraint violation
-          toast.success('You already have admin access!');
-        } else {
-          throw error;
-        }
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(data.message || 'Admin access granted!');
+        setTimeout(() => {
+          navigate('/admin/questions');
+        }, 1000);
       } else {
-        toast.success('Admin access granted!');
+        toast.error('Invalid admin code');
       }
-
-      // Redirect to admin dashboard
-      setTimeout(() => {
-        navigate('/admin/questions');
-      }, 1000);
     } catch (error) {
-      console.error('Error granting admin access:', error);
-      toast.error('Failed to grant admin access');
+      toast.error('Failed to verify admin code');
     } finally {
       setLoading(false);
     }
@@ -112,12 +98,6 @@ export default function AdminLogin() {
             </p>
           )}
         </form>
-
-        <div className="mt-6 p-4 bg-muted rounded-lg">
-          <p className="text-xs text-muted-foreground text-center">
-            Admin code: <span className="font-mono font-bold">NEURAL2024</span>
-          </p>
-        </div>
       </Card>
     </div>
   );
