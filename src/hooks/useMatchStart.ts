@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-type StartArgs = { subject: string; mode: string };
+type StartArgs = { subject: string; chapter: string; mode?: string };
 type Navigate = (matchId: string) => void;
 
 export function useMatchStart(userId: string, onNavigate: Navigate) {
@@ -37,12 +37,12 @@ export function useMatchStart(userId: string, onNavigate: Navigate) {
     if (channel) { supabase.removeChannel(channel); channel = null; }
   }
 
-  async function start({ subject, mode }: StartArgs) {
-    console.log('QUEUE: start', { subject, mode });
+  async function start({ subject, chapter }: StartArgs) {
+    console.log('QUEUE: start', { subject, chapter });
     await subscribe();
     console.log('MN TEST: subscribed, invoking enqueue…');
     const { data, error } = await supabase.functions.invoke('enqueue', {
-      body: { subject, mode },
+      body: { subject, chapter },
     });
     if (error) { console.error('ENQUEUE ERROR:', error); return; }
     console.log('ENQUEUE: response', data);
