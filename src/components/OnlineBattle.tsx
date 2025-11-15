@@ -7,7 +7,7 @@ import { Progress } from './ui/progress';
 import { ArrowLeft, Loader2, Trophy, Award } from 'lucide-react';
 import { Starfield } from './Starfield';
 import TugOfWarBar from './TugOfWarBar';
-import { connectGameWS, sendReady, sendAnswer, type ServerEvent } from '@/lib/ws';
+import { connectGameWS, sendReady, sendAnswer, sendQuestionComplete, type ServerEvent } from '@/lib/ws';
 import { toast } from 'sonner';
 import { StepBasedQuestion } from '@/types/stepQuestion';
 
@@ -132,25 +132,59 @@ export const OnlineBattle = () => {
           }
         },
         onGameStart: (event) => {
-          console.log('WS: Game starting with questions!', event);
-          if (event.questions && event.questions.length > 0) {
-            const formattedQuestions = event.questions.map(q => ({
+          console.log('WS: Game starting with question!', event);
+          if (event.question) {
+            const q = event.question;
+            const formattedQuestion = {
               id: q.id,
               title: q.title,
               subject: q.subject,
               chapter: q.chapter,
               level: q.level,
               difficulty: q.difficulty,
-              rankTier: 'Bronze' as const,
+              rankTier: q.rank_tier || 'Bronze' as const,
               totalMarks: q.total_marks,
               questionText: q.question_text,
               topicTags: q.topic_tags || [],
               steps: q.steps
-            }));
-            setQuestions(formattedQuestions);
+            };
+            setQuestions([formattedQuestion]);
           }
           toast.success('Battle begins!');
           setCountdown(3);
+        },
+        onNextQuestion: (event) => {
+          console.log('WS: Received next question', event);
+          if (event.question) {
+            const q = event.question;
+            const formattedQuestion = {
+              id: q.id,
+              title: q.title,
+              subject: q.subject,
+              chapter: q.chapter,
+              level: q.level,
+              difficulty: q.difficulty,
+              rankTier: q.rank_tier || 'Bronze' as const,
+              totalMarks: q.total_marks,
+              questionText: q.question_text,
+              topicTags: q.topic_tags || [],
+              steps: q.steps
+            };
+            setQuestions([formattedQuestion]);
+            setCurrentQuestionIndex(0);
+            setCurrentStepIndex(0);
+          }
+        },
+        onAnswerResult: (event) => {
+          console.log('WS: Answer result received', event);
+          if (event.is_correct) {
+            toast.success(`Correct! +${event.marks_earned} marks`);
+          } else {
+            toast.error('Incorrect answer');
+          }
+          if (event.explanation) {
+            toast.info(event.explanation, { duration: 5000 });
+          }
         },
         onScoreUpdate: (event) => {
           console.log(`WS: Score update - p1: ${event.p1_score}, p2: ${event.p2_score}`);
@@ -266,17 +300,16 @@ export const OnlineBattle = () => {
 
     const currentQuestion = questions[currentQuestionIndex];
     const currentStep = currentQuestion.steps[currentStepIndex];
-    const isCorrect = answer === currentStep.correctAnswer;
-    const marksEarned = isCorrect ? currentStep.marks : 0;
 
-    sendAnswer(wsRef.current, currentQuestion.id, answer, marksEarned);
+    // Send answer to server for grading
+    sendAnswer(wsRef.current, currentQuestion.id, currentStep.id, answer);
 
-    // Move to next step or question
+    // Move to next step or send question_complete
     if (currentStepIndex < currentQuestion.steps.length - 1) {
       setCurrentStepIndex(currentStepIndex + 1);
-    } else if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setCurrentStepIndex(0);
+    } else {
+      // Question complete - tell server to fetch next question
+      sendQuestionComplete(wsRef.current);
     }
   };
 
