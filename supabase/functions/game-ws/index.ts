@@ -163,7 +163,24 @@ Deno.serve(async (req) => {
             game.gameActive = true
             await supabase.from('matches_new').update({ state: 'active' }).eq('id', matchId)
 
-            const startMsg = { type: 'game_start' }
+            // Fetch questions from database
+            const { data: questions, error: qError } = await supabase
+              .from('questions')
+              .select('*')
+              .eq('subject', match.subject)
+              .eq('chapter', match.chapter)
+              .limit(5)
+
+            if (qError) {
+              console.error('Error fetching questions:', qError)
+              socket.send(JSON.stringify({ type: 'error', message: 'Failed to load questions' }))
+              return
+            }
+
+            const startMsg = { 
+              type: 'game_start',
+              questions: questions || []
+            }
             game.p1Socket?.send(JSON.stringify(startMsg))
             game.p2Socket?.send(JSON.stringify(startMsg))
           }

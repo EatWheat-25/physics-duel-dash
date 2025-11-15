@@ -44,6 +44,13 @@ export type Database = {
             foreignKeyName: "match_events_match_id_fkey"
             columns: ["match_id"]
             isOneToOne: false
+            referencedRelation: "match_with_names"
+            referencedColumns: ["match_id"]
+          },
+          {
+            foreignKeyName: "match_events_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
             referencedRelation: "matches_new"
             referencedColumns: ["id"]
           },
@@ -284,6 +291,7 @@ export type Database = {
         Row: {
           age: number | null
           created_at: string | null
+          display_name: string | null
           id: string
           onboarding_completed: boolean | null
           subjects: Json
@@ -293,6 +301,7 @@ export type Database = {
         Insert: {
           age?: number | null
           created_at?: string | null
+          display_name?: string | null
           id: string
           onboarding_completed?: boolean | null
           subjects?: Json
@@ -302,6 +311,7 @@ export type Database = {
         Update: {
           age?: number | null
           created_at?: string | null
+          display_name?: string | null
           id?: string
           onboarding_completed?: boolean | null
           subjects?: Json
@@ -425,7 +435,32 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      match_with_names: {
+        Row: {
+          created_at: string | null
+          match_id: string | null
+          p1: string | null
+          p1_name: string | null
+          p2: string | null
+          p2_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matches_new_p1_fkey"
+            columns: ["p1"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_new_p2_fkey"
+            columns: ["p2"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
