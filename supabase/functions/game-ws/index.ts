@@ -121,23 +121,25 @@ Deno.serve(async (req) => {
   // Helper to fetch next question from database
   async function fetchNextQuestion() {
     try {
+      console.log(`[${matchId}] Fetching next question from database...`)
       const { data, error } = await supabase.rpc('pick_next_question_v2', {
         p_match_id: matchId
       })
 
       if (error) {
-        console.error('Error fetching question:', error)
+        console.error(`[${matchId}] Error fetching question:`, error)
         return null
       }
 
       if (!data || data.length === 0) {
-        console.error('No questions available for match')
+        console.error(`[${matchId}] No questions available for match. Database may be empty!`)
         return null
       }
 
+      console.log(`[${matchId}] Got question:`, data[0].question_id, 'ordinal:', data[0].ordinal)
       return data[0]
     } catch (error) {
-      console.error('Exception fetching question:', error)
+      console.error(`[${matchId}] Exception fetching question:`, error)
       return null
     }
   }

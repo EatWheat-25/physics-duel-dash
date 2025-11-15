@@ -133,6 +133,7 @@ export const OnlineBattle = () => {
         },
         onGameStart: (event) => {
           console.log('WS: Game starting with question!', event);
+          console.log('WS question payload:', JSON.stringify(event, null, 2));
           if (event.question) {
             const q = event.question;
             const formattedQuestion = {
@@ -149,12 +150,17 @@ export const OnlineBattle = () => {
               steps: q.steps
             };
             setQuestions([formattedQuestion]);
+            console.log('WS: Question set to state:', formattedQuestion.id);
+          } else {
+            console.error('WS: event.question is null/undefined!', event);
+            toast.error('Failed to load question');
           }
           toast.success('Battle begins!');
           setCountdown(3);
         },
         onNextQuestion: (event) => {
           console.log('WS: Received next question', event);
+          console.log('WS next_question payload:', JSON.stringify(event, null, 2));
           if (event.question) {
             const q = event.question;
             const formattedQuestion = {

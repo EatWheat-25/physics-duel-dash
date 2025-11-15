@@ -1,160 +1,321 @@
-# MVP Deployment Checklist
+# MVP Deployment Checklist - Questions Integration
 
-## Pre-Deployment
+## Status: ✅ Code Complete - Ready for Testing
 
-- [ ] Verify migration file exists: `supabase/migrations/20251115044021_questions_mvp_integration.sql`
-- [ ] Review migration SQL for any syntax errors
-- [ ] Backup current database (Supabase dashboard)
-- [ ] Ensure no active matches are running
+---
 
-## Deployment Steps
+## What You'll See in Console Logs
 
-### 1. Apply Database Migration
+### Server Logs (Supabase Edge Functions → game-ws)
 
-```bash
-# Auto-deployed on git push if using Supabase CLI
-# Or manually via Supabase dashboard: Database > Migrations
+**When both players ready:**
+```
+[match-uuid] Fetching next question from database...
+[match-uuid] Got question: question-uuid ordinal: 1
 ```
 
-Expected tables/functions created:
-- `match_questions` table
-- `upsert_questions()` function  
-- `pick_next_question_v2()` function
-- `submit_answer()` function
-- Indexes on questions table
-- New columns on matches_new
-
-### 2. Deploy WebSocket Function
-
-```bash
-# Auto-deployed on git push
-# Or manually via Supabase CLI:
-supabase functions deploy game-ws
+**If database is empty:**
+```
+[match-uuid] No questions available for match. Database may be empty!
 ```
 
-Verify:
-- Function shows in dashboard
-- No deployment errors
-- Logs are accessible
+### Client Logs (Browser Console)
 
-### 3. Seed Initial Questions
+**Both players should see:**
+```javascript
+WS: Connecting to game-ws for match [id]
+WS: Connected successfully
+WS: Connection confirmed as player p1 (or p2)
+WS: Sent ready signal
+WS: Player ready: p1
+WS: Player ready: p2
+WS: Game started
+WS: Game starting with question!
+WS question payload: {
+  "type": "game_start",
+  "question": {
+    "id": "a2-bronze-1",
+    "title": "Find the inverse function...",
+    "steps": [...]
+  },
+  "ordinal": 1,
+  "total_questions": 5
+}
+WS: Question set to state: a2-bronze-1
+```
+
+**If question is null:**
+```javascript
+WS: event.question is null/undefined! 
+{ type: 'game_start', question: null, ordinal: 1 }
+```
+
+---
+
+## Pre-Flight Checklist
+
+### 1. Verify Database Has Questions
 
 ```bash
-# Set environment variables first:
-export VITE_SUPABASE_URL="your-url"
-export SUPABASE_SERVICE_ROLE_KEY="your-key"
+# In Supabase SQL Editor
+SELECT count(*) FROM questions;
+```
 
-# Run seeder
+**Expected:** 100+ questions
+
+**If 0, run seed script:**
+```bash
 npm run seed:questions
 ```
 
-Expected output:
-- "Loaded X A2 questions"
-- "Complete! Success: X, Errors: 0"
-
-Verify in database:
-```sql
-SELECT count(*) FROM questions;
-SELECT subject, chapter, count(*) 
-FROM questions 
-GROUP BY subject, chapter;
-```
-
-## Post-Deployment Verification
-
-### Database Check
+### 2. Verify Migration Applied
 
 ```sql
--- Verify functions exist
 SELECT routine_name 
 FROM information_schema.routines 
-WHERE routine_name IN ('upsert_questions', 'pick_next_question_v2', 'submit_answer');
-
--- Verify indexes
-SELECT indexname 
-FROM pg_indexes 
-WHERE tablename = 'questions';
-
--- Check question count
-SELECT count(*) FROM questions;
-
--- Verify RLS policies
-SELECT tablename, policyname 
-FROM pg_policies 
-WHERE tablename IN ('questions', 'match_questions');
+WHERE routine_name LIKE '%question%' OR routine_name = 'submit_answer';
 ```
 
-### Functional Test
+**Expected:** Should see:
+- `pick_next_question_v2`
+- `submit_answer`  
+- `upsert_questions`
 
-1. Create two test accounts
-2. Both join queue
-3. Match is created
-4. Both connect to WebSocket
-5. Send ready messages
-6. Verify question appears
-7. Submit answer
-8. Verify score updates
-9. Complete question
-10. Verify next question appears
+### 3. Deploy Edge Function
 
-### Monitoring
+The game-ws function needs the latest code with debug logs.
 
-Check these in Supabase Dashboard:
+**Check deployment status:**
+- Supabase Dashboard → Edge Functions → game-ws
+- Should show "Deployed" 
+- Check recent invocations (should be healthy)
 
-- [ ] Edge Functions logs (game-ws)
-- [ ] Database logs (any RPC errors?)
-- [ ] Match events table (answers being logged?)
-- [ ] Match questions table (tracking usage?)
+**If not deployed or needs update:**
+```bash
+supabase functions deploy game-ws
+```
 
-## Rollback Plan
+### 4. Build Client
 
-If issues occur:
+```bash
+npm run build
+# Should complete: ✓ built in ~10s
+```
 
-1. **Disable matchmaking temporarily**:
-   ```sql
-   -- Block new matches (emergency only)
-   UPDATE queue SET status = 'disabled';
-   ```
+---
 
-2. **Revert WebSocket function**:
+## Testing Protocol
+
+### Setup
+
+1. **Start dev server:**
    ```bash
-   git checkout HEAD~1 supabase/functions/game-ws/index.ts
-   supabase functions deploy game-ws
+   npm run dev
    ```
 
-3. **Rollback migration** (last resort):
-   ```sql
-   DROP FUNCTION IF EXISTS submit_answer;
-   DROP FUNCTION IF EXISTS pick_next_question_v2;
-   DROP FUNCTION IF EXISTS upsert_questions;
-   DROP TABLE IF EXISTS match_questions;
-   ALTER TABLE matches_new DROP COLUMN IF EXISTS subject;
-   ALTER TABLE matches_new DROP COLUMN IF EXISTS chapter;
-   ALTER TABLE matches_new DROP COLUMN IF EXISTS rank_tier;
-   ```
+2. **Open two browser windows:**
+   - Window 1: Normal browser
+   - Window 2: Incognito/private mode
 
-## Success Criteria
+3. **Open console in both (F12 or Cmd+Opt+J)**
 
-- [ ] Migration applied successfully
-- [ ] At least 50 questions seeded
-- [ ] WebSocket function deployed
-- [ ] Test match completes successfully
-- [ ] Answers graded correctly
-- [ ] No console errors in client
-- [ ] No errors in Supabase logs
+### Test Flow
 
-## Known Limitations (MVP)
+**Player 1 (Window 1):**
+1. Login/signup
+2. Click "Battle" or join queue
+3. Wait for match creation
+4. Copy match ID from URL: `/battle/[match-id]`
 
-- Questions are random within filters (no difficulty progression yet)
-- No chapter selection UI yet (defaults to null, matches any chapter)
-- Tier-3 fallback may give unrelated questions if pool is small
-- No analytics on question usage yet
+**Player 2 (Window 2):**
+1. Login/signup with **different account**
+2. Navigate directly to: `/battle/[match-id]` (paste Player 1's URL)
+3. Both players should auto-ready
 
-## Next Phase
+**Expected Behavior:**
 
-After MVP is stable:
-- Add chapter selection to queue UI
-- Generate more questions via templates
-- Capture subject/chapter/rank on enqueue
-- Add usage telemetry
-- Build admin dashboard for question management
+1. ✅ Both consoles show "WS: Connected successfully"
+2. ✅ Both consoles show "WS: Player ready: p1" and "p2"
+3. ✅ Both consoles show "WS: Game starting with question!"
+4. ✅ Both consoles show full question payload with steps
+5. ✅ UI shows countdown: 3... 2... 1... START!
+6. ✅ Question renders with title and 4 options
+7. ✅ Clicking option shows toast: "Correct!" or "Incorrect"
+8. ✅ Scores update in real-time
+9. ✅ Next step/question appears automatically
+
+---
+
+## Troubleshooting Decision Tree
+
+### Issue: "No questions available for match"
+
+**Server log shows:**
+```
+[match-id] No questions available for match. Database may be empty!
+```
+
+**Fix:**
+```bash
+npm run seed:questions
+```
+
+**Verify:**
+```sql
+SELECT count(*) FROM questions WHERE subject = 'math' AND chapter = 'A2';
+```
+
+---
+
+### Issue: Client never logs "WS: Game starting with question!"
+
+**Possible causes:**
+
+1. **Only one player connected**
+   - Check both browser consoles
+   - Both must show "WS: Sent ready signal"
+
+2. **Server crashed**
+   - Check Supabase Edge Functions logs
+   - Look for errors in game-ws function
+
+3. **RPC permission error**
+   - Check server logs for: "permission denied"
+   - Verify GRANT statements in migration
+
+---
+
+### Issue: "WS: event.question is null/undefined!"
+
+**Client logs show:**
+```javascript
+WS: event.question is null/undefined! 
+{ type: 'game_start', question: null }
+```
+
+**This means:**
+- WebSocket connected ✅
+- Both players ready ✅
+- Server sent game_start ✅
+- But question fetch failed ❌
+
+**Check server logs for:**
+```
+Error fetching question: [error details]
+```
+
+**Common causes:**
+- Database empty (no questions seeded)
+- RPC permission denied
+- Invalid match preferences (subject/chapter mismatch)
+
+**Debug query:**
+```sql
+-- Check if match has valid preferences
+SELECT id, subject, chapter, rank_tier FROM matches_new WHERE id = 'match-uuid';
+
+-- Check if ANY questions match
+SELECT count(*) FROM questions 
+WHERE subject = 'math' AND chapter = 'A2';
+```
+
+---
+
+### Issue: Questions render but answers don't submit
+
+**Check console for:**
+```
+WS: Submitted answer for question [id], step [step-id]
+```
+
+**If missing:**
+- Step might not have an `id` field
+- Check question structure in console log
+
+**Add temp debug:**
+```typescript
+console.log('Current step:', currentStep);
+console.log('Step ID:', currentStep.id);
+```
+
+---
+
+## Success Metrics
+
+Full match completes when:
+
+✅ Both players connect
+✅ Question appears after countdown
+✅ 5 questions delivered one-by-one
+✅ Each answer graded server-side
+✅ Scores update in real-time
+✅ Match ends with winner/draw
+✅ No console errors
+
+---
+
+## Emergency Stop
+
+If completely broken:
+
+```bash
+# Stop dev server
+Ctrl+C
+
+# Check if seed script ran
+psql $DATABASE_URL -c "SELECT count(*) FROM questions;"
+
+# Re-seed if needed
+npm run seed:questions
+
+# Rebuild client
+npm run build
+
+# Check edge function status
+# Supabase Dashboard → Edge Functions → game-ws
+
+# Restart
+npm run dev
+```
+
+---
+
+## Next Actions After Success
+
+Once MVP works:
+
+1. ✅ Remove debug logs (or reduce verbosity)
+2. Add question variety (A1, All-Maths modes)
+3. Implement subject/chapter selection UI
+4. Add question difficulty progression
+5. Track player statistics
+6. Build admin content dashboard
+
+---
+
+## Quick Reference Commands
+
+```bash
+# Check database
+SELECT count(*) FROM questions;
+SELECT subject, chapter, count(*) FROM questions GROUP BY subject, chapter;
+
+# Seed questions
+npm run seed:questions
+
+# Build client
+npm run build
+
+# Deploy function
+supabase functions deploy game-ws
+
+# View function logs
+# Supabase Dashboard → Edge Functions → game-ws → Logs
+```
+
+---
+
+**Version:** 1.1  
+**Date:** 2024-11-15  
+**Status:** Debug logging added, ready for testing  
+**Key Change:** Added detailed console logs on both client and server
