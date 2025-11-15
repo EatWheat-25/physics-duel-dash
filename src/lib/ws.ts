@@ -1,6 +1,6 @@
 export interface GameStartEvent {
   type: 'game_start';
-  question_ids?: string[];
+  questions: any[]; // Full question objects with steps
 }
 
 export interface ScoreUpdateEvent {
