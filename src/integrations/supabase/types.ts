@@ -84,6 +84,24 @@ export type Database = {
         }
         Relationships: []
       }
+      match_questions: {
+        Row: {
+          match_id: string
+          picked_at: string
+          question_id: string
+        }
+        Insert: {
+          match_id: string
+          picked_at?: string
+          question_id: string
+        }
+        Update: {
+          match_id?: string
+          picked_at?: string
+          question_id?: string
+        }
+        Relationships: []
+      }
       matches: {
         Row: {
           completed_at: string | null
@@ -470,6 +488,32 @@ export type Database = {
         }
         Returns: boolean
       }
+      pick_next_question_v2: {
+        Args: { match_uuid: string }
+        Returns: {
+          chapter: string
+          created_at: string | null
+          difficulty: string
+          id: string
+          image_url: string | null
+          level: string
+          question_text: string
+          rank_tier: string
+          steps: Json
+          subject: string
+          title: string
+          topic_tags: string[] | null
+          total_marks: number
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "questions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      upsert_questions: { Args: { qrows: Json }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "user"
