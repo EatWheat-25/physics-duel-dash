@@ -22,7 +22,6 @@ interface GameState {
   p1Score: number
   p2Score: number
   gameActive: boolean
-  questionsPerMatch: number
 }
 
 // Validation schemas
@@ -32,9 +31,9 @@ const ReadyMessageSchema = z.object({
 
 const AnswerSubmitSchema = z.object({
   type: z.literal('answer_submit'),
-  question_id: z.string().uuid(),
-  step_id: z.string().min(1).max(100),
-  answer: z.number().int().min(0).max(10)
+  question_id: z.string().min(1).max(100),
+  answer: z.number().int().min(0).max(10),
+  marks_earned: z.number().int().min(0).max(10)
 })
 
 const QuestionCompleteSchema = z.object({
@@ -105,7 +104,6 @@ Deno.serve(async (req) => {
       p1Score: 0,
       p2Score: 0,
       gameActive: false,
-      questionsPerMatch: 5
     })
   }
 
@@ -116,32 +114,6 @@ Deno.serve(async (req) => {
     game.p1Socket = socket
   } else {
     game.p2Socket = socket
-  }
-
-  // Helper to fetch next question from database
-  async function fetchNextQuestion() {
-    try {
-      console.log(`[${matchId}] Fetching next question from database...`)
-      const { data, error } = await supabase.rpc('pick_next_question_v2', {
-        p_match_id: matchId
-      })
-
-      if (error) {
-        console.error(`[${matchId}] Error fetching question:`, error)
-        return null
-      }
-
-      if (!data || data.length === 0) {
-        console.error(`[${matchId}] No questions available for match. Database may be empty!`)
-        return null
-      }
-
-      console.log(`[${matchId}] Got question:`, data[0].question_id, 'ordinal:', data[0].ordinal)
-      return data[0]
-    } catch (error) {
-      console.error(`[${matchId}] Exception fetching question:`, error)
-      return null
-    }
   }
 
   // Send connection confirmation
@@ -191,22 +163,7 @@ Deno.serve(async (req) => {
             game.gameActive = true
             await supabase.from('matches_new').update({ state: 'active' }).eq('id', matchId)
 
-            // Fetch first question from database using RPC
-            const questionData = await fetchNextQuestion()
-
-            if (!questionData) {
-              const errorMsg = { type: 'error', message: 'Failed to load questions' }
-              game.p1Socket?.send(JSON.stringify(errorMsg))
-              game.p2Socket?.send(JSON.stringify(errorMsg))
-              return
-            }
-
-            const startMsg = { 
-              type: 'game_start',
-              question: questionData.question,
-              ordinal: questionData.ordinal,
-              total_questions: game.questionsPerMatch
-            }
+            const startMsg = { type: 'game_start' }
             game.p1Socket?.send(JSON.stringify(startMsg))
             game.p2Socket?.send(JSON.stringify(startMsg))
           }
@@ -214,41 +171,16 @@ Deno.serve(async (req) => {
         }
 
         case 'answer_submit': {
-          const { question_id, step_id, answer } = message
+          const { question_id, answer, marks_earned } = message
 
-          // Grade answer server-side via RPC
-          const { data: gradeResult, error: gradeError } = await supabase.rpc('submit_answer', {
-            p_match_id: matchId,
-            p_question_id: question_id,
-            p_step_id: step_id,
-            p_answer: answer
-          })
-
-          if (gradeError) {
-            console.error('Error grading answer:', gradeError)
-            socket.send(JSON.stringify({ type: 'error', message: 'Failed to grade answer' }))
-            return
-          }
-
-          // Update score based on server-graded result
-          const marksEarned = gradeResult?.marks_earned || 0
+          // Update score
           if (isP1) {
-            game.p1Score += marksEarned
+            game.p1Score += marks_earned || 0
           } else {
-            game.p2Score += marksEarned
+            game.p2Score += marks_earned || 0
           }
 
-          // Broadcast answer result to submitter
-          const answerResultMsg = {
-            type: 'answer_result',
-            player: isP1 ? 'p1' : 'p2',
-            is_correct: gradeResult?.is_correct,
-            marks_earned: marksEarned,
-            explanation: gradeResult?.explanation
-          }
-          socket.send(JSON.stringify(answerResultMsg))
-
-          // Broadcast score update to both players
+          // Broadcast score update
           const scoreMsg = {
             type: 'score_update',
             p1_score: game.p1Score,
@@ -263,8 +195,8 @@ Deno.serve(async (req) => {
         case 'question_complete': {
           game.currentQuestion++
 
-          // Check if match is over
-          if (game.currentQuestion >= game.questionsPerMatch) {
+          // Check if match is over (assuming 5 questions)
+          if (game.currentQuestion >= 5) {
             const winnerId = game.p1Score > game.p2Score ? match.p1 : match.p2
             const loserId = winnerId === match.p1 ? match.p2 : match.p1
 
@@ -314,25 +246,6 @@ Deno.serve(async (req) => {
             game.p1Socket?.close()
             game.p2Socket?.close()
             games.delete(matchId)
-          } else {
-            // Fetch next question
-            const questionData = await fetchNextQuestion()
-
-            if (!questionData) {
-              const errorMsg = { type: 'error', message: 'Failed to load next question' }
-              game.p1Socket?.send(JSON.stringify(errorMsg))
-              game.p2Socket?.send(JSON.stringify(errorMsg))
-              return
-            }
-
-            const nextQuestionMsg = {
-              type: 'next_question',
-              question: questionData.question,
-              ordinal: questionData.ordinal,
-              total_questions: game.questionsPerMatch
-            }
-            game.p1Socket?.send(JSON.stringify(nextQuestionMsg))
-            game.p2Socket?.send(JSON.stringify(nextQuestionMsg))
           }
           break
         }

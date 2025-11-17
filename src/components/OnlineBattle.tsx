@@ -4,12 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
-import { ArrowLeft, Loader2, Trophy, Award } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Starfield } from './Starfield';
 import TugOfWarBar from './TugOfWarBar';
-import { connectGameWS, sendReady, sendAnswer, sendQuestionComplete, type ServerEvent } from '@/lib/ws';
+import { connectGameWS, sendReady, type ServerEvent } from '@/lib/ws';
 import { toast } from 'sonner';
-import { StepBasedQuestion } from '@/types/stepQuestion';
 
 interface Match {
   id: string;
@@ -37,9 +36,6 @@ export const OnlineBattle = () => {
   const [opponentReady, setOpponentReady] = useState(false);
   const [youReady, setYouReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [questions, setQuestions] = useState<StepBasedQuestion[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -132,65 +128,10 @@ export const OnlineBattle = () => {
           }
         },
         onGameStart: (event) => {
-          console.log('WS: Game starting with question!', event);
-          console.log('WS question payload:', JSON.stringify(event, null, 2));
-          if (event.question) {
-            const q = event.question;
-            const formattedQuestion = {
-              id: q.id,
-              title: q.title,
-              subject: q.subject,
-              chapter: q.chapter,
-              level: q.level,
-              difficulty: q.difficulty,
-              rankTier: q.rank_tier || 'Bronze' as const,
-              totalMarks: q.total_marks,
-              questionText: q.question_text,
-              topicTags: q.topic_tags || [],
-              steps: q.steps
-            };
-            setQuestions([formattedQuestion]);
-            console.log('WS: Question set to state:', formattedQuestion.id);
-          } else {
-            console.error('WS: event.question is null/undefined!', event);
-            toast.error('Failed to load question');
-          }
+          console.log('WS: Game starting');
           toast.success('Battle begins!');
+          setConnectionState('playing');
           setCountdown(3);
-        },
-        onNextQuestion: (event) => {
-          console.log('WS: Received next question', event);
-          console.log('WS next_question payload:', JSON.stringify(event, null, 2));
-          if (event.question) {
-            const q = event.question;
-            const formattedQuestion = {
-              id: q.id,
-              title: q.title,
-              subject: q.subject,
-              chapter: q.chapter,
-              level: q.level,
-              difficulty: q.difficulty,
-              rankTier: q.rank_tier || 'Bronze' as const,
-              totalMarks: q.total_marks,
-              questionText: q.question_text,
-              topicTags: q.topic_tags || [],
-              steps: q.steps
-            };
-            setQuestions([formattedQuestion]);
-            setCurrentQuestionIndex(0);
-            setCurrentStepIndex(0);
-          }
-        },
-        onAnswerResult: (event) => {
-          console.log('WS: Answer result received', event);
-          if (event.is_correct) {
-            toast.success(`Correct! +${event.marks_earned} marks`);
-          } else {
-            toast.error('Incorrect answer');
-          }
-          if (event.explanation) {
-            toast.info(event.explanation, { duration: 5000 });
-          }
         },
         onScoreUpdate: (event) => {
           console.log(`WS: Score update - p1: ${event.p1_score}, p2: ${event.p2_score}`);
@@ -256,7 +197,6 @@ export const OnlineBattle = () => {
       return () => clearTimeout(timer);
     } else if (countdown === 0) {
       setCountdown(null);
-      setConnectionState('playing');
       setTimeLeft(300);
     }
   }, [countdown]);
@@ -301,24 +241,6 @@ export const OnlineBattle = () => {
     );
   }
 
-  const handleAnswerSubmit = (answer: number) => {
-    if (!wsRef.current || !questions.length) return;
-
-    const currentQuestion = questions[currentQuestionIndex];
-    const currentStep = currentQuestion.steps[currentStepIndex];
-
-    // Send answer to server for grading
-    sendAnswer(wsRef.current, currentQuestion.id, currentStep.id, answer);
-
-    // Move to next step or send question_complete
-    if (currentStepIndex < currentQuestion.steps.length - 1) {
-      setCurrentStepIndex(currentStepIndex + 1);
-    } else {
-      // Question complete - tell server to fetch next question
-      sendQuestionComplete(wsRef.current);
-    }
-  };
-
   const isPlayer1 = currentUser === match.p1;
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
@@ -344,76 +266,6 @@ export const OnlineBattle = () => {
             Return to Dashboard
           </Button>
         </motion.div>
-      </div>
-    );
-  }
-
-  if (connectionState === 'playing' && questions.length > 0) {
-    const currentQuestion = questions[currentQuestionIndex];
-    const currentStep = currentQuestion.steps[currentStepIndex];
-    const progress = ((currentQuestionIndex * currentQuestion.steps.length + currentStepIndex + 1) / 
-                     (questions.reduce((sum, q) => sum + q.steps.length, 0))) * 100;
-
-    const yourScore = isPlayer1 ? match.p1_score : match.p2_score;
-    const opponentScore = isPlayer1 ? match.p2_score : match.p1_score;
-    const scoreDiff = yourScore - opponentScore;
-    const tugPosition = Math.max(-4, Math.min(4, scoreDiff));
-
-    return (
-      <div className="relative min-h-screen overflow-hidden flex flex-col">
-        <Starfield />
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
-
-        <div className="relative z-10 container mx-auto px-4 py-8 flex-1">
-          <div className="flex justify-between items-center mb-6">
-            <Button variant="ghost" onClick={() => navigate('/')} className="backdrop-blur-sm bg-card/50 border border-border/50 hover:bg-card/70 hover:border-border">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Leave Match
-            </Button>
-            <div className="text-sm text-muted-foreground backdrop-blur-sm bg-card/50 px-4 py-2 rounded-xl border border-border/50">
-              Question {currentQuestionIndex + 1}/{questions.length} - Step {currentStepIndex + 1}/{currentQuestion.steps.length}
-            </div>
-          </div>
-
-          <div className="mb-4 flex justify-between text-lg font-bold backdrop-blur-sm bg-card/50 px-6 py-3 rounded-xl border border-border/50">
-            <span className="text-emerald-500">{yourUsername}: {yourScore}</span>
-            <span className="text-red-500">{opponentUsername}: {opponentScore}</span>
-          </div>
-
-          <div className="mb-8">
-            <TugOfWarBar position={tugPosition} maxSteps={4} />
-          </div>
-
-          <Progress value={progress} className="h-2 mb-6" />
-
-          <motion.div
-            key={`${currentQuestionIndex}-${currentStepIndex}`}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="backdrop-blur-sm bg-card/50 rounded-xl p-6 space-y-4 border border-border/50"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-card-foreground">{currentQuestion.title}</h2>
-              <span className="text-sm text-muted-foreground">{currentStep.marks} marks</span>
-            </div>
-            
-            <p className="text-lg text-card-foreground whitespace-pre-wrap">{currentStep.question}</p>
-
-            <div className="grid gap-3 mt-6">
-              {currentStep.options.map((option, idx) => (
-                <Button
-                  key={idx}
-                  variant="outline"
-                  className="h-auto p-4 text-left justify-start hover:bg-primary/10 hover:border-primary"
-                  onClick={() => handleAnswerSubmit(idx)}
-                >
-                  <span className="mr-3 font-bold text-primary">{String.fromCharCode(65 + idx)}.</span>
-                  <span className="flex-1">{option}</span>
-                </Button>
-              ))}
-            </div>
-          </motion.div>
-        </div>
       </div>
     );
   }

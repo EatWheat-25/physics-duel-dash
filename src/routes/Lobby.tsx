@@ -78,7 +78,7 @@ export default function Lobby() {
   };
 
   const handleStartQueue = async () => {
-    if (!selectedSubject || !selectedGrade || !userId || isQueued) return;
+    if (!selectedSubject || !selectedGrade || !userId) return;
 
     // Map grade to chapter format expected by backend
     const chapterMap: Record<Grade, string> = {
@@ -405,15 +405,14 @@ export default function Lobby() {
 
                   <motion.button
                     onClick={handleStartQueue}
-                    disabled={isQueued}
-                    className="relative px-12 py-6 rounded-full font-bold text-2xl uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-[var(--magenta)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="relative px-12 py-6 rounded-full font-bold text-2xl uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-[var(--magenta)]"
                     style={{
                       background: 'linear-gradient(135deg, #ff3333, #ff6b6b)',
                       color: 'white',
                       boxShadow: '0 0 40px rgba(255,51,51,0.5)',
                     }}
-                    whileHover={!isQueued ? { scale: 1.1 } : {}}
-                    whileTap={!isQueued ? { scale: 0.95 } : {}}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
                     animate={{
                       boxShadow: [
                         '0 0 40px rgba(255,51,51,0.5)',
@@ -428,7 +427,7 @@ export default function Lobby() {
                     }}
                   >
                     <Zap className="w-6 h-6 inline mr-2" />
-                    {isQueued ? 'STARTING...' : 'START BATTLE'}
+                    START BATTLE
                   </motion.button>
 
                   <p className="text-sm mt-6" style={{ color: 'var(--text-dim)' }}>

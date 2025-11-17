@@ -1,8 +1,6 @@
 export interface GameStartEvent {
   type: 'game_start';
-  question: any; // Single question object with steps
-  ordinal: number;
-  total_questions: number;
+  question_ids?: string[];
 }
 
 export interface ScoreUpdateEvent {
@@ -43,27 +41,10 @@ export interface ConnectedEvent {
   player: 'p1' | 'p2';
 }
 
-export interface NextQuestionEvent {
-  type: 'next_question';
-  question: any;
-  ordinal: number;
-  total_questions: number;
-}
-
-export interface AnswerResultEvent {
-  type: 'answer_result';
-  player: 'p1' | 'p2';
-  is_correct: boolean;
-  marks_earned: number;
-  explanation: string;
-}
-
 export type ServerEvent =
   | ConnectedEvent
   | PlayerReadyEvent
   | GameStartEvent
-  | NextQuestionEvent
-  | AnswerResultEvent
   | ScoreUpdateEvent
   | OpponentDisconnectEvent
   | MatchEndEvent;
@@ -75,8 +56,8 @@ export interface ReadyMessage {
 export interface AnswerSubmitMessage {
   type: 'answer_submit';
   question_id: string;
-  step_id: string;
   answer: number;
+  marks_earned: number;
 }
 
 export interface QuestionCompleteMessage {
@@ -91,8 +72,6 @@ export interface ConnectGameWSOptions {
   onConnected?: (event: ConnectedEvent) => void;
   onPlayerReady?: (event: PlayerReadyEvent) => void;
   onGameStart?: (event: GameStartEvent) => void;
-  onNextQuestion?: (event: NextQuestionEvent) => void;
-  onAnswerResult?: (event: AnswerResultEvent) => void;
   onScoreUpdate?: (event: ScoreUpdateEvent) => void;
   onOpponentDisconnect?: (event: OpponentDisconnectEvent) => void;
   onMatchEnd?: (event: MatchEndEvent) => void;
@@ -107,8 +86,6 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
     onConnected,
     onPlayerReady,
     onGameStart,
-    onNextQuestion,
-    onAnswerResult,
     onScoreUpdate,
     onOpponentDisconnect,
     onMatchEnd,
@@ -151,16 +128,6 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
         case 'game_start':
           console.log('WS: Game started');
           onGameStart?.(message);
-          break;
-
-        case 'next_question':
-          console.log('WS: Next question received');
-          onNextQuestion?.(message);
-          break;
-
-        case 'answer_result':
-          console.log(`WS: Answer result - correct: ${message.is_correct}, marks: ${message.marks_earned}`);
-          onAnswerResult?.(message);
           break;
 
         case 'score_update':
@@ -206,15 +173,15 @@ export function sendReady(ws: WebSocket): void {
   console.log('WS: Sent ready signal');
 }
 
-export function sendAnswer(ws: WebSocket, questionId: string, stepId: string, answer: number): void {
+export function sendAnswer(ws: WebSocket, questionId: string, answer: number, marksEarned: number): void {
   const message: AnswerSubmitMessage = {
     type: 'answer_submit',
     question_id: questionId,
-    step_id: stepId,
     answer,
+    marks_earned: marksEarned,
   };
   ws.send(JSON.stringify(message));
-  console.log(`WS: Submitted answer for question ${questionId}, step ${stepId}`);
+  console.log(`WS: Submitted answer for question ${questionId}`);
 }
 
 export function sendQuestionComplete(ws: WebSocket): void {
