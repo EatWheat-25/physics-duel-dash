@@ -148,7 +148,13 @@ export default function Lobby() {
           variant="ghost"
           size="sm"
           onClick={handleBack}
-          className="gap-2 font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white/5 backdrop-blur-xl border border-white/10 text-white"
+          className="gap-2 font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[var(--violet)]"
+          style={{
+            background: 'rgba(255,255,255,0.05)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'white',
+          }}
           aria-label="Go back"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -174,12 +180,15 @@ export default function Lobby() {
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.1 }}
                   >
-                    <BookOpen className="w-8 h-8 text-cyan-400" />
-                    <h1 className="text-5xl md:text-6xl font-bold text-foreground">
+                    <BookOpen className="w-8 h-8" style={{ color: 'var(--cyan)' }} />
+                    <h1
+                      className="text-5xl md:text-6xl font-bold"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
                       Choose Your Subject
                     </h1>
                   </motion.div>
-                  <p className="text-xl text-muted-foreground">
+                  <p className="text-xl" style={{ color: 'var(--text-dim)' }}>
                     Select a subject to begin your battle
                   </p>
                 </div>
@@ -211,10 +220,13 @@ export default function Lobby() {
 
                         <div className="relative z-10 text-center">
                           <div className="text-7xl mb-4">{subject.icon}</div>
-                          <h3 className="text-3xl font-bold mb-2 text-foreground">
+                          <h3 className="text-3xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
                             {subject.name}
                           </h3>
-                          <div className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                          <div
+                            className="text-sm font-bold uppercase tracking-wider"
+                            style={{ color: 'var(--text-dim)' }}
+                          >
                             Click to Select
                           </div>
                         </div>
@@ -249,16 +261,26 @@ export default function Lobby() {
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.1 }}
                   >
-                    <GraduationCap className="w-8 h-8 text-magenta-400" />
-                    <h1 className="text-5xl md:text-6xl font-bold text-foreground">
+                    <GraduationCap className="w-8 h-8" style={{ color: 'var(--magenta)' }} />
+                    <h1
+                      className="text-5xl md:text-6xl font-bold"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
                       Select Your Grade
                     </h1>
                   </motion.div>
-                  <p className="text-xl mb-4 text-muted-foreground">
+                  <p className="text-xl mb-4" style={{ color: 'var(--text-dim)' }}>
                     Choose your academic level
                   </p>
                   {selectedSubject && (
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-cyan-500/20 border border-cyan-500/40 text-foreground">
+                    <div
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold"
+                      style={{
+                        background: 'rgba(88,196,255,0.2)',
+                        border: '1px solid rgba(88,196,255,0.4)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
                       {subjects.find(s => s.id === selectedSubject)?.icon} {subjects.find(s => s.id === selectedSubject)?.name}
                     </div>
                   )}
@@ -290,10 +312,16 @@ export default function Lobby() {
                         />
 
                         <div className="relative z-10 text-center">
-                          <h3 className="text-2xl font-bold mb-1 text-foreground">
+                          <h3 className="text-2xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
                             {grade.name}
                           </h3>
-                          <div className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full inline-block bg-purple-500/30 text-muted-foreground">
+                          <div
+                            className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full inline-block"
+                            style={{
+                              background: 'rgba(154,91,255,0.3)',
+                              color: 'var(--text-dim)',
+                            }}
+                          >
                             {grade.level}
                           </div>
                         </div>
@@ -337,22 +365,39 @@ export default function Lobby() {
                     transition={{ delay: 0.2, type: 'spring' }}
                     className="mb-8"
                   >
-                    <Zap className="w-20 h-20 mx-auto text-magenta-400" />
+                    <Zap className="w-20 h-20 mx-auto" style={{ color: 'var(--magenta)' }} />
                   </motion.div>
 
-                  <h1 className="text-5xl md:text-6xl font-bold mb-8 text-foreground">
+                  <h1
+                    className="text-5xl md:text-6xl font-bold mb-8"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
                     Ready to Battle!
                   </h1>
 
                   <div className="flex flex-wrap gap-3 justify-center mb-8">
                     {selectedSubject && (
-                      <div className="px-6 py-3 rounded-full text-lg font-bold bg-cyan-500/20 border-2 border-cyan-500/40 text-foreground">
+                      <div
+                        className="px-6 py-3 rounded-full text-lg font-bold"
+                        style={{
+                          background: 'rgba(88,196,255,0.2)',
+                          border: '2px solid rgba(88,196,255,0.4)',
+                          color: 'var(--text-primary)',
+                        }}
+                      >
                         {subjects.find(s => s.id === selectedSubject)?.icon} {subjects.find(s => s.id === selectedSubject)?.name}
                       </div>
                     )}
 
                     {selectedGrade && (
-                      <div className="px-6 py-3 rounded-full text-lg font-bold bg-magenta-500/20 border-2 border-magenta-500/40 text-foreground">
+                      <div
+                        className="px-6 py-3 rounded-full text-lg font-bold"
+                        style={{
+                          background: 'rgba(242,55,212,0.2)',
+                          border: '2px solid rgba(242,55,212,0.4)',
+                          color: 'var(--text-primary)',
+                        }}
+                      >
                         {grades.find(g => g.id === selectedGrade)?.name}
                       </div>
                     )}
@@ -361,7 +406,12 @@ export default function Lobby() {
                   <motion.button
                     onClick={handleStartQueue}
                     disabled={isQueued}
-                    className="relative px-12 py-6 rounded-full font-bold text-2xl uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-magenta-400 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-br from-red-500 to-red-400 text-white shadow-[0_0_40px_rgba(255,51,51,0.5)]"
+                    className="relative px-12 py-6 rounded-full font-bold text-2xl uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-[var(--magenta)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background: 'linear-gradient(135deg, #ff3333, #ff6b6b)',
+                      color: 'white',
+                      boxShadow: '0 0 40px rgba(255,51,51,0.5)',
+                    }}
                     whileHover={!isQueued ? { scale: 1.1 } : {}}
                     whileTap={!isQueued ? { scale: 0.95 } : {}}
                     animate={{
@@ -381,7 +431,7 @@ export default function Lobby() {
                     {isQueued ? 'STARTING...' : 'START BATTLE'}
                   </motion.button>
 
-                  <p className="text-sm mt-6 text-muted-foreground">
+                  <p className="text-sm mt-6" style={{ color: 'var(--text-dim)' }}>
                     Click to find an opponent and start your match!
                   </p>
                 </div>
@@ -405,19 +455,27 @@ export default function Lobby() {
                     boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
                   }}
                 >
-                  <h1 className="text-4xl md:text-5xl font-bold mb-8 text-foreground">
+                  <h1
+                    className="text-4xl md:text-5xl font-bold mb-8"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
                     Finding Opponent...
                   </h1>
 
-                  <Loader2 className="w-20 h-20 mx-auto mb-8 animate-spin text-violet-400" />
+                  <Loader2 className="w-20 h-20 mx-auto mb-8 animate-spin" style={{ color: 'var(--violet)' }} />
 
-                  <p className="text-3xl font-bold mb-8 text-foreground">
+                  <p className="text-3xl font-bold mb-8" style={{ color: 'var(--text-primary)' }}>
                     {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
                   </p>
 
                   <motion.button
                     onClick={handleLeaveQueue}
-                    className="px-8 py-3 rounded-full font-bold uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-magenta-400 bg-white/10 border border-white/20 text-foreground"
+                    className="px-8 py-3 rounded-full font-bold uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)]"
+                    style={{
+                      background: 'rgba(255,255,255,0.1)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'var(--text-primary)',
+                    }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >

@@ -514,9 +514,9 @@ export default function AdminQuestions() {
                   </p>
                 </div>
 
-                <div className="bg-card/60 backdrop-blur-sm p-4 rounded-lg border border-game-neon/30">
-                  <h4 className="font-semibold mb-2 text-foreground">Summary</h4>
-                  <div className="space-y-1 text-sm text-muted-foreground">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold mb-2">Summary</h4>
+                  <div className="space-y-1 text-sm">
                     <p><strong>Subject:</strong> {metadata.subject}</p>
                     <p><strong>Level:</strong> {metadata.level}</p>
                     <p><strong>Chapter:</strong> {metadata.chapter || '(not set)'}</p>
