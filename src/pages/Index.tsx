@@ -193,8 +193,7 @@ const Index = () => {
   } else if (level === "A2-Only") {
   // Use any A2 maths questions from the DB
   stepQuestions = await getStepMathQuestions(undefined, "A2", 5);
-}
-    } else if (level === "A2-Integration") {
+} else if (level === "A2-Integration") {
       // A2 Integration: Pure integration questions from CAIE papers
       const integrationQuestions = A2_INTEGRATION_QUESTIONS.slice(0, 3); // Get first 3 questions for battle
       const convertedQuestions: StepBasedQuestion[] = integrationQuestions.map((q) => ({
