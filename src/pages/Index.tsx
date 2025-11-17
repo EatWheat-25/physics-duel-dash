@@ -190,9 +190,10 @@ const Index = () => {
       const q2 = await getStepMathQuestions("integration", "A1", 1);
       const q3 = await getStepMathQuestions("quadratic-functions", "A1", 1);
       stepQuestions = [...q1, ...q2, ...q3];
-    } else if (level === "A2-Only") {
-      // A2 only: parametric equations and advanced topics
-      stepQuestions = await getStepMathQuestions("parametric-equations", "A2", 2);
+  } else if (level === "A2-Only") {
+  // Use any A2 maths questions from the DB
+  stepQuestions = await getStepMathQuestions(undefined, "A2", 5);
+}
     } else if (level === "A2-Integration") {
       // A2 Integration: Pure integration questions from CAIE papers
       const integrationQuestions = A2_INTEGRATION_QUESTIONS.slice(0, 3); // Get first 3 questions for battle
