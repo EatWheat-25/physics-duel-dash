@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Mail, Lock } from "lucide-react";
+import { Starfield } from "@/components/Starfield";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -102,8 +103,49 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/10">
-      <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-xl border shadow-lg">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      <Starfield />
+      
+      {/* Dark gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-black pointer-events-none" />
+      
+      {/* Circuit Grid */}
+      <div className="absolute inset-0 opacity-15 pointer-events-none">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            linear-gradient(90deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px),
+            linear-gradient(0deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px)
+          `,
+          backgroundSize: '60px 60px'
+        }} />
+      </div>
+      
+      {/* Floating particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div
+            key={`particle-${i}`}
+            className="absolute w-1 h-1 bg-game-neon rounded-full animate-pulse opacity-30"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 8}s`,
+              animationDuration: `${Math.random() * 15 + 10}s`,
+              filter: 'blur(0.5px)'
+            }}
+          />
+        ))}
+      </div>
+      
+      {/* Holographic orbs */}
+      <div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full opacity-20 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle, rgba(0, 217, 255, 0.15) 0%, transparent 70%)`,
+          filter: 'blur(40px)'
+        }} 
+      />
+      
+      <div className="relative z-10 w-full max-w-md p-8 space-y-6 bg-card/80 backdrop-blur-sm rounded-xl border border-game-border shadow-lg">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold">Welcome</h1>
           <p className="text-muted-foreground">
