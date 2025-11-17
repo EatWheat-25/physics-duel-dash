@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Starfield } from '@/components/Starfield';
 import { supabase } from '@/integrations/supabase/client';
 import { useMatchStart } from '@/hooks/useMatchStart';
+import { useActivePlayerCount } from '@/hooks/useActivePlayerCount';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, ArrowLeft, BookOpen, GraduationCap, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ export default function Lobby() {
   const [isQueued, setIsQueued] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
+  const activePlayerCount = useActivePlayerCount();
 
   useEffect(() => {
     document.title = 'Battle Lobby | BattleNerds';
@@ -181,6 +183,9 @@ export default function Lobby() {
                   </motion.div>
                   <p className="text-xl text-muted-foreground">
                     Select a subject to begin your battle
+                  </p>
+                  <p className="text-cyan-400 text-sm mt-2">
+                    {activePlayerCount === null ? "…" : `Players online: ${activePlayerCount}`}
                   </p>
                 </div>
 

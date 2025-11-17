@@ -481,6 +481,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_active_player_count: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
