@@ -44,6 +44,13 @@ export type Database = {
             foreignKeyName: "match_events_match_id_fkey"
             columns: ["match_id"]
             isOneToOne: false
+            referencedRelation: "match_with_names"
+            referencedColumns: ["match_id"]
+          },
+          {
+            foreignKeyName: "match_events_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
             referencedRelation: "matches_new"
             referencedColumns: ["id"]
           },
@@ -74,6 +81,24 @@ export type Database = {
           id?: string
           match_id?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      match_questions: {
+        Row: {
+          match_id: string
+          picked_at: string
+          question_id: string
+        }
+        Insert: {
+          match_id: string
+          picked_at?: string
+          question_id: string
+        }
+        Update: {
+          match_id?: string
+          picked_at?: string
+          question_id?: string
         }
         Relationships: []
       }
@@ -284,6 +309,7 @@ export type Database = {
         Row: {
           age: number | null
           created_at: string | null
+          display_name: string | null
           id: string
           onboarding_completed: boolean | null
           subjects: Json
@@ -293,6 +319,7 @@ export type Database = {
         Insert: {
           age?: number | null
           created_at?: string | null
+          display_name?: string | null
           id: string
           onboarding_completed?: boolean | null
           subjects?: Json
@@ -302,6 +329,7 @@ export type Database = {
         Update: {
           age?: number | null
           created_at?: string | null
+          display_name?: string | null
           id?: string
           onboarding_completed?: boolean | null
           subjects?: Json
@@ -425,7 +453,32 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      match_with_names: {
+        Row: {
+          created_at: string | null
+          match_id: string | null
+          p1: string | null
+          p1_name: string | null
+          p2: string | null
+          p2_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matches_new_p1_fkey"
+            columns: ["p1"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_new_p2_fkey"
+            columns: ["p2"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
@@ -435,6 +488,32 @@ export type Database = {
         }
         Returns: boolean
       }
+      pick_next_question_v2: {
+        Args: { match_uuid: string }
+        Returns: {
+          chapter: string
+          created_at: string | null
+          difficulty: string
+          id: string
+          image_url: string | null
+          level: string
+          question_text: string
+          rank_tier: string
+          steps: Json
+          subject: string
+          title: string
+          topic_tags: string[] | null
+          total_marks: number
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "questions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      upsert_questions: { Args: { qrows: Json }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "user"
