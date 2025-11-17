@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Shield, ArrowLeft } from 'lucide-react';
+import { Starfield } from '@/components/Starfield';
 
 export default function AdminLogin() {
   const [code, setCode] = useState('');
@@ -49,8 +50,49 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-background/90 p-4">
-      <Card className="w-full max-w-md p-8">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
+      <Starfield />
+      
+      {/* Dark gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-black pointer-events-none" />
+      
+      {/* Circuit Grid */}
+      <div className="absolute inset-0 opacity-15 pointer-events-none">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            linear-gradient(90deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px),
+            linear-gradient(0deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px)
+          `,
+          backgroundSize: '60px 60px'
+        }} />
+      </div>
+      
+      {/* Floating particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div
+            key={`particle-${i}`}
+            className="absolute w-1 h-1 bg-game-neon rounded-full animate-pulse opacity-30"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 8}s`,
+              animationDuration: `${Math.random() * 15 + 10}s`,
+              filter: 'blur(0.5px)'
+            }}
+          />
+        ))}
+      </div>
+      
+      {/* Holographic orbs */}
+      <div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full opacity-20 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle, rgba(0, 217, 255, 0.15) 0%, transparent 70%)`,
+          filter: 'blur(40px)'
+        }} 
+      />
+      
+      <Card className="relative z-10 w-full max-w-md p-8 bg-card/80 backdrop-blur-sm border-game-border">
         <div className="flex items-center justify-between mb-6">
           <Button
             variant="ghost"
