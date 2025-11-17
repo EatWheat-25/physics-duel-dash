@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
+import { Starfield } from "@/components/Starfield";
 
 type Subject = {
   id: string;
@@ -139,109 +140,124 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/10 p-4">
-      <div className="w-full max-w-lg p-8 space-y-6 bg-card rounded-xl border shadow-lg">
-        <div className="space-y-2">
-          <div className="flex gap-2 mb-4">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                className={`h-2 flex-1 rounded-full ${
-                  s <= step ? "bg-primary" : "bg-muted"
-                }`}
-              />
-            ))}
-          </div>
-          <h2 className="text-2xl font-bold">
-            {step === 1 && "Choose your username"}
-            {step === 2 && "How old are you?"}
-            {step === 3 && "Select your subjects"}
-          </h2>
-          <p className="text-muted-foreground">
-            {step === 1 && "Pick a unique username for your profile"}
-            {step === 2 && "Let us know your age"}
-            {step === 3 && "Choose the subjects you want to study"}
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          {step === 1 && (
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                placeholder="Enter username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                maxLength={20}
-              />
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-2">
-              <Label htmlFor="age">Age</Label>
-              <Input
-                id="age"
-                type="number"
-                placeholder="Enter your age"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                min="1"
-                max="120"
-              />
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-4">
-              {SUBJECTS.map((subject) => (
-                <div key={subject.id} className="space-y-3 p-4 border rounded-lg">
-                  <h3 className="font-semibold">{subject.name}</h3>
-                  <div className="space-y-2">
-                    {subject.levels.map((level) => (
-                      <div key={level} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`${subject.id}-${level}`}
-                          checked={selectedSubjects.some(
-                            (s) => s.subject === subject.id && s.level === level
-                          )}
-                          onCheckedChange={() =>
-                            handleSubjectToggle(subject.id, level)
-                          }
-                        />
-                        <Label
-                          htmlFor={`${subject.id}-${level}`}
-                          className="cursor-pointer"
-                        >
-                          {level}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+    <div className="min-h-screen relative bg-gradient-to-br from-gray-950 via-gray-900 to-black">
+      <Starfield />
+      
+      {/* Cyber Grid Overlay */}
+      <div className="cyber-grid" />
+      
+      {/* Floating Particles */}
+      <div className="particles" />
+      
+      {/* Gradient Overlay */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-gradient-to-b from-transparent via-transparent to-background/20" />
+      
+      <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
+        <div className="w-full max-w-lg p-8 space-y-6 bg-card/80 backdrop-blur-sm rounded-xl border border-game-border shadow-lg">
+          <div className="space-y-2">
+            <div className="flex gap-2 mb-4">
+              {[1, 2, 3].map((s) => (
+                <div
+                  key={s}
+                  className={`h-2 flex-1 rounded-full ${
+                    s <= step ? "bg-primary" : "bg-muted"
+                  }`}
+                />
               ))}
             </div>
-          )}
-        </div>
+            <h2 className="text-2xl font-bold text-foreground">
+              {step === 1 && "Choose your username"}
+              {step === 2 && "How old are you?"}
+              {step === 3 && "Select your subjects"}
+            </h2>
+            <p className="text-muted-foreground">
+              {step === 1 && "Pick a unique username for your profile"}
+              {step === 2 && "Let us know your age"}
+              {step === 3 && "Choose the subjects you want to study"}
+            </p>
+          </div>
 
-        <div className="flex gap-3">
-          {step > 1 && (
+          <div className="space-y-4">
+            {step === 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-foreground">Username</Label>
+                <Input
+                  id="username"
+                  placeholder="Enter username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  maxLength={20}
+                  className="bg-background/50 border-game-border text-foreground"
+                />
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-2">
+                <Label htmlFor="age" className="text-foreground">Age</Label>
+                <Input
+                  id="age"
+                  type="number"
+                  placeholder="Enter your age"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  min="1"
+                  max="120"
+                  className="bg-background/50 border-game-border text-foreground"
+                />
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-4">
+                {SUBJECTS.map((subject) => (
+                  <div key={subject.id} className="space-y-3 p-4 border border-game-border rounded-lg bg-background/30">
+                    <h3 className="font-semibold text-foreground">{subject.name}</h3>
+                    <div className="space-y-2">
+                      {subject.levels.map((level) => (
+                        <div key={level} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`${subject.id}-${level}`}
+                            checked={selectedSubjects.some(
+                              (s) => s.subject === subject.id && s.level === level
+                            )}
+                            onCheckedChange={() =>
+                              handleSubjectToggle(subject.id, level)
+                            }
+                          />
+                          <Label
+                            htmlFor={`${subject.id}-${level}`}
+                            className="cursor-pointer text-foreground"
+                          >
+                            {level}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            {step > 1 && (
+              <Button
+                variant="outline"
+                onClick={() => setStep(step - 1)}
+                className="flex-1"
+              >
+                Back
+              </Button>
+            )}
             <Button
-              variant="outline"
-              onClick={() => setStep(step - 1)}
+              onClick={handleSubmit}
+              disabled={loading}
               className="flex-1"
             >
-              Back
+              {loading ? "Loading..." : step === 3 ? "Complete" : "Next"}
             </Button>
-          )}
-          <Button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex-1"
-          >
-            {loading ? "Loading..." : step === 3 ? "Complete" : "Next"}
-          </Button>
+          </div>
         </div>
       </div>
     </div>
