@@ -80,23 +80,12 @@ export default function Lobby() {
   const handleStartQueue = async () => {
     if (!selectedSubject || !selectedGrade || !userId) return;
 
-    // Map grade to chapter format expected by backend
-    const chapterMap: Record<Grade, string> = {
-      'as-level': 'A1',
-      'a2-level': 'A2',
-      'grade-12': 'All',
-      'grade-9': 'Grade 9',
-      'grade-10': 'Grade 10',
-      'grade-11': 'Grade 11',
-    };
-
     try {
       setIsQueued(true);
       setQueueTime(0);
 
       await startMatch({
         subject: selectedSubject,
-        chapter: chapterMap[selectedGrade],
         mode: 'Ranked',
       });
     } catch (error) {

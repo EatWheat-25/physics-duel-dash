@@ -5,7 +5,7 @@ export default function ArenaStart({ userId }: { userId: string }) {
   const navigate = useNavigate();
   const { start } = useMatchStart(userId, (id) => navigate(`/battle/${id}`));
   return (
-    <button onClick={() => start({ subject: 'Math', chapter: 'A1' })}>
+    <button onClick={() => start({ subject: 'Math', mode: 'Ranked' })}>
       Start Battle
     </button>
   );
