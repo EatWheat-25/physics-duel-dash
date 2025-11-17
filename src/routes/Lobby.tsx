@@ -6,8 +6,6 @@ import { useMatchStart } from '@/hooks/useMatchStart';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, ArrowLeft, BookOpen, GraduationCap, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { usePresence } from '@/hooks/usePresence';
-import { OnlinePlayers } from '@/components/OnlinePlayers';
 
 type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'grade-9' | 'grade-10' | 'grade-11' | 'grade-12' | 'as-level' | 'a2-level';
@@ -32,9 +30,6 @@ export default function Lobby() {
   const [isQueued, setIsQueued] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState<string | null>(null);
-
-  const { onlineUsers } = usePresence('lobby-presence', userId, displayName);
 
   useEffect(() => {
     document.title = 'Battle Lobby | BattleNerds';
@@ -43,20 +38,6 @@ export default function Lobby() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
-        
-        // Fetch display name from profiles
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username, display_name')
-          .eq('id', user.id)
-          .maybeSingle();
-        
-        setDisplayName(
-          profile?.display_name || 
-          profile?.username || 
-          user.email?.split('@')[0] || 
-          'Player'
-        );
       }
     };
     fetchUser();
@@ -168,10 +149,6 @@ export default function Lobby() {
           <ArrowLeft className="w-4 h-4" />
           <span>Back</span>
         </Button>
-      </div>
-
-      <div className="absolute top-4 right-4 z-20 w-80 max-w-[calc(100vw-2rem)]">
-        <OnlinePlayers users={onlineUsers} currentUserId={userId} />
       </div>
 
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 py-20">
