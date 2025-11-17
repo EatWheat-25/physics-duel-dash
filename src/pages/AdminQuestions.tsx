@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { A2_ONLY_QUESTIONS } from '@/data/questionPools/a2OnlyQuestions';
+import { Starfield } from '@/components/Starfield';
 
 interface CommonMetadata {
   subject: 'math' | 'physics' | 'chemistry';
@@ -383,8 +384,41 @@ export default function AdminQuestions() {
   // Step 1: Set Common Metadata
   if (step === 'metadata') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6">
-        <div className="max-w-2xl mx-auto">
+      <div className="relative min-h-screen overflow-hidden p-6">
+        <Starfield />
+        
+        {/* Dark gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-black pointer-events-none" />
+        
+        {/* Circuit Grid */}
+        <div className="absolute inset-0 opacity-15 pointer-events-none">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `
+              linear-gradient(90deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px),
+              linear-gradient(0deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px)
+            `,
+            backgroundSize: '60px 60px'
+          }} />
+        </div>
+        
+        {/* Floating particles */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div
+              key={`particle-${i}`}
+              className="absolute w-1 h-1 bg-game-neon rounded-full animate-pulse opacity-30"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 8}s`,
+                animationDuration: `${Math.random() * 15 + 10}s`,
+                filter: 'blur(0.5px)'
+              }}
+            />
+          ))}
+        </div>
+        
+        <div className="relative z-10 max-w-2xl mx-auto">
           <Button
             variant="ghost"
             onClick={() => navigate('/dashboard')}
@@ -394,7 +428,7 @@ export default function AdminQuestions() {
             Back to Dashboard
           </Button>
 
-          <Card className="shadow-lg">
+          <Card className="shadow-lg bg-card/80 backdrop-blur-sm border-game-border">
             <CardHeader>
               <CardTitle className="text-2xl flex items-center gap-2">
                 <SettingsIcon className="h-6 w-6" />
@@ -535,8 +569,41 @@ export default function AdminQuestions() {
 
   // Step 2: Add Questions
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="relative min-h-screen overflow-hidden p-6">
+      <Starfield />
+      
+      {/* Dark gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-black pointer-events-none" />
+      
+      {/* Circuit Grid */}
+      <div className="absolute inset-0 opacity-15 pointer-events-none">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            linear-gradient(90deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px),
+            linear-gradient(0deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px)
+          `,
+          backgroundSize: '60px 60px'
+        }} />
+      </div>
+      
+      {/* Floating particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div
+            key={`particle-${i}`}
+            className="absolute w-1 h-1 bg-game-neon rounded-full animate-pulse opacity-30"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 8}s`,
+              animationDuration: `${Math.random() * 15 + 10}s`,
+              filter: 'blur(0.5px)'
+            }}
+          />
+        ))}
+      </div>
+      
+      <div className="relative z-10 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <Button
             variant="ghost"
@@ -556,7 +623,7 @@ export default function AdminQuestions() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column: Add/Edit Question Form */}
-          <Card className="shadow-lg">
+          <Card className="shadow-lg bg-card/80 backdrop-blur-sm border-game-border">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl flex items-center gap-2">
@@ -840,7 +907,7 @@ export default function AdminQuestions() {
 
           {/* Right Column: Questions List */}
           <div className="space-y-4">
-            <Card className="shadow-lg">
+            <Card className="shadow-lg bg-card/80 backdrop-blur-sm border-game-border">
               <CardHeader>
                 <CardTitle className="text-xl flex items-center justify-between">
                   <span className="flex items-center gap-2">
