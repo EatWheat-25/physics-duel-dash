@@ -91,6 +91,12 @@ Deno.serve(async (req) => {
 
     const mmr = player?.mmr || 1000
 
+    // First, remove player from queue if they're already in it (prevents duplicate key errors)
+    await supabase
+      .from('queue')
+      .delete()
+      .eq('player_id', user.id)
+
     // Try to find an opponent waiting in queue
     const { data: waitingPlayers } = await supabase
       .from('queue')
@@ -149,7 +155,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error: queueError } = await supabase.from('queue').upsert({
+    const { error: queueError } = await supabase.from('queue').insert({
       player_id: user.id,
       subject,
       chapter,
