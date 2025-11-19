@@ -134,27 +134,45 @@ export const OnlineBattle = () => {
         onGameStart: (event) => {
           console.log('WS: Game starting with question!', event);
           console.log('WS question payload:', JSON.stringify(event, null, 2));
-          if (event.question) {
-            const q = event.question;
-            const formattedQuestion = {
-              id: q.id,
-              title: q.title,
-              subject: q.subject,
-              chapter: q.chapter,
-              level: q.level,
-              difficulty: q.difficulty,
-              rankTier: q.rank_tier || 'Bronze' as const,
-              totalMarks: q.total_marks,
-              questionText: q.question_text,
-              topicTags: q.topic_tags || [],
-              steps: q.steps
-            };
-            setQuestions([formattedQuestion]);
-            console.log('WS: Question set to state:', formattedQuestion.id);
-          } else {
+
+          if (!event.question) {
             console.error('WS: event.question is null/undefined!', event);
-            toast.error('Failed to load question');
+            toast.error('Failed to load question - no question in payload');
+            return;
           }
+
+          const q = event.question;
+          console.log('WS: Question keys:', Object.keys(q));
+          console.log('WS: Question steps:', q.steps);
+          console.log('WS: Steps is array:', Array.isArray(q.steps));
+          console.log('WS: Steps length:', q.steps?.length);
+
+          if (!q.steps || !Array.isArray(q.steps) || q.steps.length === 0) {
+            console.error('WS: Question has no valid steps!', q);
+            toast.error('Question has no steps - invalid format');
+            return;
+          }
+
+          const formattedQuestion = {
+            id: q.id,
+            title: q.title,
+            subject: q.subject,
+            chapter: q.chapter,
+            level: q.level,
+            difficulty: q.difficulty,
+            rankTier: q.rank_tier || 'Bronze' as const,
+            totalMarks: q.total_marks,
+            questionText: q.question_text,
+            topicTags: q.topic_tags || [],
+            steps: q.steps
+          };
+
+          console.log('WS: Formatted question:', formattedQuestion);
+          console.log('WS: Setting question array with 1 question');
+          setQuestions([formattedQuestion]);
+
+          console.log('WS: Question set to state. ID:', formattedQuestion.id, 'Steps:', formattedQuestion.steps.length);
+          console.log('WS: Triggering countdown...');
           toast.success('Battle begins!');
           setCountdown(3);
         },
@@ -255,11 +273,17 @@ export const OnlineBattle = () => {
       }, 1000);
       return () => clearTimeout(timer);
     } else if (countdown === 0) {
+      console.log('Countdown complete! Questions in state:', questions.length);
+      if (questions.length > 0) {
+        console.log('First question:', questions[0].id, 'Steps:', questions[0].steps.length);
+      } else {
+        console.error('Countdown finished but NO QUESTIONS in state!');
+      }
       setCountdown(null);
       setConnectionState('playing');
       setTimeLeft(300);
     }
-  }, [countdown]);
+  }, [countdown, questions]);
 
   useEffect(() => {
     if (connectionState === 'playing' && timeLeft > 0) {

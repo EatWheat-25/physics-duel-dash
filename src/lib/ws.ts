@@ -150,6 +150,10 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
 
         case 'game_start':
           console.log('WS: Game started');
+          console.log('WS: game_start message:', JSON.stringify(message, null, 2));
+          console.log('WS: question exists:', !!message.question);
+          console.log('WS: question.steps exists:', !!message.question?.steps);
+          console.log('WS: question.steps length:', message.question?.steps?.length);
           onGameStart?.(message);
           break;
 

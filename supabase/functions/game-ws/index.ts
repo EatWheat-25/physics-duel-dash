@@ -122,6 +122,8 @@ Deno.serve(async (req) => {
   async function fetchNextQuestion() {
     try {
       console.log(`[${matchId}] Fetching next question from database...`)
+      console.log(`[${matchId}] Match filters - subject: ${match.subject}, chapter: ${match.chapter}`)
+
       const { data, error } = await supabase.rpc('pick_next_question_v2', {
         p_match_id: matchId
       })
@@ -133,11 +135,31 @@ Deno.serve(async (req) => {
 
       if (!data || data.length === 0) {
         console.error(`[${matchId}] No questions available for match. Database may be empty!`)
+        console.error(`[${matchId}] Attempting to query questions table directly...`)
+
+        // Debug: Check if ANY questions exist
+        const { data: allQuestions, error: countError } = await supabase
+          .from('questions')
+          .select('id, title, subject', { count: 'exact' })
+          .limit(5)
+
+        if (countError) {
+          console.error(`[${matchId}] Error querying questions:`, countError)
+        } else {
+          console.log(`[${matchId}] Sample questions in DB:`, allQuestions?.length || 0)
+          allQuestions?.forEach(q => console.log(`  - ${q.id}: ${q.title} (${q.subject})`))
+        }
+
         return null
       }
 
-      console.log(`[${matchId}] Got question:`, data[0].question_id, 'ordinal:', data[0].ordinal)
-      return data[0]
+      const questionData = data[0]
+      console.log(`[${matchId}] ✓ Got question:`, questionData.question_id, 'ordinal:', questionData.ordinal)
+      console.log(`[${matchId}] Question object keys:`, Object.keys(questionData.question || {}))
+      console.log(`[${matchId}] Question has steps:`, Array.isArray(questionData.question?.steps))
+      console.log(`[${matchId}] Steps count:`, questionData.question?.steps?.length || 0)
+
+      return questionData
     } catch (error) {
       console.error(`[${matchId}] Exception fetching question:`, error)
       return null
@@ -188,27 +210,39 @@ Deno.serve(async (req) => {
 
           // Start game if both ready
           if (game.p1Ready && game.p2Ready && !game.gameActive) {
+            console.log(`[${matchId}] Both players ready! Starting game...`)
             game.gameActive = true
             await supabase.from('matches_new').update({ state: 'active' }).eq('id', matchId)
 
             // Fetch first question from database using RPC
             const questionData = await fetchNextQuestion()
 
-            if (!questionData) {
-              const errorMsg = { type: 'error', message: 'Failed to load questions' }
+            if (!questionData || !questionData.question) {
+              console.error(`[${matchId}] Failed to load question - sending error to clients`)
+              const errorMsg = {
+                type: 'error',
+                message: 'No questions available. Please ensure questions are seeded in the database.'
+              }
               game.p1Socket?.send(JSON.stringify(errorMsg))
               game.p2Socket?.send(JSON.stringify(errorMsg))
               return
             }
 
-            const startMsg = { 
+            console.log(`[${matchId}] Sending game_start with question to both players`)
+            const startMsg = {
               type: 'game_start',
               question: questionData.question,
               ordinal: questionData.ordinal,
               total_questions: game.questionsPerMatch
             }
-            game.p1Socket?.send(JSON.stringify(startMsg))
-            game.p2Socket?.send(JSON.stringify(startMsg))
+
+            const startMsgStr = JSON.stringify(startMsg)
+            console.log(`[${matchId}] Message size: ${startMsgStr.length} bytes`)
+
+            game.p1Socket?.send(startMsgStr)
+            game.p2Socket?.send(startMsgStr)
+
+            console.log(`[${matchId}] game_start messages sent to both players`)
           }
           break
         }
