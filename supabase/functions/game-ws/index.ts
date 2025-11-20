@@ -3,7 +3,7 @@ import { z } from 'npm:zod@3.23.8'
 
 // Dev-friendly durations (in milliseconds)
 const THINKING_TIME_MS = 20 * 1000  // 20 seconds
-const CHOOSING_TIME_MS = 10 * 1000  // 10 seconds
+const CHOOSING_TIME_MS = 15 * 1000  // 15 seconds
 const RESULT_DISPLAY_MS = 3 * 1000  // 3 seconds
 
 // ELO calculation
@@ -321,7 +321,7 @@ async function endMatch(game: GameState) {
   if (!match) return
 
   const winnerId = game.p1Score > game.p2Score ? match.p1 :
-                   game.p2Score > game.p1Score ? match.p2 : null
+    game.p2Score > game.p1Score ? match.p2 : null
   const loserId = winnerId ? (winnerId === match.p1 ? match.p2 : match.p1) : null
 
   // Calculate MMR changes

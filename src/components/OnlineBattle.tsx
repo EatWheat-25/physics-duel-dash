@@ -53,6 +53,7 @@ export const OnlineBattle = () => {
   const [phaseDeadline, setPhaseDeadline] = useState<Date | null>(null);
   const [roundOptions, setRoundOptions] = useState<Array<{ id: number; text: string }> | null>(null);
   const [roundIndex, setRoundIndex] = useState(0);
+  const [choosingTimeLeft, setChoosingTimeLeft] = useState<number | null>(null);
   const [, setTimerTick] = useState(0); // Dummy state to force re-renders for timer
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -158,7 +159,7 @@ export const OnlineBattle = () => {
           console.log('WS: Player ready event:', event.player);
           if (event.player === 'p1' || event.player === 'p2') {
             const isOpponent = (match.p1 === currentUser && event.player === 'p2') ||
-                               (match.p2 === currentUser && event.player === 'p1');
+              (match.p2 === currentUser && event.player === 'p1');
             if (isOpponent) {
               setOpponentReady(true);
             }
@@ -388,20 +389,38 @@ export const OnlineBattle = () => {
     });
   }, [currentPhase, phaseDeadline, roundOptions]);
 
-  // Force re-render every 100ms when there's an active phase deadline to update timer display
+  // Timer logic for CHOOSING phase
   useEffect(() => {
-    if (!phaseDeadline || !currentPhase) {
-      console.log('[OnlineBattle] Timer not starting - missing:', { phaseDeadline: !!phaseDeadline, currentPhase });
+    if (currentPhase !== 'choosing' || !phaseDeadline) {
+      setChoosingTimeLeft(null);
       return;
     }
 
-    console.log('[OnlineBattle] Starting timer tick for phase:', currentPhase);
+    const updateTimer = () => {
+      const now = Date.now();
+      const deadline = new Date(phaseDeadline).getTime();
+      const diffMs = Math.max(0, deadline - now);
+      const seconds = Math.ceil(diffMs / 1000);
+      setChoosingTimeLeft(seconds);
+    };
+
+    updateTimer(); // Initial update
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [currentPhase, phaseDeadline]);
+
+  // Force re-render every 100ms when there's an active phase deadline to update timer display
+  useEffect(() => {
+    if (!phaseDeadline || !currentPhase) {
+      return;
+    }
+    // ... existing tick logic ...
     const interval = setInterval(() => {
       setTimerTick(prev => prev + 1); // Force re-render
     }, 100);
 
     return () => {
-      console.log('[OnlineBattle] Stopping timer tick');
       clearInterval(interval);
     };
   }, [phaseDeadline, currentPhase]);
@@ -493,8 +512,15 @@ export const OnlineBattle = () => {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Leave Match
             </Button>
-            <div className="text-2xl font-bold backdrop-blur-sm bg-card/50 px-6 py-2 rounded-xl border border-border/50">
-              {match.subject} - {match.chapter}
+            <div className="flex items-center gap-4">
+              <div className="text-2xl font-bold backdrop-blur-sm bg-card/50 px-6 py-2 rounded-xl border border-border/50">
+                {match.subject} - {match.chapter}
+              </div>
+              {currentPhase === 'choosing' && choosingTimeLeft !== null && (
+                <div className="text-xl font-mono font-bold backdrop-blur-sm bg-amber-500/20 text-amber-500 px-4 py-2 rounded-xl border border-amber-500/50 animate-pulse">
+                  Choosing: 00:{String(choosingTimeLeft).padStart(2, '0')}
+                </div>
+              )}
             </div>
           </div>
 
@@ -507,11 +533,10 @@ export const OnlineBattle = () => {
             <div className="mb-4 backdrop-blur-sm bg-card/50 p-4 rounded-xl border border-border/50 shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`px-3 py-1 rounded-full font-bold text-sm text-white ${
-                    currentPhase === 'thinking' ? 'bg-blue-500' :
-                    currentPhase === 'choosing' ? 'bg-amber-500' :
-                    'bg-green-500'
-                  }`}>
+                  <div className={`px-3 py-1 rounded-full font-bold text-sm text-white ${currentPhase === 'thinking' ? 'bg-blue-500' :
+                      currentPhase === 'choosing' ? 'bg-amber-500' :
+                        'bg-green-500'
+                    }`}>
                     {currentPhase === 'thinking' ? 'THINKING' : currentPhase === 'choosing' ? 'CHOOSING' : 'RESULT'}
                   </div>
                   <div className="text-3xl font-bold font-mono">
@@ -552,6 +577,7 @@ export const OnlineBattle = () => {
                   currentPhase={currentPhase || undefined}
                   phaseDeadline={phaseDeadline}
                   options={roundOptions}
+                  locked={isSubmitting || (currentPhase === 'choosing' && choosingTimeLeft === 0)}
                 />
               </CardContent>
             </Card>
