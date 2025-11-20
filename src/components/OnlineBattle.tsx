@@ -7,7 +7,8 @@ import { Progress } from './ui/progress';
 import { ArrowLeft, Loader2, Trophy, Award, AlertCircle } from 'lucide-react';
 import { Starfield } from './Starfield';
 import TugOfWarBar from './TugOfWarBar';
-import { connectGameWS, sendReady, sendAnswer, type ServerEvent } from '@/lib/ws';
+import { connectGameWS, sendReady, sendAnswer, type ServerEvent, type RoundStartEvent, type PhaseChangeEvent, type RoundResultEvent } from '@/lib/ws';
+import type { RoundPhase } from '@/types/gameEvents';
 import { toast } from 'sonner';
 import { StepBasedQuestion, QuestionSubject, QuestionLevel } from '@/types/questions';
 import { useQuestions } from '@/hooks/useQuestions';
@@ -46,6 +47,12 @@ export const OnlineBattle = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
+
+  // 3-phase state
+  const [currentPhase, setCurrentPhase] = useState<RoundPhase | null>(null);
+  const [phaseDeadline, setPhaseDeadline] = useState<Date | null>(null);
+  const [roundOptions, setRoundOptions] = useState<Array<{ id: number; text: string }> | null>(null);
+  const [roundIndex, setRoundIndex] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -156,14 +163,17 @@ export const OnlineBattle = () => {
             }
           }
         },
-        onGameStart: (event) => {
-          console.log('[OnlineBattle] Game starting with question!', event);
-          console.log('WS question payload:', JSON.stringify(event, null, 2));
+        onRoundStart: (event: RoundStartEvent) => {
+          console.log('[OnlineBattle] Round starting!', event);
 
-          // Reset answer state for new game
+          // Reset state for new round
           setShowResult(false);
           setCorrectAnswer(null);
           setIsSubmitting(false);
+          setRoundIndex(event.roundIndex);
+          setCurrentPhase(event.phase);
+          setPhaseDeadline(new Date(event.thinkingEndsAt));
+          setRoundOptions(null); // No options during thinking phase
 
           if (!event.question) {
             console.error('WS: event.question is null/undefined!', event);
@@ -174,8 +184,6 @@ export const OnlineBattle = () => {
           const q = event.question;
           console.log('WS: Question keys:', Object.keys(q));
           console.log('WS: Question steps:', q.steps);
-          console.log('WS: Steps is array:', Array.isArray(q.steps));
-          console.log('WS: Steps length:', q.steps?.length);
 
           if (!q.steps || !Array.isArray(q.steps) || q.steps.length === 0) {
             console.error('WS: Question has no valid steps!', q);
@@ -190,82 +198,71 @@ export const OnlineBattle = () => {
             chapter: q.chapter,
             level: q.level,
             difficulty: q.difficulty,
-            rankTier: q.rank_tier || 'Bronze' as const,
-            totalMarks: q.total_marks,
-            questionText: q.question_text,
-            topicTags: q.topic_tags || [],
+            rankTier: q.rankTier || 'Bronze' as const,
+            totalMarks: q.totalMarks,
+            questionText: q.questionText,
+            topicTags: q.topicTags || [],
             steps: q.steps
           };
 
           console.log('WS: Formatted question:', formattedQuestion);
-          console.log('WS: Setting question array with 1 question');
           setQuestions([formattedQuestion]);
 
-          console.log('WS: Question set to state. ID:', formattedQuestion.id, 'Steps:', formattedQuestion.steps.length);
-          console.log('WS: Triggering countdown...');
-          toast.success('Battle begins!');
-          setCountdown(3);
-        },
-        onNextQuestion: (event) => {
-          console.log('[OnlineBattle] Received next question', event);
-          console.log('WS next_question payload:', JSON.stringify(event, null, 2));
-
-          // Reset answer state for new question
-          setShowResult(false);
-          setCorrectAnswer(null);
-          setIsSubmitting(false);
-
-          if (event.question) {
-            const q = event.question;
-            const formattedQuestion = {
-              id: q.id,
-              title: q.title,
-              subject: q.subject,
-              chapter: q.chapter,
-              level: q.level,
-              difficulty: q.difficulty,
-              rankTier: q.rank_tier || 'Bronze' as const,
-              totalMarks: q.total_marks,
-              questionText: q.question_text,
-              topicTags: q.topic_tags || [],
-              steps: q.steps
-            };
-            setQuestions([formattedQuestion]);
-            setCurrentQuestionIndex(0);
-            setCurrentStepIndex(0);
-          }
-        },
-        onAnswerResult: (event) => {
-          console.log('[OnlineBattle] Answer result received', event);
-          setIsSubmitting(false);
-          setShowResult(true);
-
-          // Find the current question and step to get the correct answer
-          const currentQuestion = questions[currentQuestionIndex];
-          if (currentQuestion && currentQuestion.steps && currentQuestion.steps.length > 0) {
-            const step = currentQuestion.steps[0]; // Primary step
-            setCorrectAnswer(step.correctAnswer);
-          }
-
-          if (event.is_correct) {
-            toast.success(`Correct! +${event.marks_earned} marks`);
+          if (event.roundIndex === 0) {
+            toast.success('Battle begins!');
+            setCountdown(3);
           } else {
-            toast.error('Incorrect answer');
-          }
-          if (event.explanation) {
-            toast.info(event.explanation, { duration: 5000 });
+            toast.info(`Round ${event.roundIndex + 1}`);
+            setConnectionState('playing');
           }
         },
-        onScoreUpdate: (event) => {
-          console.log(`WS: Score update - p1: ${event.p1_score}, p2: ${event.p2_score}`);
+        onPhaseChange: (event: PhaseChangeEvent) => {
+          console.log('[OnlineBattle] Phase changing to:', event.phase);
+          setCurrentPhase(event.phase);
+
+          if (event.phase === 'choosing') {
+            setPhaseDeadline(event.choosingEndsAt ? new Date(event.choosingEndsAt) : null);
+            setRoundOptions(event.options || null);
+            toast.info('Choose your answer now!', { duration: 2000 });
+          } else if (event.phase === 'result') {
+            setPhaseDeadline(null);
+            toast.info('Calculating results...');
+          }
+        },
+        onRoundResult: (event: RoundResultEvent) => {
+          console.log('[OnlineBattle] Round result received', event);
+          setShowResult(true);
+          setCorrectAnswer(event.correctOptionId);
+
+          // Update scores
           setMatch(prev => prev ? {
             ...prev,
-            p1_score: event.p1_score,
-            p2_score: event.p2_score,
+            p1_score: event.p1Score,
+            p2_score: event.p2Score,
           } : null);
-          if (event.time_left !== undefined) {
-            setTimeLeft(event.time_left);
+
+          // Find current user's result
+          const myResult = event.playerResults.find(r => r.playerId === currentUser);
+          if (myResult) {
+            if (myResult.isCorrect) {
+              toast.success('Correct answer!');
+            } else {
+              toast.error('Incorrect answer');
+            }
           }
+        },
+        onGameStart: (event) => {
+          console.log('[OnlineBattle] Legacy game_start event (should not happen with 3-phase)', event);
+        },
+        onNextQuestion: (event) => {
+          console.log('[OnlineBattle] Legacy next_question event (should not happen with 3-phase)', event);
+        },
+        onAnswerResult: (event) => {
+          console.log('[OnlineBattle] Legacy answer_result event (should not happen with 3-phase)', event);
+          setIsSubmitting(false);
+        },
+        onScoreUpdate: (event) => {
+          console.log(`WS: Legacy score_update event (should not happen with 3-phase)`, event);
         },
         onOpponentDisconnect: (event) => {
           console.log('WS: Opponent disconnected');
@@ -276,15 +273,28 @@ export const OnlineBattle = () => {
           }
         },
         onMatchEnd: (event) => {
-          console.log('WS: Match ended');
+          console.log('WS: Match ended', event);
           setConnectionState('ended');
+
+          // Handle both legacy and new event formats
+          const winnerId = event.winner_id || event.winnerPlayerId || undefined;
+          const finalScores = event.final_scores || event.summary?.finalScores || { p1: 0, p2: 0 };
+
           setMatch(prev => prev ? {
             ...prev,
             state: 'ended',
-            winner_id: event.winner_id || undefined,
-            p1_score: event.final_scores.p1,
-            p2_score: event.final_scores.p2,
+            winner_id: winnerId,
+            p1_score: finalScores.p1,
+            p2_score: finalScores.p2,
           } : null);
+
+          if (winnerId === currentUser) {
+            toast.success('Victory!', { duration: 5000 });
+          } else if (winnerId) {
+            toast.error('Defeat', { duration: 5000 });
+          } else {
+            toast.info('Match ended in a draw', { duration: 5000 });
+          }
         },
         onError: (error) => {
           console.error('WS: Error:', error);
@@ -470,6 +480,9 @@ export const OnlineBattle = () => {
                   isSubmitting={isSubmitting}
                   correctAnswer={correctAnswer}
                   showResult={showResult}
+                  currentPhase={currentPhase || undefined}
+                  phaseDeadline={phaseDeadline}
+                  options={roundOptions}
                 />
               </CardContent>
             </Card>
@@ -586,6 +599,9 @@ export const OnlineBattle = () => {
                   isSubmitting={isSubmitting}
                   correctAnswer={correctAnswer}
                   showResult={showResult}
+                  currentPhase={currentPhase || undefined}
+                  phaseDeadline={phaseDeadline}
+                  options={roundOptions}
                   onFinished={() => {
                     console.log('[OnlineBattle] Questions finished');
                     toast.success('All questions completed!');

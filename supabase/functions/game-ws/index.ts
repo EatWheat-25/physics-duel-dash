@@ -1,6 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { z } from 'npm:zod@3.23.8'
 
+// Dev-friendly durations (in milliseconds)
+const THINKING_TIME_MS = 20 * 1000  // 20 seconds
+const CHOOSING_TIME_MS = 10 * 1000  // 10 seconds
+const RESULT_DISPLAY_MS = 3 * 1000  // 3 seconds
+
 // ELO calculation
 function calculateElo(winner: number, loser: number, kFactor = 32): { winner: number; loser: number } {
   const expectedWinner = 1 / (1 + Math.pow(10, (loser - winner) / 400))
@@ -12,19 +17,28 @@ function calculateElo(winner: number, loser: number, kFactor = 32): { winner: nu
   }
 }
 
+type RoundPhase = 'thinking' | 'choosing' | 'result'
+
 interface GameState {
   matchId: string
   p1Socket: WebSocket | null
   p2Socket: WebSocket | null
   p1Ready: boolean
   p2Ready: boolean
-  currentQuestion: number
+  currentRound: number
   p1Score: number
   p2Score: number
   gameActive: boolean
-  questionsPerMatch: number
-  p1Answered: boolean
-  p2Answered: boolean
+  roundsPerMatch: number
+
+  // Round-specific state
+  currentPhase: RoundPhase
+  currentQuestionId: string | null
+  currentQuestion: any | null
+  thinkingDeadline: number | null  // timestamp
+  choosingDeadline: number | null  // timestamp
+  p1Answer: number | null
+  p2Answer: number | null
 }
 
 // Validation schemas
@@ -36,20 +50,341 @@ const AnswerSubmitSchema = z.object({
   type: z.literal('answer_submit'),
   question_id: z.string().uuid(),
   step_id: z.string().min(1).max(100),
-  answer: z.number().int().min(0).max(10)
-})
-
-const QuestionCompleteSchema = z.object({
-  type: z.literal('question_complete')
+  answer: z.number().int().min(0).max(2)  // Only 3 options (0, 1, 2)
 })
 
 const ClientMessageSchema = z.discriminatedUnion('type', [
   ReadyMessageSchema,
-  AnswerSubmitSchema,
-  QuestionCompleteSchema
+  AnswerSubmitSchema
 ])
 
 const games = new Map<string, GameState>()
+
+// Global heartbeat for checking phase deadlines
+setInterval(() => {
+  const now = Date.now()
+
+  for (const [matchId, game] of games.entries()) {
+    if (!game.gameActive) continue
+
+    // Check thinking deadline
+    if (game.currentPhase === 'thinking' && game.thinkingDeadline && now >= game.thinkingDeadline) {
+      console.log(`[${matchId}] Thinking time expired, transitioning to choosing`)
+      transitionToChoosing(game).catch(err =>
+        console.error(`[${matchId}] Error in thinking timeout:`, err)
+      )
+    }
+
+    // Check choosing deadline
+    if (game.currentPhase === 'choosing' && game.choosingDeadline && now >= game.choosingDeadline) {
+      console.log(`[${matchId}] Choosing time expired, transitioning to result`)
+      transitionToResult(game).catch(err =>
+        console.error(`[${matchId}] Error in choosing timeout:`, err)
+      )
+    }
+  }
+}, 1000) // Check every second
+
+async function startRound(game: GameState) {
+  const matchId = game.matchId
+  console.log(`[${matchId}] Starting round ${game.currentRound}`)
+
+  // Create Supabase client with service role for server operations
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+
+  // Fetch next question
+  const { data, error } = await supabase.rpc('pick_next_question_v2', {
+    p_match_id: matchId
+  })
+
+  if (error || !data || data.length === 0) {
+    console.error(`[${matchId}] Failed to fetch question:`, error)
+    const errorMsg = { type: 'error', message: 'Failed to load question' }
+    game.p1Socket?.send(JSON.stringify(errorMsg))
+    game.p2Socket?.send(JSON.stringify(errorMsg))
+    return
+  }
+
+  const questionData = data[0]
+  game.currentQuestionId = questionData.question_id
+  game.currentQuestion = questionData.question
+  game.currentPhase = 'thinking'
+  game.p1Answer = null
+  game.p2Answer = null
+
+  // Set thinking deadline
+  const thinkingEndsAt = new Date(Date.now() + THINKING_TIME_MS)
+  game.thinkingDeadline = thinkingEndsAt.getTime()
+
+  // Update DB
+  await supabase
+    .from('match_questions')
+    .update({
+      phase: 'thinking',
+      thinking_started_at: new Date().toISOString(),
+      thinking_ends_at: thinkingEndsAt.toISOString()
+    })
+    .eq('match_id', matchId)
+    .eq('question_id', questionData.question_id)
+
+  // Send ROUND_START event
+  const roundStartMsg = {
+    type: 'ROUND_START',
+    matchId,
+    roundIndex: game.currentRound,
+    phase: 'thinking',
+    question: questionData.question,
+    thinkingEndsAt: thinkingEndsAt.toISOString()
+  }
+
+  console.log(`[${matchId}] Sending ROUND_START for round ${game.currentRound}`)
+  game.p1Socket?.send(JSON.stringify(roundStartMsg))
+  game.p2Socket?.send(JSON.stringify(roundStartMsg))
+}
+
+async function transitionToChoosing(game: GameState) {
+  const matchId = game.matchId
+  console.log(`[${matchId}] Transitioning to CHOOSING phase`)
+
+  if (game.currentPhase !== 'thinking') {
+    console.log(`[${matchId}] Already past thinking phase, ignoring`)
+    return
+  }
+
+  game.currentPhase = 'choosing'
+
+  // Set choosing deadline
+  const choosingEndsAt = new Date(Date.now() + CHOOSING_TIME_MS)
+  game.choosingDeadline = choosingEndsAt.getTime()
+  game.thinkingDeadline = null
+
+  // Update DB
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+
+  await supabase
+    .from('match_questions')
+    .update({
+      phase: 'choosing',
+      choosing_started_at: new Date().toISOString(),
+      choosing_ends_at: choosingEndsAt.toISOString()
+    })
+    .eq('match_id', matchId)
+    .eq('question_id', game.currentQuestionId)
+
+  // Extract first 3 options from question
+  const options = game.currentQuestion.steps[0].options.slice(0, 3).map((text: string, idx: number) => ({
+    id: idx,
+    text
+  }))
+
+  // Send PHASE_CHANGE event
+  const phaseChangeMsg = {
+    type: 'PHASE_CHANGE',
+    matchId,
+    roundIndex: game.currentRound,
+    phase: 'choosing',
+    choosingEndsAt: choosingEndsAt.toISOString(),
+    options
+  }
+
+  console.log(`[${matchId}] Sending PHASE_CHANGE to choosing`)
+  game.p1Socket?.send(JSON.stringify(phaseChangeMsg))
+  game.p2Socket?.send(JSON.stringify(phaseChangeMsg))
+}
+
+async function transitionToResult(game: GameState) {
+  const matchId = game.matchId
+  console.log(`[${matchId}] Transitioning to RESULT phase`)
+
+  if (game.currentPhase !== 'choosing') {
+    console.log(`[${matchId}] Not in choosing phase, ignoring`)
+    return
+  }
+
+  game.currentPhase = 'result'
+  game.choosingDeadline = null
+
+  // Update DB
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+
+  await supabase
+    .from('match_questions')
+    .update({ phase: 'result' })
+    .eq('match_id', matchId)
+    .eq('question_id', game.currentQuestionId)
+
+  // Get correct answer from question
+  const correctAnswer = game.currentQuestion.steps[0].correctAnswer
+
+  // Grade answers (null = no answer submitted)
+  const p1IsCorrect = game.p1Answer === correctAnswer
+  const p2IsCorrect = game.p2Answer === correctAnswer
+
+  const marksPerQuestion = game.currentQuestion.steps[0].marks
+  const p1Marks = p1IsCorrect ? marksPerQuestion : 0
+  const p2Marks = p2IsCorrect ? marksPerQuestion : 0
+
+  game.p1Score += p1Marks
+  game.p2Score += p2Marks
+
+  // Get match data for player IDs
+  const { data: match } = await supabase
+    .from('matches_new')
+    .select('p1, p2')
+    .eq('id', matchId)
+    .single()
+
+  // Update DB with results
+  await supabase
+    .from('match_questions')
+    .update({
+      p1_answer: game.p1Answer,
+      p2_answer: game.p2Answer,
+      p1_correct: p1IsCorrect,
+      p2_correct: p2IsCorrect
+    })
+    .eq('match_id', matchId)
+    .eq('question_id', game.currentQuestionId)
+
+  // Calculate tug-of-war
+  const tugOfWar = game.p1Score - game.p2Score
+
+  // Send ROUND_RESULT event
+  const roundResultMsg = {
+    type: 'ROUND_RESULT',
+    matchId,
+    roundIndex: game.currentRound,
+    questionId: game.currentQuestionId,
+    correctOptionId: correctAnswer,
+    playerResults: [
+      {
+        playerId: match?.p1,
+        selectedOptionId: game.p1Answer,
+        isCorrect: p1IsCorrect
+      },
+      {
+        playerId: match?.p2,
+        selectedOptionId: game.p2Answer,
+        isCorrect: p2IsCorrect
+      }
+    ],
+    tugOfWar,
+    p1Score: game.p1Score,
+    p2Score: game.p2Score
+  }
+
+  console.log(`[${matchId}] Sending ROUND_RESULT - P1: ${p1IsCorrect ? 'correct' : 'wrong'}, P2: ${p2IsCorrect ? 'correct' : 'wrong'}`)
+  game.p1Socket?.send(JSON.stringify(roundResultMsg))
+  game.p2Socket?.send(JSON.stringify(roundResultMsg))
+
+  // Wait, then advance to next round or end match
+  setTimeout(() => {
+    game.currentRound++
+
+    if (game.currentRound >= game.roundsPerMatch) {
+      endMatch(game).catch(err =>
+        console.error(`[${matchId}] Error ending match:`, err)
+      )
+    } else {
+      startRound(game).catch(err =>
+        console.error(`[${matchId}] Error starting next round:`, err)
+      )
+    }
+  }, RESULT_DISPLAY_MS)
+}
+
+async function endMatch(game: GameState) {
+  const matchId = game.matchId
+  console.log(`[${matchId}] Match ending - Final score: ${game.p1Score} - ${game.p2Score}`)
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+
+  // Get match data
+  const { data: match } = await supabase
+    .from('matches_new')
+    .select('p1, p2')
+    .eq('id', matchId)
+    .single()
+
+  if (!match) return
+
+  const winnerId = game.p1Score > game.p2Score ? match.p1 :
+                   game.p2Score > game.p1Score ? match.p2 : null
+  const loserId = winnerId ? (winnerId === match.p1 ? match.p2 : match.p1) : null
+
+  // Calculate MMR changes
+  let mmrChanges = {}
+  if (winnerId && loserId) {
+    const { data: players } = await supabase
+      .from('players')
+      .select('id, mmr')
+      .in('id', [match.p1, match.p2])
+
+    const winnerOldMmr = players?.find(p => p.id === winnerId)?.mmr || 1000
+    const loserOldMmr = players?.find(p => p.id === loserId)?.mmr || 1000
+
+    const newElos = calculateElo(winnerOldMmr, loserOldMmr)
+
+    await supabase.from('players').update({ mmr: newElos.winner }).eq('id', winnerId)
+    await supabase.from('players').update({ mmr: newElos.loser }).eq('id', loserId)
+
+    mmrChanges = {
+      [winnerId]: { old: winnerOldMmr, new: newElos.winner },
+      [loserId]: { old: loserOldMmr, new: newElos.loser }
+    }
+  }
+
+  // Update match
+  await supabase
+    .from('matches_new')
+    .update({
+      state: 'ended',
+      winner_id: winnerId,
+      p1_score: game.p1Score,
+      p2_score: game.p2Score,
+      ended_at: new Date().toISOString()
+    })
+    .eq('id', matchId)
+
+  // Send MATCH_END event
+  const matchEndMsg = {
+    type: 'MATCH_END',
+    matchId,
+    winnerPlayerId: winnerId,
+    summary: {
+      roundsPlayed: game.currentRound,
+      finalScores: {
+        p1: game.p1Score,
+        p2: game.p2Score
+      }
+    },
+    mmrChanges
+  }
+
+  console.log(`[${matchId}] Sending MATCH_END`)
+  game.p1Socket?.send(JSON.stringify(matchEndMsg))
+  game.p2Socket?.send(JSON.stringify(matchEndMsg))
+
+  // Cleanup
+  setTimeout(() => {
+    game.p1Socket?.close()
+    game.p2Socket?.close()
+    games.delete(matchId)
+    console.log(`[${matchId}] Game cleaned up`)
+  }, 1000)
+}
 
 Deno.serve(async (req) => {
   const url = new URL(req.url)
@@ -83,7 +418,7 @@ Deno.serve(async (req) => {
     return new Response('Invalid match', { status: 403 })
   }
 
-  console.log(`WebSocket connection for user ${user.id} in match ${matchId}`)
+  console.log(`[${matchId}] WebSocket connection for user ${user.id}`)
 
   // Upgrade to WebSocket
   const upgrade = req.headers.get('upgrade') || ''
@@ -103,13 +438,18 @@ Deno.serve(async (req) => {
       p2Socket: null,
       p1Ready: false,
       p2Ready: false,
-      currentQuestion: 0,
+      currentRound: 0,
       p1Score: 0,
       p2Score: 0,
       gameActive: false,
-      questionsPerMatch: 5,
-      p1Answered: false,
-      p2Answered: false
+      roundsPerMatch: 3,
+      currentPhase: 'thinking',
+      currentQuestionId: null,
+      currentQuestion: null,
+      thinkingDeadline: null,
+      choosingDeadline: null,
+      p1Answer: null,
+      p2Answer: null
     })
   }
 
@@ -122,55 +462,6 @@ Deno.serve(async (req) => {
     game.p2Socket = socket
   }
 
-  // Helper to fetch next question from database
-  async function fetchNextQuestion() {
-    try {
-      console.log(`[${matchId}] Fetching next question from database...`)
-      console.log(`[${matchId}] Match filters - subject: ${match.subject}, chapter: ${match.chapter}`)
-
-      const { data, error } = await supabase.rpc('pick_next_question_v2', {
-        p_match_id: matchId
-      })
-
-      if (error) {
-        console.error(`[${matchId}] Error fetching question:`, error)
-        return null
-      }
-
-      if (!data || data.length === 0) {
-        console.error(`[${matchId}] No questions available for match. Database may be empty!`)
-        console.error(`[${matchId}] Attempting to query questions table directly...`)
-
-        // Debug: Check if ANY questions exist
-        const { data: allQuestions, error: countError } = await supabase
-          .from('questions')
-          .select('id, title, subject', { count: 'exact' })
-          .limit(5)
-
-        if (countError) {
-          console.error(`[${matchId}] Error querying questions:`, countError)
-        } else {
-          console.log(`[${matchId}] Sample questions in DB:`, allQuestions?.length || 0)
-          allQuestions?.forEach(q => console.log(`  - ${q.id}: ${q.title} (${q.subject})`))
-        }
-
-        return null
-      }
-
-      const questionData = data[0]
-      console.log(`[${matchId}] ✓ Got question:`, questionData.question_id, 'ordinal:', questionData.ordinal)
-      console.log(`[${matchId}] Question object keys:`, Object.keys(questionData.question || {}))
-      console.log(`[${matchId}] Question has steps:`, Array.isArray(questionData.question?.steps))
-      console.log(`[${matchId}] Steps count:`, questionData.question?.steps?.length || 0)
-
-      return questionData
-    } catch (error) {
-      console.error(`[${matchId}] Exception fetching question:`, error)
-      return null
-    }
-  }
-
-  // Send connection confirmation
   socket.onopen = () => {
     socket.send(JSON.stringify({ type: 'connected', player: isP1 ? 'p1' : 'p2' }))
   }
@@ -178,34 +469,22 @@ Deno.serve(async (req) => {
   socket.onmessage = async (event) => {
     try {
       const rawMessage = JSON.parse(event.data)
-      
-      // Validate message
+
       const validation = ClientMessageSchema.safeParse(rawMessage)
       if (!validation.success) {
-        console.error('Invalid message format:', validation.error)
-        socket.send(JSON.stringify({ 
-          type: 'error', 
-          message: 'Invalid message format',
-          details: validation.error.issues 
-        }))
+        console.error(`[${matchId}] Invalid message:`, validation.error)
+        socket.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }))
         return
       }
-      
-      const message = validation.data
-      console.log(`Received message from ${user.id}:`, message.type)
 
-      // Log event to match_events
-      await supabase.from('match_events').insert({
-        match_id: matchId,
-        sender: user.id,
-        type: message.type,
-        payload: message,
-      })
+      const message = validation.data
 
       switch (message.type) {
         case 'ready': {
           if (isP1) game.p1Ready = true
           else game.p2Ready = true
+
+          console.log(`[${matchId}] ${isP1 ? 'P1' : 'P2'} ready`)
 
           // Notify both players
           const readyMsg = { type: 'player_ready', player: isP1 ? 'p1' : 'p2' }
@@ -214,304 +493,76 @@ Deno.serve(async (req) => {
 
           // Start game if both ready
           if (game.p1Ready && game.p2Ready && !game.gameActive) {
-            console.log(`[${matchId}] Both players ready! Starting game...`)
+            console.log(`[${matchId}] Both players ready, starting match`)
             game.gameActive = true
-            await supabase.from('matches_new').update({ state: 'active' }).eq('id', matchId)
 
-            // Fetch first question from database using RPC
-            const questionData = await fetchNextQuestion()
+            await supabase
+              .from('matches_new')
+              .update({ state: 'active' })
+              .eq('id', matchId)
 
-            if (!questionData || !questionData.question) {
-              console.error(`[${matchId}] Failed to load question - sending error to clients`)
-              const errorMsg = {
-                type: 'error',
-                message: 'No questions available. Please ensure questions are seeded in the database.'
-              }
-              game.p1Socket?.send(JSON.stringify(errorMsg))
-              game.p2Socket?.send(JSON.stringify(errorMsg))
-              return
-            }
-
-            console.log(`[${matchId}] Sending game_start with question to both players`)
-            const startMsg = {
-              type: 'game_start',
-              question: questionData.question,
-              ordinal: questionData.ordinal,
-              total_questions: game.questionsPerMatch
-            }
-
-            const startMsgStr = JSON.stringify(startMsg)
-            console.log(`[${matchId}] Message size: ${startMsgStr.length} bytes`)
-
-            game.p1Socket?.send(startMsgStr)
-            game.p2Socket?.send(startMsgStr)
-
-            console.log(`[${matchId}] game_start messages sent to both players`)
+            // Start first round
+            await startRound(game)
           }
           break
         }
 
         case 'answer_submit': {
-          const { question_id, step_id, answer } = message
+          const { answer } = message
 
-          console.log(`[${matchId}] Answer submitted by ${isP1 ? 'P1' : 'P2'}`)
+          console.log(`[${matchId}] ${isP1 ? 'P1' : 'P2'} submitted answer: ${answer}`)
 
-          // Grade answer server-side via RPC
-          const { data: gradeResult, error: gradeError } = await supabase.rpc('submit_answer', {
-            p_match_id: matchId,
-            p_question_id: question_id,
-            p_step_id: step_id,
-            p_answer: answer
-          })
-
-          if (gradeError) {
-            console.error('Error grading answer:', gradeError)
-            socket.send(JSON.stringify({ type: 'error', message: 'Failed to grade answer' }))
+          // Verify we're in choosing phase
+          if (game.currentPhase !== 'choosing') {
+            console.log(`[${matchId}] Answer submitted during ${game.currentPhase} phase, rejecting`)
+            socket.send(JSON.stringify({ type: 'error', message: 'Not in choosing phase' }))
             return
           }
 
-          // Update score based on server-graded result
-          const marksEarned = gradeResult?.marks_earned || 0
+          // Store answer
           if (isP1) {
-            game.p1Score += marksEarned
-            game.p1Answered = true
-          } else {
-            game.p2Score += marksEarned
-            game.p2Answered = true
-          }
-
-          console.log(`[${matchId}] Answer graded: ${gradeResult?.is_correct ? 'correct' : 'incorrect'} (+${marksEarned} marks)`)
-          console.log(`[${matchId}] Answers received: P1=${game.p1Answered}, P2=${game.p2Answered}`)
-
-          // Broadcast answer result to submitter
-          const answerResultMsg = {
-            type: 'answer_result',
-            player: isP1 ? 'p1' : 'p2',
-            is_correct: gradeResult?.is_correct,
-            marks_earned: marksEarned,
-            explanation: gradeResult?.explanation
-          }
-          socket.send(JSON.stringify(answerResultMsg))
-
-          // Broadcast score update to both players
-          const scoreMsg = {
-            type: 'score_update',
-            p1_score: game.p1Score,
-            p2_score: game.p2Score,
-          }
-          game.p1Socket?.send(JSON.stringify(scoreMsg))
-          game.p2Socket?.send(JSON.stringify(scoreMsg))
-
-          // If both players have answered, advance to next question after a delay
-          if (game.p1Answered && game.p2Answered) {
-            console.log(`[${matchId}] Both players answered! Advancing to next question in 2 seconds...`)
-
-            // Reset answer flags
-            game.p1Answered = false
-            game.p2Answered = false
-            game.currentQuestion++
-
-            setTimeout(async () => {
-              // Check if match is over
-              if (game.currentQuestion >= game.questionsPerMatch) {
-                console.log(`[${matchId}] Match over! Final score: ${game.p1Score} - ${game.p2Score}`)
-
-                const winnerId = game.p1Score > game.p2Score ? match.p1 : game.p2Score > game.p1Score ? match.p2 : null
-                const loserId = winnerId ? (winnerId === match.p1 ? match.p2 : match.p1) : null
-
-                // Get current MMRs
-                if (winnerId && loserId) {
-                  const { data: players } = await supabase
-                    .from('players')
-                    .select('id, mmr')
-                    .in('id', [match.p1, match.p2])
-
-                  const winnerOldMmr = players?.find((p) => p.id === winnerId)?.mmr || 1000
-                  const loserOldMmr = players?.find((p) => p.id === loserId)?.mmr || 1000
-
-                  // Calculate new ELO
-                  const newElos = calculateElo(winnerOldMmr, loserOldMmr)
-
-                  // Update players
-                  await supabase.from('players').update({ mmr: newElos.winner }).eq('id', winnerId)
-                  await supabase.from('players').update({ mmr: newElos.loser }).eq('id', loserId)
-
-                  // Update match
-                  await supabase
-                    .from('matches_new')
-                    .update({
-                      state: 'ended',
-                      winner_id: winnerId,
-                      p1_score: game.p1Score,
-                      p2_score: game.p2Score,
-                      ended_at: new Date().toISOString(),
-                    })
-                    .eq('id', matchId)
-
-                  // Send match end to both players
-                  const endMsg = {
-                    type: 'match_end',
-                    winner_id: winnerId,
-                    final_scores: { p1: game.p1Score, p2: game.p2Score },
-                    mmr_changes: {
-                      [winnerId]: { old: winnerOldMmr, new: newElos.winner },
-                      [loserId]: { old: loserOldMmr, new: newElos.loser },
-                    },
-                  }
-
-                  game.p1Socket?.send(JSON.stringify(endMsg))
-                  game.p2Socket?.send(JSON.stringify(endMsg))
-                } else {
-                  // Draw
-                  await supabase
-                    .from('matches_new')
-                    .update({
-                      state: 'ended',
-                      winner_id: null,
-                      p1_score: game.p1Score,
-                      p2_score: game.p2Score,
-                      ended_at: new Date().toISOString(),
-                    })
-                    .eq('id', matchId)
-
-                  const endMsg = {
-                    type: 'match_end',
-                    winner_id: null,
-                    final_scores: { p1: game.p1Score, p2: game.p2Score },
-                  }
-
-                  game.p1Socket?.send(JSON.stringify(endMsg))
-                  game.p2Socket?.send(JSON.stringify(endMsg))
-                }
-
-                // Clean up
-                game.p1Socket?.close()
-                game.p2Socket?.close()
-                games.delete(matchId)
-              } else {
-                // Fetch next question
-                const questionData = await fetchNextQuestion()
-
-                if (!questionData) {
-                  console.error(`[${matchId}] Failed to load next question`)
-                  const errorMsg = { type: 'error', message: 'Failed to load next question' }
-                  game.p1Socket?.send(JSON.stringify(errorMsg))
-                  game.p2Socket?.send(JSON.stringify(errorMsg))
-                  return
-                }
-
-                console.log(`[${matchId}] Sending next question to both players`)
-                const nextQuestionMsg = {
-                  type: 'next_question',
-                  question: questionData.question,
-                  ordinal: questionData.ordinal,
-                  total_questions: game.questionsPerMatch
-                }
-                game.p1Socket?.send(JSON.stringify(nextQuestionMsg))
-                game.p2Socket?.send(JSON.stringify(nextQuestionMsg))
-              }
-            }, 2000) // 2 second delay to show results
-          }
-
-          break
-        }
-
-        case 'question_complete': {
-          game.currentQuestion++
-
-          // Check if match is over
-          if (game.currentQuestion >= game.questionsPerMatch) {
-            const winnerId = game.p1Score > game.p2Score ? match.p1 : match.p2
-            const loserId = winnerId === match.p1 ? match.p2 : match.p1
-
-            // Get current MMRs
-            const { data: players } = await supabase
-              .from('players')
-              .select('id, mmr')
-              .in('id', [match.p1, match.p2])
-
-            const winnerOldMmr = players?.find((p) => p.id === winnerId)?.mmr || 1000
-            const loserOldMmr = players?.find((p) => p.id === loserId)?.mmr || 1000
-
-            // Calculate new ELO
-            const newElos = calculateElo(winnerOldMmr, loserOldMmr)
-
-            // Update players
-            await supabase.from('players').update({ mmr: newElos.winner }).eq('id', winnerId)
-            await supabase.from('players').update({ mmr: newElos.loser }).eq('id', loserId)
-
-            // Update match
-            await supabase
-              .from('matches_new')
-              .update({
-                state: 'ended',
-                winner_id: winnerId,
-                p1_score: game.p1Score,
-                p2_score: game.p2Score,
-                ended_at: new Date().toISOString(),
-              })
-              .eq('id', matchId)
-
-            // Send match end to both players
-            const endMsg = {
-              type: 'match_end',
-              winner_id: winnerId,
-              final_scores: { p1: game.p1Score, p2: game.p2Score },
-              mmr_changes: {
-                [winnerId]: { old: winnerOldMmr, new: newElos.winner },
-                [loserId]: { old: loserOldMmr, new: newElos.loser },
-              },
-            }
-
-            game.p1Socket?.send(JSON.stringify(endMsg))
-            game.p2Socket?.send(JSON.stringify(endMsg))
-
-            // Clean up
-            game.p1Socket?.close()
-            game.p2Socket?.close()
-            games.delete(matchId)
-          } else {
-            // Fetch next question
-            const questionData = await fetchNextQuestion()
-
-            if (!questionData) {
-              const errorMsg = { type: 'error', message: 'Failed to load next question' }
-              game.p1Socket?.send(JSON.stringify(errorMsg))
-              game.p2Socket?.send(JSON.stringify(errorMsg))
+            if (game.p1Answer !== null) {
+              console.log(`[${matchId}] P1 already answered, ignoring`)
               return
             }
-
-            const nextQuestionMsg = {
-              type: 'next_question',
-              question: questionData.question,
-              ordinal: questionData.ordinal,
-              total_questions: game.questionsPerMatch
+            game.p1Answer = answer
+          } else {
+            if (game.p2Answer !== null) {
+              console.log(`[${matchId}] P2 already answered, ignoring`)
+              return
             }
-            game.p1Socket?.send(JSON.stringify(nextQuestionMsg))
-            game.p2Socket?.send(JSON.stringify(nextQuestionMsg))
+            game.p2Answer = answer
           }
+
+          // If both answered, immediately transition to result
+          if (game.p1Answer !== null && game.p2Answer !== null) {
+            console.log(`[${matchId}] Both players answered, transitioning to result immediately`)
+            await transitionToResult(game)
+          }
+
           break
         }
       }
     } catch (error) {
-      console.error('Error handling message:', error)
-      socket.send(JSON.stringify({ type: 'error', message: (error as Error).message }))
+      console.error(`[${matchId}] Error handling message:`, error)
+      socket.send(JSON.stringify({ type: 'error', message: 'Internal error' }))
     }
   }
 
   socket.onclose = () => {
-    console.log(`WebSocket closed for user ${user.id}`)
-    // Clean up if both disconnected
+    console.log(`[${matchId}] WebSocket closed for ${isP1 ? 'P1' : 'P2'}`)
     if (game.p1Socket === socket) game.p1Socket = null
     if (game.p2Socket === socket) game.p2Socket = null
 
+    // Clean up if both disconnected
     if (!game.p1Socket && !game.p2Socket) {
       games.delete(matchId)
+      console.log(`[${matchId}] Both players disconnected, cleaning up`)
     }
   }
 
   socket.onerror = (error) => {
-    console.error('WebSocket error:', error)
+    console.error(`[${matchId}] WebSocket error:`, error)
   }
 
   return response

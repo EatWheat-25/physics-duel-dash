@@ -13,7 +13,9 @@ import { getPrimaryDisplayStep } from '@/utils/questionStepHelpers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2, Clock } from 'lucide-react';
+import { RoundPhase } from '@/types/gameEvents';
+import { Progress } from '@/components/ui/progress';
 
 interface QuestionViewerProps {
   questions: StepBasedQuestion[];
@@ -24,6 +26,10 @@ interface QuestionViewerProps {
   isSubmitting?: boolean;
   correctAnswer?: number | null;
   showResult?: boolean;
+  // 3-phase props
+  currentPhase?: RoundPhase;
+  phaseDeadline?: Date | null;
+  options?: Array<{ id: number; text: string }> | null;
 }
 
 export function QuestionViewer({
@@ -33,12 +39,36 @@ export function QuestionViewer({
   onSubmitAnswer,
   isSubmitting = false,
   correctAnswer = null,
-  showResult = false
+  showResult = false,
+  currentPhase,
+  phaseDeadline,
+  options
 }: QuestionViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   console.log('📖 QuestionViewer: Received questions:', questions?.length || 0);
+  console.log('📖 QuestionViewer: Phase:', currentPhase, 'Deadline:', phaseDeadline);
+
+  // Timer countdown
+  useEffect(() => {
+    if (!phaseDeadline || !isOnlineMode) {
+      setTimeRemaining(null);
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const deadline = new Date(phaseDeadline).getTime();
+      const remaining = Math.max(0, Math.floor((deadline - now) / 1000));
+      setTimeRemaining(remaining);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 100);
+    return () => clearInterval(interval);
+  }, [phaseDeadline, isOnlineMode]);
 
   if (!questions || questions.length === 0) {
     return (
@@ -100,6 +130,55 @@ export function QuestionViewer({
     onSubmitAnswer(currentQuestion.id, step.id, selectedOptionIndex);
   };
 
+  // Determine which options to display
+  const displayOptions = isOnlineMode && currentPhase === 'choosing' && options
+    ? options.map(opt => opt.text)
+    : primaryStep?.options || [];
+
+  // Check if we should show options at all
+  const shouldShowOptions = !isOnlineMode || currentPhase === 'choosing' || currentPhase === 'result';
+
+  // Phase status display
+  const getPhaseDisplay = () => {
+    if (!currentPhase) return null;
+
+    const phaseLabels = {
+      thinking: 'THINKING PHASE',
+      choosing: 'CHOOSING PHASE',
+      result: 'RESULT'
+    };
+
+    const phaseColors = {
+      thinking: 'bg-blue-500',
+      choosing: 'bg-amber-500',
+      result: 'bg-green-500'
+    };
+
+    return (
+      <div className="mb-4 flex items-center justify-between backdrop-blur-sm bg-card/50 px-6 py-3 rounded-xl border border-border/50">
+        <div className="flex items-center gap-3">
+          <div className={`px-3 py-1 rounded-full ${phaseColors[currentPhase]} text-white font-bold text-sm`}>
+            {phaseLabels[currentPhase]}
+          </div>
+          {timeRemaining !== null && (
+            <div className="flex items-center gap-2 text-lg font-mono">
+              <Clock className="w-5 h-5" />
+              <span className={timeRemaining <= 3 ? 'text-red-500 animate-pulse' : ''}>
+                {timeRemaining}s
+              </span>
+            </div>
+          )}
+        </div>
+        {currentPhase === 'thinking' && (
+          <span className="text-sm text-muted-foreground">Read the question carefully</span>
+        )}
+        {currentPhase === 'choosing' && (
+          <span className="text-sm text-muted-foreground">Select your answer now!</span>
+        )}
+      </div>
+    );
+  };
+
   // Reset selection when question changes (for online mode)
   useEffect(() => {
     if (isOnlineMode) {
@@ -113,6 +192,9 @@ export function QuestionViewer({
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
+      {/* Phase display for online mode */}
+      {isOnlineMode && currentPhase && getPhaseDisplay()}
+
       {/* Progress indicator */}
       <div className="flex items-center justify-between text-sm text-gray-500">
         <div className="flex items-center gap-2">
@@ -167,57 +249,65 @@ export function QuestionViewer({
             <h3 className="font-semibold text-lg text-gray-900">{primaryStep.question}</h3>
           </div>
 
-          {/* Options */}
-          <div className="space-y-3">
-            {primaryStep.options.map((option, idx) => {
-              const isSelected = selectedOptionIndex === idx;
-              const isCorrect = showResult && correctAnswer === idx;
-              const isWrong = showResult && isSelected && correctAnswer !== idx;
-              const isDisabled = isSubmitting || showResult;
+          {/* Options - only show in choosing/result phases for online mode */}
+          {shouldShowOptions ? (
+            <div className="space-y-3">
+              {displayOptions.map((option, idx) => {
+                const isSelected = selectedOptionIndex === idx;
+                const isCorrect = showResult && correctAnswer === idx;
+                const isWrong = showResult && isSelected && correctAnswer !== idx;
+                const isDisabled = isSubmitting || showResult || (currentPhase === 'thinking');
 
-              return (
-                <button
-                  key={idx}
-                  onClick={() => !isDisabled && handleOptionSelect(idx)}
-                  disabled={isDisabled}
-                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                    isCorrect
-                      ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
-                      : isWrong
-                      ? 'border-red-500 bg-red-50 ring-2 ring-red-200'
-                      : isSelected
-                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                  } ${
-                    isDisabled ? 'cursor-not-allowed opacity-75' : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
-                        isCorrect
-                          ? 'bg-green-500 text-white'
-                          : isWrong
-                          ? 'bg-red-500 text-white'
-                          : isSelected
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      {showResult && isCorrect ? (
-                        <Check className="w-5 h-5" />
-                      ) : showResult && isWrong ? (
-                        <X className="w-5 h-5" />
-                      ) : (
-                        String.fromCharCode(65 + idx)
-                      )}
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => !isDisabled && handleOptionSelect(idx)}
+                    disabled={isDisabled}
+                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                      isCorrect
+                        ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                        : isWrong
+                        ? 'border-red-500 bg-red-50 ring-2 ring-red-200'
+                        : isSelected
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                    } ${
+                      isDisabled ? 'cursor-not-allowed opacity-75' : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
+                          isCorrect
+                            ? 'bg-green-500 text-white'
+                            : isWrong
+                            ? 'bg-red-500 text-white'
+                            : isSelected
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {showResult && isCorrect ? (
+                          <Check className="w-5 h-5" />
+                        ) : showResult && isWrong ? (
+                          <X className="w-5 h-5" />
+                        ) : (
+                          String.fromCharCode(65 + idx)
+                        )}
+                      </div>
+                      <p className="flex-1 text-gray-800 pt-1">{option}</p>
                     </div>
-                    <p className="flex-1 text-gray-800 pt-1">{option}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center border-2 border-dashed border-gray-300 rounded-lg bg-blue-50">
+              <Clock className="w-12 h-12 mx-auto mb-3 text-blue-500" />
+              <p className="text-lg font-semibold text-gray-700 mb-2">Options will appear soon</p>
+              <p className="text-sm text-gray-600">Use this time to think about the question</p>
+            </div>
+          )}
 
           {/* Topic tags */}
           {currentQuestion.topicTags && currentQuestion.topicTags.length > 0 && (
@@ -255,24 +345,34 @@ export function QuestionViewer({
 
         {isOnlineMode ? (
           <div className="flex gap-3 ml-auto">
-            <Button
-              variant="default"
-              size="lg"
-              onClick={handleSubmitAnswer}
-              disabled={selectedOptionIndex === null || isSubmitting || showResult}
-              className="gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : showResult ? (
-                'Waiting for next question...'
-              ) : (
-                'Submit Answer'
-              )}
-            </Button>
+            {currentPhase === 'choosing' && (
+              <Button
+                variant="default"
+                size="lg"
+                onClick={handleSubmitAnswer}
+                disabled={selectedOptionIndex === null || isSubmitting}
+                className="gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Answer'
+                )}
+              </Button>
+            )}
+            {currentPhase === 'thinking' && (
+              <div className="text-sm text-muted-foreground italic">
+                Waiting for choosing phase...
+              </div>
+            )}
+            {currentPhase === 'result' && (
+              <div className="text-sm text-muted-foreground italic">
+                Waiting for next round...
+              </div>
+            )}
           </div>
         ) : (
           <Button
