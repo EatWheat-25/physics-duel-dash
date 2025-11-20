@@ -1,5 +1,4 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
-import { z } from 'npm:zod@3.23.8'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,24 +36,29 @@ Deno.serve(async (req) => {
     }
 
     const requestBody = await req.json()
+    const { subject, chapter, region } = requestBody
     
     // Validate input
-    const EnqueueSchema = z.object({
-      subject: z.enum(['math', 'physics', 'chemistry']),
-      chapter: z.string().min(1).max(100).trim(),
-      region: z.string().max(50).optional()
-    })
-    
-    const validation = EnqueueSchema.safeParse(requestBody)
-    if (!validation.success) {
-      console.error('Validation error:', validation.error)
-      return new Response(
-        JSON.stringify({ error: 'Invalid input', details: validation.error.issues }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!subject || typeof subject !== 'string') {
+      return new Response(JSON.stringify({ error: 'Invalid subject' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
     
-    const { subject, chapter, region } = validation.data
+    if (!['math', 'physics', 'chemistry'].includes(subject)) {
+      return new Response(JSON.stringify({ error: 'Subject must be math, physics, or chemistry' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    
+    if (!chapter || typeof chapter !== 'string' || chapter.trim().length === 0) {
+      return new Response(JSON.stringify({ error: 'Invalid chapter' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
     if (!subject || !chapter) {
       return new Response(JSON.stringify({ error: 'Missing subject or chapter' }), {
         status: 400,
