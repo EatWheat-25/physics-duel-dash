@@ -1,18 +1,15 @@
 // src/integrations/supabase/client.ts
 
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from './types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL = "https://qvunaswogfwhixecjpcn.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2dW5hc3dvZ2Z3aGl4ZWNqcGNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5NDIyNDAsImV4cCI6MjA3MzUxODI0MH0.mNFMhdalJrFdpQNbORIC4FZVRNSHrrTEqx63zVILqlg";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    '[supabase/client] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env'
-  );
-  throw new Error('Supabase env vars are missing');
-}
-
-export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey);
-
-// (optional) type alias if other files use it
-export type SupabaseClient = typeof supabase;
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    storage: localStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+  }
+});
