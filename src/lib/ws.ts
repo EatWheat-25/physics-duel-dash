@@ -58,6 +58,41 @@ export interface AnswerResultEvent {
   explanation: string;
 }
 
+export interface RoundStartEvent {
+  type: 'ROUND_START';
+  matchId: string;
+  roundIndex: number;
+  phase: 'thinking';
+  question: any;
+  thinkingEndsAt: string;
+}
+
+export interface PhaseChangeEvent {
+  type: 'PHASE_CHANGE';
+  matchId: string;
+  roundIndex: number;
+  phase: 'choosing' | 'result';
+  choosingEndsAt?: string;
+  options?: Array<{ id: number; text: string }>;
+}
+
+export interface RoundResultEvent {
+  type: 'ROUND_RESULT';
+  matchId: string;
+  roundIndex: number;
+  questionId: string;
+  correctOptionId: number;
+  playerResults: Array<{
+    playerId: string;
+    selectedOptionId: number | null;
+    isCorrect: boolean;
+    timeTakenMs?: number;
+  }>;
+  tugOfWar: number;
+  p1Score: number;
+  p2Score: number;
+}
+
 export type ServerEvent =
   | ConnectedEvent
   | PlayerReadyEvent
@@ -66,7 +101,10 @@ export type ServerEvent =
   | AnswerResultEvent
   | ScoreUpdateEvent
   | OpponentDisconnectEvent
-  | MatchEndEvent;
+  | MatchEndEvent
+  | RoundStartEvent
+  | PhaseChangeEvent
+  | RoundResultEvent;
 
 export interface ReadyMessage {
   type: 'ready';
@@ -96,6 +134,9 @@ export interface ConnectGameWSOptions {
   onScoreUpdate?: (event: ScoreUpdateEvent) => void;
   onOpponentDisconnect?: (event: OpponentDisconnectEvent) => void;
   onMatchEnd?: (event: MatchEndEvent) => void;
+  onRoundStart?: (event: RoundStartEvent) => void;
+  onPhaseChange?: (event: PhaseChangeEvent) => void;
+  onRoundResult?: (event: RoundResultEvent) => void;
   onError?: (error: Error) => void;
   onClose?: () => void;
 }
@@ -112,6 +153,9 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
     onScoreUpdate,
     onOpponentDisconnect,
     onMatchEnd,
+    onRoundStart,
+    onPhaseChange,
+    onRoundResult,
     onError,
     onClose,
   } = options;
@@ -187,6 +231,21 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
         case 'match_end':
           console.log(`WS: Match ended - winner: ${message.winner_id || 'draw'}`);
           onMatchEnd?.(message);
+          break;
+
+        case 'ROUND_START':
+          console.log(`WS: Round ${message.roundIndex} starting - phase: ${message.phase}`);
+          onRoundStart?.(message);
+          break;
+
+        case 'PHASE_CHANGE':
+          console.log(`WS: Phase changed to ${message.phase}`);
+          onPhaseChange?.(message);
+          break;
+
+        case 'ROUND_RESULT':
+          console.log(`WS: Round ${message.roundIndex} result - tug: ${message.tugOfWar}`);
+          onRoundResult?.(message);
           break;
 
         default:
