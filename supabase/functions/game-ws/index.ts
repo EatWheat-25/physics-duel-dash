@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
       console.log(`[${matchId}] Match filters - subject: ${match.subject}, chapter: ${match.chapter}`)
 
       const { data, error } = await supabase.rpc('pick_next_question_v2', {
-        p_match_id: matchId
+        match_uuid: matchId
       })
 
       if (error) {
