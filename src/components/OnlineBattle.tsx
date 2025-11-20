@@ -53,6 +53,7 @@ export const OnlineBattle = () => {
   const [phaseDeadline, setPhaseDeadline] = useState<Date | null>(null);
   const [roundOptions, setRoundOptions] = useState<Array<{ id: number; text: string }> | null>(null);
   const [roundIndex, setRoundIndex] = useState(0);
+  const [, setTimerTick] = useState(0); // Dummy state to force re-renders for timer
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -164,7 +165,8 @@ export const OnlineBattle = () => {
           }
         },
         onRoundStart: (event: RoundStartEvent) => {
-          console.log('[OnlineBattle] Round starting!', event);
+          console.log('[OnlineBattle] ✅ ROUND_START received', event);
+          console.log('[OnlineBattle] Phase:', event.phase, 'Deadline:', event.thinkingEndsAt);
 
           // Reset state for new round
           setShowResult(false);
@@ -174,6 +176,8 @@ export const OnlineBattle = () => {
           setCurrentPhase(event.phase);
           setPhaseDeadline(new Date(event.thinkingEndsAt));
           setRoundOptions(null); // No options during thinking phase
+
+          console.log('[OnlineBattle] State updated - currentPhase:', event.phase, 'phaseDeadline:', new Date(event.thinkingEndsAt));
 
           if (!event.question) {
             console.error('WS: event.question is null/undefined!', event);
@@ -217,14 +221,19 @@ export const OnlineBattle = () => {
           }
         },
         onPhaseChange: (event: PhaseChangeEvent) => {
-          console.log('[OnlineBattle] Phase changing to:', event.phase);
+          console.log('[OnlineBattle] ✅ PHASE_CHANGE received', event);
+          console.log('[OnlineBattle] New phase:', event.phase);
+
           setCurrentPhase(event.phase);
 
           if (event.phase === 'choosing') {
+            console.log('[OnlineBattle] Choosing phase - Options:', event.options?.length || 0, 'Deadline:', event.choosingEndsAt);
             setPhaseDeadline(event.choosingEndsAt ? new Date(event.choosingEndsAt) : null);
             setRoundOptions(event.options || null);
+            console.log('[OnlineBattle] State updated - roundOptions:', event.options?.length || 0);
             toast.info('Choose your answer now!', { duration: 2000 });
           } else if (event.phase === 'result') {
+            console.log('[OnlineBattle] Result phase');
             setPhaseDeadline(null);
             toast.info('Calculating results...');
           }
@@ -369,6 +378,17 @@ export const OnlineBattle = () => {
     });
   }, [questions, connectionState]);
 
+  // Force re-render every 100ms when there's an active phase deadline to update timer display
+  useEffect(() => {
+    if (!phaseDeadline || !currentPhase) return;
+
+    const interval = setInterval(() => {
+      setTimerTick(prev => prev + 1); // Force re-render
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [phaseDeadline, currentPhase]);
+
   useEffect(() => {
     if (connectionState === 'playing' && timeLeft > 0) {
       const timer = setInterval(() => {
@@ -460,6 +480,34 @@ export const OnlineBattle = () => {
               {match.subject} - {match.chapter}
             </div>
           </div>
+
+          {/* Phase-based Timer Display */}
+          {currentPhase && phaseDeadline && (
+            <div className="mb-4 backdrop-blur-sm bg-card/50 p-4 rounded-xl border border-border/50 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`px-3 py-1 rounded-full font-bold text-sm text-white ${
+                    currentPhase === 'thinking' ? 'bg-blue-500' :
+                    currentPhase === 'choosing' ? 'bg-amber-500' :
+                    'bg-green-500'
+                  }`}>
+                    {currentPhase === 'thinking' ? 'THINKING' : currentPhase === 'choosing' ? 'CHOOSING' : 'RESULT'}
+                  </div>
+                  <div className="text-3xl font-bold font-mono">
+                    {(() => {
+                      const now = new Date().getTime();
+                      const deadline = new Date(phaseDeadline).getTime();
+                      const remaining = Math.max(0, Math.floor((deadline - now) / 1000));
+                      return `${remaining}s`;
+                    })()}
+                  </div>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {currentPhase === 'thinking' ? 'Read the question' : currentPhase === 'choosing' ? 'Select your answer!' : 'Calculating...'}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mb-4 flex justify-between text-lg font-bold backdrop-blur-sm bg-card/50 px-6 py-3 rounded-xl border border-border/50">
             <span className="text-emerald-500">{yourUsername}: {yourScore}</span>

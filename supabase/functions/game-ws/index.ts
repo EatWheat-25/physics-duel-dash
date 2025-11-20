@@ -140,7 +140,7 @@ async function startRound(game: GameState) {
     thinkingEndsAt: thinkingEndsAt.toISOString()
   }
 
-  console.log(`[${matchId}] Sending ROUND_START for round ${game.currentRound}`)
+  console.log(`[game-ws] ROUND_START`, { matchId, roundIndex: game.currentRound, thinkingEndsAt: thinkingEndsAt.toISOString() })
   game.p1Socket?.send(JSON.stringify(roundStartMsg))
   game.p2Socket?.send(JSON.stringify(roundStartMsg))
 }
@@ -193,7 +193,7 @@ async function transitionToChoosing(game: GameState) {
     options
   }
 
-  console.log(`[${matchId}] Sending PHASE_CHANGE to choosing`)
+  console.log(`[game-ws] PHASE_CHANGE → choosing`, { matchId, roundIndex: game.currentRound, choosingEndsAt: choosingEndsAt.toISOString(), optionsCount: options.length })
   game.p1Socket?.send(JSON.stringify(phaseChangeMsg))
   game.p2Socket?.send(JSON.stringify(phaseChangeMsg))
 }
