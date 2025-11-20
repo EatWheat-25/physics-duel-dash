@@ -121,11 +121,22 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
   const fullUrl = `${wsUrl}/functions/v1/game-ws?token=${encodeURIComponent(token)}&match_id=${encodeURIComponent(matchId)}`;
 
   console.log(`WS: Connecting to game-ws for match ${matchId}`);
+  console.log('WS: Full URL:', fullUrl.substring(0, 100) + '...');
 
   const ws = new WebSocket(fullUrl);
 
+  // Add timeout for connection
+  const connectionTimeout = setTimeout(() => {
+    if (ws.readyState !== WebSocket.OPEN) {
+      console.error('WS: Connection timeout after 10 seconds');
+      ws.close();
+      onError?.(new Error('WebSocket connection timeout'));
+    }
+  }, 10000);
+
   ws.onopen = () => {
-    console.log('WS: Connected successfully');
+    clearTimeout(connectionTimeout);
+    console.log('WS: Connected successfully, readyState:', ws.readyState);
   };
 
   ws.onmessage = (event) => {
@@ -188,12 +199,16 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
   };
 
   ws.onerror = (event) => {
+    clearTimeout(connectionTimeout);
     console.error('WS: Connection error:', event);
-    onError?.(new Error('WebSocket connection error'));
+    console.error('WS: Error type:', event.type);
+    console.error('WS: ReadyState:', ws.readyState);
+    onError?.(new Error('WebSocket connection failed'));
   };
 
   ws.onclose = (event) => {
-    console.log(`WS: Connection closed (code: ${event.code}, reason: ${event.reason})`);
+    clearTimeout(connectionTimeout);
+    console.log(`WS: Connection closed (code: ${event.code}, reason: ${event.reason || 'none'}, wasClean: ${event.wasClean})`);
     onClose?.();
   };
 
