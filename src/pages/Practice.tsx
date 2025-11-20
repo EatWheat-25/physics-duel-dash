@@ -22,12 +22,23 @@ export default function Practice() {
   const subject = (searchParams.get('subject') as QuestionSubject) || 'math';
   const level = searchParams.get('level') as QuestionLevel | undefined;
 
+  console.log('🎯 Practice page: Filters -', { subject, level });
+
   // Fetch questions using the existing hook
   const { data: questions, isLoading, isError, error } = useQuestions({
     subject,
     level,
     limit: 10, // Fetch 10 questions for practice
   });
+
+  console.log('🎯 Practice page: Questions received:', questions?.length || 0);
+  console.log('🎯 Practice page: isLoading:', isLoading);
+  console.log('🎯 Practice page: isError:', isError);
+  console.log('🎯 Practice page: error:', error);
+
+  if (!isLoading && !isError) {
+    console.log('🎯 Practice page: Full questions data:', questions);
+  }
 
   const handleFinished = () => {
     // Navigate back or show completion message
@@ -108,15 +119,34 @@ export default function Practice() {
         {/* Empty state */}
         {!isLoading && !isError && (!questions || questions.length === 0) && (
           <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
-            <Card className="w-full max-w-md border-yellow-700 bg-yellow-900/20 backdrop-blur">
+            <Card className="w-full max-w-2xl border-yellow-700 bg-yellow-900/20 backdrop-blur">
               <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
                 <AlertCircle className="w-12 h-12 text-yellow-500" />
-                <p className="text-lg text-yellow-300 font-medium text-center">
-                  No questions found
+                <p className="text-xl text-yellow-300 font-bold text-center">
+                  Database is Empty
                 </p>
-                <p className="text-sm text-gray-400 text-center">
-                  No questions match your filters. Try selecting different options or ask an admin to seed more questions.
+                <p className="text-sm text-gray-300 text-center max-w-md">
+                  The questions table has no data. You need to seed the database first.
                 </p>
+
+                <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700 w-full max-w-lg mt-4">
+                  <p className="text-xs text-gray-400 font-bold mb-2">TO FIX THIS:</p>
+                  <ol className="text-xs text-gray-300 space-y-2 list-decimal list-inside">
+                    <li>Get your Supabase service role key from Dashboard → Settings → API</li>
+                    <li>Add to .env: <code className="bg-gray-800 px-1 py-0.5 rounded text-yellow-400">SUPABASE_SERVICE_ROLE_KEY=your_key</code></li>
+                    <li>Run: <code className="bg-gray-800 px-1 py-0.5 rounded text-green-400">npm run seed:questions</code></li>
+                  </ol>
+                </div>
+
+                <div className="bg-blue-900/20 p-3 rounded-lg border border-blue-700 w-full max-w-lg mt-2">
+                  <p className="text-xs text-blue-300 text-center">
+                    <strong>Debug Info:</strong> Filters: subject={subject}, level={level || 'any'} | Results: {questions?.length || 0}
+                  </p>
+                  <p className="text-xs text-blue-400 text-center mt-1">
+                    Check browser console for detailed logs
+                  </p>
+                </div>
+
                 <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
                   Go Back
                 </Button>

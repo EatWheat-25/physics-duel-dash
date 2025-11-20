@@ -24,10 +24,22 @@ export function QuestionViewer({ questions, onFinished }: QuestionViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
 
+  console.log('📖 QuestionViewer: Received questions:', questions?.length || 0);
+
   if (!questions || questions.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-gray-500">No questions available</p>
+      <div className="flex items-center justify-center min-h-[400px] px-4">
+        <Card className="w-full max-w-md border-gray-700 bg-gray-800/50 backdrop-blur">
+          <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+            <p className="text-lg text-gray-300 text-center">No questions to show</p>
+            <p className="text-sm text-gray-500 text-center">
+              Questions array is empty or undefined
+            </p>
+            <p className="text-xs text-gray-600 text-center font-mono">
+              Length: {questions?.length || 0}
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }

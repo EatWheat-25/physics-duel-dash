@@ -17,6 +17,8 @@ export const useQuestions = (filters?: QuestionFilters) => {
   return useQuery({
     queryKey: ['questions', filters],
     queryFn: async () => {
+      console.log('🔍 useQuestions: Starting fetch with filters:', filters);
+
       let query = supabase.from('questions').select('*');
 
       if (filters?.subject) query = query.eq('subject', filters.subject);
@@ -25,12 +27,25 @@ export const useQuestions = (filters?: QuestionFilters) => {
       if (filters?.difficulty) query = query.eq('difficulty', filters.difficulty);
       if (filters?.rankTier) query = query.eq('rank_tier', filters.rankTier);
 
+      // Apply limit if specified
+      if (filters?.limit) query = query.limit(filters.limit);
+
       const { data, error } = await query.order('created_at', { ascending: false });
 
-      if (error) throw error;
+      console.log('📊 useQuestions: Raw data from Supabase:', data);
+      console.log('📊 useQuestions: Data count:', data?.length || 0);
+      console.log('❌ useQuestions: Error:', error);
+
+      if (error) {
+        console.error('❌ useQuestions: Supabase error:', error);
+        throw error;
+      }
 
       // Use centralized mapper
-      return dbRowsToQuestions((data || []) as any);
+      const mappedQuestions = dbRowsToQuestions((data || []) as any);
+      console.log('✅ useQuestions: Mapped questions:', mappedQuestions.length);
+
+      return mappedQuestions;
     },
   });
 };
