@@ -4,12 +4,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
-import { ArrowLeft, Loader2, Trophy, Award } from 'lucide-react';
+import { ArrowLeft, Loader2, Trophy, Award, AlertCircle } from 'lucide-react';
 import { Starfield } from './Starfield';
 import TugOfWarBar from './TugOfWarBar';
 import { connectGameWS, sendReady, sendAnswer, sendQuestionComplete, type ServerEvent } from '@/lib/ws';
 import { toast } from 'sonner';
-import { StepBasedQuestion } from '@/types/questions';
+import { StepBasedQuestion, QuestionSubject, QuestionLevel } from '@/types/questions';
+import { useQuestions } from '@/hooks/useQuestions';
+import { QuestionViewer } from './questions/QuestionViewer';
+import { Card, CardContent } from './ui/card';
 
 interface Match {
   id: string;
@@ -42,6 +45,25 @@ export const OnlineBattle = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
+
+  // Fallback: fetch questions from database if WebSocket doesn't provide them
+  const fallbackSubject = (match?.subject as QuestionSubject) || 'math';
+  const fallbackLevel = (match?.chapter?.includes('A1') ? 'A1' : match?.chapter?.includes('A2') ? 'A2' : undefined) as QuestionLevel | undefined;
+
+  console.log('[OnlineBattle] Match info:', { subject: match?.subject, chapter: match?.chapter });
+  console.log('[OnlineBattle] Fallback filters:', { subject: fallbackSubject, level: fallbackLevel });
+
+  const {
+    data: fallbackQuestions,
+    isLoading: isFetchingFallback,
+    isError: fallbackError
+  } = useQuestions({
+    subject: fallbackSubject,
+    level: fallbackLevel,
+    limit: 5
+  });
+
+  console.log('[OnlineBattle] Fallback questions:', fallbackQuestions?.length || 0);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -285,6 +307,24 @@ export const OnlineBattle = () => {
     }
   }, [countdown, questions]);
 
+  // If game is playing but no questions from WebSocket, use fallback
+  useEffect(() => {
+    if (connectionState === 'playing' && questions.length === 0 && fallbackQuestions && fallbackQuestions.length > 0) {
+      console.log('[OnlineBattle] Using fallback questions since WebSocket provided none');
+      console.log('[OnlineBattle] Fallback question count:', fallbackQuestions.length);
+      setQuestions(fallbackQuestions);
+    }
+  }, [connectionState, questions.length, fallbackQuestions]);
+
+  // Debug: Log questions state changes
+  useEffect(() => {
+    console.log('[OnlineBattle] Questions state updated:', {
+      count: questions.length,
+      connectionState,
+      hasQuestions: questions.length > 0
+    });
+  }, [questions, connectionState]);
+
   useEffect(() => {
     if (connectionState === 'playing' && timeLeft > 0) {
       const timer = setInterval(() => {
@@ -503,11 +543,53 @@ export const OnlineBattle = () => {
           </>
         )}
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-card/50 p-8 rounded-2xl border border-border/50 text-center shadow-lg">
-          <h2 className="text-3xl font-bold mb-4">Battle System Active</h2>
-          <p className="text-muted-foreground mb-4">WebSocket connected. Question display and gameplay coming soon.</p>
-          <p className="text-sm text-muted-foreground">Match ID: {matchId}</p>
-        </motion.div>
+        {/* Question Display Area */}
+        {isFetchingFallback && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-card/50 p-8 rounded-2xl border border-border/50 text-center shadow-lg">
+            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Loading Questions</h2>
+            <p className="text-muted-foreground">Fetching questions from database...</p>
+          </motion.div>
+        )}
+
+        {!isFetchingFallback && fallbackError && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-red-900/20 p-8 rounded-2xl border border-red-700 text-center shadow-lg">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2 text-red-300">Failed to Load Questions</h2>
+            <p className="text-red-200">There was an error fetching questions from the database.</p>
+          </motion.div>
+        )}
+
+        {!isFetchingFallback && !fallbackError && (!fallbackQuestions || fallbackQuestions.length === 0) && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-yellow-900/20 p-8 rounded-2xl border border-yellow-700 text-center shadow-lg">
+            <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-4 text-yellow-300">No Questions Available</h2>
+            <p className="text-yellow-200 mb-4">
+              No questions found for {match?.subject} - {match?.chapter}
+            </p>
+            <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700 text-left max-w-md mx-auto">
+              <p className="text-xs text-gray-400 font-bold mb-2">TO FIX THIS:</p>
+              <ol className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
+                <li>Add SUPABASE_SERVICE_ROLE_KEY to .env</li>
+                <li>Run: <code className="bg-gray-800 px-1 rounded text-green-400">npm run seed:questions</code></li>
+              </ol>
+            </div>
+            <p className="text-sm text-muted-foreground mt-4">Match ID: {matchId}</p>
+          </motion.div>
+        )}
+
+        {!isFetchingFallback && !fallbackError && fallbackQuestions && fallbackQuestions.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="backdrop-blur-sm bg-card/50 border-border/50">
+              <CardContent className="pt-6">
+                <QuestionViewer questions={fallbackQuestions} onFinished={() => {
+                  console.log('[OnlineBattle] Questions finished');
+                  toast.success('All questions completed!');
+                }} />
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </div>
     </div>
   );
