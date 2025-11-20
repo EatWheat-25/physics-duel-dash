@@ -22,15 +22,23 @@ ALTER TABLE public.matches_new
   ADD COLUMN IF NOT EXISTS rank_tier TEXT;
 
 -- 3. Schema: Add guards and indexes on questions
-ALTER TABLE public.questions
-  ADD CONSTRAINT IF NOT EXISTS questions_steps_is_array
-  CHECK (steps IS NULL OR jsonb_typeof(steps) = 'array');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'questions_steps_is_array'
+  ) THEN
+    ALTER TABLE public.questions
+      ADD CONSTRAINT questions_steps_is_array
+      CHECK (steps IS NULL OR jsonb_typeof(steps) = 'array');
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS q_subject_chapter_idx ON public.questions(subject, chapter);
 CREATE INDEX IF NOT EXISTS q_rank_idx ON public.questions(rank_tier);
 CREATE INDEX IF NOT EXISTS q_level_difficulty_idx ON public.questions(level, difficulty);
 
 -- 4. Upsert RPC for seeding (idempotent, service_role only)
+DROP FUNCTION IF EXISTS public.upsert_questions(jsonb);
 CREATE OR REPLACE FUNCTION public.upsert_questions(q jsonb)
 RETURNS void
 LANGUAGE plpgsql
@@ -86,6 +94,7 @@ END$$;
 GRANT EXECUTE ON FUNCTION public.upsert_questions(jsonb) TO service_role;
 
 -- 5. Question picker RPC with 3-tier fallback
+DROP FUNCTION IF EXISTS public.pick_next_question_v2(uuid);
 CREATE OR REPLACE FUNCTION public.pick_next_question_v2(p_match_id uuid)
 RETURNS TABLE (
   question_id uuid,
@@ -273,39 +282,74 @@ GRANT EXECUTE ON FUNCTION public.submit_answer(uuid, uuid, text, int) TO authent
 ALTER TABLE public.match_questions ENABLE ROW LEVEL SECURITY;
 
 -- Allow authenticated users to read their own match questions
-CREATE POLICY match_questions_select_own ON public.match_questions
-  FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.matches_new m
-      WHERE m.id = match_questions.match_id
-      AND (m.p1 = auth.uid() OR m.p2 = auth.uid())
-    )
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'match_questions' AND policyname = 'match_questions_select_own'
+  ) THEN
+    CREATE POLICY match_questions_select_own ON public.match_questions
+      FOR SELECT
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.matches_new m
+          WHERE m.id = match_questions.match_id
+          AND (m.p1 = auth.uid() OR m.p2 = auth.uid())
+        )
+      );
+  END IF;
+END $$;
 
 -- Only functions can insert match_questions
-CREATE POLICY match_questions_insert_function ON public.match_questions
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (false);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'match_questions' AND policyname = 'match_questions_insert_function'
+  ) THEN
+    CREATE POLICY match_questions_insert_function ON public.match_questions
+      FOR INSERT
+      TO authenticated
+      WITH CHECK (false);
+  END IF;
+END $$;
 
 -- 8. Ensure questions table has appropriate RLS
 ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
 
 -- Allow everyone to read questions (but only through RPCs in practice)
-CREATE POLICY questions_read_all ON public.questions
-  FOR SELECT
-  TO authenticated
-  USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'questions' AND policyname = 'questions_read_all'
+  ) THEN
+    CREATE POLICY questions_read_all ON public.questions
+      FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
 -- Only service_role can insert/update questions
-CREATE POLICY questions_insert_service ON public.questions
-  FOR INSERT
-  TO service_role
-  WITH CHECK (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'questions' AND policyname = 'questions_insert_service'
+  ) THEN
+    CREATE POLICY questions_insert_service ON public.questions
+      FOR INSERT
+      TO service_role
+      WITH CHECK (true);
+  END IF;
+END $$;
 
-CREATE POLICY questions_update_service ON public.questions
-  FOR UPDATE
-  TO service_role
-  USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'questions' AND policyname = 'questions_update_service'
+  ) THEN
+    CREATE POLICY questions_update_service ON public.questions
+      FOR UPDATE
+      TO service_role
+      USING (true);
+  END IF;
+END $$;
