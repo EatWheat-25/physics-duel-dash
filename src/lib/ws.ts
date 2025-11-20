@@ -1,3 +1,6 @@
+// Import 3-phase event types from gameEvents
+import type { RoundStartEvent, PhaseChangeEvent, RoundResultEvent } from '@/types/gameEvents';
+
 export interface GameStartEvent {
   type: 'game_start';
   question: any; // Single question object with steps
@@ -56,41 +59,6 @@ export interface AnswerResultEvent {
   is_correct: boolean;
   marks_earned: number;
   explanation: string;
-}
-
-export interface RoundStartEvent {
-  type: 'ROUND_START';
-  matchId: string;
-  roundIndex: number;
-  phase: 'thinking';
-  question: any;
-  thinkingEndsAt: string;
-}
-
-export interface PhaseChangeEvent {
-  type: 'PHASE_CHANGE';
-  matchId: string;
-  roundIndex: number;
-  phase: 'choosing' | 'result';
-  choosingEndsAt?: string;
-  options?: Array<{ id: number; text: string }>;
-}
-
-export interface RoundResultEvent {
-  type: 'ROUND_RESULT';
-  matchId: string;
-  roundIndex: number;
-  questionId: string;
-  correctOptionId: number;
-  playerResults: Array<{
-    playerId: string;
-    selectedOptionId: number | null;
-    isCorrect: boolean;
-    timeTakenMs?: number;
-  }>;
-  tugOfWar: number;
-  p1Score: number;
-  p2Score: number;
 }
 
 export type ServerEvent =
