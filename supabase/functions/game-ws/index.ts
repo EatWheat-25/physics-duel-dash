@@ -23,6 +23,8 @@ interface GameState {
   p2Score: number
   gameActive: boolean
   questionsPerMatch: number
+  p1Answered: boolean
+  p2Answered: boolean
 }
 
 // Validation schemas
@@ -105,7 +107,9 @@ Deno.serve(async (req) => {
       p1Score: 0,
       p2Score: 0,
       gameActive: false,
-      questionsPerMatch: 5
+      questionsPerMatch: 5,
+      p1Answered: false,
+      p2Answered: false
     })
   }
 
@@ -250,6 +254,8 @@ Deno.serve(async (req) => {
         case 'answer_submit': {
           const { question_id, step_id, answer } = message
 
+          console.log(`[${matchId}] Answer submitted by ${isP1 ? 'P1' : 'P2'}`)
+
           // Grade answer server-side via RPC
           const { data: gradeResult, error: gradeError } = await supabase.rpc('submit_answer', {
             p_match_id: matchId,
@@ -268,9 +274,14 @@ Deno.serve(async (req) => {
           const marksEarned = gradeResult?.marks_earned || 0
           if (isP1) {
             game.p1Score += marksEarned
+            game.p1Answered = true
           } else {
             game.p2Score += marksEarned
+            game.p2Answered = true
           }
+
+          console.log(`[${matchId}] Answer graded: ${gradeResult?.is_correct ? 'correct' : 'incorrect'} (+${marksEarned} marks)`)
+          console.log(`[${matchId}] Answers received: P1=${game.p1Answered}, P2=${game.p2Answered}`)
 
           // Broadcast answer result to submitter
           const answerResultMsg = {
@@ -290,6 +301,117 @@ Deno.serve(async (req) => {
           }
           game.p1Socket?.send(JSON.stringify(scoreMsg))
           game.p2Socket?.send(JSON.stringify(scoreMsg))
+
+          // If both players have answered, advance to next question after a delay
+          if (game.p1Answered && game.p2Answered) {
+            console.log(`[${matchId}] Both players answered! Advancing to next question in 2 seconds...`)
+
+            // Reset answer flags
+            game.p1Answered = false
+            game.p2Answered = false
+            game.currentQuestion++
+
+            setTimeout(async () => {
+              // Check if match is over
+              if (game.currentQuestion >= game.questionsPerMatch) {
+                console.log(`[${matchId}] Match over! Final score: ${game.p1Score} - ${game.p2Score}`)
+
+                const winnerId = game.p1Score > game.p2Score ? match.p1 : game.p2Score > game.p1Score ? match.p2 : null
+                const loserId = winnerId ? (winnerId === match.p1 ? match.p2 : match.p1) : null
+
+                // Get current MMRs
+                if (winnerId && loserId) {
+                  const { data: players } = await supabase
+                    .from('players')
+                    .select('id, mmr')
+                    .in('id', [match.p1, match.p2])
+
+                  const winnerOldMmr = players?.find((p) => p.id === winnerId)?.mmr || 1000
+                  const loserOldMmr = players?.find((p) => p.id === loserId)?.mmr || 1000
+
+                  // Calculate new ELO
+                  const newElos = calculateElo(winnerOldMmr, loserOldMmr)
+
+                  // Update players
+                  await supabase.from('players').update({ mmr: newElos.winner }).eq('id', winnerId)
+                  await supabase.from('players').update({ mmr: newElos.loser }).eq('id', loserId)
+
+                  // Update match
+                  await supabase
+                    .from('matches_new')
+                    .update({
+                      state: 'ended',
+                      winner_id: winnerId,
+                      p1_score: game.p1Score,
+                      p2_score: game.p2Score,
+                      ended_at: new Date().toISOString(),
+                    })
+                    .eq('id', matchId)
+
+                  // Send match end to both players
+                  const endMsg = {
+                    type: 'match_end',
+                    winner_id: winnerId,
+                    final_scores: { p1: game.p1Score, p2: game.p2Score },
+                    mmr_changes: {
+                      [winnerId]: { old: winnerOldMmr, new: newElos.winner },
+                      [loserId]: { old: loserOldMmr, new: newElos.loser },
+                    },
+                  }
+
+                  game.p1Socket?.send(JSON.stringify(endMsg))
+                  game.p2Socket?.send(JSON.stringify(endMsg))
+                } else {
+                  // Draw
+                  await supabase
+                    .from('matches_new')
+                    .update({
+                      state: 'ended',
+                      winner_id: null,
+                      p1_score: game.p1Score,
+                      p2_score: game.p2Score,
+                      ended_at: new Date().toISOString(),
+                    })
+                    .eq('id', matchId)
+
+                  const endMsg = {
+                    type: 'match_end',
+                    winner_id: null,
+                    final_scores: { p1: game.p1Score, p2: game.p2Score },
+                  }
+
+                  game.p1Socket?.send(JSON.stringify(endMsg))
+                  game.p2Socket?.send(JSON.stringify(endMsg))
+                }
+
+                // Clean up
+                game.p1Socket?.close()
+                game.p2Socket?.close()
+                games.delete(matchId)
+              } else {
+                // Fetch next question
+                const questionData = await fetchNextQuestion()
+
+                if (!questionData) {
+                  console.error(`[${matchId}] Failed to load next question`)
+                  const errorMsg = { type: 'error', message: 'Failed to load next question' }
+                  game.p1Socket?.send(JSON.stringify(errorMsg))
+                  game.p2Socket?.send(JSON.stringify(errorMsg))
+                  return
+                }
+
+                console.log(`[${matchId}] Sending next question to both players`)
+                const nextQuestionMsg = {
+                  type: 'next_question',
+                  question: questionData.question,
+                  ordinal: questionData.ordinal,
+                  total_questions: game.questionsPerMatch
+                }
+                game.p1Socket?.send(JSON.stringify(nextQuestionMsg))
+                game.p2Socket?.send(JSON.stringify(nextQuestionMsg))
+              }
+            }, 2000) // 2 second delay to show results
+          }
 
           break
         }

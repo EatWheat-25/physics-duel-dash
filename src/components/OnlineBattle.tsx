@@ -7,7 +7,7 @@ import { Progress } from './ui/progress';
 import { ArrowLeft, Loader2, Trophy, Award, AlertCircle } from 'lucide-react';
 import { Starfield } from './Starfield';
 import TugOfWarBar from './TugOfWarBar';
-import { connectGameWS, sendReady, sendAnswer, sendQuestionComplete, type ServerEvent } from '@/lib/ws';
+import { connectGameWS, sendReady, sendAnswer, type ServerEvent } from '@/lib/ws';
 import { toast } from 'sonner';
 import { StepBasedQuestion, QuestionSubject, QuestionLevel } from '@/types/questions';
 import { useQuestions } from '@/hooks/useQuestions';
@@ -43,6 +43,9 @@ export const OnlineBattle = () => {
   const [questions, setQuestions] = useState<StepBasedQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
+  const [showResult, setShowResult] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -154,8 +157,13 @@ export const OnlineBattle = () => {
           }
         },
         onGameStart: (event) => {
-          console.log('WS: Game starting with question!', event);
+          console.log('[OnlineBattle] Game starting with question!', event);
           console.log('WS question payload:', JSON.stringify(event, null, 2));
+
+          // Reset answer state for new game
+          setShowResult(false);
+          setCorrectAnswer(null);
+          setIsSubmitting(false);
 
           if (!event.question) {
             console.error('WS: event.question is null/undefined!', event);
@@ -199,8 +207,14 @@ export const OnlineBattle = () => {
           setCountdown(3);
         },
         onNextQuestion: (event) => {
-          console.log('WS: Received next question', event);
+          console.log('[OnlineBattle] Received next question', event);
           console.log('WS next_question payload:', JSON.stringify(event, null, 2));
+
+          // Reset answer state for new question
+          setShowResult(false);
+          setCorrectAnswer(null);
+          setIsSubmitting(false);
+
           if (event.question) {
             const q = event.question;
             const formattedQuestion = {
@@ -222,7 +236,17 @@ export const OnlineBattle = () => {
           }
         },
         onAnswerResult: (event) => {
-          console.log('WS: Answer result received', event);
+          console.log('[OnlineBattle] Answer result received', event);
+          setIsSubmitting(false);
+          setShowResult(true);
+
+          // Find the current question and step to get the correct answer
+          const currentQuestion = questions[currentQuestionIndex];
+          if (currentQuestion && currentQuestion.steps && currentQuestion.steps.length > 0) {
+            const step = currentQuestion.steps[0]; // Primary step
+            setCorrectAnswer(step.correctAnswer);
+          }
+
           if (event.is_correct) {
             toast.success(`Correct! +${event.marks_earned} marks`);
           } else {
@@ -307,6 +331,16 @@ export const OnlineBattle = () => {
     }
   }, [countdown, questions]);
 
+  // Answer submission handler
+  const handleSubmitAnswer = (questionId: string, stepId: string, answerIndex: number) => {
+    if (!wsRef.current || isSubmitting) return;
+
+    console.log('[OnlineBattle] Submitting answer:', { questionId, stepId, answerIndex });
+    setIsSubmitting(true);
+
+    sendAnswer(wsRef.current, questionId, stepId, answerIndex);
+  };
+
   // If game is playing but no questions from WebSocket, use fallback
   useEffect(() => {
     if (connectionState === 'playing' && questions.length === 0 && fallbackQuestions && fallbackQuestions.length > 0) {
@@ -365,23 +399,6 @@ export const OnlineBattle = () => {
     );
   }
 
-  const handleAnswerSubmit = (answer: number) => {
-    if (!wsRef.current || !questions.length) return;
-
-    const currentQuestion = questions[currentQuestionIndex];
-    const currentStep = currentQuestion.steps[currentStepIndex];
-
-    // Send answer to server for grading
-    sendAnswer(wsRef.current, currentQuestion.id, currentStep.id, answer);
-
-    // Move to next step or send question_complete
-    if (currentStepIndex < currentQuestion.steps.length - 1) {
-      setCurrentStepIndex(currentStepIndex + 1);
-    } else {
-      // Question complete - tell server to fetch next question
-      sendQuestionComplete(wsRef.current);
-    }
-  };
 
   const isPlayer1 = currentUser === match.p1;
   const minutes = Math.floor(timeLeft / 60);
@@ -413,11 +430,6 @@ export const OnlineBattle = () => {
   }
 
   if (connectionState === 'playing' && questions.length > 0) {
-    const currentQuestion = questions[currentQuestionIndex];
-    const currentStep = currentQuestion.steps[currentStepIndex];
-    const progress = ((currentQuestionIndex * currentQuestion.steps.length + currentStepIndex + 1) / 
-                     (questions.reduce((sum, q) => sum + q.steps.length, 0))) * 100;
-
     const yourScore = isPlayer1 ? match.p1_score : match.p2_score;
     const opponentScore = isPlayer1 ? match.p2_score : match.p1_score;
     const scoreDiff = yourScore - opponentScore;
@@ -434,8 +446,8 @@ export const OnlineBattle = () => {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Leave Match
             </Button>
-            <div className="text-sm text-muted-foreground backdrop-blur-sm bg-card/50 px-4 py-2 rounded-xl border border-border/50">
-              Question {currentQuestionIndex + 1}/{questions.length} - Step {currentStepIndex + 1}/{currentQuestion.steps.length}
+            <div className="text-2xl font-bold backdrop-blur-sm bg-card/50 px-6 py-2 rounded-xl border border-border/50">
+              {match.subject} - {match.chapter}
             </div>
           </div>
 
@@ -448,34 +460,19 @@ export const OnlineBattle = () => {
             <TugOfWarBar position={tugPosition} maxSteps={4} />
           </div>
 
-          <Progress value={progress} className="h-2 mb-6" />
-
-          <motion.div
-            key={`${currentQuestionIndex}-${currentStepIndex}`}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="backdrop-blur-sm bg-card/50 rounded-xl p-6 space-y-4 border border-border/50"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-card-foreground">{currentQuestion.title}</h2>
-              <span className="text-sm text-muted-foreground">{currentStep.marks} marks</span>
-            </div>
-            
-            <p className="text-lg text-card-foreground whitespace-pre-wrap">{currentStep.question}</p>
-
-            <div className="grid gap-3 mt-6">
-              {currentStep.options.map((option, idx) => (
-                <Button
-                  key={idx}
-                  variant="outline"
-                  className="h-auto p-4 text-left justify-start hover:bg-primary/10 hover:border-primary"
-                  onClick={() => handleAnswerSubmit(idx)}
-                >
-                  <span className="mr-3 font-bold text-primary">{String.fromCharCode(65 + idx)}.</span>
-                  <span className="flex-1">{option}</span>
-                </Button>
-              ))}
-            </div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="backdrop-blur-sm bg-card/50 border-border/50">
+              <CardContent className="pt-6">
+                <QuestionViewer
+                  questions={questions}
+                  isOnlineMode={true}
+                  onSubmitAnswer={handleSubmitAnswer}
+                  isSubmitting={isSubmitting}
+                  correctAnswer={correctAnswer}
+                  showResult={showResult}
+                />
+              </CardContent>
+            </Card>
           </motion.div>
         </div>
       </div>
@@ -582,10 +579,18 @@ export const OnlineBattle = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="backdrop-blur-sm bg-card/50 border-border/50">
               <CardContent className="pt-6">
-                <QuestionViewer questions={fallbackQuestions} onFinished={() => {
-                  console.log('[OnlineBattle] Questions finished');
-                  toast.success('All questions completed!');
-                }} />
+                <QuestionViewer
+                  questions={fallbackQuestions}
+                  isOnlineMode={true}
+                  onSubmitAnswer={handleSubmitAnswer}
+                  isSubmitting={isSubmitting}
+                  correctAnswer={correctAnswer}
+                  showResult={showResult}
+                  onFinished={() => {
+                    console.log('[OnlineBattle] Questions finished');
+                    toast.success('All questions completed!');
+                  }}
+                />
               </CardContent>
             </Card>
           </motion.div>

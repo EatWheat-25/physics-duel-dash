@@ -7,20 +7,34 @@
  * - Previous/Next navigation through question set
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StepBasedQuestion } from '@/types/questions';
 import { getPrimaryDisplayStep } from '@/utils/questionStepHelpers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2 } from 'lucide-react';
 
 interface QuestionViewerProps {
   questions: StepBasedQuestion[];
   onFinished?: () => void;
+  // Online mode props
+  isOnlineMode?: boolean;
+  onSubmitAnswer?: (questionId: string, stepId: string, answerIndex: number) => void;
+  isSubmitting?: boolean;
+  correctAnswer?: number | null;
+  showResult?: boolean;
 }
 
-export function QuestionViewer({ questions, onFinished }: QuestionViewerProps) {
+export function QuestionViewer({
+  questions,
+  onFinished,
+  isOnlineMode = false,
+  onSubmitAnswer,
+  isSubmitting = false,
+  correctAnswer = null,
+  showResult = false
+}: QuestionViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
 
@@ -70,6 +84,28 @@ export function QuestionViewer({ questions, onFinished }: QuestionViewerProps) {
       onFinished();
     }
   };
+
+  const handleSubmitAnswer = () => {
+    if (selectedOptionIndex === null || !onSubmitAnswer) return;
+
+    const step = getPrimaryDisplayStep(currentQuestion);
+    if (!step) return;
+
+    console.log('[QuestionViewer] Submitting answer:', {
+      questionId: currentQuestion.id,
+      stepId: step.id,
+      answerIndex: selectedOptionIndex
+    });
+
+    onSubmitAnswer(currentQuestion.id, step.id, selectedOptionIndex);
+  };
+
+  // Reset selection when question changes (for online mode)
+  useEffect(() => {
+    if (isOnlineMode) {
+      setSelectedOptionIndex(null);
+    }
+  }, [currentQuestion?.id, isOnlineMode]);
 
   const handleOptionSelect = (optionIndex: number) => {
     setSelectedOptionIndex(optionIndex);
@@ -133,30 +169,54 @@ export function QuestionViewer({ questions, onFinished }: QuestionViewerProps) {
 
           {/* Options */}
           <div className="space-y-3">
-            {primaryStep.options.map((option, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleOptionSelect(idx)}
-                className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                  selectedOptionIndex === idx
-                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                    : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
-                      selectedOptionIndex === idx
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {String.fromCharCode(65 + idx)}
+            {primaryStep.options.map((option, idx) => {
+              const isSelected = selectedOptionIndex === idx;
+              const isCorrect = showResult && correctAnswer === idx;
+              const isWrong = showResult && isSelected && correctAnswer !== idx;
+              const isDisabled = isSubmitting || showResult;
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => !isDisabled && handleOptionSelect(idx)}
+                  disabled={isDisabled}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                    isCorrect
+                      ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                      : isWrong
+                      ? 'border-red-500 bg-red-50 ring-2 ring-red-200'
+                      : isSelected
+                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                  } ${
+                    isDisabled ? 'cursor-not-allowed opacity-75' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
+                        isCorrect
+                          ? 'bg-green-500 text-white'
+                          : isWrong
+                          ? 'bg-red-500 text-white'
+                          : isSelected
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {showResult && isCorrect ? (
+                        <Check className="w-5 h-5" />
+                      ) : showResult && isWrong ? (
+                        <X className="w-5 h-5" />
+                      ) : (
+                        String.fromCharCode(65 + idx)
+                      )}
+                    </div>
+                    <p className="flex-1 text-gray-800 pt-1">{option}</p>
                   </div>
-                  <p className="flex-1 text-gray-800 pt-1">{option}</p>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
 
           {/* Topic tags */}
@@ -180,33 +240,58 @@ export function QuestionViewer({ questions, onFinished }: QuestionViewerProps) {
 
       {/* Navigation */}
       <div className="flex justify-between items-center">
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={handlePrevious}
-          disabled={currentIndex === 0}
-          className="gap-2"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Previous
-        </Button>
+        {!isOnlineMode && (
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handlePrevious}
+            disabled={currentIndex === 0}
+            className="gap-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Previous
+          </Button>
+        )}
 
-        <Button
-          variant="default"
-          size="lg"
-          onClick={handleNext}
-          disabled={selectedOptionIndex === null}
-          className="gap-2"
-        >
-          {currentIndex < questions.length - 1 ? (
-            <>
-              Next
-              <ChevronRight className="w-4 h-4" />
-            </>
-          ) : (
-            'Finish'
-          )}
-        </Button>
+        {isOnlineMode ? (
+          <div className="flex gap-3 ml-auto">
+            <Button
+              variant="default"
+              size="lg"
+              onClick={handleSubmitAnswer}
+              disabled={selectedOptionIndex === null || isSubmitting || showResult}
+              className="gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : showResult ? (
+                'Waiting for next question...'
+              ) : (
+                'Submit Answer'
+              )}
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="default"
+            size="lg"
+            onClick={handleNext}
+            disabled={selectedOptionIndex === null}
+            className="gap-2"
+          >
+            {currentIndex < questions.length - 1 ? (
+              <>
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </>
+            ) : (
+              'Finish'
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
