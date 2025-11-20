@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, Trophy, Zap, TrendingUp, ShoppingBag } from 'lucide-react';
+import { BookOpen, Trophy, Zap, TrendingUp, ShoppingBag, Brain } from 'lucide-react';
 import { useSubjectStore } from '@/store/useSubjectStore';
 
 interface BottomNavProps {
@@ -26,8 +26,8 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
   };
 
   const navItems = [
+    { icon: Brain, label: 'Practice', path: '/practice' },
     { icon: BookOpen, label: 'Modules', path: '/modules' },
-    { icon: Trophy, label: 'Challenges', path: '/challenges' },
     { icon: Zap, label: 'BATTLE!', path: '/lobby', emphasized: true, excludeSubject: true },
     { icon: TrendingUp, label: 'Progression', path: '/progression' },
     { icon: ShoppingBag, label: 'Shop', path: '/shop', excludeSubject: true },

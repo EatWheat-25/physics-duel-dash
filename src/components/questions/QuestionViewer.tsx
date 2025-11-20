@@ -1,0 +1,201 @@
+/**
+ * QUESTION VIEWER COMPONENT
+ *
+ * Displays step-based questions from Supabase with navigation
+ * - Shows one question at a time with its steps
+ * - Allows option selection (UI only, no grading yet)
+ * - Previous/Next navigation through question set
+ */
+
+import { useState } from 'react';
+import { StepBasedQuestion } from '@/types/questions';
+import { getPrimaryDisplayStep } from '@/utils/questionStepHelpers';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+
+interface QuestionViewerProps {
+  questions: StepBasedQuestion[];
+  onFinished?: () => void;
+}
+
+export function QuestionViewer({ questions, onFinished }: QuestionViewerProps) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
+
+  if (!questions || questions.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-gray-500">No questions available</p>
+      </div>
+    );
+  }
+
+  const currentQuestion = questions[currentIndex];
+  const primaryStep = getPrimaryDisplayStep(currentQuestion);
+
+  if (!primaryStep) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-gray-500">Question data is malformed</p>
+      </div>
+    );
+  }
+
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+      setSelectedOptionIndex(null);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+      setSelectedOptionIndex(null);
+    } else if (onFinished) {
+      onFinished();
+    }
+  };
+
+  const handleOptionSelect = (optionIndex: number) => {
+    setSelectedOptionIndex(optionIndex);
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
+      {/* Progress indicator */}
+      <div className="flex items-center justify-between text-sm text-gray-500">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-4 h-4" />
+          <span>
+            Question {currentIndex + 1} of {questions.length}
+          </span>
+        </div>
+        <div className="flex gap-1">
+          {questions.map((_, idx) => (
+            <div
+              key={idx}
+              className={`h-2 w-2 rounded-full transition-colors ${
+                idx === currentIndex
+                  ? 'bg-blue-500'
+                  : idx < currentIndex
+                  ? 'bg-green-500'
+                  : 'bg-gray-300'
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Question card */}
+      <Card className="border-2 shadow-xl">
+        <CardHeader>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <Badge variant="outline">{currentQuestion.subject}</Badge>
+            <Badge variant="outline">{currentQuestion.level}</Badge>
+            <Badge variant="secondary">{currentQuestion.difficulty}</Badge>
+            {currentQuestion.rankTier && (
+              <Badge variant="default">{currentQuestion.rankTier}</Badge>
+            )}
+          </div>
+          <CardTitle className="text-2xl">{currentQuestion.title}</CardTitle>
+          <CardDescription className="text-base">
+            {currentQuestion.chapter} • {primaryStep.marks} marks
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {/* Question context */}
+          {currentQuestion.questionText && (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-gray-800 font-medium">{currentQuestion.questionText}</p>
+            </div>
+          )}
+
+          {/* Step question */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-lg text-gray-900">{primaryStep.question}</h3>
+          </div>
+
+          {/* Options */}
+          <div className="space-y-3">
+            {primaryStep.options.map((option, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleOptionSelect(idx)}
+                className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                  selectedOptionIndex === idx
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                    : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
+                      selectedOptionIndex === idx
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    {String.fromCharCode(65 + idx)}
+                  </div>
+                  <p className="flex-1 text-gray-800 pt-1">{option}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Topic tags */}
+          {currentQuestion.topicTags && currentQuestion.topicTags.length > 0 && (
+            <div className="pt-4 border-t">
+              <p className="text-sm text-gray-500 mb-2">Topics:</p>
+              <div className="flex flex-wrap gap-2">
+                {currentQuestion.topicTags.map((tag, idx) => (
+                  <span
+                    key={idx}
+                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Navigation */}
+      <div className="flex justify-between items-center">
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={handlePrevious}
+          disabled={currentIndex === 0}
+          className="gap-2"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          Previous
+        </Button>
+
+        <Button
+          variant="default"
+          size="lg"
+          onClick={handleNext}
+          disabled={selectedOptionIndex === null}
+          className="gap-2"
+        >
+          {currentIndex < questions.length - 1 ? (
+            <>
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </>
+          ) : (
+            'Finish'
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}

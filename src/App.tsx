@@ -30,6 +30,7 @@ import AdminQuestions from "./pages/AdminQuestions";
 import AdminLogin from "./pages/AdminLogin";
 import OnlineBattlePage from "./pages/OnlineBattlePage";
 import DebugQuestions from "./pages/DebugQuestions";
+import Practice from "./pages/Practice";
 import { getRandomQuestions } from "./data/questions";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ const App = () => {
               <Route path="/lobby" element={<Lobby />} />
               <Route path="/daily-challenge" element={<DailyChallenge />} />
               <Route path="/study" element={<Study />} />
+              <Route path="/practice" element={<Practice />} />
               <Route path="/battle/queue" element={<BattleQueue />} />
               <Route path="/modules" element={<Modules />} />
               <Route path="/challenges" element={<Challenges />} />
