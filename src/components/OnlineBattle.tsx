@@ -378,15 +378,32 @@ export const OnlineBattle = () => {
     });
   }, [questions, connectionState]);
 
+  // Debug: Log phase state changes
+  useEffect(() => {
+    console.log('[OnlineBattle] Phase state:', {
+      currentPhase,
+      phaseDeadline: phaseDeadline?.toISOString(),
+      hasPhaseDeadline: !!phaseDeadline,
+      roundOptions: roundOptions?.length || 0
+    });
+  }, [currentPhase, phaseDeadline, roundOptions]);
+
   // Force re-render every 100ms when there's an active phase deadline to update timer display
   useEffect(() => {
-    if (!phaseDeadline || !currentPhase) return;
+    if (!phaseDeadline || !currentPhase) {
+      console.log('[OnlineBattle] Timer not starting - missing:', { phaseDeadline: !!phaseDeadline, currentPhase });
+      return;
+    }
 
+    console.log('[OnlineBattle] Starting timer tick for phase:', currentPhase);
     const interval = setInterval(() => {
       setTimerTick(prev => prev + 1); // Force re-render
     }, 100);
 
-    return () => clearInterval(interval);
+    return () => {
+      console.log('[OnlineBattle] Stopping timer tick');
+      clearInterval(interval);
+    };
   }, [phaseDeadline, currentPhase]);
 
   useEffect(() => {
@@ -482,6 +499,10 @@ export const OnlineBattle = () => {
           </div>
 
           {/* Phase-based Timer Display */}
+          {(() => {
+            console.log('[OnlineBattle] Render check - Timer visible?', { currentPhase, hasDeadline: !!phaseDeadline });
+            return null;
+          })()}
           {currentPhase && phaseDeadline && (
             <div className="mb-4 backdrop-blur-sm bg-card/50 p-4 rounded-xl border border-border/50 shadow-lg">
               <div className="flex items-center justify-between">

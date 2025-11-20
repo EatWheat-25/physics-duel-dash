@@ -282,7 +282,7 @@ async function transitionToResult(game: GameState) {
     p2Score: game.p2Score
   }
 
-  console.log(`[${matchId}] Sending ROUND_RESULT - P1: ${p1IsCorrect ? 'correct' : 'wrong'}, P2: ${p2IsCorrect ? 'correct' : 'wrong'}`)
+  console.log(`[game-ws] ROUND_RESULT`, { matchId, roundIndex: game.currentRound, p1Correct: p1IsCorrect, p2Correct: p2IsCorrect, tugOfWar })
   game.p1Socket?.send(JSON.stringify(roundResultMsg))
   game.p2Socket?.send(JSON.stringify(roundResultMsg))
 
