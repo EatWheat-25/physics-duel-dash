@@ -14,7 +14,7 @@ import { Chapter, getQuestionsFromChapters, getQuestionsByRank } from "@/types/p
 import { MathQuestion, getMathQuestionsByRank } from "@/types/math";
 import { RankName, getRankByPoints, getPointsForWin, getPointsForLoss } from "@/types/ranking";
 import { toast } from "@/hooks/use-toast";
-import { StepBasedQuestion, convertLegacyQuestion } from "@/types/stepQuestion";
+import { StepBasedQuestion } from "@/types/questions";
 import { getStepMathQuestions } from "@/data/stepMathQuestions";
 import StepBattlePage from "@/components/StepBattlePage";
 import { A2_INTEGRATION_QUESTIONS } from "@/data/questionPools/a2IntegrationQuestions";
@@ -186,43 +186,25 @@ const Index = () => {
 
     if (level === "A1-Only") {
       // A1 level: differentiation, integration, quadratic functions
-      const q1 = await getStepMathQuestions("differentiation", "A1", 1);
-      const q2 = await getStepMathQuestions("integration", "A1", 1);
-      const q3 = await getStepMathQuestions("quadratic-functions", "A1", 1);
+      const q1 = await getStepMathQuestions({ subject: 'math', chapter: 'differentiation', level: 'A1', limit: 1 });
+      const q2 = await getStepMathQuestions({ subject: 'math', chapter: 'integration', level: 'A1', limit: 1 });
+      const q3 = await getStepMathQuestions({ subject: 'math', chapter: 'quadratic-functions', level: 'A1', limit: 1 });
       stepQuestions = [...q1, ...q2, ...q3];
   } else if (level === "A2-Only") {
   // Use any A2 maths questions from the DB
-  stepQuestions = await getStepMathQuestions(undefined, "A2", 5);
+  stepQuestions = await getStepMathQuestions({ subject: 'math', level: 'A2', limit: 5 });
 } else if (level === "A2-Integration") {
-      // A2 Integration: Pure integration questions from CAIE papers
-      const integrationQuestions = A2_INTEGRATION_QUESTIONS.slice(0, 3); // Get first 3 questions for battle
-      const convertedQuestions: StepBasedQuestion[] = integrationQuestions.map((q) => ({
-        id: q.id,
-        title: q.questionText.substring(0, 50) + "...",
-        subject: "math" as const,
-        chapter: q.chapter,
-        level: "A2" as const,
-        difficulty:
-          q.difficulty === "Easy"
-            ? ("easy" as const)
-            : q.difficulty === "Med"
-              ? ("medium" as const)
-              : ("hard" as const),
-        rankTier: "Gold" as const, // A2 Integration is advanced content
-        totalMarks: q.totalMarks,
-        questionText: q.questionText,
-        topicTags: q.topicTags,
-        steps: q.steps,
-      }));
-
-      console.log("Loading A2 Integration questions:", convertedQuestions);
-      setStepBattleQuestions(convertedQuestions);
-      setCurrentPage("step-battle");
-      return; // Early return since we handled the questions
+      // A2 Integration mode is currently unavailable
+      toast({
+        title: "A2 Integration Unavailable",
+        description: "A2 Integration questions are coming soon! Try A2-Only mode instead.",
+        variant: "destructive",
+      });
+      return;
     } else {
       // All-Maths: mix of A1 and A2 questions
-      const q1 = await getStepMathQuestions("differentiation", "A1", 1);
-      const q2 = await getStepMathQuestions("parametric-equations", "A2", 1);
+      const q1 = await getStepMathQuestions({ subject: 'math', chapter: 'differentiation', level: 'A1', limit: 1 });
+      const q2 = await getStepMathQuestions({ subject: 'math', chapter: 'parametric-equations', level: 'A2', limit: 1 });
       stepQuestions = [...q1, ...q2];
     }
 
@@ -230,20 +212,11 @@ const Index = () => {
       setStepBattleQuestions(stepQuestions);
       setCurrentPage("step-battle");
     } else {
-      // Fallback to legacy math questions converted to step format
-      const mathQuestions = getMathQuestionsByRank(level as any, userData.currentPoints, 5);
-
-      if (mathQuestions.length > 0) {
-        const convertedStepQuestions = mathQuestions.map(convertLegacyQuestion);
-        setStepBattleQuestions(convertedStepQuestions);
-        setCurrentPage("step-battle");
-      } else {
-        toast({
-          title: `${level} Not Available`,
-          description: `No questions available for ${level} at your current rank.`,
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: `${level} Not Available`,
+        description: `No questions available for ${level} yet. Try another level or come back later!`,
+        variant: "destructive",
+      });
     }
   };
 

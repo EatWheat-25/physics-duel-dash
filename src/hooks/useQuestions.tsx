@@ -50,9 +50,9 @@ export const useAddQuestion = () => {
       }
 
       // Convert to DB format
-      const dbRow = questionToDBRow(question);
+      const dbRow = questionToDBRow(question) as any;
 
-      const { data, error } = await supabase.from('questions').insert(dbRow).select().single();
+      const { data, error } = await supabase.from('questions').insert([dbRow]).select().single();
 
       if (error) throw error;
       return data;
@@ -78,7 +78,7 @@ export const useUpdateQuestion = () => {
       }
 
       // Convert to DB format
-      const dbRow = questionToDBRow({ ...question, id });
+      const dbRow = questionToDBRow({ ...question, id }) as any;
 
       const { data, error } = await supabase
         .from('questions')

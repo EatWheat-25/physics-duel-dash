@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getStepMathQuestions } from '@/data/stepMathQuestions';
 import StepBattlePage from './StepBattlePage';
-import { StepBasedQuestion } from '@/types/stepQuestion';
+import { StepBasedQuestion } from '@/types/questions';
 
 export default function BattleLoader() {
   const navigate = useNavigate();
@@ -14,7 +14,11 @@ export default function BattleLoader() {
 
   useEffect(() => {
     const loadQuestions = async () => {
-      const q = await getStepMathQuestions(subject, chapter, 5);
+      const q = await getStepMathQuestions({
+        subject: 'math',
+        chapter,
+        limit: 5
+      });
       setQuestions(q);
       setLoading(false);
     };

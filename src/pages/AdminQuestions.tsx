@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIsAdmin } from '@/hooks/useUserRole';
 import { useQuestions, useAddQuestion, useUpdateQuestion, useDeleteQuestion } from '@/hooks/useQuestions';
-import { StepBasedQuestion, RankTier } from '@/types/stepQuestion';
+import { StepBasedQuestion, RankTier } from '@/types/questions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -183,10 +183,11 @@ export default function AdminQuestions() {
     const stepsArray = questionForm.steps.map((step, index) => ({
       id: `step-${index + 1}`,
       question: step.stepQuestion,
-      options: [step.option1, step.option2, step.option3, step.option4],
-      correctAnswer: step.correctAnswer,
+      options: [step.option1, step.option2, step.option3, step.option4] as [string, string, string, string],
+      correctAnswer: step.correctAnswer as 0 | 1 | 2 | 3,
       marks: 1, // Each step worth 1 mark
-      explanation: step.explanation
+      explanation: step.explanation,
+      commonMistakes: []
     }));
 
     const newQuestion: Omit<StepBasedQuestion, 'id'> & { image_url?: string | null } = {

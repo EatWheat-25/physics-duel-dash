@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
-import { StepBasedQuestion, BattleProgress, StepResult } from '@/types/stepQuestion';
+import { StepBasedQuestion, BattleProgress, StepResult } from '@/types/questions';
 
 interface StepMatchStats {
   totalQuestions: number;
