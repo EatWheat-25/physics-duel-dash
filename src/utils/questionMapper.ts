@@ -70,7 +70,7 @@ export function questionToDBRow(question: QuestionInput): Omit<QuestionDBRow, 'c
     question_text: question.questionText,
     total_marks: question.totalMarks,
     topic_tags: question.topicTags || [],
-    steps: question.steps as unknown,
+    steps: question.steps as any, // Cast to any for JSON compatibility
     image_url: question.imageUrl || null,
   };
 }

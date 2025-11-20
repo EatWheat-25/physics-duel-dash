@@ -9,7 +9,7 @@ import { Starfield } from './Starfield';
 import TugOfWarBar from './TugOfWarBar';
 import { connectGameWS, sendReady, sendAnswer, sendQuestionComplete, type ServerEvent } from '@/lib/ws';
 import { toast } from 'sonner';
-import { StepBasedQuestion } from '@/types/stepQuestion';
+import { StepBasedQuestion } from '@/types/questions';
 
 interface Match {
   id: string;

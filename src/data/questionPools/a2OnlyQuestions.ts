@@ -1,7 +1,7 @@
 // A2-Only Mode: 100+ questions across all ranks
 // Starting from A2 foundations, progressing to A★ mastery
 
-import { StepBasedQuestion } from '@/types/stepQuestion';
+import { StepBasedQuestion } from '@/types/questions';
 
 export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
   // BRONZE TIER - Functions Advanced & Trig 3 (20 questions)
