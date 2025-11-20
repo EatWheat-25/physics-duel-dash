@@ -116,11 +116,7 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
     onClose,
   } = options;
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  if (!supabaseUrl) {
-    throw new Error('VITE_SUPABASE_URL not configured');
-  }
-
+  const supabaseUrl = 'https://qvunaswogfwhixecjpcn.supabase.co';
   const wsUrl = supabaseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
   const fullUrl = `${wsUrl}/functions/v1/game-ws?token=${encodeURIComponent(token)}&match_id=${encodeURIComponent(matchId)}`;
 
