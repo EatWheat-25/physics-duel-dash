@@ -13,7 +13,7 @@ import { getPrimaryDisplayStep } from '@/utils/questionStepHelpers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2, Clock } from 'lucide-react';
 import { RoundPhase } from '@/types/gameEvents';
 
 interface QuestionViewerProps {
