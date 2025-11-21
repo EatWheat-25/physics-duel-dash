@@ -54,7 +54,7 @@ export const OnlineBattle = () => {
   const [phaseDeadline, setPhaseDeadline] = useState<Date | null>(null);
   const [roundOptions, setRoundOptions] = useState<Array<{ id: number; text: string }> | null>(null);
   const [roundIndex, setRoundIndex] = useState(0);
-  const [choosingTimeLeft, setChoosingTimeLeft] = useState<number | null>(null);
+  const [phaseTimeRemaining, setPhaseTimeRemaining] = useState<number | null>(null);
   const [, setTimerTick] = useState(0); // Dummy state to force re-renders for timer
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -407,10 +407,10 @@ export const OnlineBattle = () => {
     });
   }, [currentPhase, phaseDeadline, roundOptions]);
 
-  // Timer logic for CHOOSING phase
+  // Timer logic for ALL phases
   useEffect(() => {
-    if (currentPhase !== 'choosing' || !phaseDeadline) {
-      setChoosingTimeLeft(null);
+    if (!phaseDeadline) {
+      setPhaseTimeRemaining(null);
       return;
     }
 
@@ -419,14 +419,14 @@ export const OnlineBattle = () => {
       const deadline = new Date(phaseDeadline).getTime();
       const diffMs = Math.max(0, deadline - now);
       const seconds = Math.ceil(diffMs / 1000);
-      setChoosingTimeLeft(seconds);
+      setPhaseTimeRemaining(seconds);
     };
 
     updateTimer(); // Initial update
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [currentPhase, phaseDeadline]);
+  }, [phaseDeadline]);
 
   // Force re-render every 100ms when there's an active phase deadline to update timer display
   useEffect(() => {
@@ -534,9 +534,9 @@ export const OnlineBattle = () => {
               <div className="text-2xl font-bold backdrop-blur-sm bg-card/50 px-6 py-2 rounded-xl border border-border/50">
                 {match.subject} - {match.chapter}
               </div>
-              {currentPhase === 'choosing' && choosingTimeLeft !== null && (
+              {currentPhase === 'choosing' && phaseTimeRemaining !== null && (
                 <div className="text-xl font-mono font-bold backdrop-blur-sm bg-amber-500/20 text-amber-500 px-4 py-2 rounded-xl border border-amber-500/50 animate-pulse">
-                  Choosing: 00:{String(choosingTimeLeft).padStart(2, '0')}
+                  Choosing: 00:{String(phaseTimeRemaining).padStart(2, '0')}
                 </div>
               )}
             </div>
@@ -564,12 +564,7 @@ export const OnlineBattle = () => {
                     {currentPhase === 'thinking' ? 'THINKING' : currentPhase === 'choosing' ? 'CHOOSING' : 'RESULT'}
                   </div>
                   <div className="text-3xl font-bold font-mono">
-                    {(() => {
-                      const now = new Date().getTime();
-                      const deadline = new Date(phaseDeadline).getTime();
-                      const remaining = Math.max(0, Math.floor((deadline - now) / 1000));
-                      return `${remaining}s`;
-                    })()}
+                    {phaseTimeRemaining !== null ? `${phaseTimeRemaining}s` : '0s'}
                   </div>
                 </div>
                 <div className="text-sm text-muted-foreground">
@@ -601,7 +596,7 @@ export const OnlineBattle = () => {
                   currentPhase={currentPhase || undefined}
                   phaseDeadline={phaseDeadline}
                   options={roundOptions}
-                  locked={isSubmitting || (currentPhase === 'choosing' && choosingTimeLeft === 0)}
+                  locked={isSubmitting || (currentPhase === 'choosing' && phaseTimeRemaining === 0)}
                 />
 
                 {currentPhase === 'thinking' && !hasSubmittedWork && (
@@ -646,9 +641,11 @@ export const OnlineBattle = () => {
           </div>
         </div>
 
-        <div className="mb-8">
-          <TugOfWarBar position={0} maxSteps={5} />
-        </div>
+        {connectionState !== 'waiting_ready' && connectionState !== 'connecting' && (
+          <div className="mb-8">
+            <TugOfWarBar position={0} maxSteps={5} />
+          </div>
+        )}
 
         {connectionState === 'waiting_ready' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-card/50 p-8 rounded-2xl border border-border/50 text-center shadow-lg mb-6">
