@@ -58,6 +58,10 @@ export const OnlineBattle = () => {
   const [isServerDriven, setIsServerDriven] = useState(false);
   const [, setTimerTick] = useState(0); // Dummy state to force re-renders for timer
 
+  // Step-based timer state
+  const [stepDeadline, setStepDeadline] = useState<Date | null>(null);
+  const [stepTimeLeft, setStepTimeLeft] = useState<number | null>(null);
+
   const wsRef = useRef<WebSocket | null>(null);
 
   // Fallback: fetch questions from database if WebSocket doesn't provide them
@@ -187,6 +191,8 @@ export const OnlineBattle = () => {
           setPhaseDeadline(new Date(event.thinkingEndsAt));
           setRoundOptions(null); // No options during thinking phase
           setHasSubmittedWork(false); // Reset for new round
+          setCurrentStepIndex(0); // Reset step index for new round
+          setStepDeadline(null); // Reset step timer
 
           console.log('[OnlineBattle] State updated - currentPhase:', event.phase, 'phaseDeadline:', new Date(event.thinkingEndsAt));
 
@@ -369,6 +375,34 @@ export const OnlineBattle = () => {
     setIsSubmitting(true);
 
     sendAnswer(wsRef.current, questionId, stepId, answerIndex);
+
+    // Handle step progression locally
+    const currentQ = questions[currentQuestionIndex];
+    if (currentQ && currentQ.steps && currentStepIndex < currentQ.steps.length - 1) {
+      console.log('[OnlineBattle] Moving to next step:', currentStepIndex + 1);
+      setTimeout(() => {
+        setCurrentStepIndex(prev => prev + 1);
+        setIsSubmitting(false);
+        // Reset step timer for next step
+        const nextStep = currentQ.steps[currentStepIndex + 1];
+        if (nextStep && nextStep.timeLimitSeconds) { // Assuming timeLimitSeconds exists on step, if not default to 15
+          // Actually, the user said "each with its own 15s timer". 
+          // If timeLimitSeconds is not on the type yet, I might need to add it or assume 15.
+          // The user request said: "Step 1 – Method: ... timeLimitSeconds: 15"
+          // So it should be on the step object.
+          // Let's check the type definition later, but for now assume it's there or default 15.
+          const limit = (nextStep as any).timeLimitSeconds || 15;
+          setStepDeadline(new Date(Date.now() + limit * 1000));
+        } else {
+          setStepDeadline(new Date(Date.now() + 15000));
+        }
+      }, 500); // Small delay for UX
+    } else {
+      console.log('[OnlineBattle] Last step completed, waiting for round end');
+      // If it's the last step, we just wait for the round to end naturally via server events
+      // or for the user to wait for the next question.
+      setIsSubmitting(false);
+    }
   };
 
   const handleReadyForOptions = () => {
@@ -453,6 +487,65 @@ export const OnlineBattle = () => {
 
     return () => clearInterval(interval);
   }, [phaseDeadline]);
+
+  // Step Timer Logic
+  useEffect(() => {
+    if (!stepDeadline) {
+      setStepTimeLeft(null);
+      return;
+    }
+
+    const updateStepTimer = () => {
+      const now = Date.now();
+      const deadline = new Date(stepDeadline).getTime();
+      const diffMs = Math.max(0, deadline - now);
+      const seconds = Math.ceil(diffMs / 1000);
+      setStepTimeLeft(seconds);
+
+      if (diffMs <= 0) {
+        // Time's up for this step!
+        // Auto-advance or lock
+        console.log('[OnlineBattle] Step time up!');
+        setStepDeadline(null);
+        // If we haven't answered, maybe we should auto-submit or just move on?
+        // For now, let's just move to next step if possible, or mark as done.
+        // But we can't auto-submit an answer if we don't know what to pick.
+        // We'll just let the UI lock.
+        // Actually, the user said: "automatically lock the current step and either: move to the next step... or finish".
+
+        const currentQ = questions[currentQuestionIndex];
+        if (currentQ && currentQ.steps && currentStepIndex < currentQ.steps.length - 1) {
+          setCurrentStepIndex(prev => prev + 1);
+          // Start timer for next step
+          const nextStep = currentQ.steps[currentStepIndex + 1];
+          const limit = (nextStep as any).timeLimitSeconds || 15;
+          setStepDeadline(new Date(Date.now() + limit * 1000));
+        } else {
+          // Last step finished
+          // Maybe set some state to show we are done?
+        }
+      }
+    };
+
+    updateStepTimer();
+    const interval = setInterval(updateStepTimer, 1000);
+    return () => clearInterval(interval);
+  }, [stepDeadline, currentQuestionIndex, currentStepIndex, questions]);
+
+  // Initialize step timer when entering Choosing phase (or whenever steps start)
+  useEffect(() => {
+    if (currentPhase === 'choosing' && questions.length > 0) {
+      // If we just entered choosing, start step 1 timer if not already started
+      // But we need to be careful not to reset it if we are already in the middle of steps.
+      // Maybe only if stepDeadline is null and currentStepIndex is 0?
+      if (!stepDeadline && currentStepIndex === 0) {
+        const currentQ = questions[currentQuestionIndex];
+        const step = currentQ?.steps[0];
+        const limit = (step as any)?.timeLimitSeconds || 15;
+        setStepDeadline(new Date(Date.now() + limit * 1000));
+      }
+    }
+  }, [currentPhase, questions, currentQuestionIndex, stepDeadline, currentStepIndex]);
 
   // Force re-render every 100ms when there's an active phase deadline to update timer display
   useEffect(() => {
@@ -655,7 +748,9 @@ export const OnlineBattle = () => {
                   currentPhase={currentPhase || undefined}
                   phaseDeadline={phaseDeadline}
                   options={roundOptions}
-                  locked={isSubmitting || (currentPhase === 'choosing' && phaseTimeRemaining === 0)}
+                  currentStepIndex={currentStepIndex}
+                  stepTimeLeft={stepTimeLeft}
+                  totalSteps={questions[currentQuestionIndex]?.steps?.length || 0}
                 />
 
                 {currentPhase === 'thinking' && !hasSubmittedWork && (

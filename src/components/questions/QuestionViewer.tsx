@@ -30,6 +30,10 @@ interface QuestionViewerProps {
   phaseDeadline?: Date | null;
   options?: Array<{ id: number; text: string }> | null;
   locked?: boolean;
+  // Step props
+  currentStepIndex?: number;
+  stepTimeLeft?: number | null;
+  totalSteps?: number;
 }
 
 export function QuestionViewer({
@@ -43,7 +47,10 @@ export function QuestionViewer({
   currentPhase,
   phaseDeadline,
   options,
-  locked = false
+  locked = false,
+  currentStepIndex = 0,
+  stepTimeLeft = null,
+  totalSteps = 1
 }: QuestionViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
@@ -71,12 +78,17 @@ export function QuestionViewer({
   }
 
   const currentQuestion = questions[currentIndex];
-  const primaryStep = getPrimaryDisplayStep(currentQuestion);
+  // In online mode, use the passed currentStepIndex. In practice mode (offline), default to 0 or handle differently if needed.
+  // For now, practice mode seems to just show the first step or we might want to add step navigation there too later.
+  // But the request specifically asked for Online 1v1.
+  const currentStep = isOnlineMode
+    ? (currentQuestion.steps ? currentQuestion.steps[currentStepIndex] : null)
+    : getPrimaryDisplayStep(currentQuestion);
 
-  if (!primaryStep) {
+  if (!currentStep) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-gray-500">Question data is malformed</p>
+        <p className="text-gray-500">Question data is malformed or step not found</p>
       </div>
     );
   }
@@ -100,16 +112,15 @@ export function QuestionViewer({
   const handleSubmitAnswer = () => {
     if (selectedOptionIndex === null || !onSubmitAnswer) return;
 
-    const step = getPrimaryDisplayStep(currentQuestion);
-    if (!step) return;
+    if (!currentStep) return;
 
     console.log('[QuestionViewer] Submitting answer:', {
       questionId: currentQuestion.id,
-      stepId: step.id,
+      stepId: currentStep.id,
       answerIndex: selectedOptionIndex
     });
 
-    onSubmitAnswer(currentQuestion.id, step.id, selectedOptionIndex);
+    onSubmitAnswer(currentQuestion.id, currentStep.id, selectedOptionIndex);
   };
 
   // Calculate visible option index based on time
@@ -137,17 +148,19 @@ export function QuestionViewer({
   }, [isOnlineMode, currentPhase, phaseDeadline]);
 
   // Determine which options to display
-  // In choosing phase, we only show the CURRENT visible option
-  // In result phase, we show ALL options
-  const displayOptions = isOnlineMode && currentPhase === 'choosing' && options
+  // In choosing phase, we only show the CURRENT visible option IF it's a single-step question (legacy/server-driven)
+  // For multi-step questions, we show ALL options for the current step immediately
+  const isMultiStep = totalSteps > 1;
+
+  const displayOptions = isOnlineMode && currentPhase === 'choosing' && options && !isMultiStep
     ? [options[visibleOptionIndex]?.text || '']
-    : isOnlineMode && currentPhase === 'result' && options
+    : isOnlineMode && currentPhase === 'result' && options && !isMultiStep
       ? options.map(opt => opt.text)
-      : primaryStep?.options || [];
+      : currentStep?.options || [];
 
   // Helper to map display index back to actual option index
   const getActualOptionIndex = (displayIdx: number) => {
-    if (isOnlineMode && currentPhase === 'choosing') {
+    if (isOnlineMode && currentPhase === 'choosing' && !isMultiStep) {
       return visibleOptionIndex;
     }
     return displayIdx;
@@ -180,6 +193,11 @@ export function QuestionViewer({
             Question {currentIndex + 1} of {questions.length}
           </span>
         </div>
+        {isOnlineMode && totalSteps > 1 && (
+          <div className="font-bold text-primary">
+            Step {currentStepIndex + 1} of {totalSteps}
+          </div>
+        )}
         <div className="flex gap-1">
           {questions.map((_, idx) => (
             <div
@@ -208,21 +226,31 @@ export function QuestionViewer({
           </div>
           <CardTitle className="text-2xl">{currentQuestion.title}</CardTitle>
           <CardDescription className="text-base">
-            {currentQuestion.chapter} • {primaryStep.marks} marks
+            {currentQuestion.chapter} • {currentStep.marks} marks
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Question context */}
+          {/* Question context (Main Stem) */}
           {currentQuestion.questionText && (
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
               <p className="text-gray-800 font-medium">{currentQuestion.questionText}</p>
             </div>
           )}
 
+          {/* Step Timer */}
+          {isOnlineMode && stepTimeLeft !== null && (
+            <div className="flex justify-end">
+              <Badge variant={stepTimeLeft < 5 ? "destructive" : "secondary"} className="text-lg px-3 py-1">
+                <Clock className="w-4 h-4 mr-2" />
+                {stepTimeLeft}s
+              </Badge>
+            </div>
+          )}
+
           {/* Step question */}
           <div className="space-y-2">
-            <h3 className="font-semibold text-lg text-gray-900">{primaryStep.question}</h3>
+            <h3 className="font-semibold text-lg text-gray-900">{currentStep.question}</h3>
           </div>
 
           {/* Options - only show in choosing/result phases for online mode */}
@@ -236,31 +264,11 @@ export function QuestionViewer({
                 const isDisabled = isSubmitting || showResult || (currentPhase === 'thinking') || locked;
 
                 // In choosing phase, we only show one option, so it's always "Option A/B/C" based on actualIdx
+                // For multi-step, we show all options, so we use the loop index
                 const optionLabel = String.fromCharCode(65 + actualIdx);
 
                 return (
                   <div key={actualIdx} className="space-y-2">
-                    {isOnlineMode && currentPhase === 'choosing' && (
-                      <div className="flex justify-between items-center text-sm text-muted-foreground mb-1">
-                        <span className="font-bold text-primary">Option {actualIdx + 1} of 3</span>
-                        <span className="animate-pulse text-amber-500 font-mono">
-                          {(() => {
-                            // Show remaining time for THIS option
-                            if (!phaseDeadline) return '0s';
-                            const now = Date.now();
-                            const deadline = new Date(phaseDeadline).getTime();
-                            const totalDuration = 45000;
-                            const timeLeft = Math.max(0, deadline - now);
-                            const elapsed = totalDuration - timeLeft;
-                            const optionStartTime = actualIdx * 15000;
-                            const optionEndTime = optionStartTime + 15000;
-                            const timeInOption = Math.max(0, 15000 - (elapsed - optionStartTime));
-                            return `${Math.ceil(timeInOption / 1000)}s`;
-                          })()}
-                        </span>
-                      </div>
-                    )}
-
                     <button
                       onClick={() => !isDisabled && handleOptionSelect(idx)}
                       disabled={isDisabled}
