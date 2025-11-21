@@ -55,6 +55,7 @@ export const OnlineBattle = () => {
   const [roundOptions, setRoundOptions] = useState<Array<{ id: number; text: string }> | null>(null);
   const [roundIndex, setRoundIndex] = useState(0);
   const [phaseTimeRemaining, setPhaseTimeRemaining] = useState<number | null>(null);
+  const [isServerDriven, setIsServerDriven] = useState(false);
   const [, setTimerTick] = useState(0); // Dummy state to force re-renders for timer
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -174,6 +175,7 @@ export const OnlineBattle = () => {
         onRoundStart: (event: RoundStartEvent) => {
           console.log('[OnlineBattle] ✅ ROUND_START received', event);
           console.log('[OnlineBattle] Phase:', event.phase, 'Deadline:', event.thinkingEndsAt);
+          setIsServerDriven(true);
 
           // Reset state for new round
           setShowResult(false);
@@ -370,11 +372,30 @@ export const OnlineBattle = () => {
   };
 
   const handleReadyForOptions = () => {
-    if (!wsRef.current || hasSubmittedWork) return;
+    if (hasSubmittedWork) return;
 
     console.log('[OnlineBattle] Sending ready for options');
     setHasSubmittedWork(true);
-    sendReadyForOptions(wsRef.current, matchId!);
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      sendReadyForOptions(wsRef.current, matchId!);
+    }
+
+    // Local immediate transition if not server driven (or to feel responsive)
+    if (!isServerDriven) {
+      console.log('[OnlineBattle] Local transition to choosing (user ready)');
+      // Short delay to simulate network/waiting
+      setTimeout(() => {
+        const currentQ = questions[currentQuestionIndex];
+        const currentStep = currentQ?.steps[currentStepIndex];
+        if (currentStep) {
+          const options = currentStep.options.map((text, i) => ({ id: i, text }));
+          setRoundOptions(options);
+          setCurrentPhase('choosing');
+          setPhaseDeadline(new Date(Date.now() + 45000)); // 45s for choosing
+        }
+      }, 500);
+    }
   };
 
   // If game is playing but no questions from WebSocket, use fallback
@@ -446,7 +467,40 @@ export const OnlineBattle = () => {
     return () => {
       clearInterval(interval);
     };
+    return () => {
+      clearInterval(interval);
+    };
   }, [phaseDeadline, currentPhase]);
+
+  // Local Phase Transition Logic (Failsafe / Single Player)
+  useEffect(() => {
+    if (isServerDriven || !currentPhase || !phaseDeadline) return;
+
+    const now = Date.now();
+    const deadline = new Date(phaseDeadline).getTime();
+
+    if (now >= deadline) {
+      console.log('[OnlineBattle] Local phase transition triggered due to timeout');
+
+      if (currentPhase === 'thinking') {
+        // Transition to Choosing
+        const currentQ = questions[currentQuestionIndex];
+        const currentStep = currentQ?.steps[currentStepIndex];
+        if (currentStep) {
+          const options = currentStep.options.map((text, i) => ({ id: i, text }));
+          setRoundOptions(options);
+          setCurrentPhase('choosing');
+          setPhaseDeadline(new Date(Date.now() + 45000)); // 45s for choosing
+        }
+      } else if (currentPhase === 'choosing') {
+        // Transition to Result
+        setCurrentPhase('result');
+        setPhaseDeadline(null);
+        // Auto-submit if not submitted?
+        // For now just show result
+      }
+    }
+  }, [isServerDriven, currentPhase, phaseDeadline, phaseTimeRemaining, questions, currentQuestionIndex, currentStepIndex]);
 
   useEffect(() => {
     if (connectionState === 'playing' && timeLeft > 0) {
