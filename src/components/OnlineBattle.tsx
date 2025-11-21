@@ -205,12 +205,12 @@ export const OnlineBattle = () => {
             subject: q.subject as QuestionSubject,
             chapter: q.chapter,
             level: q.level as QuestionLevel,
-            difficulty: q.difficulty,
-            rankTier: q.rankTier || 'Bronze',
+            difficulty: q.difficulty as any, // Cast to any to avoid strict type check for now, or import QuestionDifficulty
+            rankTier: (q.rankTier || 'Bronze') as any,
             totalMarks: q.totalMarks,
             questionText: q.questionText,
             topicTags: q.topicTags || [],
-            steps: q.steps
+            steps: q.steps as any
           };
 
           console.log('WS: Formatted question:', formattedQuestion);
@@ -378,8 +378,15 @@ export const OnlineBattle = () => {
       console.log('[OnlineBattle] Using fallback questions since WebSocket provided none');
       console.log('[OnlineBattle] Fallback question count:', fallbackQuestions.length);
       setQuestions(fallbackQuestions);
+
+      // Initialize phase if not set (e.g. if WS failed to provide it)
+      if (!currentPhase) {
+        console.log('[OnlineBattle] Initializing fallback phase to THINKING');
+        setCurrentPhase('thinking');
+        setPhaseDeadline(new Date(Date.now() + 60000)); // 60s default
+      }
     }
-  }, [connectionState, questions.length, fallbackQuestions]);
+  }, [connectionState, questions.length, fallbackQuestions, currentPhase]);
 
   // Debug: Log questions state changes
   useEffect(() => {
@@ -537,7 +544,13 @@ export const OnlineBattle = () => {
 
           {/* Phase-based Timer Display */}
           {(() => {
-            console.log('[OnlineBattle] Render check - Timer visible?', { currentPhase, hasDeadline: !!phaseDeadline });
+            console.log('[OnlineBattle] Render check - Timer visible?', {
+              currentPhase,
+              hasDeadline: !!phaseDeadline,
+              phaseDeadline,
+              connectionState,
+              questionsLength: questions.length
+            });
             return null;
           })()}
           {currentPhase && phaseDeadline && (
@@ -713,7 +726,7 @@ export const OnlineBattle = () => {
           </motion.div>
         )}
 
-        {!isFetchingFallback && !fallbackError && fallbackQuestions && fallbackQuestions.length > 0 && (
+        {!isFetchingFallback && !fallbackError && fallbackQuestions && fallbackQuestions.length > 0 && connectionState !== 'waiting_ready' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="backdrop-blur-sm bg-card/50 border-border/50">
               <CardContent className="pt-6">
