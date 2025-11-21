@@ -151,7 +151,7 @@ export const OnlineBattle = () => {
         token: session.access_token,
         onConnected: (event) => {
           console.log('WS: Connected as', event.player);
-          setConnectionState('waiting_ready');
+          setConnectionState('playing'); // Skip waiting_ready
           sendReady(ws);
           setYouReady(true);
           toast.success('Connected to battle server');
