@@ -152,6 +152,11 @@ export const OnlineBattle = () => {
         onConnected: (event) => {
           console.log('WS: Connected as', event.player);
           setConnectionState('playing'); // Skip waiting_ready
+
+          // Force initialize phase for instant start
+          setCurrentPhase('thinking');
+          setPhaseDeadline(new Date(Date.now() + 60000)); // 60s default
+
           sendReady(ws);
           setYouReady(true);
           toast.success('Connected to battle server');
