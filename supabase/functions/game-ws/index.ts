@@ -2,8 +2,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { z } from 'npm:zod@3.23.8'
 
 // Dev-friendly durations (in milliseconds)
-const THINKING_TIME_MS = 20 * 1000  // 20 seconds
-const CHOOSING_TIME_MS = 15 * 1000  // 15 seconds
+const WORKING_TIME_MS = 60 * 1000  // 1 minute
+const OPTIONS_TIME_MS = 45 * 1000  // 45 seconds (3 options * 15s)
 const RESULT_DISPLAY_MS = 3 * 1000  // 3 seconds
 
 // ELO calculation
@@ -35,10 +35,14 @@ interface GameState {
   currentPhase: RoundPhase
   currentQuestionId: string | null
   currentQuestion: any | null
-  thinkingDeadline: number | null  // timestamp
-  choosingDeadline: number | null  // timestamp
+  thinkingDeadline: number | null  // timestamp (used for WORKING phase)
+  choosingDeadline: number | null  // timestamp (used for OPTIONS phase)
   p1Answer: number | null
   p2Answer: number | null
+
+  // New: Early submit tracking
+  p1ReadyForOptions: boolean
+  p2ReadyForOptions: boolean
 }
 
 // Validation schemas
@@ -53,9 +57,15 @@ const AnswerSubmitSchema = z.object({
   answer: z.number().int().min(0).max(2)  // Only 3 options (0, 1, 2)
 })
 
+const ReadyForOptionsSchema = z.object({
+  type: z.literal('ready_for_options'),
+  matchId: z.string().uuid()
+})
+
 const ClientMessageSchema = z.discriminatedUnion('type', [
   ReadyMessageSchema,
-  AnswerSubmitSchema
+  AnswerSubmitSchema,
+  ReadyForOptionsSchema
 ])
 
 const games = new Map<string, GameState>()
@@ -68,11 +78,18 @@ setInterval(() => {
     if (!game.gameActive) continue
 
     // Check thinking deadline
-    if (game.currentPhase === 'thinking' && game.thinkingDeadline && now >= game.thinkingDeadline) {
-      console.log(`[${matchId}] Thinking time expired, transitioning to choosing`)
-      transitionToChoosing(game).catch(err =>
-        console.error(`[${matchId}] Error in thinking timeout:`, err)
-      )
+    // Check thinking (WORKING) deadline
+    if (game.currentPhase === 'thinking') {
+      // Check if time expired OR both players are ready
+      const timeExpired = game.thinkingDeadline && now >= game.thinkingDeadline
+      const bothReady = game.p1ReadyForOptions && game.p2ReadyForOptions
+
+      if (timeExpired || bothReady) {
+        console.log(`[${matchId}] Transitioning to options (Reason: ${timeExpired ? 'Timeout' : 'Both Ready'})`)
+        transitionToChoosing(game).catch(err =>
+          console.error(`[${matchId}] Error in working->options transition:`, err)
+        )
+      }
     }
 
     // Check choosing deadline
@@ -114,9 +131,11 @@ async function startRound(game: GameState) {
   game.currentPhase = 'thinking'
   game.p1Answer = null
   game.p2Answer = null
+  game.p1ReadyForOptions = false
+  game.p2ReadyForOptions = false
 
-  // Set thinking deadline
-  const thinkingEndsAt = new Date(Date.now() + THINKING_TIME_MS)
+  // Set thinking (WORKING) deadline
+  const thinkingEndsAt = new Date(Date.now() + WORKING_TIME_MS)
   game.thinkingDeadline = thinkingEndsAt.getTime()
 
   // Update DB
@@ -156,8 +175,8 @@ async function transitionToChoosing(game: GameState) {
 
   game.currentPhase = 'choosing'
 
-  // Set choosing deadline
-  const choosingEndsAt = new Date(Date.now() + CHOOSING_TIME_MS)
+  // Set choosing (OPTIONS) deadline
+  const choosingEndsAt = new Date(Date.now() + OPTIONS_TIME_MS)
   game.choosingDeadline = choosingEndsAt.getTime()
   game.thinkingDeadline = null
 
@@ -449,7 +468,9 @@ Deno.serve(async (req) => {
       thinkingDeadline: null,
       choosingDeadline: null,
       p1Answer: null,
-      p2Answer: null
+      p2Answer: null,
+      p1ReadyForOptions: false,
+      p2ReadyForOptions: false
     })
   }
 
@@ -540,6 +561,22 @@ Deno.serve(async (req) => {
             await transitionToResult(game)
           }
 
+          break
+        }
+
+        case 'ready_for_options': {
+          console.log(`[${matchId}] ${isP1 ? 'P1' : 'P2'} ready for options`)
+
+          if (game.currentPhase !== 'thinking') {
+            console.log(`[${matchId}] Ignoring ready_for_options - not in working phase`)
+            return
+          }
+
+          if (isP1) game.p1ReadyForOptions = true
+          else game.p2ReadyForOptions = true
+
+          // Notify other player? (Optional, but good for UI)
+          // For now, we rely on the heartbeat to trigger the phase change when both are ready
           break
         }
       }

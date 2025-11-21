@@ -1,5 +1,5 @@
 // Import 3-phase event types from gameEvents
-import type { RoundStartEvent, PhaseChangeEvent, RoundResultEvent } from '@/types/gameEvents';
+import type { RoundStartEvent, PhaseChangeEvent, RoundResultEvent, MatchEndEvent } from '@/types/gameEvents';
 
 export interface GameStartEvent {
   type: 'game_start';
@@ -15,20 +15,7 @@ export interface ScoreUpdateEvent {
   time_left?: number;
 }
 
-export interface MatchEndEvent {
-  type: 'match_end';
-  winner_id: string | null;
-  final_scores: {
-    p1: number;
-    p2: number;
-  };
-  mmr_changes?: {
-    [playerId: string]: {
-      old: number;
-      new: number;
-    };
-  };
-}
+// Removed local MatchEndEvent in favor of imported one
 
 export interface OpponentDisconnectEvent {
   type: 'opponent_disconnect';
@@ -89,7 +76,12 @@ export interface QuestionCompleteMessage {
   type: 'question_complete';
 }
 
-export type ClientMessage = ReadyMessage | AnswerSubmitMessage | QuestionCompleteMessage;
+export interface ReadyForOptionsMessage {
+  type: 'ready_for_options';
+  matchId: string;
+}
+
+export type ClientMessage = ReadyMessage | AnswerSubmitMessage | QuestionCompleteMessage | ReadyForOptionsMessage;
 
 export interface ConnectGameWSOptions {
   matchId: string;
@@ -196,8 +188,8 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
           onOpponentDisconnect?.(message);
           break;
 
-        case 'match_end':
-          console.log(`WS: Match ended - winner: ${message.winner_id || 'draw'}`);
+        case 'MATCH_END':
+          console.log(`WS: Match ended - winner: ${message.winnerPlayerId || 'draw'}`);
           onMatchEnd?.(message);
           break;
 
@@ -263,4 +255,13 @@ export function sendQuestionComplete(ws: WebSocket): void {
   const message: QuestionCompleteMessage = { type: 'question_complete' };
   ws.send(JSON.stringify(message));
   console.log('WS: Sent question complete');
+}
+
+export function sendReadyForOptions(ws: WebSocket, matchId: string): void {
+  const message: ReadyForOptionsMessage = {
+    type: 'ready_for_options',
+    matchId
+  };
+  ws.send(JSON.stringify(message));
+  console.log('WS: Sent ready_for_options signal');
 }

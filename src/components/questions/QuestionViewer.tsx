@@ -47,6 +47,7 @@ export function QuestionViewer({
 }: QuestionViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
+  const [visibleOptionIndex, setVisibleOptionIndex] = useState<number>(0);
 
   console.log('📖 QuestionViewer: Received questions:', questions?.length || 0);
   console.log('📖 QuestionViewer: Phase:', currentPhase, 'Options:', options?.length || 0);
@@ -111,10 +112,46 @@ export function QuestionViewer({
     onSubmitAnswer(currentQuestion.id, step.id, selectedOptionIndex);
   };
 
+  // Calculate visible option index based on time
+  useEffect(() => {
+    if (!isOnlineMode || currentPhase !== 'choosing' || !phaseDeadline) {
+      setVisibleOptionIndex(0);
+      return;
+    }
+
+    const updateVisibleOption = () => {
+      const now = Date.now();
+      const deadline = new Date(phaseDeadline).getTime();
+      const totalDuration = 45000; // 45s total
+      const timeLeft = Math.max(0, deadline - now);
+      const elapsed = totalDuration - timeLeft;
+
+      // 15s per option
+      const newIndex = Math.min(Math.floor(elapsed / 15000), 2);
+      setVisibleOptionIndex(Math.max(0, newIndex));
+    };
+
+    updateVisibleOption();
+    const interval = setInterval(updateVisibleOption, 100);
+    return () => clearInterval(interval);
+  }, [isOnlineMode, currentPhase, phaseDeadline]);
+
   // Determine which options to display
+  // In choosing phase, we only show the CURRENT visible option
+  // In result phase, we show ALL options
   const displayOptions = isOnlineMode && currentPhase === 'choosing' && options
-    ? options.map(opt => opt.text)
-    : primaryStep?.options || [];
+    ? [options[visibleOptionIndex]?.text || '']
+    : isOnlineMode && currentPhase === 'result' && options
+      ? options.map(opt => opt.text)
+      : primaryStep?.options || [];
+
+  // Helper to map display index back to actual option index
+  const getActualOptionIndex = (displayIdx: number) => {
+    if (isOnlineMode && currentPhase === 'choosing') {
+      return visibleOptionIndex;
+    }
+    return displayIdx;
+  };
 
   // Check if we should show options at all
   const shouldShowOptions = !isOnlineMode || currentPhase === 'choosing' || currentPhase === 'result';
@@ -126,11 +163,14 @@ export function QuestionViewer({
     }
   }, [currentQuestion?.id, isOnlineMode]);
 
-  const handleOptionSelect = (optionIndex: number) => {
-    setSelectedOptionIndex(optionIndex);
+  const handleOptionSelect = (displayIndex: number) => {
+    const actualIndex = getActualOptionIndex(displayIndex);
+    setSelectedOptionIndex(actualIndex);
   };
 
   return (
+
+
     <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
       {/* Progress indicator */}
       <div className="flex items-center justify-between text-sm text-gray-500">
@@ -139,334 +179,216 @@ export function QuestionViewer({
           <span>
             Question {currentIndex + 1} of {questions.length}
           </span>
-/**
-          * QUESTION VIEWER COMPONENT
-          *
-          * Displays step-based questions from Supabase with navigation
-          * - Shows one question at a time with its steps
-          * - Allows option selection (UI only, no grading yet)
-          * - Previous/Next navigation through question set
-          */
+        </div>
+        <div className="flex gap-1">
+          {questions.map((_, idx) => (
+            <div
+              key={idx}
+              className={`h-2 w-2 rounded-full transition-colors ${idx === currentIndex
+                ? 'bg-blue-500'
+                : idx < currentIndex
+                  ? 'bg-green-500'
+                  : 'bg-gray-300'
+                }`}
+            />
+          ))}
+        </div>
+      </div>
 
-          import {useState, useEffect} from 'react';
-          import {StepBasedQuestion} from '@/types/questions';
-          import {getPrimaryDisplayStep} from '@/utils/questionStepHelpers';
-          import {Button} from '@/components/ui/button';
-          import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
-          import {Badge} from '@/components/ui/badge';
-          import {ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2, Clock} from 'lucide-react';
-          import {RoundPhase} from '@/types/gameEvents';
-
-          interface QuestionViewerProps {
-            questions: StepBasedQuestion[];
-  onFinished?: () => void;
-          // Online mode props
-          isOnlineMode?: boolean;
-  onSubmitAnswer?: (questionId: string, stepId: string, answerIndex: number) => void;
-          isSubmitting?: boolean;
-          correctAnswer?: number | null;
-          showResult?: boolean;
-          // 3-phase props
-          currentPhase?: RoundPhase;
-          phaseDeadline?: Date | null;
-          options?: Array<{ id: number; text: string }> | null;
-          locked?: boolean;
-}
-
-          export function QuestionViewer({
-            questions,
-            onFinished,
-            isOnlineMode = false,
-            onSubmitAnswer,
-            isSubmitting = false,
-            correctAnswer = null,
-            showResult = false,
-            currentPhase,
-            phaseDeadline,
-            options,
-            locked = false
-          }: QuestionViewerProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-          const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
-
-          console.log('📖 QuestionViewer: Received questions:', questions?.length || 0);
-          console.log('📖 QuestionViewer: Phase:', currentPhase, 'Options:', options?.length || 0);
-
-          if (!questions || questions.length === 0) {
-    return (
-          <div className="flex items-center justify-center min-h-[400px] px-4">
-            <Card className="w-full max-w-md border-gray-700 bg-gray-800/50 backdrop-blur">
-              <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
-                <p className="text-lg text-gray-300 text-center">No questions to show</p>
-                <p className="text-sm text-gray-500 text-center">
-                  Questions array is empty or undefined
-                </p>
-                <p className="text-xs text-gray-600 text-center font-mono">
-                  Length: {questions?.length || 0}
-                </p>
-              </CardContent>
-            </Card>
+      {/* Question card */}
+      <Card className="border-2 shadow-xl">
+        <CardHeader>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <Badge variant="outline">{currentQuestion.subject}</Badge>
+            <Badge variant="outline">{currentQuestion.level}</Badge>
+            <Badge variant="secondary">{currentQuestion.difficulty}</Badge>
+            {currentQuestion.rankTier && (
+              <Badge variant="default">{currentQuestion.rankTier}</Badge>
+            )}
           </div>
-          );
-  }
+          <CardTitle className="text-2xl">{currentQuestion.title}</CardTitle>
+          <CardDescription className="text-base">
+            {currentQuestion.chapter} • {primaryStep.marks} marks
+          </CardDescription>
+        </CardHeader>
 
-          const currentQuestion = questions[currentIndex];
-          const primaryStep = getPrimaryDisplayStep(currentQuestion);
+        <CardContent className="space-y-6">
+          {/* Question context */}
+          {currentQuestion.questionText && (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-gray-800 font-medium">{currentQuestion.questionText}</p>
+            </div>
+          )}
 
-          if (!primaryStep) {
-    return (
-          <div className="flex items-center justify-center min-h-[400px]">
-            <p className="text-gray-500">Question data is malformed</p>
+          {/* Step question */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-lg text-gray-900">{primaryStep.question}</h3>
           </div>
-          );
-  }
 
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-            setCurrentIndex(currentIndex - 1);
-          setSelectedOptionIndex(null);
-    }
-  };
+          {/* Options - only show in choosing/result phases for online mode */}
+          {shouldShowOptions ? (
+            <div className="space-y-3">
+              {displayOptions.map((option, idx) => {
+                const actualIdx = getActualOptionIndex(idx);
+                const isSelected = selectedOptionIndex === actualIdx;
+                const isCorrect = showResult && correctAnswer === actualIdx;
+                const isWrong = showResult && isSelected && correctAnswer !== actualIdx;
+                const isDisabled = isSubmitting || showResult || (currentPhase === 'thinking') || locked;
 
-  const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
-            setCurrentIndex(currentIndex + 1);
-          setSelectedOptionIndex(null);
-    } else if (onFinished) {
-            onFinished();
-    }
-  };
+                // In choosing phase, we only show one option, so it's always "Option A/B/C" based on actualIdx
+                const optionLabel = String.fromCharCode(65 + actualIdx);
 
-  const handleSubmitAnswer = () => {
-    if (selectedOptionIndex === null || !onSubmitAnswer) return;
+                return (
+                  <div key={actualIdx} className="space-y-2">
+                    {isOnlineMode && currentPhase === 'choosing' && (
+                      <div className="flex justify-between items-center text-sm text-muted-foreground mb-1">
+                        <span className="font-bold text-primary">Option {actualIdx + 1} of 3</span>
+                        <span className="animate-pulse text-amber-500 font-mono">
+                          {(() => {
+                            // Show remaining time for THIS option
+                            if (!phaseDeadline) return '0s';
+                            const now = Date.now();
+                            const deadline = new Date(phaseDeadline).getTime();
+                            const totalDuration = 45000;
+                            const timeLeft = Math.max(0, deadline - now);
+                            const elapsed = totalDuration - timeLeft;
+                            const optionStartTime = actualIdx * 15000;
+                            const optionEndTime = optionStartTime + 15000;
+                            const timeInOption = Math.max(0, 15000 - (elapsed - optionStartTime));
+                            return `${Math.ceil(timeInOption / 1000)}s`;
+                          })()}
+                        </span>
+                      </div>
+                    )}
 
-          const step = getPrimaryDisplayStep(currentQuestion);
-          if (!step) return;
+                    <button
+                      onClick={() => !isDisabled && handleOptionSelect(idx)}
+                      disabled={isDisabled}
+                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${isCorrect
+                        ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                        : isWrong
+                          ? 'border-red-500 bg-red-50 ring-2 ring-red-200'
+                          : isSelected
+                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                        } ${isDisabled ? 'cursor-not-allowed opacity-75' : ''
+                        }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold ${isCorrect
+                            ? 'bg-green-500 text-white'
+                            : isWrong
+                              ? 'bg-red-500 text-white'
+                              : isSelected
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                        >
+                          {showResult && isCorrect ? (
+                            <Check className="w-5 h-5" />
+                          ) : showResult && isWrong ? (
+                            <X className="w-5 h-5" />
+                          ) : (
+                            optionLabel
+                          )}
+                        </div>
+                        <p className="flex-1 text-gray-800 pt-1">{option}</p>
+                      </div>
+                    </button>
 
-          console.log('[QuestionViewer] Submitting answer:', {
-            questionId: currentQuestion.id,
-          stepId: step.id,
-          answerIndex: selectedOptionIndex
-    });
+                    {isOnlineMode && currentPhase === 'choosing' && (
+                      <Button
+                        className="w-full mt-2"
+                        onClick={handleSubmitAnswer}
+                        disabled={selectedOptionIndex !== null || isSubmitting}
+                      >
+                        {selectedOptionIndex !== null ? 'Answer Selected' : 'Select this answer'}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center border-2 border-dashed border-gray-300 rounded-lg bg-blue-50">
+              <Clock className="w-12 h-12 mx-auto mb-3 text-blue-500" />
+              <p className="text-lg font-semibold text-gray-700 mb-2">Options will appear soon</p>
+              <p className="text-sm text-gray-600">Use this time to think about the question</p>
+            </div>
+          )}
 
-          onSubmitAnswer(currentQuestion.id, step.id, selectedOptionIndex);
-  };
-
-          // Determine which options to display
-          const displayOptions = isOnlineMode && currentPhase === 'choosing' && options
-    ? options.map(opt => opt.text)
-          : primaryStep?.options || [];
-
-          // Check if we should show options at all
-          const shouldShowOptions = !isOnlineMode || currentPhase === 'choosing' || currentPhase === 'result';
-
-  // Reset selection when question changes (for online mode)
-  useEffect(() => {
-    if (isOnlineMode) {
-            setSelectedOptionIndex(null);
-    }
-  }, [currentQuestion?.id, isOnlineMode]);
-
-  const handleOptionSelect = (optionIndex: number) => {
-            setSelectedOptionIndex(optionIndex);
-  };
-
-          return (
-          <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
-            {/* Progress indicator */}
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4" />
-                <span>
-                  Question {currentIndex + 1} of {questions.length}
-                </span>
-              </div>
-              <div className="flex gap-1">
-                {questions.map((_, idx) => (
-                  <div
+          {/* Topic tags */}
+          {currentQuestion.topicTags && currentQuestion.topicTags.length > 0 && (
+            <div className="pt-4 border-t">
+              <p className="text-sm text-gray-500 mb-2">Topics:</p>
+              <div className="flex flex-wrap gap-2">
+                {currentQuestion.topicTags.map((tag, idx) => (
+                  <span
                     key={idx}
-                    className={`h-2 w-2 rounded-full transition-colors ${idx === currentIndex
-                      ? 'bg-blue-500'
-                      : idx < currentIndex
-                        ? 'bg-green-500'
-                        : 'bg-gray-300'
-                      }`}
-                  />
+                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded"
+                  >
+                    {tag}
+                  </span>
                 ))}
               </div>
             </div>
+          )}
+        </CardContent>
+      </Card>
 
-            {/* Question card */}
-            <Card className="border-2 shadow-xl">
-              <CardHeader>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  <Badge variant="outline">{currentQuestion.subject}</Badge>
-                  <Badge variant="outline">{currentQuestion.level}</Badge>
-                  <Badge variant="secondary">{currentQuestion.difficulty}</Badge>
-                  {currentQuestion.rankTier && (
-                    <Badge variant="default">{currentQuestion.rankTier}</Badge>
-                  )}
-                </div>
-                <CardTitle className="text-2xl">{currentQuestion.title}</CardTitle>
-                <CardDescription className="text-base">
-                  {currentQuestion.chapter} • {primaryStep.marks} marks
-                </CardDescription>
-              </CardHeader>
+      {/* Navigation */}
+      <div className="flex justify-between items-center">
+        {!isOnlineMode && (
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handlePrevious}
+            disabled={currentIndex === 0}
+            className="gap-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Previous
+          </Button>
+        )}
 
-              <CardContent className="space-y-6">
-                {/* Question context */}
-                {currentQuestion.questionText && (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-gray-800 font-medium">{currentQuestion.questionText}</p>
-                  </div>
-                )}
-
-                {/* Step question */}
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg text-gray-900">{primaryStep.question}</h3>
-                </div>
-
-                {/* Options - only show in choosing/result phases for online mode */}
-                {shouldShowOptions ? (
-                  <div className="space-y-3">
-                    {displayOptions.map((option, idx) => {
-                      const isSelected = selectedOptionIndex === idx;
-                      const isCorrect = showResult && correctAnswer === idx;
-                      const isWrong = showResult && isSelected && correctAnswer !== idx;
-                      const isDisabled = isSubmitting || showResult || (currentPhase === 'thinking') || locked;
-
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => !isDisabled && handleOptionSelect(idx)}
-                          disabled={isDisabled}
-                          className={`w-full text-left p-4 rounded-lg border-2 transition-all ${isCorrect
-                            ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
-                            : isWrong
-                              ? 'border-red-500 bg-red-50 ring-2 ring-red-200'
-                              : isSelected
-                                ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                                : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                            } ${isDisabled ? 'cursor-not-allowed opacity-75' : ''
-                            }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div
-                              className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold ${isCorrect
-                                ? 'bg-green-500 text-white'
-                                : isWrong
-                                  ? 'bg-red-500 text-white'
-                                  : isSelected
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-100 text-gray-600'
-                                }`}
-                            >
-                              {showResult && isCorrect ? (
-                                <Check className="w-5 h-5" />
-                              ) : showResult && isWrong ? (
-                                <X className="w-5 h-5" />
-                              ) : (
-                                String.fromCharCode(65 + idx)
-                              )}
-                            </div>
-                            <p className="flex-1 text-gray-800 pt-1">{option}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center border-2 border-dashed border-gray-300 rounded-lg bg-blue-50">
-                    <Clock className="w-12 h-12 mx-auto mb-3 text-blue-500" />
-                    <p className="text-lg font-semibold text-gray-700 mb-2">Options will appear soon</p>
-                    <p className="text-sm text-gray-600">Use this time to think about the question</p>
-                  </div>
-                )}
-
-                {/* Topic tags */}
-                {currentQuestion.topicTags && currentQuestion.topicTags.length > 0 && (
-                  <div className="pt-4 border-t">
-                    <p className="text-sm text-gray-500 mb-2">Topics:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {currentQuestion.topicTags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Navigation */}
-            <div className="flex justify-between items-center">
-              {!isOnlineMode && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={handlePrevious}
-                  disabled={currentIndex === 0}
-                  className="gap-2"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Previous
-                </Button>
-              )}
-
-              {isOnlineMode ? (
-                <div className="flex gap-3 ml-auto">
-                  {currentPhase === 'choosing' && (
-                    <Button
-                      variant="default"
-                      size="lg"
-                      onClick={handleSubmitAnswer}
-                      disabled={selectedOptionIndex === null || isSubmitting || locked}
-                      className="gap-2"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Submitting...
-                        </>
-                      ) : (
-                        'Submit Answer'
-                      )}
-                    </Button>
-                  )}
-                  {currentPhase === 'thinking' && (
-                    <div className="text-sm text-muted-foreground italic">
-                      Waiting for choosing phase...
-                    </div>
-                  )}
-                  {currentPhase === 'result' && (
-                    <div className="text-sm text-muted-foreground italic">
-                      Waiting for next round...
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <Button
-                  variant="default"
-                  size="lg"
-                  onClick={handleNext}
-                  disabled={selectedOptionIndex === null}
-                  className="gap-2"
-                >
-                  {currentIndex < questions.length - 1 ? (
-                    <>
-                      Next
-                      <ChevronRight className="w-4 h-4" />
-                    </>
-                  ) : (
-                    'Finish'
-                  )}
-                </Button>
-              )}
-            </div>
+        {isOnlineMode ? (
+          <div className="flex gap-3 ml-auto">
+            {currentPhase === 'choosing' && (
+              <div className="text-sm text-muted-foreground italic">
+                {/* Button is now inside the option card */}
+              </div>
+            )}
+            {currentPhase === 'thinking' && (
+              <div className="text-sm text-muted-foreground italic">
+                Waiting for choosing phase...
+              </div>
+            )}
+            {currentPhase === 'result' && (
+              <div className="text-sm text-muted-foreground italic">
+                Waiting for next round...
+              </div>
+            )}
           </div>
-          );
+        ) : (
+          <Button
+            variant="default"
+            size="lg"
+            onClick={handleNext}
+            disabled={selectedOptionIndex === null}
+            className="gap-2"
+          >
+            {currentIndex < questions.length - 1 ? (
+              <>
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </>
+            ) : (
+              'Finish'
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 }

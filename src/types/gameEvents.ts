@@ -25,6 +25,7 @@ export interface QuestionDTO {
     explanation?: string;
   }>;
   topicTags?: string[];
+  rankTier?: string;
 }
 
 export interface OptionDTO {
@@ -99,6 +100,11 @@ export interface AnswerSubmitMessage {
   answer: number; // Option index (0, 1, or 2)
 }
 
+export interface ReadyForOptionsMessage {
+  type: 'ready_for_options';
+  matchId: string;
+}
+
 // Union type for all server events
 export type ServerGameEvent =
   | RoundStartEvent
@@ -107,4 +113,4 @@ export type ServerGameEvent =
   | MatchEndEvent;
 
 // Union type for all client messages
-export type ClientGameMessage = AnswerSubmitMessage;
+export type ClientGameMessage = AnswerSubmitMessage | ReadyForOptionsMessage;

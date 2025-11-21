@@ -7,7 +7,7 @@ import { Progress } from './ui/progress';
 import { ArrowLeft, Loader2, Trophy, Award, AlertCircle } from 'lucide-react';
 import { Starfield } from './Starfield';
 import TugOfWarBar from './TugOfWarBar';
-import { connectGameWS, sendReady, sendAnswer, type ServerEvent } from '@/lib/ws';
+import { connectGameWS, sendReady, sendAnswer, sendReadyForOptions, type ServerEvent } from '@/lib/ws';
 import type { RoundPhase, RoundStartEvent, PhaseChangeEvent, RoundResultEvent } from '@/types/gameEvents';
 import { toast } from 'sonner';
 import { StepBasedQuestion, QuestionSubject, QuestionLevel } from '@/types/questions';
@@ -47,6 +47,7 @@ export const OnlineBattle = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const [hasSubmittedWork, setHasSubmittedWork] = useState(false);
 
   // 3-phase state
   const [currentPhase, setCurrentPhase] = useState<RoundPhase | null>(null);
@@ -176,7 +177,9 @@ export const OnlineBattle = () => {
           setRoundIndex(event.roundIndex);
           setCurrentPhase(event.phase);
           setPhaseDeadline(new Date(event.thinkingEndsAt));
+          setPhaseDeadline(new Date(event.thinkingEndsAt));
           setRoundOptions(null); // No options during thinking phase
+          setHasSubmittedWork(false); // Reset for new round
 
           console.log('[OnlineBattle] State updated - currentPhase:', event.phase, 'phaseDeadline:', new Date(event.thinkingEndsAt));
 
@@ -199,11 +202,11 @@ export const OnlineBattle = () => {
           const formattedQuestion = {
             id: q.id,
             title: q.title,
-            subject: q.subject,
+            subject: q.subject as QuestionSubject,
             chapter: q.chapter,
-            level: q.level,
+            level: q.level as QuestionLevel,
             difficulty: q.difficulty,
-            rankTier: q.rankTier || 'Bronze' as const,
+            rankTier: q.rankTier || 'Bronze',
             totalMarks: q.totalMarks,
             questionText: q.questionText,
             topicTags: q.topicTags || [],
@@ -286,9 +289,9 @@ export const OnlineBattle = () => {
           console.log('WS: Match ended', event);
           setConnectionState('ended');
 
-          // Handle both legacy and new event formats
-          const winnerId = event.winner_id || event.winnerPlayerId || undefined;
-          const finalScores = event.final_scores || event.summary?.finalScores || { p1: 0, p2: 0 };
+          // Handle new event format
+          const winnerId = event.winnerPlayerId;
+          const finalScores = event.summary.finalScores;
 
           setMatch(prev => prev ? {
             ...prev,
@@ -359,6 +362,14 @@ export const OnlineBattle = () => {
     setIsSubmitting(true);
 
     sendAnswer(wsRef.current, questionId, stepId, answerIndex);
+  };
+
+  const handleReadyForOptions = () => {
+    if (!wsRef.current || hasSubmittedWork) return;
+
+    console.log('[OnlineBattle] Sending ready for options');
+    setHasSubmittedWork(true);
+    sendReadyForOptions(wsRef.current, matchId!);
   };
 
   // If game is playing but no questions from WebSocket, use fallback
@@ -534,8 +545,8 @@ export const OnlineBattle = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className={`px-3 py-1 rounded-full font-bold text-sm text-white ${currentPhase === 'thinking' ? 'bg-blue-500' :
-                      currentPhase === 'choosing' ? 'bg-amber-500' :
-                        'bg-green-500'
+                    currentPhase === 'choosing' ? 'bg-amber-500' :
+                      'bg-green-500'
                     }`}>
                     {currentPhase === 'thinking' ? 'THINKING' : currentPhase === 'choosing' ? 'CHOOSING' : 'RESULT'}
                   </div>
@@ -579,6 +590,25 @@ export const OnlineBattle = () => {
                   options={roundOptions}
                   locked={isSubmitting || (currentPhase === 'choosing' && choosingTimeLeft === 0)}
                 />
+
+                {currentPhase === 'thinking' && !hasSubmittedWork && (
+                  <div className="mt-6 flex justify-center">
+                    <Button
+                      size="lg"
+                      onClick={handleReadyForOptions}
+                      className="w-full max-w-md text-lg py-6 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-900/20"
+                    >
+                      I'm done – show options
+                    </Button>
+                  </div>
+                )}
+
+                {currentPhase === 'thinking' && hasSubmittedWork && (
+                  <div className="mt-6 text-center p-4 rounded-lg bg-secondary/20 border border-secondary/30 animate-pulse">
+                    <p className="text-muted-foreground font-medium">Waiting for other player...</p>
+                    <p className="text-xs text-muted-foreground mt-1">Options will appear when both are ready or time is up.</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
