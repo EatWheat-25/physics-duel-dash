@@ -371,36 +371,39 @@ export const OnlineBattle = () => {
   const handleSubmitAnswer = (questionId: string, stepId: string, answerIndex: number) => {
     if (!wsRef.current || isSubmitting) return;
 
+    const currentQ = questions[currentQuestionIndex];
+    const totalSteps = currentQ?.steps?.length || 0;
+
+    console.log(`[OnlineBattle] step answered`, currentStepIndex, totalSteps);
     console.log('[OnlineBattle] Submitting answer:', { questionId, stepId, answerIndex });
     setIsSubmitting(true);
 
     sendAnswer(wsRef.current, questionId, stepId, answerIndex);
 
     // Handle step progression locally
-    const currentQ = questions[currentQuestionIndex];
     if (currentQ && currentQ.steps && currentStepIndex < currentQ.steps.length - 1) {
-      console.log('[OnlineBattle] Moving to next step:', currentStepIndex + 1);
+      const nextIndex = currentStepIndex + 1;
+      console.log(`[OnlineBattle] moving to step`, nextIndex);
+
       setTimeout(() => {
-        setCurrentStepIndex(prev => prev + 1);
+        setCurrentStepIndex(nextIndex);
         setIsSubmitting(false);
+
         // Reset step timer for next step
-        const nextStep = currentQ.steps[currentStepIndex + 1];
-        if (nextStep && nextStep.timeLimitSeconds) { // Assuming timeLimitSeconds exists on step, if not default to 15
-          // Actually, the user said "each with its own 15s timer". 
-          // If timeLimitSeconds is not on the type yet, I might need to add it or assume 15.
-          // The user request said: "Step 1 – Method: ... timeLimitSeconds: 15"
-          // So it should be on the step object.
-          // Let's check the type definition later, but for now assume it's there or default 15.
-          const limit = (nextStep as any).timeLimitSeconds || 15;
-          setStepDeadline(new Date(Date.now() + limit * 1000));
-        } else {
-          setStepDeadline(new Date(Date.now() + 15000));
-        }
+        const nextStep = currentQ.steps[nextIndex];
+        // Use timeLimitSeconds from step or default to 15s
+        const limit = (nextStep as any).timeLimitSeconds || 15;
+        setStepDeadline(new Date(Date.now() + limit * 1000));
       }, 500); // Small delay for UX
     } else {
-      console.log('[OnlineBattle] Last step completed, waiting for round end');
+      console.log(`[OnlineBattle] last step complete, finishing round`);
       // If it's the last step, we just wait for the round to end naturally via server events
       // or for the user to wait for the next question.
+      // We keep isSubmitting true to prevent double clicks until the server responds
+      // But actually, we might need to allow the user to see the result state locally?
+      // The server sends 'round_result' event which handles the transition.
+      // So keeping isSubmitting=true is probably fine, or we can set it to false if we want to show a "Waiting..." state.
+      // Let's set it to false to allow UI updates if needed, but the button should be disabled by "Answer Selected" state.
       setIsSubmitting(false);
     }
   };

@@ -22,6 +22,7 @@ export interface QuestionStep {
   explanation: string;
   commonMistakes?: string[];
   timeLimitSeconds?: number;
+  title?: string;
 }
 
 // Subject type (matches DB constraint)

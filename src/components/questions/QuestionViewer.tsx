@@ -233,24 +233,31 @@ export function QuestionViewer({
         <CardContent className="space-y-6">
           {/* Question context (Main Stem) */}
           {currentQuestion.questionText && (
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-gray-800 font-medium">{currentQuestion.questionText}</p>
+            <div className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground">
+              <span className="font-semibold mr-2">Main Question:</span>
+              {currentQuestion.questionText}
             </div>
           )}
 
-          {/* Step Timer */}
-          {isOnlineMode && stepTimeLeft !== null && (
-            <div className="flex justify-end">
-              <Badge variant={stepTimeLeft < 5 ? "destructive" : "secondary"} className="text-lg px-3 py-1">
+          {/* Step Header & Timer */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2">
+              {isOnlineMode && totalSteps > 1 && (
+                <h3 className="text-lg font-bold text-primary">
+                  Step {currentStepIndex + 1} of {totalSteps} — {currentStep.title || 'Question Step'}
+                </h3>
+              )}
+              <p className="text-xl font-medium text-foreground leading-relaxed">
+                {currentStep.question}
+              </p>
+            </div>
+
+            {isOnlineMode && stepTimeLeft !== null && (
+              <Badge variant={stepTimeLeft < 5 ? "destructive" : "secondary"} className="text-lg px-3 py-1 shrink-0">
                 <Clock className="w-4 h-4 mr-2" />
                 {stepTimeLeft}s
               </Badge>
-            </div>
-          )}
-
-          {/* Step question */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-lg text-gray-900">{currentStep.question}</h3>
+            )}
           </div>
 
           {/* Options - only show in choosing/result phases for online mode */}
