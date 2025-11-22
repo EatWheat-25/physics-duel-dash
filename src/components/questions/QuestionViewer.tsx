@@ -227,38 +227,67 @@ export function QuestionViewer({
           <CardTitle className="text-2xl">{currentQuestion.title}</CardTitle>
           <CardDescription className="text-base">
             {currentQuestion.chapter} • {currentStep.marks} marks
+            {totalSteps > 1 && (
+              <span className="ml-2 font-semibold text-blue-600">
+                • Step {currentStepIndex + 1} of {totalSteps}
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Question context (Main Stem) */}
-          {currentQuestion.questionText && (
+          {/* Main Question Stem - Always visible for multi-step questions */}
+          {currentQuestion.questionText && totalSteps > 1 && (
+            <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+              <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-1">Main Question:</p>
+              <p className="text-gray-800 font-medium">{currentQuestion.questionText}</p>
+            </div>
+          )}
+
+          {/* Single-step question stem (backwards compatibility) */}
+          {currentQuestion.questionText && totalSteps === 1 && (
             <div className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground">
-              <span className="font-semibold mr-2">Main Question:</span>
+              <span className="font-semibold mr-2">Question:</span>
               {currentQuestion.questionText}
             </div>
           )}
 
-          {/* Step Header & Timer */}
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              {isOnlineMode && totalSteps > 1 && (
-                <h3 className="text-lg font-bold text-primary">
-                  Step {currentStepIndex + 1} of {totalSteps} — {currentStep.title || 'Question Step'}
-                </h3>
-              )}
-              <p className="text-xl font-medium text-foreground leading-relaxed">
-                {currentStep.question}
-              </p>
+          {/* Step-Specific Section for Multi-Step Questions */}
+          {totalSteps > 1 && (
+            <div className="p-4 bg-amber-50 rounded-lg border-l-4 border-amber-500">
+              <div className="flex items-start justify-between gap-4 mb-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-amber-700 font-semibold">
+                    Step {currentStepIndex + 1}: {currentStep.title || 'Question Step'}
+                  </p>
+                </div>
+                {isOnlineMode && stepTimeLeft !== null && (
+                  <Badge variant={stepTimeLeft < 5 ? "destructive" : "secondary"} className="text-lg px-3 py-1">
+                    <Clock className="w-4 h-4 mr-2" />
+                    {stepTimeLeft}s
+                  </Badge>
+                )}
+              </div>
+              <p className="text-lg font-semibold text-gray-900">{currentStep.question}</p>
             </div>
+          )}
 
-            {isOnlineMode && stepTimeLeft !== null && (
-              <Badge variant={stepTimeLeft < 5 ? "destructive" : "secondary"} className="text-lg px-3 py-1 shrink-0">
-                <Clock className="w-4 h-4 mr-2" />
-                {stepTimeLeft}s
-              </Badge>
-            )}
-          </div>
+          {/* Single-Step Question Display (backwards compatibility) */}
+          {totalSteps === 1 && (
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2">
+                <p className="text-xl font-medium text-foreground leading-relaxed">
+                  {currentStep.question}
+                </p>
+              </div>
+              {isOnlineMode && stepTimeLeft !== null && (
+                <Badge variant={stepTimeLeft < 5 ? "destructive" : "secondary"} className="text-lg px-3 py-1 shrink-0">
+                  <Clock className="w-4 h-4 mr-2" />
+                  {stepTimeLeft}s
+                </Badge>
+              )}
+            </div>
+          )}
 
           {/* Options - only show in choosing/result phases for online mode */}
           {shouldShowOptions ? (
