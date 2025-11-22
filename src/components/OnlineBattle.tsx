@@ -206,10 +206,20 @@ export const OnlineBattle = () => {
           console.log('WS: Question keys:', Object.keys(q));
           console.log('WS: Question steps:', q.steps);
 
-          if (!q.steps || !Array.isArray(q.steps) || q.steps.length === 0) {
-            console.error('WS: Question has no valid steps!', q);
-            toast.error('Question has no steps - invalid format');
-            return;
+          // Polyfill for legacy questions without steps
+          let steps = q.steps;
+          if (!steps || !Array.isArray(steps) || steps.length === 0) {
+            console.warn('WS: Question has no steps, creating default step from main question data');
+            const legacyQ = q as any;
+            steps = [{
+              id: q.id + '_step1',
+              question: q.questionText || 'Solve the question',
+              options: legacyQ.options || ['Option A', 'Option B', 'Option C', 'Option D'],
+              correctAnswer: legacyQ.correctAnswer || 0,
+              marks: q.totalMarks || 1,
+              explanation: legacyQ.explanation || 'No explanation provided',
+              timeLimitSeconds: 15 // Default timer
+            }];
           }
 
           const formattedQuestion = {
@@ -223,7 +233,7 @@ export const OnlineBattle = () => {
             totalMarks: q.totalMarks,
             questionText: q.questionText,
             topicTags: q.topicTags || [],
-            steps: q.steps as any
+            steps: steps as any
           };
 
           console.log('WS: Formatted question:', formattedQuestion);
