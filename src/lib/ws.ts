@@ -67,9 +67,25 @@ export interface ReadyMessage {
 
 export interface AnswerSubmitMessage {
   type: 'answer_submit';
-  question_id: string;
-  step_id: string;
+  matchId: string;
+  questionId: string;
+  stepId: string;
   answer: number;
+}
+
+// ... (keep other interfaces)
+
+export function sendAnswer(ws: WebSocket, matchId: string, questionId: string, stepId: string, answer: number): void {
+  const message: AnswerSubmitMessage = {
+    type: 'answer_submit',
+    matchId,
+    questionId,
+    stepId,
+    answer,
+  };
+  console.log('[WS] outbound', message);
+  ws.send(JSON.stringify(message));
+  console.log(`WS: Submitted answer for match ${matchId}, question ${questionId}, step ${stepId}`);
 }
 
 export interface QuestionCompleteMessage {
@@ -238,18 +254,6 @@ export function sendReady(ws: WebSocket): void {
   const message: ReadyMessage = { type: 'ready' };
   ws.send(JSON.stringify(message));
   console.log('WS: Sent ready signal');
-}
-
-export function sendAnswer(ws: WebSocket, questionId: string, stepId: string, answer: number): void {
-  const message: AnswerSubmitMessage = {
-    type: 'answer_submit',
-    question_id: questionId,
-    step_id: stepId,
-    answer,
-  };
-  console.log('[WS] outbound', message);
-  ws.send(JSON.stringify(message));
-  console.log(`WS: Submitted answer for question ${questionId}, step ${stepId}`);
 }
 
 export function sendQuestionComplete(ws: WebSocket): void {

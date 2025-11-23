@@ -384,13 +384,13 @@ export const OnlineBattle = () => {
       questionId,
       stepId,
       answerIndex,
-      currentStepIndex,
-      isSubmitting,
-      hasWS: !!wsRef.current,
+      wsReady: !!wsRef.current,
+      wsState: wsRef.current?.readyState,
+      isSubmitting
     });
 
     if (!wsRef.current || isSubmitting) {
-      console.log('[OnlineBattle] BLOCKED:', { hasWS: !!wsRef.current, isSubmitting });
+      console.warn('[OnlineBattle] Submission blocked', { ws: !!wsRef.current, isSubmitting });
       return;
     }
 
@@ -398,19 +398,17 @@ export const OnlineBattle = () => {
     const totalSteps = currentQ?.steps?.length || 0;
     const isFinalStep = currentStepIndex >= totalSteps - 1;
 
-    console.log('[OnlineBattle] handleSubmitAnswer', {
+    console.log(`[OnlineBattle] Step logic:`, {
       currentStepIndex,
       totalSteps,
       isFinalStep,
-      selectedOptionIndex: answerIndex,
+      stepId
     });
 
     if (isFinalStep) {
-      console.log('[OnlineBattle] FINAL STEP, sending answer_submit');
-      const payload = { matchId, questionId, stepId, answer: answerIndex };
-      console.log('[WS] outbound answer_submit', payload);
+      console.log('[OnlineBattle] FINAL STEP detected. Sending answer_submit...', { matchId, questionId, stepId, answerIndex });
       setIsSubmitting(true);
-      sendAnswer(wsRef.current, questionId, stepId, answerIndex);
+      sendAnswer(wsRef.current, matchId!, questionId, stepId, answerIndex);
     } else {
       // Intermediate step: Advance locally
       console.log(`[OnlineBattle] Intermediate step complete, advancing locally`);
