@@ -225,8 +225,8 @@ export function QuestionViewer({
             <Badge variant="outline">{currentQuestion.subject}</Badge>
             <Badge variant="outline">{currentQuestion.level}</Badge>
             <Badge variant="secondary">{currentQuestion.difficulty}</Badge>
-            {currentQuestion.rankTier && (
-              <Badge variant="default">{currentQuestion.rankTier}</Badge>
+            {currentQuestion.rank_tier && (
+              <Badge variant="default">{currentQuestion.rank_tier}</Badge>
             )}
           </div>
           <CardTitle className="text-2xl">{currentQuestion.title}</CardTitle>
@@ -242,18 +242,18 @@ export function QuestionViewer({
 
         <CardContent className="space-y-6">
           {/* Main Question Stem - Always visible for multi-step questions */}
-          {currentQuestion.questionText && totalSteps > 1 && (
+          {currentQuestion.stem && totalSteps > 1 && (
             <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
               <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-1">Main Question:</p>
-              <p className="text-gray-800 font-medium">{currentQuestion.questionText}</p>
+              <p className="text-gray-800 font-medium">{currentQuestion.stem}</p>
             </div>
           )}
 
           {/* Single-step question stem (backwards compatibility) */}
-          {currentQuestion.questionText && totalSteps === 1 && (
+          {currentQuestion.stem && totalSteps === 1 && (
             <div className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground">
               <span className="font-semibold mr-2">Question:</span>
-              {currentQuestion.questionText}
+              {currentQuestion.stem}
             </div>
           )}
 
@@ -273,7 +273,7 @@ export function QuestionViewer({
                   </Badge>
                 )}
               </div>
-              <p className="text-lg font-semibold text-gray-900">{currentStep.question}</p>
+              <p className="text-lg font-semibold text-gray-900">{currentStep.prompt}</p>
             </div>
           )}
 
@@ -282,7 +282,7 @@ export function QuestionViewer({
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="text-xl font-medium text-foreground leading-relaxed">
-                  {currentStep.question}
+                  {currentStep.prompt}
                 </p>
               </div>
               {isOnlineMode && stepTimeLeft !== null && (
@@ -299,56 +299,157 @@ export function QuestionViewer({
             <div className="space-y-3">
               {displayOptions.map((option, idx) => {
                 const actualIdx = getActualOptionIndex(idx);
-                size = "lg"
-                onClick = { handlePrevious }
-                disabled = { currentIndex === 0
-              }
-        className = "gap-2"
-                >
-                <ChevronLeft className="w-4 h-4" />
-        Previous
-      </Button>
+                const isSelected = selectedOptionIndex === actualIdx;
+                const isCorrect = showResult && correctAnswer === actualIdx;
+                const isWrong = showResult && isSelected && correctAnswer !== actualIdx;
+                const isDisabled = isSubmitting || showResult || (currentPhase === 'thinking') || locked;
+
+                // In choosing phase, we only show one option, so it's always "Option A/B/C" based on actualIdx
+                // For multi-step, we show all options, so we use the loop index
+                const optionLabel = String.fromCharCode(65 + actualIdx);
+
+                return (
+                  <div key={actualIdx} className="space-y-2">
+                    <button
+                      onClick={() => !isDisabled && handleOptionSelect(idx)}
+                      disabled={isDisabled}
+                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${isCorrect
+                        ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                        : isWrong
+                          ? 'border-red-500 bg-red-50 ring-2 ring-red-200'
+                          : isSelected
+                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                        } ${isDisabled ? 'cursor-not-allowed opacity-75' : ''
+                        }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold ${isCorrect
+                            ? 'bg-green-500 text-white'
+                            : isWrong
+                              ? 'bg-red-500 text-white'
+                              : isSelected
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                        >
+                          {showResult && isCorrect ? (
+                            <Check className="w-5 h-5" />
+                          ) : showResult && isWrong ? (
+                            <X className="w-5 h-5" />
+                          ) : (
+                            optionLabel
+                          )}
+                        </div>
+                        <p className="flex-1 text-gray-800 pt-1">{option}</p>
+                      </div>
+                    </button>
+
+                    {isOnlineMode && (currentPhase === 'choosing' || (currentPhase === 'thinking' && totalSteps > 1)) && (
+                      <Button
+                        className="w-full mt-2"
+                        onClick={() => {
+                          console.log('[QuestionViewer] Submit button clicked', {
+                            currentStepIndex,
+                            totalSteps,
+                            isFinalStep: currentStepIndex >= totalSteps - 1,
+                            selectedOptionIndex,
+                            currentPhase,
+                          });
+                          handleSubmitAnswer();
+                        }}
+                        disabled={selectedOptionIndex === null || isSubmitting}
+                      >
+                        {selectedOptionIndex !== null
+                          ? (currentStepIndex < totalSteps - 1 ? 'Next Step' : 'Submit Answer')
+                          : 'Select this answer'}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center border-2 border-dashed border-gray-300 rounded-lg bg-blue-50">
+              <Clock className="w-12 h-12 mx-auto mb-3 text-blue-500" />
+              <p className="text-lg font-semibold text-gray-700 mb-2">Options will appear soon</p>
+              <p className="text-sm text-gray-600">Use this time to think about the question</p>
+            </div>
           )}
 
-          {
-            isOnlineMode ? (
-              <div className="flex gap-3 ml-auto">
-                {currentPhase === 'choosing' && (
-                  <div className="text-sm text-muted-foreground italic">
-                    {/* Button is now inside the option card */}
-                  </div>
-                )}
-                {currentPhase === 'thinking' && totalSteps === 1 && (
-                  <div className="text-sm text-muted-foreground italic">
-                    Waiting for choosing phase...
-                  </div>
-                )}
-                {currentPhase === 'result' && (
-                  <div className="text-sm text-muted-foreground italic">
-                    Waiting for next round...
-                  </div>
-                )}
+          {/* Topic tags */}
+          {currentQuestion.topic_tags && currentQuestion.topic_tags.length > 0 && (
+            <div className="pt-4 border-t">
+              <p className="text-sm text-gray-500 mb-2">Topics:</p>
+              <div className="flex flex-wrap gap-2">
+                {currentQuestion.topic_tags.map((tag, idx) => (
+                  <span
+                    key={idx}
+                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded"
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Navigation */}
+      <div className="flex justify-between items-center">
+        {!isOnlineMode && (
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handlePrevious}
+            disabled={currentIndex === 0}
+            className="gap-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Previous
+          </Button>
+        )}
+
+        {isOnlineMode ? (
+          <div className="flex gap-3 ml-auto">
+            {currentPhase === 'choosing' && (
+              <div className="text-sm text-muted-foreground italic">
+                {/* Button is now inside the option card */}
+              </div>
+            )}
+            {currentPhase === 'thinking' && totalSteps === 1 && (
+              <div className="text-sm text-muted-foreground italic">
+                Waiting for choosing phase...
+              </div>
+            )}
+            {currentPhase === 'result' && (
+              <div className="text-sm text-muted-foreground italic">
+                Waiting for next round...
+              </div>
+            )}
+          </div>
+        ) : (
+          <Button
+            variant="default"
+            size="lg"
+            onClick={handleNext}
+            disabled={selectedOptionIndex === null}
+            className="gap-2"
+          >
+            {currentIndex < questions.length - 1 ? (
+              <>
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </>
             ) : (
-              <Button
-                variant="default"
-                size="lg"
-                onClick={handleNext}
-                disabled={selectedOptionIndex === null}
-                className="gap-2"
-              >
-                {currentIndex < questions.length - 1 ? (
-                  <>
-                    Next
-                    <ChevronRight className="w-4 h-4" />
-                  </>
-                ) : (
-                  'Finish'
-                )}
-              </Button>
-            )
-          }
-        </div >
-    </div >
+              'Finish'
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
+

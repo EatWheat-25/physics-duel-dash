@@ -12,19 +12,6 @@
  * DO NOT create duplicate types elsewhere - import from here!
  */
 
-// Step in a step-based question (CAIE marking scheme style)
-export interface QuestionStep {
-  id: string;
-  question: string;
-  options: [string, string, string, string]; // EXACTLY 4 options
-  correctAnswer: 0 | 1 | 2 | 3; // Index into options array
-  marks: number;
-  explanation: string;
-  commonMistakes?: string[];
-  timeLimitSeconds?: number;
-  title?: string;
-}
-
 // Subject type (matches DB constraint)
 export type QuestionSubject = 'math' | 'physics' | 'chemistry';
 
@@ -37,21 +24,34 @@ export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
 // Rank tier for progression system
 export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Diamond' | 'Unbeatable' | 'Pocket Calculator';
 
+// Step in a step-based question (CAIE marking scheme style)
+export type QuestionStep = {
+  id: string;
+  index: number;            // step order, 0-based or 1-based but consistent
+  title?: string | null;
+  prompt: string;
+  options: string[];
+  correctAnswer?: number;   // index of correct option, optional on client
+  timeLimitSeconds?: number | null;
+  marks?: number | null;
+  explanation?: string;     // Keeping this as it's useful for frontend display if available
+};
+
 // Complete question structure
-export interface StepBasedQuestion {
+export type StepBasedQuestion = {
   id: string;
   title: string;
-  subject: QuestionSubject;
+  subject: string;
   chapter: string;
-  level: QuestionLevel;
-  difficulty: QuestionDifficulty;
-  rankTier?: RankTier;
-  totalMarks: number;
-  questionText: string;
-  topicTags: string[];
+  rank_tier: string;
+  level: string;
+  difficulty: string;
+  stem: string;
+  total_marks: number;
+  topic_tags?: string[];
   steps: QuestionStep[];
-  imageUrl?: string;
-}
+  imageUrl?: string; // Keeping for compatibility if needed, though not in user spec
+};
 
 // Database row shape (snake_case from Supabase)
 export interface QuestionDBRow {

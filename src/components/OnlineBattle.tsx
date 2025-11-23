@@ -12,6 +12,7 @@ import type { RoundPhase, RoundStartEvent, PhaseChangeEvent, RoundResultEvent } 
 import { toast } from 'sonner';
 import { StepBasedQuestion, QuestionSubject, QuestionLevel } from '@/types/questions';
 import { useQuestions } from '@/hooks/useQuestions';
+import { mapRawQuestionToStepBasedQuestion } from '@/utils/questionMapper';
 import { QuestionViewer } from './questions/QuestionViewer';
 import { Card, CardContent } from './ui/card';
 
@@ -202,42 +203,14 @@ export const OnlineBattle = () => {
             return;
           }
 
-          const q = event.question;
-          console.log('WS: Question keys:', Object.keys(q));
-          console.log('WS: Question steps:', q.steps);
-
-          // Polyfill for legacy questions without steps
-          let steps = q.steps;
-          if (!steps || !Array.isArray(steps) || steps.length === 0) {
-            console.warn('WS: Question has no steps, creating default step from main question data');
-            const legacyQ = q as any;
-            steps = [{
-              id: q.id + '_step1',
-              question: q.questionText || 'Solve the question',
-              options: legacyQ.options || ['Option A', 'Option B', 'Option C', 'Option D'],
-              correctAnswer: legacyQ.correctAnswer || 0,
-              marks: q.totalMarks || 1,
-              explanation: legacyQ.explanation || 'No explanation provided',
-              timeLimitSeconds: 15 // Default timer
-            }];
+          try {
+            const formattedQuestion = mapRawQuestionToStepBasedQuestion(event.question);
+            console.log('WS: Formatted question:', formattedQuestion);
+            setQuestions([formattedQuestion]);
+          } catch (err) {
+            console.error('WS: Error mapping question:', err);
+            toast.error('Failed to process question data');
           }
-
-          const formattedQuestion = {
-            id: q.id,
-            title: q.title,
-            subject: q.subject as QuestionSubject,
-            chapter: q.chapter,
-            level: q.level as QuestionLevel,
-            difficulty: q.difficulty as any, // Cast to any to avoid strict type check for now, or import QuestionDifficulty
-            rankTier: (q.rankTier || 'Bronze') as any,
-            totalMarks: q.totalMarks,
-            questionText: q.questionText,
-            topicTags: q.topicTags || [],
-            steps: steps as any
-          };
-
-          console.log('WS: Formatted question:', formattedQuestion);
-          setQuestions([formattedQuestion]);
 
           if (event.roundIndex === 0) {
             toast.success('Battle begins!');
@@ -523,12 +496,12 @@ export const OnlineBattle = () => {
 
       if (diffMs <= 0) {
         // Time's up for this step!
-        console.log('[OnlineBattle] Step time up!', { currentStepIndex, totalSteps: currentQ?.steps?.length });
-        setStepDeadline(null);
-
         const currentQ = questions[currentQuestionIndex];
         const totalSteps = currentQ?.steps?.length || 0;
         const isFinalStep = currentStepIndex >= totalSteps - 1;
+
+        console.log('[OnlineBattle] Step time up!', { currentStepIndex, totalSteps });
+        setStepDeadline(null);
 
         if (currentQ && currentQ.steps && !isFinalStep) {
           // Non-final step: Auto-advance to next step

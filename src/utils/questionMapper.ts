@@ -1,57 +1,65 @@
-/**
- * CENTRALIZED QUESTION MAPPER
- *
- * This module provides type-safe mapping between database rows and
- * application question types. Use these functions EVERYWHERE to ensure
- * consistent data transformation.
- *
- * Used by:
- * - getStepMathQuestions (step-battle fetcher)
- * - OnlineBattle (WebSocket handler)
- * - Admin UI (question list/edit)
- * - Any other component that reads questions from DB
- */
+import { StepBasedQuestion, QuestionStep } from '@/types/questions';
 
-import {
-  StepBasedQuestion,
-  QuestionDBRow,
-  QuestionInput,
-  QuestionStep,
-} from '@/types/questions';
+export type RawQuestionPayload = any; // from WS / RPC
 
-/**
- * Convert database row to StepBasedQuestion
- * Handles all field name conversions and type casting
- */
-export function dbRowToQuestion(row: QuestionDBRow): StepBasedQuestion {
-  // Parse steps from JSONB
-  let steps: QuestionStep[] = [];
-  try {
-    if (Array.isArray(row.steps)) {
-      steps = row.steps as QuestionStep[];
-    } else if (row.steps && typeof row.steps === 'object') {
-      // Handle case where steps might be wrapped or malformed
-      steps = Object.values(row.steps);
-    }
-  } catch (error) {
-    console.error('Error parsing steps for question', row.id, error);
-    steps = [];
+export function mapRawQuestionToStepBasedQuestion(
+  raw: RawQuestionPayload
+): StepBasedQuestion {
+  // `raw` may be either the full WS event or just `event.question`.
+  const q = (raw && (raw.question ?? raw)) as any;
+  if (!q) {
+    throw new Error('mapRawQuestionToStepBasedQuestion: invalid payload');
   }
 
+  const rawSteps: any[] = Array.isArray(q.steps) ? q.steps : [];
+
+  const steps: QuestionStep[] = rawSteps.map((s, i) => ({
+    id: String(s.id ?? s.step_id ?? `${q.id}-step-${i}`),
+    index: typeof s.index === 'number' ? s.index : (s.step_index ?? i),
+    title: s.title ?? null,
+    prompt: s.prompt ?? s.question ?? '',
+    options: Array.isArray(s.options) ? s.options : [],
+    correctAnswer:
+      typeof s.correctAnswer === 'number'
+        ? s.correctAnswer
+        : typeof s.correctAnswerIndex === 'number'
+          ? s.correctAnswerIndex
+          : typeof s.correct_answer === 'number'
+            ? s.correct_answer
+            : undefined,
+    timeLimitSeconds: s.timeLimitSeconds ?? s.time_limit_seconds ?? null,
+    marks: s.marks ?? null,
+    explanation: s.explanation ?? null,
+  }));
+
+  // IMPORTANT:
+  // Backend might send final step first (for scoring: steps[0] = final).
+  // For the UI we ALWAYS sort by index ASC.
+  steps.sort((a, b) => a.index - b.index);
+
   return {
-    id: row.id,
-    title: row.title,
-    subject: row.subject as any,
-    chapter: row.chapter,
-    level: row.level as any,
-    difficulty: row.difficulty as any,
-    rankTier: row.rank_tier as any,
-    totalMarks: row.total_marks,
-    questionText: row.question_text,
-    topicTags: row.topic_tags || [],
-    steps: steps,
-    imageUrl: row.image_url || undefined,
+    id: String(q.id),
+    title: q.title ?? '',
+    subject: q.subject ?? '',
+    chapter: q.chapter ?? '',
+    rank_tier: q.rank_tier ?? q.rankTier ?? '',
+    level: q.level ?? '',
+    difficulty: q.difficulty ?? '',
+    stem: q.stem ?? q.question_text ?? '',
+    total_marks: q.total_marks ?? q.base_marks ?? 0,
+    topic_tags: q.topic_tags ?? [],
+    steps,
+    imageUrl: q.image_url ?? q.imageUrl,
   };
+}
+
+import { QuestionDBRow, QuestionInput } from '@/types/questions';
+
+/**
+ * Batch convert multiple DB rows
+ */
+export function dbRowsToQuestions(rows: QuestionDBRow[]): StepBasedQuestion[] {
+  return rows.map(row => mapRawQuestionToStepBasedQuestion(row));
 }
 
 /**
@@ -66,10 +74,10 @@ export function questionToDBRow(question: QuestionInput): Omit<QuestionDBRow, 'c
     chapter: question.chapter,
     level: question.level,
     difficulty: question.difficulty,
-    rank_tier: question.rankTier || null,
-    question_text: question.questionText,
-    total_marks: question.totalMarks,
-    topic_tags: question.topicTags || [],
+    rank_tier: question.rank_tier || null,
+    question_text: question.stem,
+    total_marks: question.total_marks,
+    topic_tags: question.topic_tags || [],
     steps: question.steps as any, // Cast to any for JSON compatibility
     image_url: question.imageUrl || null,
   };
@@ -102,16 +110,16 @@ export function validateQuestion(question: QuestionInput): string[] {
     errors.push('Difficulty is required');
   }
 
-  if (!question.questionText?.trim()) {
-    errors.push('Question text is required');
+  if (!question.stem?.trim()) {
+    errors.push('Question stem is required');
   }
 
   if (!question.steps || question.steps.length === 0) {
     errors.push('At least one step is required');
   } else {
     question.steps.forEach((step, index) => {
-      if (!step.question?.trim()) {
-        errors.push(`Step ${index + 1}: question text is required`);
+      if (!step.prompt?.trim()) {
+        errors.push(`Step ${index + 1}: prompt is required`);
       }
 
       if (!step.options || step.options.length !== 4) {
@@ -124,16 +132,12 @@ export function validateQuestion(question: QuestionInput): string[] {
         });
       }
 
-      if (step.correctAnswer < 0 || step.correctAnswer > 3) {
+      if (step.correctAnswer === undefined || step.correctAnswer < 0 || step.correctAnswer > 3) {
         errors.push(`Step ${index + 1}: correctAnswer must be 0, 1, 2, or 3`);
       }
 
       if (!step.marks || step.marks <= 0) {
         errors.push(`Step ${index + 1}: marks must be a positive number`);
-      }
-
-      if (!step.explanation?.trim()) {
-        errors.push(`Step ${index + 1}: explanation is required`);
       }
     });
   }
@@ -141,17 +145,10 @@ export function validateQuestion(question: QuestionInput): string[] {
   // Calculate total marks
   if (question.steps && question.steps.length > 0) {
     const calculatedMarks = question.steps.reduce((sum, s) => sum + (s.marks || 0), 0);
-    if (question.totalMarks !== calculatedMarks) {
-      errors.push(`Total marks (${question.totalMarks}) doesn't match sum of step marks (${calculatedMarks})`);
+    if (question.total_marks !== calculatedMarks) {
+      errors.push(`Total marks (${question.total_marks}) doesn't match sum of step marks (${calculatedMarks})`);
     }
   }
 
   return errors;
-}
-
-/**
- * Batch convert multiple DB rows
- */
-export function dbRowsToQuestions(rows: QuestionDBRow[]): StepBasedQuestion[] {
-  return rows.map(dbRowToQuestion).filter(q => q.steps && q.steps.length > 0);
 }
