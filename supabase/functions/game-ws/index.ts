@@ -162,7 +162,15 @@ async function startRound(game: GameState) {
     currentStepIndex: 0  // Always start at step 0
   }
 
-  console.log(`[game-ws] ROUND_START`, { matchId, roundIndex: game.currentRound, thinkingEndsAt: thinkingEndsAt.toISOString(), totalSteps: questionData.question.steps?.length || 1 })
+  console.log(`[game-ws] ROUND_START`, {
+    matchId,
+    roundIndex: game.currentRound,
+    thinkingEndsAt: thinkingEndsAt.toISOString(),
+    totalSteps: questionData.question.steps?.length || 1,
+    questionId: questionData.question_id,
+    hasSteps: !!questionData.question.steps,
+    stepsIsArray: Array.isArray(questionData.question.steps)
+  })
   game.p1Socket?.send(JSON.stringify(roundStartMsg))
   game.p2Socket?.send(JSON.stringify(roundStartMsg))
 }
@@ -200,7 +208,11 @@ async function transitionToChoosing(game: GameState) {
     .eq('question_id', game.currentQuestionId)
 
   // Extract first 3 options from current step
-  const currentStep = game.currentQuestion.steps[game.currentStepIndex]
+  const currentStep = game.currentQuestion.steps?.[game.currentStepIndex]
+  if (!currentStep) {
+    console.error(`[${matchId}] No step found at index ${game.currentStepIndex}`)
+    return
+  }
   const options = currentStep.options.slice(0, 3).map((text: string, idx: number) => ({
     id: idx,
     text
@@ -248,7 +260,11 @@ async function transitionToResult(game: GameState) {
     .eq('question_id', game.currentQuestionId)
 
   // Get correct answer from current step
-  const currentStep = game.currentQuestion.steps[game.currentStepIndex]
+  const currentStep = game.currentQuestion.steps?.[game.currentStepIndex]
+  if (!currentStep) {
+    console.error(`[${matchId}] No step found at index ${game.currentStepIndex} for grading`)
+    return
+  }
   const correctAnswer = currentStep.correctAnswer
 
   // Grade answers (null = no answer submitted)
