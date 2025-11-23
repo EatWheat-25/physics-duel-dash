@@ -59,6 +59,49 @@ export function QuestionViewer({
   console.log('📖 QuestionViewer: Received questions:', questions?.length || 0);
   console.log('📖 QuestionViewer: Phase:', currentPhase, 'Options:', options?.length || 0);
 
+  const currentQuestion = questions?.[currentIndex];
+  // In online mode, use the passed currentStepIndex. In practice mode (offline), default to 0 or handle differently if needed.
+  // For now, practice mode seems to just show the first step or we might want to add step navigation there too later.
+  // But the request specifically asked for Online 1v1.
+  const currentStep = isOnlineMode && currentQuestion
+    ? (currentQuestion.steps ? currentQuestion.steps[currentStepIndex] : null)
+    : (currentQuestion ? getPrimaryDisplayStep(currentQuestion) : null);
+
+  // Calculate visible option index based on time
+  useEffect(() => {
+    if (!isOnlineMode || currentPhase !== 'choosing' || !phaseDeadline) {
+      setVisibleOptionIndex(0);
+      return;
+    }
+
+    const updateVisibleOption = () => {
+      const now = Date.now();
+      const deadline = new Date(phaseDeadline).getTime();
+      const totalDuration = 45000; // 45s total
+      const timeLeft = Math.max(0, deadline - now);
+      const elapsed = totalDuration - timeLeft;
+
+      // 15s per option
+      const newIndex = Math.min(Math.floor(elapsed / 15000), 2);
+      setVisibleOptionIndex(Math.max(0, newIndex));
+    };
+
+    updateVisibleOption();
+    const interval = setInterval(updateVisibleOption, 100);
+    return () => clearInterval(interval);
+  }, [isOnlineMode, currentPhase, phaseDeadline]);
+
+  // Reset selection when question or step changes (for online mode)
+  useEffect(() => {
+    if (isOnlineMode) {
+      console.log('[QuestionViewer] Resetting selection due to question/step change', {
+        questionId: currentQuestion?.id,
+        currentStepIndex,
+      });
+      setSelectedOptionIndex(null);
+    }
+  }, [currentQuestion?.id, isOnlineMode, currentStepIndex]);
+
   if (!questions || questions.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px] px-4">
@@ -76,14 +119,6 @@ export function QuestionViewer({
       </div>
     );
   }
-
-  const currentQuestion = questions[currentIndex];
-  // In online mode, use the passed currentStepIndex. In practice mode (offline), default to 0 or handle differently if needed.
-  // For now, practice mode seems to just show the first step or we might want to add step navigation there too later.
-  // But the request specifically asked for Online 1v1.
-  const currentStep = isOnlineMode
-    ? (currentQuestion.steps ? currentQuestion.steps[currentStepIndex] : null)
-    : getPrimaryDisplayStep(currentQuestion);
 
   if (!currentStep) {
     return (
@@ -123,30 +158,6 @@ export function QuestionViewer({
     onSubmitAnswer(currentQuestion.id, currentStep.id, selectedOptionIndex);
   };
 
-  // Calculate visible option index based on time
-  useEffect(() => {
-    if (!isOnlineMode || currentPhase !== 'choosing' || !phaseDeadline) {
-      setVisibleOptionIndex(0);
-      return;
-    }
-
-    const updateVisibleOption = () => {
-      const now = Date.now();
-      const deadline = new Date(phaseDeadline).getTime();
-      const totalDuration = 45000; // 45s total
-      const timeLeft = Math.max(0, deadline - now);
-      const elapsed = totalDuration - timeLeft;
-
-      // 15s per option
-      const newIndex = Math.min(Math.floor(elapsed / 15000), 2);
-      setVisibleOptionIndex(Math.max(0, newIndex));
-    };
-
-    updateVisibleOption();
-    const interval = setInterval(updateVisibleOption, 100);
-    return () => clearInterval(interval);
-  }, [isOnlineMode, currentPhase, phaseDeadline]);
-
   // Determine which options to display
   // In choosing phase, we only show the CURRENT visible option IF it's a single-step question (legacy/server-driven)
   // For multi-step questions, we show ALL options for the current step immediately
@@ -168,17 +179,6 @@ export function QuestionViewer({
 
   // Check if we should show options at all
   const shouldShowOptions = !isOnlineMode || currentPhase === 'choosing' || currentPhase === 'result';
-
-  // Reset selection when question or step changes (for online mode)
-  useEffect(() => {
-    if (isOnlineMode) {
-      console.log('[QuestionViewer] Resetting selection due to question/step change', {
-        questionId: currentQuestion?.id,
-        currentStepIndex,
-      });
-      setSelectedOptionIndex(null);
-    }
-  }, [currentQuestion?.id, isOnlineMode, currentStepIndex]);
 
   const handleOptionSelect = (displayIndex: number) => {
     const actualIndex = getActualOptionIndex(displayIndex);

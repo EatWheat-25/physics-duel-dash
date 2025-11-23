@@ -211,14 +211,6 @@ export const OnlineBattle = () => {
             console.error('WS: Error mapping question:', err);
             toast.error('Failed to process question data');
           }
-
-          if (event.roundIndex === 0) {
-            toast.success('Battle begins!');
-            setCountdown(3);
-          } else {
-            toast.info(`Round ${event.roundIndex + 1}`);
-            setConnectionState('playing');
-          }
         },
         onPhaseChange: (event: PhaseChangeEvent) => {
           console.log('[OnlineBattle] ✅ PHASE_CHANGE received', event);
@@ -350,6 +342,15 @@ export const OnlineBattle = () => {
       setTimeLeft(300);
     }
   }, [countdown, questions]);
+
+  // Handle next step locally
+  const handleNextStep = () => {
+    console.log('[OnlineBattle] Advancing to next step locally');
+    setCurrentStepIndex(prev => prev + 1);
+
+    // Reset step timer for next step
+    setStepDeadline(new Date(Date.now() + 15000));
+  };
 
   // Answer submission handler
   const handleSubmitAnswer = (questionId: string, stepId: string, answerIndex: number) => {
@@ -509,7 +510,7 @@ export const OnlineBattle = () => {
           setCurrentStepIndex(prev => prev + 1);
           // Start timer for next step
           const nextStep = currentQ.steps[currentStepIndex + 1];
-          const limit = (nextStep as any).timeLimitSeconds || 15;
+          const limit = nextStep.timeLimitSeconds || 15;
           setStepDeadline(new Date(Date.now() + limit * 1000));
         } else {
           // Final step timeout: Auto-submit with -1 (no answer) or just wait
@@ -534,7 +535,7 @@ export const OnlineBattle = () => {
       if (!stepDeadline && currentStepIndex === 0) {
         const currentQ = questions[currentQuestionIndex];
         const step = currentQ?.steps[0];
-        const limit = (step as any)?.timeLimitSeconds || 15;
+        const limit = step?.timeLimitSeconds || 15;
         setStepDeadline(new Date(Date.now() + limit * 1000));
       }
     }
@@ -550,9 +551,6 @@ export const OnlineBattle = () => {
       setTimerTick(prev => prev + 1); // Force re-render
     }, 100);
 
-    return () => {
-      clearInterval(interval);
-    };
     return () => {
       clearInterval(interval);
     };
@@ -653,120 +651,6 @@ export const OnlineBattle = () => {
             Return to Dashboard
           </Button>
         </motion.div>
-      </div>
-    );
-  }
-
-  if (connectionState === 'playing' && questions.length > 0) {
-    const yourScore = isPlayer1 ? match.p1_score : match.p2_score;
-    const opponentScore = isPlayer1 ? match.p2_score : match.p1_score;
-    const scoreDiff = yourScore - opponentScore;
-    const tugPosition = Math.max(-4, Math.min(4, scoreDiff));
-
-    return (
-      <div className="relative min-h-screen overflow-hidden flex flex-col">
-        <Starfield />
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
-
-        <div className="relative z-10 container mx-auto px-4 py-8 flex-1">
-          <div className="flex justify-between items-center mb-6">
-            <Button variant="ghost" onClick={() => navigate('/')} className="backdrop-blur-sm bg-card/50 border border-border/50 hover:bg-card/70 hover:border-border">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Leave Match
-            </Button>
-            <div className="flex items-center gap-4">
-              <div className="text-2xl font-bold backdrop-blur-sm bg-card/50 px-6 py-2 rounded-xl border border-border/50">
-                {match.subject} - {match.chapter}
-              </div>
-              {currentPhase === 'choosing' && phaseTimeRemaining !== null && (
-                <div className="text-xl font-mono font-bold backdrop-blur-sm bg-amber-500/20 text-amber-500 px-4 py-2 rounded-xl border border-amber-500/50 animate-pulse">
-                  Choosing: 00:{String(phaseTimeRemaining).padStart(2, '0')}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Phase-based Timer Display */}
-          {(() => {
-            console.log('[OnlineBattle] Render check - Timer visible?', {
-              currentPhase,
-              hasDeadline: !!phaseDeadline,
-              phaseDeadline,
-              connectionState,
-              questionsLength: questions.length
-            });
-            return null;
-          })()}
-          {currentPhase && phaseDeadline && (
-            <div className="mb-4 backdrop-blur-sm bg-card/50 p-4 rounded-xl border border-border/50 shadow-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`px-3 py-1 rounded-full font-bold text-sm text-white ${currentPhase === 'thinking' ? 'bg-blue-500' :
-                    currentPhase === 'choosing' ? 'bg-amber-500' :
-                      'bg-green-500'
-                    }`}>
-                    {currentPhase === 'thinking' ? 'THINKING' : currentPhase === 'choosing' ? 'CHOOSING' : 'RESULT'}
-                  </div>
-                  <div className="text-3xl font-bold font-mono">
-                    {phaseTimeRemaining !== null ? `${phaseTimeRemaining}s` : '0s'}
-                  </div>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {currentPhase === 'thinking' ? 'Read the question' : currentPhase === 'choosing' ? 'Select your answer!' : 'Calculating...'}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="mb-4 flex justify-between text-lg font-bold backdrop-blur-sm bg-card/50 px-6 py-3 rounded-xl border border-border/50">
-            <span className="text-emerald-500">{yourUsername}: {yourScore}</span>
-            <span className="text-red-500">{opponentUsername}: {opponentScore}</span>
-          </div>
-
-          <div className="mb-8">
-            <TugOfWarBar position={tugPosition} maxSteps={4} />
-          </div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-              <CardContent className="pt-6">
-                <QuestionViewer
-                  questions={questions}
-                  isOnlineMode={true}
-                  onSubmitAnswer={handleSubmitAnswer}
-                  isSubmitting={isSubmitting}
-                  correctAnswer={correctAnswer}
-                  showResult={showResult}
-                  currentPhase={currentPhase || undefined}
-                  phaseDeadline={phaseDeadline}
-                  options={roundOptions}
-                  currentStepIndex={currentStepIndex}
-                  stepTimeLeft={stepTimeLeft}
-                  totalSteps={questions[currentQuestionIndex]?.steps?.length || 0}
-                />
-
-                {currentPhase === 'thinking' && !hasSubmittedWork && (
-                  <div className="mt-6 flex justify-center">
-                    <Button
-                      size="lg"
-                      onClick={handleReadyForOptions}
-                      className="w-full max-w-md text-lg py-6 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-900/20"
-                    >
-                      I'm done – show options
-                    </Button>
-                  </div>
-                )}
-
-                {currentPhase === 'thinking' && hasSubmittedWork && (
-                  <div className="mt-6 text-center p-4 rounded-lg bg-secondary/20 border border-secondary/30 animate-pulse">
-                    <p className="text-muted-foreground font-medium">Waiting for other player...</p>
-                    <p className="text-xs text-muted-foreground mt-1">Options will appear when both are ready or time is up.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
       </div>
     );
   }
