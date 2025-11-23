@@ -190,7 +190,6 @@ export const OnlineBattle = () => {
           setRoundIndex(event.roundIndex);
           setCurrentPhase(event.phase);
           setPhaseDeadline(new Date(event.thinkingEndsAt));
-          setPhaseDeadline(new Date(event.thinkingEndsAt));
           setRoundOptions(null); // No options during thinking phase
           setHasSubmittedWork(false); // Reset for new round
           setCurrentStepIndex(0); // Reset step index for new round
@@ -205,15 +204,9 @@ export const OnlineBattle = () => {
           }
 
           try {
+            const formattedQuestion = mapRawQuestionToStepBasedQuestion(event.question);
             console.log('WS: Formatted question:', formattedQuestion);
             setQuestions([formattedQuestion]);
-
-            // Insta-start: Auto-trigger ready for options
-            console.log('[OnlineBattle] Auto-triggering ready for options (Insta-start)');
-            // handleReadyForOptions(); // Removed to avoid closure issues
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              sendReadyForOptions(wsRef.current, matchId!);
-            }
           } catch (err) {
             console.error('WS: Error mapping question:', err);
             toast.error('Failed to process question data');
@@ -331,24 +324,33 @@ export const OnlineBattle = () => {
     };
   }, [matchId, currentUser, match, navigate, connectionState]);
 
-  useEffect(() => {
-    if (countdown !== null && countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else if (countdown === 0) {
-      console.log('Countdown complete! Questions in state:', questions.length);
-      if (questions.length > 0) {
-        console.log('First question:', questions[0].id, 'Steps:', questions[0].steps.length);
-      } else {
-        console.error('Countdown finished but NO QUESTIONS in state!');
-      }
-      setCountdown(null);
-      setConnectionState('playing');
-      setTimeLeft(300);
+  // Handle Ready for Options (Answer Now button)
+  const handleReadyForOptions = () => {
+    if (hasSubmittedWork) return;
+
+    console.log('[OnlineBattle] Sending ready for options');
+    setHasSubmittedWork(true);
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      sendReadyForOptions(wsRef.current, matchId!);
     }
-  }, [countdown, questions]);
+
+    // Local immediate transition if not server driven (or to feel responsive)
+    if (!isServerDriven) {
+      console.log('[OnlineBattle] Local transition to choosing (user ready)');
+      // Short delay to simulate network/waiting
+      setTimeout(() => {
+        const currentQ = questions[currentQuestionIndex];
+        const currentStep = currentQ?.steps[currentStepIndex];
+        if (currentStep) {
+          const options = currentStep.options.map((text, i) => ({ id: i, text }));
+          setRoundOptions(options);
+          setCurrentPhase('choosing');
+          setPhaseDeadline(new Date(Date.now() + 15000)); // 15s for choosing
+        }
+      }, 500);
+    }
+  };
 
   // Handle next step locally
   const handleNextStep = () => {
@@ -404,8 +406,6 @@ export const OnlineBattle = () => {
       }, 500);
     }
   };
-
-
 
   // If game is playing but no questions from WebSocket, use fallback
   useEffect(() => {
@@ -749,6 +749,7 @@ export const OnlineBattle = () => {
                   currentPhase={currentPhase || undefined}
                   phaseDeadline={phaseDeadline}
                   options={roundOptions}
+                  onReadyForOptions={handleReadyForOptions}
                   onFinished={() => {
                     console.log('[OnlineBattle] Questions finished');
                     toast.success('All questions completed!');

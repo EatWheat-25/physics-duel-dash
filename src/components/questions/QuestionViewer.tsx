@@ -30,6 +30,7 @@ interface QuestionViewerProps {
   phaseDeadline?: Date | null;
   options?: Array<{ id: number; text: string }> | null;
   locked?: boolean;
+  onReadyForOptions?: () => void;
   // Step props
   currentStepIndex?: number;
   stepTimeLeft?: number | null;
@@ -48,6 +49,7 @@ export function QuestionViewer({
   phaseDeadline,
   options,
   locked = false,
+  onReadyForOptions,
   currentStepIndex = 0,
   stepTimeLeft = null,
   totalSteps = 1
@@ -375,6 +377,15 @@ export function QuestionViewer({
               <Clock className="w-12 h-12 mx-auto mb-3 text-blue-500" />
               <p className="text-lg font-semibold text-gray-700 mb-2">Options will appear soon</p>
               <p className="text-sm text-gray-600 mb-4">Use this time to think about the question</p>
+              {onReadyForOptions && (
+                <Button
+                  onClick={onReadyForOptions}
+                  variant="default"
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Answer Now
+                </Button>
+              )}
             </div>
           )}
 
