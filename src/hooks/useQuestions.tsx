@@ -19,7 +19,7 @@ export const useQuestions = (filters?: QuestionFilters) => {
     queryFn: async () => {
       console.log('🔍 useQuestions: Starting fetch with filters:', filters);
 
-      let query = supabase.from('questions').select('*');
+      let query = supabase.from('questions').select('*, question_steps(*)');
 
       if (filters?.subject) query = query.eq('subject', filters.subject);
       if (filters?.chapter) query = query.eq('chapter', filters.chapter);
