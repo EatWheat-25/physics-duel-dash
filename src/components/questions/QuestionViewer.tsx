@@ -56,7 +56,6 @@ export function QuestionViewer({
 }: QuestionViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
-  const [visibleOptionIndex, setVisibleOptionIndex] = useState<number>(0);
 
   console.log('📖 QuestionViewer: Received questions:', questions?.length || 0);
   console.log('📖 QuestionViewer: Phase:', currentPhase, 'Options:', options?.length || 0);
@@ -68,30 +67,6 @@ export function QuestionViewer({
   const currentStep = isOnlineMode && currentQuestion
     ? (currentQuestion.steps ? currentQuestion.steps[currentStepIndex] : null)
     : (currentQuestion ? getPrimaryDisplayStep(currentQuestion) : null);
-
-  // Calculate visible option index based on time
-  useEffect(() => {
-    if (!isOnlineMode || currentPhase !== 'choosing' || !phaseDeadline) {
-      setVisibleOptionIndex(0);
-      return;
-    }
-
-    const updateVisibleOption = () => {
-      const now = Date.now();
-      const deadline = new Date(phaseDeadline).getTime();
-      const totalDuration = 45000; // 45s total
-      const timeLeft = Math.max(0, deadline - now);
-      const elapsed = totalDuration - timeLeft;
-
-      // 15s per option
-      const newIndex = Math.min(Math.floor(elapsed / 15000), 2);
-      setVisibleOptionIndex(Math.max(0, newIndex));
-    };
-
-    updateVisibleOption();
-    const interval = setInterval(updateVisibleOption, 100);
-    return () => clearInterval(interval);
-  }, [isOnlineMode, currentPhase, phaseDeadline]);
 
   // Reset selection when question or step changes (for online mode)
   useEffect(() => {
@@ -161,21 +136,16 @@ export function QuestionViewer({
   };
 
   // Determine which options to display
-  // In choosing phase, we only show the CURRENT visible option IF it's a single-step question (legacy/server-driven)
-  // For multi-step questions, we show ALL options for the current step immediately
+  // In choosing phase, we show ALL options immediately now
   const isMultiStep = totalSteps > 1;
 
-  const displayOptions = isOnlineMode && currentPhase === 'choosing' && options && !isMultiStep
-    ? [options[visibleOptionIndex]?.text || '']
-    : isOnlineMode && currentPhase === 'result' && options && !isMultiStep
-      ? options.map(opt => opt.text)
-      : currentStep?.options || [];
+  const displayOptions = isOnlineMode && (currentPhase === 'choosing' || currentPhase === 'result') && options
+    ? options.map(opt => opt.text)
+    : currentStep?.options || [];
 
   // Helper to map display index back to actual option index
+  // Now that we show all options, display index IS the actual index
   const getActualOptionIndex = (displayIdx: number) => {
-    if (isOnlineMode && currentPhase === 'choosing' && !isMultiStep) {
-      return visibleOptionIndex;
-    }
     return displayIdx;
   };
 
@@ -298,21 +268,20 @@ export function QuestionViewer({
 
           {/* Options - only show in choosing/result phases for online mode */}
           {shouldShowOptions ? (
-            <div className="space-y-3">
-              {displayOptions.map((option, idx) => {
-                const actualIdx = getActualOptionIndex(idx);
-                const isSelected = selectedOptionIndex === actualIdx;
-                const isCorrect = showResult && correctAnswer === actualIdx;
-                const isWrong = showResult && isSelected && correctAnswer !== actualIdx;
-                const isDisabled = isSubmitting || showResult || (currentPhase === 'thinking') || locked;
+            <div className="space-y-4">
+              <div className="space-y-3">
+                {displayOptions.map((option, idx) => {
+                  const actualIdx = getActualOptionIndex(idx);
+                  const isSelected = selectedOptionIndex === actualIdx;
+                  const isCorrect = showResult && correctAnswer === actualIdx;
+                  const isWrong = showResult && isSelected && correctAnswer !== actualIdx;
+                  const isDisabled = isSubmitting || showResult || (currentPhase === 'thinking') || locked;
 
-                // In choosing phase, we only show one option, so it's always "Option A/B/C" based on actualIdx
-                // For multi-step, we show all options, so we use the loop index
-                const optionLabel = String.fromCharCode(65 + actualIdx);
+                  const optionLabel = String.fromCharCode(65 + actualIdx);
 
-                return (
-                  <div key={actualIdx} className="space-y-2">
+                  return (
                     <button
+                      key={actualIdx}
                       onClick={() => !isDisabled && handleOptionSelect(idx)}
                       disabled={isDisabled}
                       className={`w-full text-left p-4 rounded-lg border-2 transition-all ${isCorrect
@@ -347,30 +316,40 @@ export function QuestionViewer({
                         <p className="flex-1 text-gray-800 pt-1">{option}</p>
                       </div>
                     </button>
+                  );
+                })}
+              </div>
 
-                    {isOnlineMode && (currentPhase === 'choosing' || (currentPhase === 'thinking' && totalSteps > 1)) && (
-                      <Button
-                        className="w-full mt-2"
-                        onClick={() => {
-                          console.log('[QuestionViewer] Submit button clicked', {
-                            currentStepIndex,
-                            totalSteps,
-                            isFinalStep: currentStepIndex >= totalSteps - 1,
-                            selectedOptionIndex,
-                            currentPhase,
-                          });
-                          handleSubmitAnswer();
-                        }}
-                        disabled={selectedOptionIndex === null || isSubmitting}
-                      >
-                        {selectedOptionIndex !== null
-                          ? (currentStepIndex < totalSteps - 1 ? 'Next Step' : 'Submit Answer')
-                          : 'Select this answer'}
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
+              {/* Submit Button - Outside the loop */}
+              {isOnlineMode && (currentPhase === 'choosing' || (currentPhase === 'thinking' && totalSteps > 1)) && (
+                <Button
+                  className="w-full py-6 text-lg font-semibold shadow-lg transition-all hover:scale-[1.02]"
+                  size="lg"
+                  onClick={() => {
+                    console.log('[QuestionViewer] Submit button clicked', {
+                      currentStepIndex,
+                      totalSteps,
+                      isFinalStep: currentStepIndex >= totalSteps - 1,
+                      selectedOptionIndex,
+                      currentPhase,
+                    });
+                    handleSubmitAnswer();
+                  }}
+                  disabled={selectedOptionIndex === null || isSubmitting || locked}
+                  variant={selectedOptionIndex !== null ? "default" : "secondary"}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : selectedOptionIndex !== null ? (
+                    currentStepIndex < totalSteps - 1 ? 'Next Step' : 'Submit Answer'
+                  ) : (
+                    'Select an answer to submit'
+                  )}
+                </Button>
+              )}
             </div>
           ) : (
             <div className="p-8 text-center border-2 border-dashed border-gray-300 rounded-lg bg-blue-50">
