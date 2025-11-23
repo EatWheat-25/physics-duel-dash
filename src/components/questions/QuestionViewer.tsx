@@ -178,6 +178,7 @@ export function QuestionViewer({
 
   const handleOptionSelect = (displayIndex: number) => {
     const actualIndex = getActualOptionIndex(displayIndex);
+    console.log('[QuestionViewer] Option selected:', { displayIndex, actualIndex, currentStepIndex, totalSteps });
     setSelectedOptionIndex(actualIndex);
   };
 
@@ -344,7 +345,16 @@ export function QuestionViewer({
                     {isOnlineMode && (currentPhase === 'choosing' || (currentPhase === 'thinking' && totalSteps > 1)) && (
                       <Button
                         className="w-full mt-2"
-                        onClick={handleSubmitAnswer}
+                        onClick={() => {
+                          console.log('[QuestionViewer] Submit button clicked', {
+                            currentStepIndex,
+                            totalSteps,
+                            isFinalStep: currentStepIndex >= totalSteps - 1,
+                            selectedOptionIndex,
+                            currentPhase,
+                          });
+                          handleSubmitAnswer();
+                        }}
                         disabled={selectedOptionIndex === null || isSubmitting}
                       >
                         {selectedOptionIndex !== null

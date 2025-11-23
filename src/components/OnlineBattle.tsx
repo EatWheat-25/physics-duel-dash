@@ -525,25 +525,26 @@ export const OnlineBattle = () => {
 
       if (diffMs <= 0) {
         // Time's up for this step!
-        // Auto-advance or lock
-        console.log('[OnlineBattle] Step time up!');
+        console.log('[OnlineBattle] Step time up!', { currentStepIndex, totalSteps: currentQ?.steps?.length });
         setStepDeadline(null);
-        // If we haven't answered, maybe we should auto-submit or just move on?
-        // For now, let's just move to next step if possible, or mark as done.
-        // But we can't auto-submit an answer if we don't know what to pick.
-        // We'll just let the UI lock.
-        // Actually, the user said: "automatically lock the current step and either: move to the next step... or finish".
 
         const currentQ = questions[currentQuestionIndex];
-        if (currentQ && currentQ.steps && currentStepIndex < currentQ.steps.length - 1) {
+        const totalSteps = currentQ?.steps?.length || 0;
+        const isFinalStep = currentStepIndex >= totalSteps - 1;
+
+        if (currentQ && currentQ.steps && !isFinalStep) {
+          // Non-final step: Auto-advance to next step
+          console.log('[OnlineBattle] Auto-advancing to next step due to timeout');
           setCurrentStepIndex(prev => prev + 1);
           // Start timer for next step
           const nextStep = currentQ.steps[currentStepIndex + 1];
           const limit = (nextStep as any).timeLimitSeconds || 15;
           setStepDeadline(new Date(Date.now() + limit * 1000));
         } else {
-          // Last step finished
-          // Maybe set some state to show we are done?
+          // Final step timeout: Auto-submit with -1 (no answer) or just wait
+          console.log('[OnlineBattle] Final step timeout - user did not submit');
+          // For now, just lock and wait for server ROUND_RESULT
+          // The server should handle timeouts and force-complete the round
         }
       }
     };
@@ -594,7 +595,7 @@ export const OnlineBattle = () => {
     const deadline = new Date(phaseDeadline).getTime();
 
     if (now >= deadline) {
-      console.log('[OnlineBattle] Local phase transition triggered due to timeout');
+      console.log('[OnlineBattle] Local phase transition triggered due to timeout', { currentPhase });
 
       if (currentPhase === 'thinking') {
         // Transition to Choosing
@@ -605,13 +606,12 @@ export const OnlineBattle = () => {
           setRoundOptions(options);
           setCurrentPhase('choosing');
           setPhaseDeadline(new Date(Date.now() + 45000)); // 45s for choosing
+          console.log('[OnlineBattle] Transitioned to choosing phase (local)');
         }
       } else if (currentPhase === 'choosing') {
-        // Transition to Result
-        setCurrentPhase('result');
-        setPhaseDeadline(null);
-        // Auto-submit if not submitted?
-        // For now just show result
+        // DO NOT auto-transition to result in online mode - let server handle it
+        // This prevents premature "Waiting for next round" message
+        console.log('[OnlineBattle] Choosing phase timeout - waiting for server to send ROUND_RESULT');
       }
     }
   }, [isServerDriven, currentPhase, phaseDeadline, phaseTimeRemaining, questions, currentQuestionIndex, currentStepIndex]);
