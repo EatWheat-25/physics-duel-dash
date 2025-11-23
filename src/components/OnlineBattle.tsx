@@ -266,7 +266,7 @@ export const OnlineBattle = () => {
           }
         },
         onRoundResult: (event: RoundResultEvent) => {
-          console.log('[OnlineBattle] Round result received', event);
+          console.log('[OnlineBattle] Received round_result', event);
           setShowResult(true);
           setCorrectAnswer(event.correctOptionId);
 
@@ -383,38 +383,28 @@ export const OnlineBattle = () => {
 
     const currentQ = questions[currentQuestionIndex];
     const totalSteps = currentQ?.steps?.length || 0;
+    const isFinalStep = currentStepIndex >= totalSteps - 1;
 
     console.log(`[OnlineBattle] step answered`, currentStepIndex, totalSteps);
-    console.log('[OnlineBattle] Submitting answer:', { questionId, stepId, answerIndex });
-    setIsSubmitting(true);
 
-    sendAnswer(wsRef.current, questionId, stepId, answerIndex);
-
-    // Handle step progression locally
-    if (currentQ && currentQ.steps && currentStepIndex < currentQ.steps.length - 1) {
-      const nextIndex = currentStepIndex + 1;
-      console.log(`[OnlineBattle] moving to step`, nextIndex);
+    if (isFinalStep) {
+      console.log('[OnlineBattle] Sending answer_submit', { matchId, questionId, stepId, answerIndex });
+      setIsSubmitting(true);
+      sendAnswer(wsRef.current, questionId, stepId, answerIndex);
+    } else {
+      // Intermediate step: Advance locally
+      console.log(`[OnlineBattle] Intermediate step complete, advancing locally`);
+      setIsSubmitting(true); // Lock briefly
 
       setTimeout(() => {
-        setCurrentStepIndex(nextIndex);
+        setCurrentStepIndex(prev => prev + 1);
         setIsSubmitting(false);
 
         // Reset step timer for next step
-        const nextStep = currentQ.steps[nextIndex];
-        // Use timeLimitSeconds from step or default to 15s
-        const limit = (nextStep as any).timeLimitSeconds || 15;
-        setStepDeadline(new Date(Date.now() + limit * 1000));
-      }, 500); // Small delay for UX
-    } else {
-      console.log(`[OnlineBattle] last step complete, finishing round`);
-      // If it's the last step, we just wait for the round to end naturally via server events
-      // or for the user to wait for the next question.
-      // We keep isSubmitting true to prevent double clicks until the server responds
-      // But actually, we might need to allow the user to see the result state locally?
-      // The server sends 'round_result' event which handles the transition.
-      // So keeping isSubmitting=true is probably fine, or we can set it to false if we want to show a "Waiting..." state.
-      // Let's set it to false to allow UI updates if needed, but the button should be disabled by "Answer Selected" state.
-      setIsSubmitting(false);
+        // Note: We need to be careful with step ordering here if steps are reversed in the array
+        // But for now we assume we just need to reset the deadline
+        setStepDeadline(new Date(Date.now() + 15000)); // Default 15s for now to be safe
+      }, 500);
     }
   };
 

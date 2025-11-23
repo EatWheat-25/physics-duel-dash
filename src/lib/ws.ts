@@ -247,6 +247,7 @@ export function sendAnswer(ws: WebSocket, questionId: string, stepId: string, an
     step_id: stepId,
     answer,
   };
+  console.log('[WS] outbound', message);
   ws.send(JSON.stringify(message));
   console.log(`WS: Submitted answer for question ${questionId}, step ${stepId}`);
 }
