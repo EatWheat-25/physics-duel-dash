@@ -1,7 +1,19 @@
 -- Migration: Add question_steps table and update pick_next_question_v2
 -- Date: 2025-11-23
 
--- 1. Create question_steps table
+-- 1. Schema Hardening: Ensure columns exist
+ALTER TABLE public.matches_new ADD COLUMN IF NOT EXISTS rank_tier TEXT;
+ALTER TABLE public.matches_new ADD COLUMN IF NOT EXISTS subject TEXT;
+ALTER TABLE public.matches_new ADD COLUMN IF NOT EXISTS chapter TEXT;
+
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS rank_tier TEXT;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS total_marks INT DEFAULT 1;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS topic_tags TEXT[];
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS steps JSONB;
+
+ALTER TABLE public.match_questions ADD COLUMN IF NOT EXISTS ordinal INT;
+
+-- 2. Create question_steps table
 DROP TABLE IF EXISTS public.question_steps CASCADE;
 
 CREATE TABLE IF NOT EXISTS public.question_steps (
@@ -51,10 +63,10 @@ BEGIN
   WHERE id = p_match_id;
 
   -- Calculate next ordinal
-  SELECT COALESCE(MAX(ordinal), 0) + 1 
+  SELECT COALESCE(MAX(mq.ordinal), 0) + 1 
   INTO next_ord
-  FROM public.match_questions 
-  WHERE match_id = p_match_id;
+  FROM public.match_questions mq
+  WHERE mq.match_id = p_match_id;
 
   -- Tier 1: Strict match (subject + chapter + rank)
   SELECT q.id INTO picked_id
@@ -91,6 +103,26 @@ BEGIN
       SELECT 1 FROM public.match_questions mq
       WHERE mq.match_id = p_match_id AND mq.question_id = q.id
     )
+    ORDER BY random()
+    LIMIT 1;
+  END IF;
+
+  -- Tier 4: Reuse allowed - Strict match (subject + chapter + rank)
+  -- Fallback if we ran out of unique questions
+  IF picked_id IS NULL THEN
+    SELECT q.id INTO picked_id
+    FROM public.questions q
+    WHERE (pref_subject IS NULL OR q.subject = pref_subject)
+      AND (pref_chapter IS NULL OR q.chapter = pref_chapter)
+      AND (pref_rank IS NULL OR q.rank_tier = pref_rank)
+    ORDER BY random()
+    LIMIT 1;
+  END IF;
+
+  -- Tier 5: Reuse allowed - Any question (Last Resort)
+  IF picked_id IS NULL THEN
+    SELECT q.id INTO picked_id
+    FROM public.questions q
     ORDER BY random()
     LIMIT 1;
   END IF;
