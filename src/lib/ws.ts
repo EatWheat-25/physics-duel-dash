@@ -74,21 +74,16 @@ export interface AnswerSubmitMessage {
 
 // ... (keep other interfaces)
 
-export function sendAnswer(ws: WebSocket, matchId: string, questionId: string, stepId: string, answer: number): void {
+export function sendAnswer(ws: WebSocket, questionId: string, stepId: string, answer: number): void {
   const message: AnswerSubmitMessage = {
     type: 'answer_submit',
-    question_id: questionId,  // Convert to snake_case for server
-    step_id: stepId,          // Convert to snake_case for server
+    question_id: questionId,  // Snake case for server
+    step_id: stepId,          // Snake case for server
     answer,
   };
-  console.log('[WS] 📤 Sending answer_submit:', {
-    question_id: questionId,
-    step_id: stepId,
-    answer,
-    matchId  // Log for debugging but don't send to server
-  });
+  console.log('[WS] 📤 Sending answer_submit:', message);
   ws.send(JSON.stringify(message));
-  console.log(`[WS] ✅ Answer submitted successfully`);
+  console.log(`[WS] ✅ Answer submitted`);
 }
 
 export interface QuestionCompleteMessage {
@@ -101,6 +96,12 @@ export interface ReadyForOptionsMessage {
 }
 
 export type ClientMessage = ReadyMessage | AnswerSubmitMessage | QuestionCompleteMessage | ReadyForOptionsMessage;
+
+export interface ValidationErrorEvent {
+  type: 'validation_error';
+  message: string;
+  details: any[];
+}
 
 export interface ConnectGameWSOptions {
   matchId: string;
@@ -116,6 +117,7 @@ export interface ConnectGameWSOptions {
   onRoundStart?: (event: RoundStartEvent) => void;
   onPhaseChange?: (event: PhaseChangeEvent) => void;
   onRoundResult?: (event: RoundResultEvent) => void;
+  onValidationError?: (event: ValidationErrorEvent) => void;
   onError?: (error: Error) => void;
   onClose?: () => void;
 }
@@ -135,6 +137,7 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
     onRoundStart,
     onPhaseChange,
     onRoundResult,
+    onValidationError,
     onError,
     onClose,
   } = options;
@@ -230,7 +233,7 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
         case 'validation_error':
           console.error('WS: ❌ Validation error from server:', (message as any).message);
           console.error('WS: Error details:', (message as any).details);
-          onError?.(new Error(`Server validation failed: ${(message as any).message}`));
+          onValidationError?.(message as ValidationErrorEvent);
           break;
 
         default:

@@ -260,6 +260,14 @@ export const OnlineBattle = () => {
             }
           }
         },
+        onValidationError: (event) => {
+          console.error('[OnlineBattle] Validation error from server:', event);
+          setIsSubmitting(false); // Reset submitting state
+          toast.error(`Submission failed: ${event.message}`, { duration: 5000 });
+          if (event.details && event.details.length > 0) {
+            console.error('[OnlineBattle] Validation details:', event.details);
+          }
+        },
         onGameStart: (event) => {
           console.log('[OnlineBattle] Legacy game_start event (should not happen with 3-phase)', event);
         },
@@ -399,7 +407,7 @@ export const OnlineBattle = () => {
       step: `${currentStepIndex + 1}/${totalSteps}`
     });
     setIsSubmitting(true);
-    sendAnswer(wsRef.current, matchId!, questionId, stepId, answerIndex);
+    sendAnswer(wsRef.current, questionId, stepId, answerIndex);
 
     // Failsafe: Reset isSubmitting if no response after 5 seconds
     setTimeout(() => {

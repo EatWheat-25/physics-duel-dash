@@ -16,9 +16,10 @@ export function mapRawQuestionToStepBasedQuestion(
   const steps: QuestionStep[] = rawSteps.map((s, i) => ({
     id: String(s.id ?? s.step_id ?? `${q.id}-step-${i}`),
     index: typeof s.index === 'number' ? s.index : (s.step_index ?? i),
-    title: s.title ?? null,
+    type: (s.type ?? s.step_type ?? 'mcq') as 'mcq',
+    title: s.title ?? '',
     prompt: s.prompt ?? s.question ?? '',
-    options: Array.isArray(s.options) ? s.options : [],
+    options: Array.isArray(s.options) ? s.options : [] as any,
     correctAnswer:
       typeof s.correctAnswer === 'number'
         ? s.correctAnswer
@@ -26,9 +27,9 @@ export function mapRawQuestionToStepBasedQuestion(
           ? s.correctAnswerIndex
           : typeof s.correct_answer === 'number'
             ? s.correct_answer
-            : undefined,
+            : 0 as 0 | 1 | 2 | 3,
     timeLimitSeconds: s.timeLimitSeconds ?? s.time_limit_seconds ?? null,
-    marks: s.marks ?? null,
+    marks: s.marks ?? 1,
     explanation: s.explanation ?? null,
   }));
 
@@ -42,14 +43,14 @@ export function mapRawQuestionToStepBasedQuestion(
     title: q.title ?? '',
     subject: q.subject ?? '',
     chapter: q.chapter ?? '',
-    rank_tier: q.rank_tier ?? q.rankTier ?? '',
+    rankTier: q.rankTier ?? q.rank_tier ?? '',
     level: q.level ?? '',
     difficulty: q.difficulty ?? '',
     stem: q.stem ?? q.question_text ?? '',
-    total_marks: q.total_marks ?? q.base_marks ?? 0,
-    topic_tags: q.topic_tags ?? [],
+    totalMarks: q.totalMarks ?? q.total_marks ?? q.base_marks ?? 0,
+    topicTags: q.topicTags ?? q.topic_tags ?? [],
     steps,
-    imageUrl: q.image_url ?? q.imageUrl,
+    imageUrl: q.imageUrl ?? q.image_url,
   };
 }
 
