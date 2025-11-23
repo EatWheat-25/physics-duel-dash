@@ -269,6 +269,7 @@ export const OnlineBattle = () => {
           console.log('[OnlineBattle] Received round_result', event);
           setShowResult(true);
           setCorrectAnswer(event.correctOptionId);
+          setIsSubmitting(false); // CRITICAL: Reset isSubmitting after round ends
 
           // Update scores
           setMatch(prev => prev ? {
@@ -379,16 +380,35 @@ export const OnlineBattle = () => {
 
   // Answer submission handler
   const handleSubmitAnswer = (questionId: string, stepId: string, answerIndex: number) => {
-    if (!wsRef.current || isSubmitting) return;
+    console.log('[OnlineBattle] handleSubmitAnswer called', {
+      questionId,
+      stepId,
+      answerIndex,
+      currentStepIndex,
+      isSubmitting,
+      hasWS: !!wsRef.current,
+    });
+
+    if (!wsRef.current || isSubmitting) {
+      console.log('[OnlineBattle] BLOCKED:', { hasWS: !!wsRef.current, isSubmitting });
+      return;
+    }
 
     const currentQ = questions[currentQuestionIndex];
     const totalSteps = currentQ?.steps?.length || 0;
     const isFinalStep = currentStepIndex >= totalSteps - 1;
 
-    console.log(`[OnlineBattle] step answered`, currentStepIndex, totalSteps);
+    console.log('[OnlineBattle] handleSubmitAnswer', {
+      currentStepIndex,
+      totalSteps,
+      isFinalStep,
+      selectedOptionIndex: answerIndex,
+    });
 
     if (isFinalStep) {
-      console.log('[OnlineBattle] Sending answer_submit', { matchId, questionId, stepId, answerIndex });
+      console.log('[OnlineBattle] FINAL STEP, sending answer_submit');
+      const payload = { matchId, questionId, stepId, answer: answerIndex };
+      console.log('[WS] outbound answer_submit', payload);
       setIsSubmitting(true);
       sendAnswer(wsRef.current, questionId, stepId, answerIndex);
     } else {
@@ -401,8 +421,6 @@ export const OnlineBattle = () => {
         setIsSubmitting(false);
 
         // Reset step timer for next step
-        // Note: We need to be careful with step ordering here if steps are reversed in the array
-        // But for now we assume we just need to reset the deadline
         setStepDeadline(new Date(Date.now() + 15000)); // Default 15s for now to be safe
       }, 500);
     }
