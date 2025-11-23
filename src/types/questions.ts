@@ -1,59 +1,66 @@
 /**
  * CANONICAL QUESTION TYPES - SINGLE SOURCE OF TRUTH
  *
- * These types define the structure for ALL questions in the system.
- * They are used by:
- * - Database schema (questions table)
- * - Seed script (scripts/seed-questions.ts)
- * - Admin Questions page
- * - Step-battle modes
- * - Online matchmaking/WebSocket
+ * This is the ONLY place where question types are defined.
+ * All other code (DB, RPC, mapper, UI) must use these types.
  *
- * DO NOT create duplicate types elsewhere - import from here!
+ * DO NOT create duplicate types elsewhere!
  */
 
-// Subject type (matches DB constraint)
+// ============================================================================
+// CORE TYPES
+// ============================================================================
+
 export type QuestionSubject = 'math' | 'physics' | 'chemistry';
-
-// Level type (matches DB constraint)
 export type QuestionLevel = 'A1' | 'A2';
-
-// Difficulty type (matches DB constraint)
 export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
-
-// Rank tier for progression system
 export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Diamond' | 'Unbeatable' | 'Pocket Calculator';
 
-// Step in a step-based question (CAIE marking scheme style)
-export type QuestionStep = {
+/**
+ * A single step in a multi-step question.
+ * Steps are ordered by `index` (0, 1, 2, ..., n).
+ * The final answer step has the highest index.
+ */
+export interface QuestionStep {
   id: string;
-  index: number;            // step order, 0-based or 1-based but consistent
-  title?: string | null;
-  prompt: string;
-  options: string[];
-  correctAnswer?: number;   // index of correct option, optional on client
-  timeLimitSeconds?: number | null;
-  marks?: number | null;
-  explanation?: string;     // Keeping this as it's useful for frontend display if available
-};
+  index: number;                    // 0-based display order
+  type: 'mcq';                       // Multiple choice question
+  title: string;                     // Step heading (e.g., "Find the derivative")
+  prompt: string;                    // The actual question text for this step
+  options: [string, string, string, string];  // EXACTLY 4 options
+  correctAnswer: 0 | 1 | 2 | 3;      // Index of correct option
+  timeLimitSeconds: number | null;   // Time limit for this step (null = no limit)
+  marks: number;                     // Points awarded for this step
+  explanation: string | null;        // Explanation shown after answering
+}
 
-// Complete question structure
-export type StepBasedQuestion = {
+/**
+ * Complete question structure.
+ * Can be single-step (steps.length === 1) or multi-step (steps.length > 1).
+ */
+export interface StepBasedQuestion {
   id: string;
-  title: string;
-  subject: string;
-  chapter: string;
-  rank_tier: string;
-  level: string;
-  difficulty: string;
-  stem: string;
-  total_marks: number;
-  topic_tags?: string[];
-  steps: QuestionStep[];
-  imageUrl?: string; // Keeping for compatibility if needed, though not in user spec
-};
+  title: string;                     // Question title
+  subject: QuestionSubject;
+  chapter: string;                   // e.g., "Integration", "Kinematics"
+  level: QuestionLevel;
+  difficulty: QuestionDifficulty;
+  rankTier?: RankTier;
+  stem: string;                      // Main question context/setup
+  totalMarks: number;                // Sum of all step marks
+  topicTags: string[];               // e.g., ["integration", "by-parts"]
+  steps: QuestionStep[];             // ALWAYS sorted by index (0..n)
+  imageUrl?: string;                 // Optional question image
+}
 
-// Database row shape (snake_case from Supabase)
+// ============================================================================
+// DATABASE TYPES
+// ============================================================================
+
+/**
+ * Raw database row from questions table.
+ * Uses snake_case to match Supabase conventions.
+ */
 export interface QuestionDBRow {
   id: string;
   title: string;
@@ -62,46 +69,48 @@ export interface QuestionDBRow {
   level: string;
   difficulty: string;
   rank_tier: string | null;
-  question_text: string;
+  question_text: string;             // Maps to `stem`
   total_marks: number;
   topic_tags: string[];
-  steps: unknown; // JSONB in database
   image_url?: string | null;
   created_at?: string;
   updated_at?: string;
 }
 
-// For creating/updating questions (omit auto-generated fields)
+/**
+ * Raw database row from question_steps table.
+ * Uses snake_case to match Supabase conventions.
+ */
+export interface QuestionStepDBRow {
+  id: string;
+  question_id: string;
+  step_index: number;                // 0-based order
+  step_type: string;
+  title: string;
+  prompt: string;
+  options: string[];                 // JSONB array
+  correct_answer: { correctIndex: number };  // JSONB object
+  time_limit_seconds: number | null;
+  marks: number;
+  explanation: string | null;
+  created_at?: string;
+}
+
+// ============================================================================
+// INPUT TYPES (for creating/updating)
+// ============================================================================
+
 export type QuestionInput = Omit<StepBasedQuestion, 'id'> & {
-  id?: string; // Optional for upserts
+  id?: string;  // Optional for new questions
 };
 
-// Battle-related types
-export interface BattleProgress {
-  currentQuestionIndex: number;
-  currentStepIndex: number;
-  playerMarks: number;
-  opponentMarks: number;
-  totalPossibleMarks: number;
-  completed: boolean;
-}
+export type QuestionStepInput = Omit<QuestionStep, 'id'> & {
+  id?: string;  // Optional for new steps
+};
 
-export interface StepResult {
-  stepId: string;
-  playerAnswer: number;
-  opponentAnswer?: number;
-  correct: boolean;
-  marksEarned: number;
-  explanation: string;
-}
-
-export interface BattleSession {
-  questions: StepBasedQuestion[];
-  progress: BattleProgress;
-  results: StepResult[];
-}
-
-// Query filters for fetching questions
+/**
+ * Filters for querying questions from database.
+ */
 export interface QuestionFilters {
   subject?: QuestionSubject;
   chapter?: string;
@@ -109,4 +118,145 @@ export interface QuestionFilters {
   difficulty?: QuestionDifficulty;
   rankTier?: RankTier;
   limit?: number;
+}
+
+// ============================================================================
+// WEBSOCKET MESSAGE TYPES
+// ============================================================================
+
+/**
+ * Client sends this to submit an answer.
+ * Uses snake_case to match server expectations.
+ */
+export interface AnswerSubmitPayload {
+  type: 'answer_submit';
+  question_id: string;
+  step_id: string;
+  answer: number;  // 0-3
+}
+
+/**
+ * Server sends this when answer is validated and scored.
+ */
+export interface AnswerResultPayload {
+  type: 'answer_result';
+  question_id: string;
+  step_id: string;
+  is_correct: boolean;
+  correct_answer: number;
+  marks_earned: number;
+  explanation: string | null;
+}
+
+/**
+ * Server sends this when client message is invalid.
+ */
+export interface ValidationErrorPayload {
+  type: 'validation_error';
+  message: string;
+  details: Array<{
+    code: string;
+    path: string[];
+    message: string;
+  }>;
+}
+
+// ============================================================================
+// VALIDATION HELPERS
+// ============================================================================
+
+/**
+ * Validate that a QuestionStep has correct structure.
+ */
+export function validateQuestionStep(step: QuestionStep, stepIndex: number): string[] {
+  const errors: string[] = [];
+
+  if (step.index !== stepIndex) {
+    errors.push(`Step ${stepIndex}: index mismatch (expected ${stepIndex}, got ${step.index})`);
+  }
+
+  if (step.type !== 'mcq') {
+    errors.push(`Step ${stepIndex}: only 'mcq' type is supported`);
+  }
+
+  if (!step.title?.trim()) {
+    errors.push(`Step ${stepIndex}: title is required`);
+  }
+
+  if (!step.prompt?.trim()) {
+    errors.push(`Step ${stepIndex}: prompt is required`);
+  }
+
+  if (!Array.isArray(step.options) || step.options.length !== 4) {
+    errors.push(`Step ${stepIndex}: must have exactly 4 options`);
+  } else {
+    step.options.forEach((opt, i) => {
+      if (typeof opt !== 'string' || !opt.trim()) {
+        errors.push(`Step ${stepIndex}, option ${i}: must be non-empty string`);
+      }
+    });
+  }
+
+  if (![0, 1, 2, 3].includes(step.correctAnswer)) {
+    errors.push(`Step ${stepIndex}: correctAnswer must be 0, 1, 2, or 3`);
+  }
+
+  if (step.marks <= 0) {
+    errors.push(`Step ${stepIndex}: marks must be positive`);
+  }
+
+  return errors;
+}
+
+/**
+ * Validate that a StepBasedQuestion has correct structure.
+ */
+export function validateQuestion(question: StepBasedQuestion): string[] {
+  const errors: string[] = [];
+
+  if (!question.id?.trim()) {
+    errors.push('Question id is required');
+  }
+
+  if (!question.title?.trim()) {
+    errors.push('Question title is required');
+  }
+
+  if (!['math', 'physics', 'chemistry'].includes(question.subject)) {
+    errors.push('Question subject must be math, physics, or chemistry');
+  }
+
+  if (!question.chapter?.trim()) {
+    errors.push('Question chapter is required');
+  }
+
+  if (!['A1', 'A2'].includes(question.level)) {
+    errors.push('Question level must be A1 or A2');
+  }
+
+  if (!['easy', 'medium', 'hard'].includes(question.difficulty)) {
+    errors.push('Question difficulty must be easy, medium, or hard');
+  }
+
+  if (!question.stem?.trim()) {
+    errors.push('Question stem is required');
+  }
+
+  if (!Array.isArray(question.steps) || question.steps.length === 0) {
+    errors.push('Question must have at least one step');
+  } else {
+    // Validate each step
+    question.steps.forEach((step, i) => {
+      const stepErrors = validateQuestionStep(step, i);
+      errors.push(...stepErrors);
+    });
+
+    // Validate total marks
+    const calculatedMarks = question.steps.reduce((sum, s) => sum + s.marks, 0);
+    if (question.totalMarks !== calculatedMarks) {
+      errors.push(`Total marks mismatch: declared ${question.totalMarks}, calculated ${calculatedMarks}`);
+    }
+  }
+
+  return errors;
 }

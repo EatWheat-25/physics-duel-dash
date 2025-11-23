@@ -54,9 +54,9 @@ const ReadyMessageSchema = z.object({
 const AnswerSubmitSchema = z.object({
   type: z.literal('answer_submit'),
   question_id: z.string().uuid(),
-  step_id: z.string().min(1).max(100),
-  answer: z.number().int().min(0).max(3)  // Allow 4 options (0-3) for A, B, C, D
-})
+  step_id: z.string().min(1),
+  answer: z.number().int().min(0).max(3)  // CRITICAL: Allow 0-3 for 4 options (A, B, C, D)
+}).strict()  // Reject unknown fields
 
 const ReadyForOptionsSchema = z.object({
   type: z.literal('ready_for_options'),
@@ -113,8 +113,8 @@ async function startRound(game: GameState) {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
 
-  // Fetch next question
-  const { data, error } = await supabase.rpc('pick_next_question_v2', {
+  // Fetch next question using v3 RPC
+  const { data, error } = await supabase.rpc('pick_next_question_v3', {
     p_match_id: matchId
   })
 
@@ -127,6 +127,14 @@ async function startRound(game: GameState) {
   }
 
   const questionData = data[0]
+
+  // Log the received question structure for debugging
+  console.log(`[${matchId}] Question loaded:`, {
+    id: questionData.question_id,
+    title: questionData.question?.title,
+    stepsCount: questionData.question?.steps?.length || 0,
+    hasSteps: !!questionData.question?.steps
+  })
   game.currentQuestionId = questionData.question_id
   game.currentQuestion = questionData.question
   game.currentPhase = 'thinking'
@@ -260,14 +268,32 @@ async function transitionToResult(game: GameState) {
     .eq('question_id', game.currentQuestionId)
 
   // Get correct answer from current step
-  const currentStep = game.currentQuestion.steps?.[game.currentStepIndex]
-  if (!currentStep) {
-    console.error(`[${matchId}] No step found at index ${game.currentStepIndex} for grading - using fallback`)
-    // Don't return early - send result with fallback values to prevent frontend timeout
+  const steps = game.currentQuestion?.steps
+  if (!Array.isArray(steps) || steps.length === 0) {
+    console.error(`[${matchId}] No steps array found in question`)
+    game.p1Socket?.send(JSON.stringify({ type: 'error', message: 'Invalid question structure' }))
+    game.p2Socket?.send(JSON.stringify({ type: 'error', message: 'Invalid question structure' }))
+    return
   }
 
-  const correctAnswer = currentStep?.correctAnswer ?? 0
-  const marksPerQuestion = currentStep?.marks ?? 2
+  const currentStep = steps[game.currentStepIndex]
+  if (!currentStep) {
+    console.error(`[${matchId}] Step ${game.currentStepIndex} not found (total steps: ${steps.length})`)
+    game.p1Socket?.send(JSON.stringify({ type: 'error', message: 'Step not found' }))
+    game.p2Socket?.send(JSON.stringify({ type: 'error', message: 'Step not found' }))
+    return
+  }
+
+  // Extract correct answer (handle both camelCase and snake_case)
+  const correctAnswer = currentStep.correctAnswer ?? currentStep.correct_answer ?? 0
+  const marksPerQuestion = currentStep.marks ?? 1
+
+  console.log(`[${matchId}] Grading step ${game.currentStepIndex}:`, {
+    correctAnswer,
+    marks: marksPerQuestion,
+    p1Answer: game.p1Answer,
+    p2Answer: game.p2Answer
+  })
 
   // Grade answers (null = no answer submitted)
   const p1IsCorrect = game.p1Answer === correctAnswer
