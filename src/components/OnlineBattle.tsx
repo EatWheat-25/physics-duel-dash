@@ -392,6 +392,18 @@ export const OnlineBattle = () => {
       console.log('[OnlineBattle] FINAL STEP detected. Sending answer_submit...', { matchId, questionId, stepId, answerIndex });
       setIsSubmitting(true);
       sendAnswer(wsRef.current, matchId!, questionId, stepId, answerIndex);
+
+      // Failsafe: Reset isSubmitting if no response after 5 seconds
+      setTimeout(() => {
+        setIsSubmitting(prev => {
+          if (prev) {
+            console.warn('[OnlineBattle] Submission timed out - resetting lock');
+            toast.error('Submission timed out. Please try again.');
+            return false;
+          }
+          return prev;
+        });
+      }, 5000);
     } else {
       // Intermediate step: Advance locally
       console.log(`[OnlineBattle] Intermediate step complete, advancing locally`);
@@ -750,6 +762,9 @@ export const OnlineBattle = () => {
                   phaseDeadline={phaseDeadline}
                   options={roundOptions}
                   onReadyForOptions={handleReadyForOptions}
+                  currentStepIndex={currentStepIndex}
+                  stepTimeLeft={stepTimeLeft}
+                  totalSteps={questions[currentQuestionIndex]?.steps?.length || 1}
                   onFinished={() => {
                     console.log('[OnlineBattle] Questions finished');
                     toast.success('All questions completed!');
