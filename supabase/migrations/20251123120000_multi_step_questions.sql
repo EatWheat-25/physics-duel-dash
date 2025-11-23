@@ -2,6 +2,8 @@
 -- Date: 2025-11-23
 
 -- 1. Create question_steps table
+DROP TABLE IF EXISTS public.question_steps CASCADE;
+
 CREATE TABLE IF NOT EXISTS public.question_steps (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   question_id UUID NOT NULL REFERENCES public.questions(id) ON DELETE CASCADE,
@@ -22,6 +24,8 @@ CREATE INDEX IF NOT EXISTS idx_question_steps_question_id ON public.question_ste
 -- CRITICAL: This RPC puts the FINAL STEP (highest step_index) at index 0 of the steps array.
 -- This is a hack to allow the existing game-ws (which scores steps[0]) to work with multi-step questions.
 -- The Frontend MUST re-sort steps by step_index for display.
+
+DROP FUNCTION IF EXISTS public.pick_next_question_v2(uuid);
 
 CREATE OR REPLACE FUNCTION public.pick_next_question_v2(p_match_id uuid)
 RETURNS TABLE (
@@ -147,19 +151,26 @@ DECLARE
 BEGIN
   -- Insert or Update the main question
   INSERT INTO public.questions (
-    subject, level, chapter, difficulty, title, question_text, base_marks, working_time_seconds, rank_tier
+    subject, level, chapter, difficulty, title, question_text, total_marks, rank_tier, topic_tags, steps
   ) VALUES (
-    'math', 'A2', 'Integration P3', 'silver', 'Integration by Parts: ln x / x^3', 
+    'math', 'A2', 'Integration P3', 'hard', 'Integration by Parts: ln x / x^3', 
     'Find the integral of ln(x) / x^3 with respect to x.', 
-    8, 120, 'Silver'
+    8, 'Silver', ARRAY['integration', 'calculus', 'by-parts'],
+    '[
+      {"index": 0, "type": "mcq", "title": "Choose u and dv/dx", "prompt": "Which choice of u and dv/dx is most suitable for integration by parts?", "options": ["u = 1/x^3, dv/dx = ln x", "u = ln x, dv/dx = x^-3", "u = x^-3, dv/dx = ln x", "u = ln x, dv/dx = 1/x^2"], "correctAnswer": 1, "marks": 2},
+      {"index": 1, "type": "mcq", "title": "Find du/dx and v", "prompt": "Calculate du/dx and v based on your choice.", "options": ["du/dx = 1/x, v = -1/(2x^2)", "du/dx = 1/x, v = -2/x^2", "du/dx = x, v = -1/(2x^2)", "du/dx = 1/x, v = 1/(2x^2)"], "correctAnswer": 0, "marks": 2},
+      {"index": 2, "type": "mcq", "title": "Apply the Formula", "prompt": "Substitute into the formula: uv - ∫ v (du/dx) dx", "options": ["-ln x / (2x^2) - ∫ -1/(2x^3) dx", "-ln x / (2x^2) - ∫ 1/(2x^3) dx", "-ln x / x^2 - ∫ -1/(2x^3) dx", "ln x / (2x^2) - ∫ -1/(2x^3) dx"], "correctAnswer": 0, "marks": 2},
+      {"index": 3, "type": "mcq", "title": "Final Answer", "prompt": "Evaluate the remaining integral and simplify.", "options": ["-ln x / (2x^2) - 1/(4x^2) + C", "-ln x / (2x^2) + 1/(4x^2) + C", "-ln x / (2x^2) - 1/(2x^2) + C", "-ln x / (2x^2) + 1/(2x^2) + C"], "correctAnswer": 0, "marks": 2}
+    ]'::jsonb
   )
   RETURNING id INTO q_id;
 
   -- Insert Steps
   -- Step 0: Choose u and dv/dx
-  INSERT INTO public.question_steps (question_id, step_index, title, prompt, options, correct_answer, marks)
+  INSERT INTO public.question_steps (question_id, step_index, step_type, title, prompt, options, correct_answer, marks)
   VALUES (
-    q_id, 0, 'Choose u and dv/dx', 
+    q_id, 0, 'mcq',
+    'Choose u and dv/dx', 
     'Which choice of u and dv/dx is most suitable for integration by parts?',
     '["u = 1/x^3, dv/dx = ln x", "u = ln x, dv/dx = x^-3", "u = x^-3, dv/dx = ln x", "u = ln x, dv/dx = 1/x^2"]'::jsonb,
     '{"correctIndex": 1}'::jsonb,
@@ -167,9 +178,10 @@ BEGIN
   );
 
   -- Step 1: Differentiate u and Integrate dv/dx
-  INSERT INTO public.question_steps (question_id, step_index, title, prompt, options, correct_answer, marks)
+  INSERT INTO public.question_steps (question_id, step_index, step_type, title, prompt, options, correct_answer, marks)
   VALUES (
-    q_id, 1, 'Find du/dx and v', 
+    q_id, 1, 'mcq',
+    'Find du/dx and v', 
     'Calculate du/dx and v based on your choice.',
     '["du/dx = 1/x, v = -1/(2x^2)", "du/dx = 1/x, v = -2/x^2", "du/dx = x, v = -1/(2x^2)", "du/dx = 1/x, v = 1/(2x^2)"]'::jsonb,
     '{"correctIndex": 0}'::jsonb,
@@ -177,9 +189,10 @@ BEGIN
   );
 
   -- Step 2: Apply the Formula
-  INSERT INTO public.question_steps (question_id, step_index, title, prompt, options, correct_answer, marks)
+  INSERT INTO public.question_steps (question_id, step_index, step_type, title, prompt, options, correct_answer, marks)
   VALUES (
-    q_id, 2, 'Apply the Formula', 
+    q_id, 2, 'mcq',
+    'Apply the Formula', 
     'Substitute into the formula: uv - ∫ v (du/dx) dx',
     '["-ln x / (2x^2) - ∫ -1/(2x^3) dx", "-ln x / (2x^2) - ∫ 1/(2x^3) dx", "-ln x / x^2 - ∫ -1/(2x^3) dx", "ln x / (2x^2) - ∫ -1/(2x^3) dx"]'::jsonb,
     '{"correctIndex": 0}'::jsonb,
@@ -187,9 +200,10 @@ BEGIN
   );
 
   -- Step 3: Final Answer
-  INSERT INTO public.question_steps (question_id, step_index, title, prompt, options, correct_answer, marks)
+  INSERT INTO public.question_steps (question_id, step_index, step_type, title, prompt, options, correct_answer, marks)
   VALUES (
-    q_id, 3, 'Final Answer', 
+    q_id, 3, 'mcq',
+    'Final Answer', 
     'Evaluate the remaining integral and simplify.',
     '["-ln x / (2x^2) - 1/(4x^2) + C", "-ln x / (2x^2) + 1/(4x^2) + C", "-ln x / (2x^2) - 1/(2x^2) + C", "-ln x / (2x^2) + 1/(2x^2) + C"]'::jsonb,
     '{"correctIndex": 0}'::jsonb,
