@@ -341,13 +341,15 @@ export function QuestionViewer({
                       </div>
                     </button>
 
-                    {isOnlineMode && currentPhase === 'choosing' && (
+                    {isOnlineMode && (currentPhase === 'choosing' || (currentPhase === 'thinking' && totalSteps > 1)) && (
                       <Button
                         className="w-full mt-2"
                         onClick={handleSubmitAnswer}
-                        disabled={selectedOptionIndex !== null || isSubmitting}
+                        disabled={selectedOptionIndex === null || isSubmitting}
                       >
-                        {selectedOptionIndex !== null ? 'Answer Selected' : 'Select this answer'}
+                        {selectedOptionIndex !== null
+                          ? (currentStepIndex < totalSteps - 1 ? 'Next Step' : 'Submit Answer')
+                          : 'Select this answer'}
                       </Button>
                     )}
                   </div>
@@ -403,7 +405,7 @@ export function QuestionViewer({
                 {/* Button is now inside the option card */}
               </div>
             )}
-            {currentPhase === 'thinking' && (
+            {currentPhase === 'thinking' && totalSteps === 1 && (
               <div className="text-sm text-muted-foreground italic">
                 Waiting for choosing phase...
               </div>
