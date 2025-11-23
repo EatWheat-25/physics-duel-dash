@@ -169,12 +169,16 @@ export function QuestionViewer({
   // Check if we should show options at all
   const shouldShowOptions = !isOnlineMode || currentPhase === 'choosing' || currentPhase === 'result';
 
-  // Reset selection when question changes (for online mode)
+  // Reset selection when question or step changes (for online mode)
   useEffect(() => {
     if (isOnlineMode) {
+      console.log('[QuestionViewer] Resetting selection due to question/step change', {
+        questionId: currentQuestion?.id,
+        currentStepIndex,
+      });
       setSelectedOptionIndex(null);
     }
-  }, [currentQuestion?.id, isOnlineMode]);
+  }, [currentQuestion?.id, currentStepIndex, isOnlineMode]);
 
   const handleOptionSelect = (displayIndex: number) => {
     const actualIndex = getActualOptionIndex(displayIndex);
@@ -299,6 +303,21 @@ export function QuestionViewer({
                 const isCorrect = showResult && correctAnswer === actualIdx;
                 const isWrong = showResult && isSelected && correctAnswer !== actualIdx;
                 const isDisabled = isSubmitting || showResult || (currentPhase === 'thinking') || locked;
+
+                // Debug logging for button visibility
+                const showButton = isOnlineMode && (currentPhase === 'choosing' || (currentPhase === 'thinking' && totalSteps > 1));
+                if (idx === 0) {
+                  console.log('[QuestionViewer] Render state:', {
+                    currentPhase,
+                    currentStepIndex,
+                    totalSteps,
+                    isOnlineMode,
+                    showButton,
+                    selectedOptionIndex,
+                    isSubmitting,
+                    displayOptionsCount: displayOptions.length,
+                  });
+                }
 
                 // In choosing phase, we only show one option, so it's always "Option A/B/C" based on actualIdx
                 // For multi-step, we show all options, so we use the loop index
