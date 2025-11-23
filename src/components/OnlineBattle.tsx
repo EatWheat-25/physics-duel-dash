@@ -165,6 +165,7 @@ export const OnlineBattle = () => {
 
           sendReady(ws);
           setYouReady(true);
+          setTimeLeft(300); // Initialize timer
           toast.success('Connected to battle server');
         },
         onPlayerReady: (event) => {
@@ -204,9 +205,15 @@ export const OnlineBattle = () => {
           }
 
           try {
-            const formattedQuestion = mapRawQuestionToStepBasedQuestion(event.question);
             console.log('WS: Formatted question:', formattedQuestion);
             setQuestions([formattedQuestion]);
+
+            // Insta-start: Auto-trigger ready for options
+            console.log('[OnlineBattle] Auto-triggering ready for options (Insta-start)');
+            // handleReadyForOptions(); // Removed to avoid closure issues
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              sendReadyForOptions(wsRef.current, matchId!);
+            }
           } catch (err) {
             console.error('WS: Error mapping question:', err);
             toast.error('Failed to process question data');
@@ -398,32 +405,7 @@ export const OnlineBattle = () => {
     }
   };
 
-  const handleReadyForOptions = () => {
-    if (hasSubmittedWork) return;
 
-    console.log('[OnlineBattle] Sending ready for options');
-    setHasSubmittedWork(true);
-
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      sendReadyForOptions(wsRef.current, matchId!);
-    }
-
-    // Local immediate transition if not server driven (or to feel responsive)
-    if (!isServerDriven) {
-      console.log('[OnlineBattle] Local transition to choosing (user ready)');
-      // Short delay to simulate network/waiting
-      setTimeout(() => {
-        const currentQ = questions[currentQuestionIndex];
-        const currentStep = currentQ?.steps[currentStepIndex];
-        if (currentStep) {
-          const options = currentStep.options.map((text, i) => ({ id: i, text }));
-          setRoundOptions(options);
-          setCurrentPhase('choosing');
-          setPhaseDeadline(new Date(Date.now() + 45000)); // 45s for choosing
-        }
-      }, 500);
-    }
-  };
 
   // If game is playing but no questions from WebSocket, use fallback
   useEffect(() => {

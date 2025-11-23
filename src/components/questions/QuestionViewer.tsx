@@ -374,7 +374,7 @@ export function QuestionViewer({
             <div className="p-8 text-center border-2 border-dashed border-gray-300 rounded-lg bg-blue-50">
               <Clock className="w-12 h-12 mx-auto mb-3 text-blue-500" />
               <p className="text-lg font-semibold text-gray-700 mb-2">Options will appear soon</p>
-              <p className="text-sm text-gray-600">Use this time to think about the question</p>
+              <p className="text-sm text-gray-600 mb-4">Use this time to think about the question</p>
             </div>
           )}
 
@@ -449,7 +449,7 @@ export function QuestionViewer({
           </Button>
         )}
       </div>
-    </div>
+    </div >
   );
 }
 
