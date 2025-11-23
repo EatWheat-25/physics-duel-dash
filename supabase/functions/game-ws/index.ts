@@ -262,16 +262,17 @@ async function transitionToResult(game: GameState) {
   // Get correct answer from current step
   const currentStep = game.currentQuestion.steps?.[game.currentStepIndex]
   if (!currentStep) {
-    console.error(`[${matchId}] No step found at index ${game.currentStepIndex} for grading`)
-    return
+    console.error(`[${matchId}] No step found at index ${game.currentStepIndex} for grading - using fallback`)
+    // Don't return early - send result with fallback values to prevent frontend timeout
   }
-  const correctAnswer = currentStep.correctAnswer
+
+  const correctAnswer = currentStep?.correctAnswer ?? 0
+  const marksPerQuestion = currentStep?.marks ?? 2
 
   // Grade answers (null = no answer submitted)
   const p1IsCorrect = game.p1Answer === correctAnswer
   const p2IsCorrect = game.p2Answer === correctAnswer
 
-  const marksPerQuestion = currentStep.marks
   const p1Marks = p1IsCorrect ? marksPerQuestion : 0
   const p2Marks = p2IsCorrect ? marksPerQuestion : 0
 
