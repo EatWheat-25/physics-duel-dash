@@ -55,7 +55,7 @@ const AnswerSubmitSchema = z.object({
   type: z.literal('answer_submit'),
   question_id: z.string().uuid(),
   step_id: z.string().min(1).max(100),
-  answer: z.number().int().min(0).max(2)  // Only 3 options (0, 1, 2)
+  answer: z.number().int().min(0).max(3)  // Allow 4 options (0-3) for A, B, C, D
 })
 
 const ReadyForOptionsSchema = z.object({
@@ -548,7 +548,13 @@ Deno.serve(async (req) => {
       if (!validation.success) {
         console.error(`[${matchId}] ❌ Invalid message - validation failed:`, validation.error.errors)
         console.error(`[${matchId}] Raw message was:`, rawMessage)
-        socket.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }))
+
+        // Send error response so client doesn't timeout
+        socket.send(JSON.stringify({
+          type: 'validation_error',
+          message: 'Invalid message format',
+          details: validation.error.errors
+        }))
         return
       }
 

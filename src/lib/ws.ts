@@ -227,6 +227,12 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
           onRoundResult?.(message);
           break;
 
+        case 'validation_error':
+          console.error('WS: ❌ Validation error from server:', (message as any).message);
+          console.error('WS: Error details:', (message as any).details);
+          onError?.(new Error(`Server validation failed: ${(message as any).message}`));
+          break;
+
         default:
           console.warn('WS: Unknown message type:', (message as any).type);
       }
