@@ -58,6 +58,8 @@ export interface PhaseChangeEvent {
   phase: 'choosing' | 'result';
   choosingEndsAt?: string; // ISO timestamp, present when phase = 'choosing'
   options?: OptionDTO[]; // present when phase = 'choosing'
+  currentStepIndex?: number; // Current step index (0-based)
+  totalSteps?: number; // Total number of steps in the question
 }
 
 export interface RoundResultEvent {

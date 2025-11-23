@@ -220,9 +220,16 @@ export const OnlineBattle = () => {
 
           if (event.phase === 'choosing') {
             console.log('[OnlineBattle] Choosing phase - Options:', event.options?.length || 0, 'Deadline:', event.choosingEndsAt);
+
+            // Sync step index from backend
+            if (event.currentStepIndex !== undefined) {
+              console.log('[OnlineBattle] Syncing step index from backend:', event.currentStepIndex);
+              setCurrentStepIndex(event.currentStepIndex);
+            }
+
             setPhaseDeadline(event.choosingEndsAt ? new Date(event.choosingEndsAt) : null);
             setRoundOptions(event.options || null);
-            console.log('[OnlineBattle] State updated - roundOptions:', event.options?.length || 0);
+            console.log('[OnlineBattle] State updated - roundOptions:', event.options?.length || 0, 'step:', event.currentStepIndex);
             toast.info('Choose your answer now!', { duration: 2000 });
           } else if (event.phase === 'result') {
             console.log('[OnlineBattle] Result phase');
@@ -367,6 +374,7 @@ export const OnlineBattle = () => {
       questionId,
       stepId,
       answerIndex,
+      currentStepIndex,
       wsReady: !!wsRef.current,
       wsState: wsRef.current?.readyState,
       isSubmitting
@@ -377,46 +385,22 @@ export const OnlineBattle = () => {
       return;
     }
 
-    const currentQ = questions[currentQuestionIndex];
-    const totalSteps = currentQ?.steps?.length || 0;
-    const isFinalStep = currentStepIndex >= totalSteps - 1;
+    // Always send answer to backend - backend will handle step progression
+    console.log('[OnlineBattle] Sending answer_submit to backend...', { matchId, questionId, stepId, answerIndex });
+    setIsSubmitting(true);
+    sendAnswer(wsRef.current, matchId!, questionId, stepId, answerIndex);
 
-    console.log(`[OnlineBattle] Step logic:`, {
-      currentStepIndex,
-      totalSteps,
-      isFinalStep,
-      stepId
-    });
-
-    if (isFinalStep) {
-      console.log('[OnlineBattle] FINAL STEP detected. Sending answer_submit...', { matchId, questionId, stepId, answerIndex });
-      setIsSubmitting(true);
-      sendAnswer(wsRef.current, matchId!, questionId, stepId, answerIndex);
-
-      // Failsafe: Reset isSubmitting if no response after 5 seconds
-      setTimeout(() => {
-        setIsSubmitting(prev => {
-          if (prev) {
-            console.warn('[OnlineBattle] Submission timed out - resetting lock');
-            toast.error('Submission timed out. Please try again.');
-            return false;
-          }
-          return prev;
-        });
-      }, 5000);
-    } else {
-      // Intermediate step: Advance locally
-      console.log(`[OnlineBattle] Intermediate step complete, advancing locally`);
-      setIsSubmitting(true); // Lock briefly
-
-      setTimeout(() => {
-        setCurrentStepIndex(prev => prev + 1);
-        setIsSubmitting(false);
-
-        // Reset step timer for next step
-        setStepDeadline(new Date(Date.now() + 15000)); // Default 15s for now to be safe
-      }, 500);
-    }
+    // Failsafe: Reset isSubmitting if no response after 5 seconds
+    setTimeout(() => {
+      setIsSubmitting(prev => {
+        if (prev) {
+          console.warn('[OnlineBattle] Submission timed out - resetting lock');
+          toast.error('Submission timed out. Please try again.');
+          return false;
+        }
+        return prev;
+      });
+    }, 5000);
   };
 
   // If game is playing but no questions from WebSocket, use fallback

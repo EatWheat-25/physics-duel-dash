@@ -35,6 +35,7 @@ interface GameState {
   currentPhase: RoundPhase
   currentQuestionId: string | null
   currentQuestion: any | null
+  currentStepIndex: number  // Track current step in multi-step questions
   thinkingDeadline: number | null  // timestamp (used for WORKING phase)
   choosingDeadline: number | null  // timestamp (used for OPTIONS phase)
   p1Answer: number | null
@@ -129,6 +130,7 @@ async function startRound(game: GameState) {
   game.currentQuestionId = questionData.question_id
   game.currentQuestion = questionData.question
   game.currentPhase = 'thinking'
+  game.currentStepIndex = 0  // Reset to first step for new question
   game.p1Answer = null
   game.p2Answer = null
   game.p1ReadyForOptions = false
@@ -156,10 +158,11 @@ async function startRound(game: GameState) {
     roundIndex: game.currentRound,
     phase: 'thinking',
     question: questionData.question,
-    thinkingEndsAt: thinkingEndsAt.toISOString()
+    thinkingEndsAt: thinkingEndsAt.toISOString(),
+    currentStepIndex: 0  // Always start at step 0
   }
 
-  console.log(`[game-ws] ROUND_START`, { matchId, roundIndex: game.currentRound, thinkingEndsAt: thinkingEndsAt.toISOString() })
+  console.log(`[game-ws] ROUND_START`, { matchId, roundIndex: game.currentRound, thinkingEndsAt: thinkingEndsAt.toISOString(), totalSteps: questionData.question.steps?.length || 1 })
   game.p1Socket?.send(JSON.stringify(roundStartMsg))
   game.p2Socket?.send(JSON.stringify(roundStartMsg))
 }
@@ -196,8 +199,9 @@ async function transitionToChoosing(game: GameState) {
     .eq('match_id', matchId)
     .eq('question_id', game.currentQuestionId)
 
-  // Extract first 3 options from question
-  const options = game.currentQuestion.steps[0].options.slice(0, 3).map((text: string, idx: number) => ({
+  // Extract first 3 options from current step
+  const currentStep = game.currentQuestion.steps[game.currentStepIndex]
+  const options = currentStep.options.slice(0, 3).map((text: string, idx: number) => ({
     id: idx,
     text
   }))
@@ -209,10 +213,12 @@ async function transitionToChoosing(game: GameState) {
     roundIndex: game.currentRound,
     phase: 'choosing',
     choosingEndsAt: choosingEndsAt.toISOString(),
-    options
+    options,
+    currentStepIndex: game.currentStepIndex,
+    totalSteps: game.currentQuestion.steps?.length || 1
   }
 
-  console.log(`[game-ws] PHASE_CHANGE → choosing`, { matchId, roundIndex: game.currentRound, choosingEndsAt: choosingEndsAt.toISOString(), optionsCount: options.length })
+  console.log(`[game-ws] PHASE_CHANGE → choosing`, { matchId, roundIndex: game.currentRound, step: game.currentStepIndex + 1, totalSteps: game.currentQuestion.steps?.length || 1, choosingEndsAt: choosingEndsAt.toISOString(), optionsCount: options.length })
   game.p1Socket?.send(JSON.stringify(phaseChangeMsg))
   game.p2Socket?.send(JSON.stringify(phaseChangeMsg))
 }
@@ -241,14 +247,15 @@ async function transitionToResult(game: GameState) {
     .eq('match_id', matchId)
     .eq('question_id', game.currentQuestionId)
 
-  // Get correct answer from question
-  const correctAnswer = game.currentQuestion.steps[0].correctAnswer
+  // Get correct answer from current step
+  const currentStep = game.currentQuestion.steps[game.currentStepIndex]
+  const correctAnswer = currentStep.correctAnswer
 
   // Grade answers (null = no answer submitted)
   const p1IsCorrect = game.p1Answer === correctAnswer
   const p2IsCorrect = game.p2Answer === correctAnswer
 
-  const marksPerQuestion = game.currentQuestion.steps[0].marks
+  const marksPerQuestion = currentStep.marks
   const p1Marks = p1IsCorrect ? marksPerQuestion : 0
   const p2Marks = p2IsCorrect ? marksPerQuestion : 0
 
@@ -301,22 +308,49 @@ async function transitionToResult(game: GameState) {
     p2Score: game.p2Score
   }
 
-  console.log(`[game-ws] ROUND_RESULT`, { matchId, roundIndex: game.currentRound, p1Correct: p1IsCorrect, p2Correct: p2IsCorrect, tugOfWar })
+  console.log(`[game-ws] ROUND_RESULT`, { matchId, roundIndex: game.currentRound, step: game.currentStepIndex + 1, p1Correct: p1IsCorrect, p2Correct: p2IsCorrect, tugOfWar })
   game.p1Socket?.send(JSON.stringify(roundResultMsg))
   game.p2Socket?.send(JSON.stringify(roundResultMsg))
 
-  // Wait, then advance to next round or end match
+  // Wait, then check if there are more steps or advance to next round
   setTimeout(() => {
-    game.currentRound++
+    const totalSteps = game.currentQuestion.steps?.length || 1
+    const hasMoreSteps = game.currentStepIndex < totalSteps - 1
 
-    if (game.currentRound >= game.roundsPerMatch) {
-      endMatch(game).catch(err =>
-        console.error(`[${matchId}] Error ending match:`, err)
+    if (hasMoreSteps) {
+      // Advance to next step in the same question
+      game.currentStepIndex++
+      console.log(`[${matchId}] Advancing to step ${game.currentStepIndex + 1} of ${totalSteps}`)
+
+      // Reset for next step
+      game.p1Answer = null
+      game.p2Answer = null
+      game.p1ReadyForOptions = false
+      game.p2ReadyForOptions = false
+      game.currentPhase = 'thinking'
+
+      // Set new thinking deadline
+      const thinkingEndsAt = new Date(Date.now() + WORKING_TIME_MS)
+      game.thinkingDeadline = thinkingEndsAt.getTime()
+
+      // Immediately transition to choosing for next step (skip thinking phase for subsequent steps)
+      transitionToChoosing(game).catch(err =>
+        console.error(`[${matchId}] Error transitioning to next step:`, err)
       )
     } else {
-      startRound(game).catch(err =>
-        console.error(`[${matchId}] Error starting next round:`, err)
-      )
+      // All steps complete, advance to next round
+      game.currentRound++
+      console.log(`[${matchId}] All steps complete, advancing to round ${game.currentRound}`)
+
+      if (game.currentRound >= game.roundsPerMatch) {
+        endMatch(game).catch(err =>
+          console.error(`[${matchId}] Error ending match:`, err)
+        )
+      } else {
+        startRound(game).catch(err =>
+          console.error(`[${matchId}] Error starting next round:`, err)
+        )
+      }
     }
   }, RESULT_DISPLAY_MS)
 }
@@ -465,6 +499,7 @@ Deno.serve(async (req) => {
       currentPhase: 'thinking',
       currentQuestionId: null,
       currentQuestion: null,
+      currentStepIndex: 0,  // Initialize step index
       thinkingDeadline: null,
       choosingDeadline: null,
       p1Answer: null,
