@@ -67,9 +67,8 @@ export interface ReadyMessage {
 
 export interface AnswerSubmitMessage {
   type: 'answer_submit';
-  matchId: string;
-  questionId: string;
-  stepId: string;
+  question_id: string;  // Snake case to match server schema
+  step_id: string;      // Snake case to match server schema
   answer: number;
 }
 
@@ -78,14 +77,18 @@ export interface AnswerSubmitMessage {
 export function sendAnswer(ws: WebSocket, matchId: string, questionId: string, stepId: string, answer: number): void {
   const message: AnswerSubmitMessage = {
     type: 'answer_submit',
-    matchId,
-    questionId,
-    stepId,
+    question_id: questionId,  // Convert to snake_case for server
+    step_id: stepId,          // Convert to snake_case for server
     answer,
   };
-  console.log('[WS] outbound', message);
+  console.log('[WS] 📤 Sending answer_submit:', {
+    question_id: questionId,
+    step_id: stepId,
+    answer,
+    matchId  // Log for debugging but don't send to server
+  });
   ws.send(JSON.stringify(message));
-  console.log(`WS: Submitted answer for match ${matchId}, question ${questionId}, step ${stepId}`);
+  console.log(`[WS] ✅ Answer submitted successfully`);
 }
 
 export interface QuestionCompleteMessage {

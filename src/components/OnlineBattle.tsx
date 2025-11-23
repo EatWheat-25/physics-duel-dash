@@ -370,23 +370,34 @@ export const OnlineBattle = () => {
 
   // Answer submission handler
   const handleSubmitAnswer = (questionId: string, stepId: string, answerIndex: number) => {
-    console.log('[OnlineBattle] handleSubmitAnswer called', {
+    const currentQ = questions[currentQuestionIndex];
+    const totalSteps = currentQ?.steps?.length || 0;
+
+    console.log('[OnlineBattle] 🎯 handleSubmitAnswer called', {
       questionId,
       stepId,
       answerIndex,
       currentStepIndex,
+      totalSteps,
+      currentPhase,
       wsReady: !!wsRef.current,
       wsState: wsRef.current?.readyState,
       isSubmitting
     });
 
     if (!wsRef.current || isSubmitting) {
-      console.warn('[OnlineBattle] Submission blocked', { ws: !!wsRef.current, isSubmitting });
+      console.warn('[OnlineBattle] ❌ Submission blocked', { ws: !!wsRef.current, isSubmitting });
       return;
     }
 
     // Always send answer to backend - backend will handle step progression
-    console.log('[OnlineBattle] Sending answer_submit to backend...', { matchId, questionId, stepId, answerIndex });
+    console.log('[OnlineBattle] 📤 Sending answer_submit to backend...', {
+      matchId,
+      questionId,
+      stepId,
+      answerIndex,
+      step: `${currentStepIndex + 1}/${totalSteps}`
+    });
     setIsSubmitting(true);
     sendAnswer(wsRef.current, matchId!, questionId, stepId, answerIndex);
 
@@ -394,7 +405,7 @@ export const OnlineBattle = () => {
     setTimeout(() => {
       setIsSubmitting(prev => {
         if (prev) {
-          console.warn('[OnlineBattle] Submission timed out - resetting lock');
+          console.warn('[OnlineBattle] ⏱️ Submission timed out - resetting lock');
           toast.error('Submission timed out. Please try again.');
           return false;
         }

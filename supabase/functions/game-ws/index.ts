@@ -542,15 +542,18 @@ Deno.serve(async (req) => {
   socket.onmessage = async (event) => {
     try {
       const rawMessage = JSON.parse(event.data)
+      console.log(`[${matchId}] 📨 Received message:`, rawMessage.type, rawMessage)
 
       const validation = ClientMessageSchema.safeParse(rawMessage)
       if (!validation.success) {
-        console.error(`[${matchId}] Invalid message:`, validation.error)
+        console.error(`[${matchId}] ❌ Invalid message - validation failed:`, validation.error.errors)
+        console.error(`[${matchId}] Raw message was:`, rawMessage)
         socket.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }))
         return
       }
 
       const message = validation.data
+      console.log(`[${matchId}] ✅ Message validated successfully:`, message.type)
 
       switch (message.type) {
         case 'ready': {
@@ -583,11 +586,16 @@ Deno.serve(async (req) => {
         case 'answer_submit': {
           const { answer } = message
 
-          console.log(`[${matchId}] ${isP1 ? 'P1' : 'P2'} submitted answer: ${answer}`)
+          console.log(`[${matchId}] 🎯 ${isP1 ? 'P1' : 'P2'} submitted answer:`, {
+            answer,
+            currentPhase: game.currentPhase,
+            currentStepIndex: game.currentStepIndex,
+            totalSteps: game.currentQuestion?.steps?.length || 0
+          })
 
           // Verify we're in choosing phase
           if (game.currentPhase !== 'choosing') {
-            console.log(`[${matchId}] Answer submitted during ${game.currentPhase} phase, rejecting`)
+            console.log(`[${matchId}] ❌ Answer rejected - not in choosing phase (current: ${game.currentPhase})`)
             socket.send(JSON.stringify({ type: 'error', message: 'Not in choosing phase' }))
             return
           }
@@ -595,22 +603,26 @@ Deno.serve(async (req) => {
           // Store answer
           if (isP1) {
             if (game.p1Answer !== null) {
-              console.log(`[${matchId}] P1 already answered, ignoring`)
+              console.log(`[${matchId}] ⚠️ P1 already answered, ignoring`)
               return
             }
             game.p1Answer = answer
+            console.log(`[${matchId}] ✅ P1 answer stored: ${answer}`)
           } else {
             if (game.p2Answer !== null) {
-              console.log(`[${matchId}] P2 already answered, ignoring`)
+              console.log(`[${matchId}] ⚠️ P2 already answered, ignoring`)
               return
             }
             game.p2Answer = answer
+            console.log(`[${matchId}] ✅ P2 answer stored: ${answer}`)
           }
 
           // If both answered, immediately transition to result
           if (game.p1Answer !== null && game.p2Answer !== null) {
-            console.log(`[${matchId}] Both players answered, transitioning to result immediately`)
+            console.log(`[${matchId}] 🎉 Both players answered, transitioning to result immediately`)
             await transitionToResult(game)
+          } else {
+            console.log(`[${matchId}] ⏳ Waiting for other player (P1: ${game.p1Answer !== null ? 'answered' : 'waiting'}, P2: ${game.p2Answer !== null ? 'answered' : 'waiting'})`)
           }
 
           break
