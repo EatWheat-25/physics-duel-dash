@@ -741,26 +741,25 @@ Deno.serve(async (req) => {
           game.p1Socket?.send(JSON.stringify(readyMsg))
           game.p2Socket?.send(JSON.stringify(readyMsg))
 
+
           // Start game if both ready
           if (game.p1Ready && game.p2Ready && !game.gameActive) {
             console.log(`[QA-LOG] [${matchId}] ✅ Both players ready, starting match`)
             game.gameActive = true
             game.currentRound = 1  // Initialize to round 1
 
-            await supabase
+            const { error: updateError } = await supabase
               .from('matches_new')
               .update({ state: 'active' })
               .eq('id', matchId)
 
+            if (updateError) {
+              console.error(`[${matchId}] ❌ Error updating match state:`, updateError)
+            }
+
             console.log(`[${matchId}] 🎮 Starting first round (round ${game.currentRound})`)
             // Start first round
-            try {
-              await startRound(game)
-            } catch (err) {
-              console.error(`[${matchId}] ❌ CRITICAL ERROR starting round:`, err)
-              game.p1Socket?.send(JSON.stringify({ type: 'error', message: 'Failed to start round' }))
-              game.p2Socket?.send(JSON.stringify({ type: 'error', message: 'Failed to start round' }))
-            }
+            await startRound(game)
           }
           break
         }
