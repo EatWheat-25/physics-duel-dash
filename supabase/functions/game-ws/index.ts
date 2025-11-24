@@ -248,16 +248,22 @@ async function startRound(game: GameState) {
   const thinkingEndsAt = new Date(Date.now() + WORKING_TIME_MS)
   game.thinkingDeadline = thinkingEndsAt.getTime()
 
-  // Update DB
-  await supabase
+  // Insert match_question record
+  const { error: mqError } = await supabase
     .from('match_questions')
-    .update({
+    .insert({
+      match_id: matchId,
+      question_id: questionData.question_id,
+      ordinal: game.currentRound,
       phase: 'thinking',
       thinking_started_at: new Date().toISOString(),
       thinking_ends_at: thinkingEndsAt.toISOString()
     })
-    .eq('match_id', matchId)
-    .eq('question_id', questionData.question_id)
+
+  if (mqError) {
+    console.error(`[${matchId}] ❌ CRITICAL ERROR inserting match_question:`, mqError)
+    throw mqError
+  }
 
   // Create match_round
   const { data: roundData, error: roundError } = await supabase
