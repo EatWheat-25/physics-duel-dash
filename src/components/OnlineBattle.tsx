@@ -412,7 +412,12 @@ export const OnlineBattle = () => {
     }
 
     if (!roundId) {
-      console.error('[OnlineBattle] ❌ Cannot submit: roundId is missing');
+      console.error('[OnlineBattle] ❌ Cannot submit: roundId is missing', {
+        matchId,
+        currentPhase,
+        questionsLoaded: questions.length,
+        isServerDriven
+      });
       toast.error('Game state error: Round ID missing');
       return;
     }
