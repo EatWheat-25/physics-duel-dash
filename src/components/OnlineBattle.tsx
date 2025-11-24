@@ -1,20 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { motion } from 'framer-motion';
-import { Button } from './ui/button';
-import { Progress } from './ui/progress';
-import { ArrowLeft, Loader2, Trophy, Award, AlertCircle } from 'lucide-react';
-import { Starfield } from './Starfield';
-import TugOfWarBar from './TugOfWarBar';
-import { connectGameWS, sendReady, sendAnswer, sendReadyForOptions, type ServerEvent } from '@/lib/ws';
-import type { RoundPhase, RoundStartEvent, PhaseChangeEvent, RoundResultEvent } from '@/types/gameEvents';
 import { toast } from 'sonner';
-import { StepBasedQuestion, QuestionSubject, QuestionLevel } from '@/types/questions';
-import { useQuestions } from '@/hooks/useQuestions';
+import { Loader2 } from 'lucide-react';
+
+// New Components
+import { GameLayout } from './game/GameLayout';
+import { GameHeader } from './game/GameHeader';
+import { ActiveQuestion } from './game/ActiveQuestion';
+import { PhaseOverlay } from './game/PhaseOverlay';
+
+// Logic & Types
+import { connectGameWS, sendReady, sendAnswer } from '@/lib/ws';
+import type { RoundPhase, RoundStartEvent, PhaseChangeEvent, RoundResultEvent } from '@/types/gameEvents';
+import { StepBasedQuestion } from '@/types/questions';
 import { mapRawQuestionToStepBasedQuestion } from '@/utils/questionMapper';
-import { QuestionViewer } from './questions/QuestionViewer';
-import { Card, CardContent } from './ui/card';
 
 interface Match {
   id: string;
@@ -33,776 +33,289 @@ interface Match {
 export const OnlineBattle = () => {
   const { matchId } = useParams();
   const navigate = useNavigate();
+
+  // -- State --
   const [match, setMatch] = useState<Match | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(0);
   const [yourUsername, setYourUsername] = useState<string>('You');
   const [opponentUsername, setOpponentUsername] = useState<string>('Opponent');
+  const [yourAvatar, setYourAvatar] = useState<string>();
+  const [opponentAvatar, setOpponentAvatar] = useState<string>();
+
   const [connectionState, setConnectionState] = useState<'connecting' | 'waiting_ready' | 'playing' | 'ended'>('connecting');
-  const [opponentReady, setOpponentReady] = useState(false);
   const [youReady, setYouReady] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const [opponentReady, setOpponentReady] = useState(false);
+
+  // Game Logic State
   const [questions, setQuestions] = useState<StepBasedQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
-  const [showResult, setShowResult] = useState(false);
-  const [hasSubmittedWork, setHasSubmittedWork] = useState(false);
-
-  // 3-phase state
-  const [currentPhase, setCurrentPhase] = useState<RoundPhase | null>(null);
-  const [phaseDeadline, setPhaseDeadline] = useState<Date | null>(null);
-  const [roundOptions, setRoundOptions] = useState<Array<{ id: number; text: string }> | null>(null);
-  const [roundIndex, setRoundIndex] = useState(0);
   const [roundId, setRoundId] = useState<string | null>(null);
-  const [phaseTimeRemaining, setPhaseTimeRemaining] = useState<number | null>(null);
-  const [isServerDriven, setIsServerDriven] = useState(false);
-  const [, setTimerTick] = useState(0); // Dummy state to force re-renders for timer
+  const [currentPhase, setCurrentPhase] = useState<RoundPhase | null>(null);
 
-  // Step-based timer state
-  const [stepDeadline, setStepDeadline] = useState<Date | null>(null);
-  const [stepTimeLeft, setStepTimeLeft] = useState<number | null>(null);
+  // Timers
+  const [phaseDeadline, setPhaseDeadline] = useState<Date | null>(null);
+  const [phaseTimeRemaining, setPhaseTimeRemaining] = useState<number>(0);
+
+  // Interaction State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [correctAnswer, setCorrectAnswer] = useState<number | null>(null); // For result display
+
+  // Overlay State
+  const [overlay, setOverlay] = useState<{
+    isVisible: boolean;
+    type: 'round_start' | 'vs' | 'victory' | 'defeat' | 'draw';
+    title: string;
+    subtitle?: string;
+  }>({ isVisible: false, type: 'vs', title: '' });
 
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Fallback: fetch questions from database if WebSocket doesn't provide them
-  const fallbackSubject = (match?.subject as QuestionSubject) || 'math';
-  const fallbackLevel = (match?.chapter?.includes('A1') ? 'A1' : match?.chapter?.includes('A2') ? 'A2' : undefined) as QuestionLevel | undefined;
+  // -- Helpers --
+  const isPlayer1 = currentUser === match?.p1;
+  const myScore = match ? (isPlayer1 ? match.p1_score : match.p2_score) : 0;
+  const oppScore = match ? (isPlayer1 ? match.p2_score : match.p1_score) : 0;
+  const tugPosition = myScore - oppScore; // Positive = You winning
 
-  console.log('[OnlineBattle] Match info:', { subject: match?.subject, chapter: match?.chapter });
-  console.log('[OnlineBattle] Fallback filters:', { subject: fallbackSubject, level: fallbackLevel });
+  // -- Effects --
 
-  const {
-    data: fallbackQuestions,
-    isLoading: isFetchingFallback,
-    isError: fallbackError
-  } = useQuestions({
-    subject: fallbackSubject,
-    level: fallbackLevel,
-    limit: 5
-  });
-
-  console.log('[OnlineBattle] Fallback questions:', fallbackQuestions?.length || 0);
-
+  // 1. Auth & User Info
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setCurrentUser(data.user?.id || null);
     });
   }, []);
 
+  // 2. Fetch Match & Profiles
   useEffect(() => {
     if (!matchId) return;
-
     const fetchMatch = async () => {
-      const { data, error } = await supabase
-        .from('matches_new')
-        .select('*')
-        .eq('id', matchId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching match:', error);
-        toast.error('Failed to load match');
-        return;
-      }
-
-      if (data) {
-        console.log('Match loaded:', data);
-        setMatch(data as Match);
-      }
+      const { data, error } = await supabase.from('matches_new').select('*').eq('id', matchId).maybeSingle();
+      if (data) setMatch(data as Match);
+      else if (error) toast.error('Failed to load match');
     };
-
     fetchMatch();
   }, [matchId]);
 
   useEffect(() => {
-    const fetchUsernames = async () => {
+    const fetchProfiles = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !match) return;
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (profile) setYourUsername(profile.username);
+      // Your Profile
+      const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', user.id).single();
+      if (myProfile) {
+        setYourUsername(myProfile.username);
+        // setYourAvatar(myProfile.avatar_url); // Not in schema
+      }
 
+      // Opponent Profile
       const opponentId = match.p1 === user.id ? match.p2 : match.p1;
-      const { data: opponentProfile } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', opponentId)
-        .maybeSingle();
-      if (opponentProfile) setOpponentUsername(opponentProfile.username);
+      const { data: oppProfile } = await supabase.from('profiles').select('username').eq('id', opponentId).single();
+      if (oppProfile) {
+        setOpponentUsername(oppProfile.username);
+        // setOpponentAvatar(oppProfile.avatar_url); // Not in schema
+      }
     };
-
-    fetchUsernames();
+    fetchProfiles();
   }, [match]);
 
+  // 3. WebSocket Connection
   useEffect(() => {
     if (!matchId || !currentUser || !match) return;
 
     const setupWebSocket = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        console.error('WS: No access token found');
-        toast.error('Authentication error');
-        return;
-      }
-
-      console.log('WS: Setting up WebSocket connection');
+      if (!session?.access_token) return;
 
       const ws = connectGameWS({
         matchId,
         token: session.access_token,
         onConnected: (event) => {
-          console.log('WS: Connected as', event.player);
-          setConnectionState('playing'); // Skip waiting_ready
-
-          // Force initialize phase for instant start
-          setCurrentPhase('thinking');
-          setPhaseDeadline(new Date(Date.now() + 60000)); // 60s default
-
+          console.log('WS: Connected');
+          setConnectionState('playing');
           sendReady(ws);
           setYouReady(true);
-          setTimeLeft(300); // Initialize timer
-          toast.success('Connected to battle server');
+
+          // Show VS Overlay
+          setOverlay({
+            isVisible: true,
+            type: 'vs',
+            title: 'BATTLE START',
+            subtitle: `${yourUsername} vs ${opponentUsername}`
+          });
+          setTimeout(() => setOverlay(prev => ({ ...prev, isVisible: false })), 3000);
         },
         onPlayerReady: (event) => {
-          console.log('WS: Player ready event:', event.player);
-          if (event.player === 'p1' || event.player === 'p2') {
-            const isOpponent = (match.p1 === currentUser && event.player === 'p2') ||
-              (match.p2 === currentUser && event.player === 'p1');
-            if (isOpponent) {
-              setOpponentReady(true);
-            }
-          }
+          if (event.player !== (isPlayer1 ? 'p1' : 'p2')) setOpponentReady(true);
         },
         onRoundStart: (event: RoundStartEvent) => {
-          console.log('[OnlineBattle] ✅ ROUND_START received', event);
-          console.log('[OnlineBattle] Phase:', event.phase, 'Deadline:', event.thinkingEndsAt);
-          setIsServerDriven(true);
+          console.log('Round Start:', event);
 
-          // Reset state for new round
-          setShowResult(false);
-          setCorrectAnswer(null);
-          setIsSubmitting(false);
-          setRoundIndex(event.roundIndex);
+          // Reset Round State
           setRoundId(event.roundId);
           setCurrentPhase(event.phase);
           setPhaseDeadline(new Date(event.thinkingEndsAt));
-          setRoundOptions(null); // No options during thinking phase
-          setHasSubmittedWork(false); // Reset for new round
-          setCurrentStepIndex(0); // Reset step index for new round
-          setStepDeadline(null); // Reset step timer
+          setSelectedAnswer(null);
+          setCorrectAnswer(null);
+          setIsSubmitting(false);
+          setCurrentStepIndex(0); // Reset step
 
-          console.log('[OnlineBattle] State updated - currentPhase:', event.phase, 'phaseDeadline:', new Date(event.thinkingEndsAt));
-
-          if (!event.question) {
-            console.error('WS: event.question is null/undefined!', event);
-            toast.error('Failed to load question - no question in payload');
-            return;
+          // Parse Question
+          if (event.question) {
+            try {
+              const q = mapRawQuestionToStepBasedQuestion(event.question);
+              setQuestions([q]);
+            } catch (e) { console.error(e); }
           }
 
-          try {
-            const formattedQuestion = mapRawQuestionToStepBasedQuestion(event.question);
-            console.log('WS: Formatted question:', formattedQuestion);
-            setQuestions([formattedQuestion]);
-          } catch (err) {
-            console.error('WS: Error mapping question:', err);
-            toast.error('Failed to process question data');
-          }
+          // Show Round Overlay
+          setOverlay({
+            isVisible: true,
+            type: 'round_start',
+            title: `ROUND ${event.roundIndex}`,
+            subtitle: 'Get Ready!'
+          });
+          setTimeout(() => setOverlay(prev => ({ ...prev, isVisible: false })), 2000);
         },
         onPhaseChange: (event: PhaseChangeEvent) => {
-          console.log('[OnlineBattle] ✅ PHASE_CHANGE received', event);
-          console.log('[OnlineBattle] New phase:', event.phase);
-
+          console.log('Phase Change:', event.phase);
           setCurrentPhase(event.phase);
+          setPhaseDeadline(event.choosingEndsAt ? new Date(event.choosingEndsAt) : null);
 
           if (event.phase === 'choosing') {
-            console.log('[OnlineBattle] Choosing phase - Options:', event.options?.length || 0, 'Deadline:', event.choosingEndsAt);
-
-            // Sync step index from backend
-            if (event.currentStepIndex !== undefined) {
-              console.log('[OnlineBattle] Syncing step index from backend:', event.currentStepIndex);
-              setCurrentStepIndex(event.currentStepIndex);
-            }
-
-            setPhaseDeadline(event.choosingEndsAt ? new Date(event.choosingEndsAt) : null);
-            setRoundOptions(event.options || null);
-            console.log('[OnlineBattle] State updated - roundOptions:', event.options?.length || 0, 'step:', event.currentStepIndex);
-            toast.info('Choose your answer now!', { duration: 2000 });
-          } else if (event.phase === 'result') {
-            console.log('[OnlineBattle] Result phase');
-            setPhaseDeadline(null);
-            toast.info('Calculating results...');
+            if (event.currentStepIndex !== undefined) setCurrentStepIndex(event.currentStepIndex);
+            toast.info('Choose your answer!');
           }
         },
         onRoundResult: (event: RoundResultEvent) => {
-          console.log('[OnlineBattle] Received round_result', event);
-          setShowResult(true);
+          console.log('Round Result:', event);
           setCorrectAnswer(event.correctOptionId);
-          setIsSubmitting(false); // CRITICAL: Reset isSubmitting after round ends
+          setMatch(prev => prev ? { ...prev, p1_score: event.p1Score, p2_score: event.p2Score } : null);
 
-          // Update scores
-          setMatch(prev => prev ? {
-            ...prev,
-            p1_score: event.p1Score,
-            p2_score: event.p2Score,
-          } : null);
-
-          // Find current user's result
+          // Show result feedback
           const myResult = event.playerResults.find(r => r.playerId === currentUser);
-          if (myResult) {
-            if (myResult.isCorrect) {
-              toast.success('Correct answer!');
-            } else {
-              toast.error('Incorrect answer');
-            }
-          }
-        },
-        onValidationError: (event) => {
-          console.error('[OnlineBattle] Validation error from server:', event);
-          setIsSubmitting(false); // Reset submitting state
-          toast.error(`Submission failed: ${event.message}`, { duration: 5000 });
-          if (event.details && event.details.length > 0) {
-            console.error('[OnlineBattle] Validation details:', event.details);
-          }
-        },
-        onGameStart: (event) => {
-          console.log('[OnlineBattle] Legacy game_start event (should not happen with 3-phase)', event);
-        },
-        onNextQuestion: (event) => {
-          console.log('[OnlineBattle] Legacy next_question event (should not happen with 3-phase)', event);
+          if (myResult?.isCorrect) toast.success('Correct!');
+          else toast.error('Incorrect');
         },
         onAnswerResult: (event) => {
-          console.log('[OnlineBattle] ✅ Answer result received:', event);
-          setIsSubmitting(false);
-
+          // Handled by onRoundResult mostly, but useful for immediate feedback if needed
           if (event.player_id === currentUser) {
-            if (event.is_correct) {
-              toast.success('Correct!');
-              // Optionally advance step locally if needed, but server drives this usually?
-              // For multi-step, we might want to show "Correct" and wait for next step.
-            } else {
-              toast.error('Incorrect.');
-            }
-          }
-        },
-
-        onScoreUpdate: (event) => {
-          console.log(`WS: Legacy score_update event (should not happen with 3-phase)`, event);
-        },
-        onOpponentDisconnect: (event) => {
-          console.log('WS: Opponent disconnected');
-          toast.warning(`Opponent disconnected: ${event.reason}`);
-          if (event.you_win) {
-            toast.success('You win by forfeit!');
-            setTimeout(() => navigate('/'), 5000);
+            setIsSubmitting(false);
           }
         },
         onMatchEnd: (event) => {
-          console.log('WS: Match ended', event);
           setConnectionState('ended');
+          const won = event.winnerPlayerId === currentUser;
+          const draw = !event.winnerPlayerId;
 
-          // Handle new event format
-          const winnerId = event.winnerPlayerId;
-          const finalScores = event.summary.finalScores;
-
-          setMatch(prev => prev ? {
-            ...prev,
-            state: 'ended',
-            winner_id: winnerId,
-            p1_score: finalScores.p1,
-            p2_score: finalScores.p2,
-          } : null);
-
-          if (winnerId === currentUser) {
-            toast.success('Victory!', { duration: 5000 });
-          } else if (winnerId) {
-            toast.error('Defeat', { duration: 5000 });
-          } else {
-            toast.info('Match ended in a draw', { duration: 5000 });
-          }
+          setOverlay({
+            isVisible: true,
+            type: draw ? 'draw' : (won ? 'victory' : 'defeat'),
+            title: draw ? 'DRAW' : (won ? 'VICTORY' : 'DEFEAT'),
+            subtitle: draw ? 'Well Played' : (won ? 'You Won!' : 'Better Luck Next Time')
+          });
         },
-        onError: (error) => {
-          console.error('WS: Error:', error);
-          toast.error(`Connection error: ${error.message}`);
+        onValidationError: (event) => {
+          toast.error(event.message);
+          setIsSubmitting(false);
         },
-        onClose: () => {
-          console.log('WS: Connection closed');
-          if (connectionState !== 'ended') {
-            toast.error('Connection to server lost');
-          }
-        },
+        onError: (err) => toast.error(`Connection Error: ${err.message}`),
+        onClose: () => toast.error('Connection Lost')
       });
 
       wsRef.current = ws;
     };
 
     setupWebSocket();
+    return () => { wsRef.current?.close(); };
+  }, [matchId, currentUser, match]);
 
-    return () => {
-      if (wsRef.current) {
-        console.log('WS: Cleaning up connection');
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [matchId, currentUser, match, navigate, connectionState]);
-
-  // Handle Ready for Options (Answer Now button)
-  const handleReadyForOptions = () => {
-    if (hasSubmittedWork) return;
-
-    console.log('[OnlineBattle] Sending ready for options');
-    setHasSubmittedWork(true);
-
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      sendReadyForOptions(wsRef.current, matchId!);
-    }
-
-    // Local immediate transition if not server driven (or to feel responsive)
-    if (!isServerDriven) {
-      console.log('[OnlineBattle] Local transition to choosing (user ready)');
-      // Short delay to simulate network/waiting
-      setTimeout(() => {
-        const currentQ = questions[currentQuestionIndex];
-        const currentStep = currentQ?.steps[currentStepIndex];
-        if (currentStep) {
-          const options = currentStep.options.map((text, i) => ({ id: i, text }));
-          setRoundOptions(options);
-          setCurrentPhase('choosing');
-          setPhaseDeadline(new Date(Date.now() + 15000)); // 15s for choosing
-        }
-      }, 500);
-    }
-  };
-
-  // Handle next step locally
-  const handleNextStep = () => {
-    console.log('[OnlineBattle] Advancing to next step locally');
-    setCurrentStepIndex(prev => prev + 1);
-
-    // Reset step timer for next step
-    setStepDeadline(new Date(Date.now() + 15000));
-  };
-
-  // Answer submission handler
-  const handleSubmitAnswer = (questionId: string, stepId: string, answerIndex: number) => {
-    const currentQ = questions[currentQuestionIndex];
-    const totalSteps = currentQ?.steps?.length || 0;
-
-    console.log('[OnlineBattle] 🎯 handleSubmitAnswer called', {
-      questionId,
-      stepId,
-      answerIndex,
-      currentStepIndex,
-      totalSteps,
-      currentPhase,
-      wsReady: !!wsRef.current,
-      wsState: wsRef.current?.readyState,
-      isSubmitting
-    });
-
-    if (!wsRef.current || isSubmitting) {
-      console.warn('[OnlineBattle] ❌ Submission blocked', { ws: !!wsRef.current, isSubmitting });
-      return;
-    }
-
-    if (!roundId) {
-      console.error('[OnlineBattle] ❌ Cannot submit: roundId is missing', {
-        matchId,
-        currentPhase,
-        questionsLoaded: questions.length,
-        isServerDriven
-      });
-      toast.error('Game state error: Round ID missing');
-      return;
-    }
-
-    // Always send answer to backend - backend will handle step progression
-    console.log('[OnlineBattle] 📤 Sending submit_answer to backend...', {
-      matchId,
-      roundId,
-      questionId,
-      stepId,
-      answerIndex,
-      step: `${currentStepIndex + 1}/${totalSteps}`
-    });
-    setIsSubmitting(true);
-    sendAnswer(wsRef.current, matchId!, roundId, questionId, stepId, answerIndex);
-
-    // Failsafe: Reset isSubmitting if no response after 5 seconds
-    setTimeout(() => {
-      setIsSubmitting(prev => {
-        if (prev) {
-          console.warn('[OnlineBattle] ⏱️ Submission timed out - resetting lock');
-          toast.error('Submission timed out. Please try again.');
-          return false;
-        }
-        return prev;
-      });
-    }, 5000);
-  };
-
-  // If game is playing but no questions from WebSocket, use fallback
+  // 4. Timer Logic
   useEffect(() => {
-    if (connectionState === 'playing' && questions.length === 0 && fallbackQuestions && fallbackQuestions.length > 0) {
-      console.log('[OnlineBattle] Using fallback questions since WebSocket provided none');
-      console.log('[OnlineBattle] Fallback question count:', fallbackQuestions.length);
-      setQuestions(fallbackQuestions);
-
-      // Initialize phase if not set (e.g. if WS failed to provide it)
-      if (!currentPhase) {
-        console.log('[OnlineBattle] Initializing fallback phase to THINKING');
-        setCurrentPhase('thinking');
-        setPhaseDeadline(new Date(Date.now() + 60000)); // 60s default
-      }
-    }
-  }, [connectionState, questions.length, fallbackQuestions, currentPhase]);
-
-  // Debug: Log questions state changes
-  useEffect(() => {
-    console.log('[OnlineBattle] Questions state updated:', {
-      count: questions.length,
-      connectionState,
-      hasQuestions: questions.length > 0
-    });
-  }, [questions, connectionState]);
-
-  // Debug: Log phase state changes
-  useEffect(() => {
-    console.log('[OnlineBattle] Phase state:', {
-      currentPhase,
-      phaseDeadline: phaseDeadline?.toISOString(),
-      hasPhaseDeadline: !!phaseDeadline,
-      roundOptions: roundOptions?.length || 0
-    });
-  }, [currentPhase, phaseDeadline, roundOptions]);
-
-  // Timer logic for ALL phases
-  useEffect(() => {
-    if (!phaseDeadline) {
-      setPhaseTimeRemaining(null);
-      return;
-    }
-
-    const updateTimer = () => {
-      const now = Date.now();
-      const deadline = new Date(phaseDeadline).getTime();
-      const diffMs = Math.max(0, deadline - now);
-      const seconds = Math.ceil(diffMs / 1000);
-      setPhaseTimeRemaining(seconds);
-    };
-
-    updateTimer(); // Initial update
-    const interval = setInterval(updateTimer, 1000);
-
+    if (!phaseDeadline) return;
+    const interval = setInterval(() => {
+      const ms = phaseDeadline.getTime() - Date.now();
+      setPhaseTimeRemaining(Math.max(0, ms));
+    }, 100);
     return () => clearInterval(interval);
   }, [phaseDeadline]);
 
-  // Step Timer Logic
-  useEffect(() => {
-    if (!stepDeadline) {
-      setStepTimeLeft(null);
-      return;
+  // 5. Handlers
+  const handleAnswer = (index: number) => {
+    if (!wsRef.current || !roundId || isSubmitting) return;
+
+    // Optimistic update
+    setSelectedAnswer(index);
+    setIsSubmitting(true);
+
+    const currentQ = questions[0]; // We only have 1 active question in array usually
+    const currentStep = currentQ?.steps[currentStepIndex];
+
+    if (currentQ && currentStep) {
+      sendAnswer(wsRef.current, matchId!, roundId, currentQ.id, currentStep.id, index);
     }
+  };
 
-    const updateStepTimer = () => {
-      const now = Date.now();
-      const deadline = new Date(stepDeadline).getTime();
-      const diffMs = Math.max(0, deadline - now);
-      const seconds = Math.ceil(diffMs / 1000);
-      setStepTimeLeft(seconds);
+  // -- Render --
 
-      if (diffMs <= 0) {
-        // Time's up for this step!
-        const currentQ = questions[currentQuestionIndex];
-        const totalSteps = currentQ?.steps?.length || 0;
-        const isFinalStep = currentStepIndex >= totalSteps - 1;
-
-        console.log('[OnlineBattle] Step time up!', { currentStepIndex, totalSteps });
-        setStepDeadline(null);
-
-        if (currentQ && currentQ.steps && !isFinalStep) {
-          // Non-final step: Auto-advance to next step
-          console.log('[OnlineBattle] Auto-advancing to next step due to timeout');
-          setCurrentStepIndex(prev => prev + 1);
-          // Start timer for next step
-          const nextStep = currentQ.steps[currentStepIndex + 1];
-          const limit = nextStep.timeLimitSeconds || 15;
-          setStepDeadline(new Date(Date.now() + limit * 1000));
-        } else {
-          // Final step timeout: Auto-submit with -1 (no answer) or just wait
-          console.log('[OnlineBattle] Final step timeout - user did not submit');
-          // For now, just lock and wait for server ROUND_RESULT
-          // The server should handle timeouts and force-complete the round
-        }
-      }
-    };
-
-    updateStepTimer();
-    const interval = setInterval(updateStepTimer, 1000);
-    return () => clearInterval(interval);
-  }, [stepDeadline, currentQuestionIndex, currentStepIndex, questions]);
-
-  // Initialize step timer when entering Choosing phase (or whenever steps start)
-  useEffect(() => {
-    if (currentPhase === 'choosing' && questions.length > 0) {
-      // If we just entered choosing, start step 1 timer if not already started
-      // But we need to be careful not to reset it if we are already in the middle of steps.
-      // Maybe only if stepDeadline is null and currentStepIndex is 0?
-      if (!stepDeadline && currentStepIndex === 0) {
-        const currentQ = questions[currentQuestionIndex];
-        const step = currentQ?.steps[0];
-        const limit = step?.timeLimitSeconds || 15;
-        setStepDeadline(new Date(Date.now() + limit * 1000));
-      }
-    }
-  }, [currentPhase, questions, currentQuestionIndex, stepDeadline, currentStepIndex]);
-
-  // Force re-render every 100ms when there's an active phase deadline to update timer display
-  useEffect(() => {
-    if (!phaseDeadline || !currentPhase) {
-      return;
-    }
-    // ... existing tick logic ...
-    const interval = setInterval(() => {
-      setTimerTick(prev => prev + 1); // Force re-render
-    }, 100);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [phaseDeadline, currentPhase]);
-
-  // Local Phase Transition Logic (Failsafe / Single Player)
-  useEffect(() => {
-    if (isServerDriven || !currentPhase || !phaseDeadline) return;
-
-    const now = Date.now();
-    const deadline = new Date(phaseDeadline).getTime();
-
-    if (now >= deadline) {
-      console.log('[OnlineBattle] Local phase transition triggered due to timeout', { currentPhase });
-
-      if (currentPhase === 'thinking') {
-        // Transition to Choosing
-        const currentQ = questions[currentQuestionIndex];
-        const currentStep = currentQ?.steps[currentStepIndex];
-        if (currentStep) {
-          const options = currentStep.options.map((text, i) => ({ id: i, text }));
-          setRoundOptions(options);
-          setCurrentPhase('choosing');
-          setPhaseDeadline(new Date(Date.now() + 45000)); // 45s for choosing
-          console.log('[OnlineBattle] Transitioned to choosing phase (local)');
-        }
-      } else if (currentPhase === 'choosing') {
-        // DO NOT auto-transition to result in online mode - let server handle it
-        // This prevents premature "Waiting for next round" message
-        console.log('[OnlineBattle] Choosing phase timeout - waiting for server to send ROUND_RESULT');
-      }
-    }
-  }, [isServerDriven, currentPhase, phaseDeadline, phaseTimeRemaining, questions, currentQuestionIndex, currentStepIndex]);
-
-  useEffect(() => {
-    if (connectionState === 'playing' && timeLeft > 0) {
-      const timer = setInterval(() => {
-        setTimeLeft(prev => Math.max(0, prev - 1));
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [connectionState, timeLeft]);
-
-  if (!match || !currentUser) {
+  // Loading State
+  if (!match || !currentUser || connectionState === 'connecting') {
     return (
-      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        <Starfield />
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
-        <div className="relative z-10 flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary" />
-          <div className="text-2xl">Loading battle...</div>
+      <GameLayout className="items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+          <h2 className="text-2xl font-bold text-white">Connecting to Battle...</h2>
         </div>
-      </div>
+      </GameLayout>
     );
   }
 
-  if (countdown !== null) {
-    return (
-      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        <Starfield />
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
-        <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative z-10 text-center">
-          <h2 className="text-3xl font-bold mb-8">Get Ready!</h2>
-          <motion.div key={countdown} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className="text-9xl font-bold text-primary">
-            {countdown === 0 ? 'START!' : countdown}
-          </motion.div>
-          <div className="mt-8 text-xl text-muted-foreground">
-            {yourUsername} vs {opponentUsername}
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
-
-  const isPlayer1 = currentUser === match.p1;
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-  const totalTime = 300;
-  const timeProgress = (timeLeft / totalTime) * 100;
-
-  if (match.state === 'ended' || connectionState === 'ended') {
-    const won = match.winner_id === currentUser;
-    const draw = !match.winner_id;
-
-    return (
-      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        <Starfield />
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
-        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative z-10 text-center">
-          <h1 className="text-6xl font-bold mb-4">
-            {draw ? 'DRAW!' : won ? 'VICTORY!' : 'DEFEAT'}
-          </h1>
-          <div className="text-3xl mb-8">
-            {match.p1_score} - {match.p2_score}
-          </div>
-          <Button onClick={() => navigate('/')} size="lg">
-            Return to Dashboard
-          </Button>
-        </motion.div>
-      </div>
-    );
-  }
+  const currentQ = questions[0];
+  const currentStep = currentQ?.steps[currentStepIndex];
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col">
-      <Starfield />
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)' }} />
+    <GameLayout>
+      <GameHeader
+        player={{ username: yourUsername, avatarUrl: yourAvatar }}
+        opponent={{ username: opponentUsername, avatarUrl: opponentAvatar }}
+        currentRound={1} // TODO: Get from match/event
+        totalRounds={5} // Fixed for now
+        tugPosition={tugPosition}
+        maxSteps={10} // Adjust scale as needed
+        onBack={() => navigate('/')}
+      />
 
-      <div className="relative z-10 container mx-auto px-4 py-8 flex-1">
-        <div className="flex justify-between items-center mb-6">
-          <Button variant="ghost" onClick={() => navigate('/')} className="backdrop-blur-sm bg-card/50 border border-border/50 hover:bg-card/70 hover:border-border">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Leave Match
-          </Button>
-          <div className="text-2xl font-bold backdrop-blur-sm bg-card/50 px-6 py-2 rounded-xl border border-border/50">
-            {match.subject} - {match.chapter}
+      <div className="flex-1 flex items-center justify-center py-8">
+        {currentQ && currentStep ? (
+          <ActiveQuestion
+            question={{
+              id: currentQ.id,
+              text: currentStep.prompt,
+              options: currentStep.options,
+              imageUrl: currentQ.imageUrl // Assuming root image for now
+            }}
+            phase={currentPhase || 'thinking'}
+            timeLeft={phaseTimeRemaining}
+            totalTime={currentPhase === 'thinking' ? 60000 : 15000} // Approximate
+            selectedIndex={selectedAnswer}
+            correctIndex={correctAnswer}
+            onAnswer={handleAnswer}
+          />
+        ) : (
+          <div className="text-center text-muted-foreground">
+            Waiting for next round...
           </div>
-        </div>
-
-        {connectionState !== 'waiting_ready' && connectionState !== 'connecting' && (
-          <div className="mb-8">
-            <TugOfWarBar position={0} maxSteps={5} />
-          </div>
-        )}
-
-        {connectionState === 'waiting_ready' && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-card/50 p-8 rounded-2xl border border-border/50 text-center shadow-lg mb-6">
-            <h2 className="text-2xl font-bold mb-4">Waiting for players to ready up...</h2>
-            <div className="flex justify-center gap-8">
-              <div className={`flex items-center gap-2 ${youReady ? 'text-green-500' : 'text-muted-foreground'}`}>
-                {youReady ? '✓' : '○'} You {youReady && '(Ready)'}
-              </div>
-              <div className={`flex items-center gap-2 ${opponentReady ? 'text-green-500' : 'text-muted-foreground'}`}>
-                {opponentReady ? '✓' : '○'} {opponentUsername} {opponentReady && '(Ready)'}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {connectionState === 'playing' && (
-          <>
-            <div className="mb-6 backdrop-blur-sm bg-card/50 p-6 rounded-2xl border border-border/50 relative shadow-lg">
-              <div className="text-center mb-3">
-                <div className="text-4xl font-bold">
-                  {minutes}:{seconds.toString().padStart(2, '0')}
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">Time Remaining</div>
-              </div>
-              <Progress value={timeProgress} className="h-2" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className={`p-6 rounded-2xl backdrop-blur-sm border-2 shadow-lg ${isPlayer1 ? 'bg-primary/10 border-primary/50' : 'bg-card/50 border-border/50'}`}>
-                <div className="text-xs uppercase tracking-wide mb-2 text-muted-foreground">YOU</div>
-                <div className="text-lg font-semibold mb-2 truncate">{yourUsername}</div>
-                <div className="text-4xl font-bold">{isPlayer1 ? match.p1_score : match.p2_score}</div>
-              </motion.div>
-              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className={`p-6 rounded-2xl backdrop-blur-sm border-2 shadow-lg ${!isPlayer1 ? 'bg-primary/10 border-primary/50' : 'bg-card/50 border-border/50'}`}>
-                <div className="text-xs uppercase tracking-wide mb-2 text-muted-foreground">OPPONENT</div>
-                <div className="text-lg font-semibold mb-2 truncate">{opponentUsername}</div>
-                <div className="text-4xl font-bold">{!isPlayer1 ? match.p1_score : match.p2_score}</div>
-              </motion.div>
-            </div>
-          </>
-        )}
-
-        {/* Question Display Area */}
-        {isFetchingFallback && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-card/50 p-8 rounded-2xl border border-border/50 text-center shadow-lg">
-            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Loading Questions</h2>
-            <p className="text-muted-foreground">Fetching questions from database...</p>
-          </motion.div>
-        )}
-
-        {!isFetchingFallback && fallbackError && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-red-900/20 p-8 rounded-2xl border border-red-700 text-center shadow-lg">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2 text-red-300">Failed to Load Questions</h2>
-            <p className="text-red-200">There was an error fetching questions from the database.</p>
-          </motion.div>
-        )}
-
-        {!isFetchingFallback && !fallbackError && (!fallbackQuestions || fallbackQuestions.length === 0) && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="backdrop-blur-sm bg-yellow-900/20 p-8 rounded-2xl border border-yellow-700 text-center shadow-lg">
-            <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-4 text-yellow-300">No Questions Available</h2>
-            <p className="text-yellow-200 mb-4">
-              No questions found for {match?.subject} - {match?.chapter}
-            </p>
-            <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700 text-left max-w-md mx-auto">
-              <p className="text-xs text-gray-400 font-bold mb-2">TO FIX THIS:</p>
-              <ol className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
-                <li>Add SUPABASE_SERVICE_ROLE_KEY to .env</li>
-                <li>Run: <code className="bg-gray-800 px-1 rounded text-green-400">npm run seed:questions</code></li>
-              </ol>
-            </div>
-            <p className="text-sm text-muted-foreground mt-4">Match ID: {matchId}</p>
-          </motion.div>
-        )}
-
-        {!isFetchingFallback && !fallbackError && fallbackQuestions && fallbackQuestions.length > 0 && connectionState !== 'waiting_ready' && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-              <CardContent className="pt-6">
-                <QuestionViewer
-                  questions={fallbackQuestions}
-                  isOnlineMode={true}
-                  onSubmitAnswer={handleSubmitAnswer}
-                  isSubmitting={isSubmitting}
-                  correctAnswer={correctAnswer}
-                  showResult={showResult}
-                  currentPhase={currentPhase || undefined}
-                  phaseDeadline={phaseDeadline}
-                  options={roundOptions}
-                  onReadyForOptions={handleReadyForOptions}
-                  currentStepIndex={currentStepIndex}
-                  stepTimeLeft={stepTimeLeft}
-                  totalSteps={questions[currentQuestionIndex]?.steps?.length || 1}
-                  onFinished={() => {
-                    console.log('[OnlineBattle] Questions finished');
-                    toast.success('All questions completed!');
-                  }}
-                />
-              </CardContent>
-            </Card>
-          </motion.div>
         )}
       </div>
-    </div>
+
+      <PhaseOverlay
+        isVisible={overlay.isVisible}
+        type={overlay.type}
+        title={overlay.title}
+        subtitle={overlay.subtitle}
+      />
+    </GameLayout>
   );
 };
