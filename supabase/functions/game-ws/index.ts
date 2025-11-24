@@ -441,15 +441,19 @@ async function transitionToResult(game: GameState) {
     } else {
       // All steps complete, advance to next round
       game.currentRound++
-      console.log(`[${matchId}] All steps complete, advancing to round ${game.currentRound}`)
+      console.log(`[${matchId}] ✅ All steps complete for round ${game.currentRound - 1}`)
+      console.log(`[${matchId}] 📊 Score: P1=${game.p1Score}, P2=${game.p2Score}`)
+      console.log(`[${matchId}] 🔄 Checking if match should continue: round ${game.currentRound} of ${game.roundsPerMatch}`)
 
-      if (game.currentRound >= game.roundsPerMatch) {
+      if (game.currentRound > game.roundsPerMatch) {
+        console.log(`[${matchId}] 🏁 Match complete! Ending match.`)
         endMatch(game).catch(err =>
-          console.error(`[${matchId}] Error ending match:`, err)
+          console.error(`[${matchId}] ❌ Error ending match:`, err)
         )
       } else {
+        console.log(`[${matchId}] ▶️ Starting next round (round ${game.currentRound})`)
         startRound(game).catch(err =>
-          console.error(`[${matchId}] Error starting next round:`, err)
+          console.error(`[${matchId}] ❌ Error starting next round:`, err)
         )
       }
     }
@@ -659,14 +663,16 @@ Deno.serve(async (req) => {
 
           // Start game if both ready
           if (game.p1Ready && game.p2Ready && !game.gameActive) {
-            console.log(`[${matchId}] Both players ready, starting match`)
+            console.log(`[${matchId}] ✅ Both players ready, starting match`)
             game.gameActive = true
+            game.currentRound = 1  // Initialize to round 1
 
             await supabase
               .from('matches_new')
               .update({ state: 'active' })
               .eq('id', matchId)
 
+            console.log(`[${matchId}] 🎮 Starting first round (round ${game.currentRound})`)
             // Start first round
             await startRound(game)
           }
