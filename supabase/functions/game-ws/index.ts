@@ -123,14 +123,43 @@ async function startRound(game: GameState) {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
 
+  // DEBUG: Log Supabase URL being used
+  console.log(`[${matchId}] Using Supabase URL:`, Deno.env.get('SUPABASE_URL'))
+
+  // DEBUG: First check if questions table has any data
+  const { data: questionCheck, error: checkError } = await supabase
+    .from('questions')
+    .select('id, title, steps')
+    .limit(5)
+
+  console.log(`[${matchId}] Question table check:`, {
+    count: questionCheck?.length || 0,
+    error: checkError?.message,
+    sample: questionCheck?.map(q => ({ id: q.id, title: q.title, hasSteps: !!q.steps }))
+  })
+
   // Fetch next question using v3 RPC
+  console.log(`[${matchId}] Calling pick_next_question_v3 RPC...`)
   const { data, error } = await supabase.rpc('pick_next_question_v3', {
     p_match_id: matchId
   })
 
+  console.log(`[${matchId}] RPC result:`, {
+    hasData: !!data,
+    dataLength: data?.length || 0,
+    error: error?.message,
+    errorDetails: error
+  })
+
   if (error || !data || data.length === 0) {
-    console.error(`[${matchId}] Failed to fetch question:`, error)
-    const errorMsg = { type: 'error', message: 'Failed to load question' }
+    console.error(`[${matchId}] ❌ Failed to fetch question:`, {
+      error: error?.message,
+      errorCode: error?.code,
+      errorDetails: error,
+      dataIsNull: data === null,
+      dataIsEmpty: data?.length === 0
+    })
+    const errorMsg = { type: 'error', message: 'Failed to load question - no questions available' }
     game.p1Socket?.send(JSON.stringify(errorMsg))
     game.p2Socket?.send(JSON.stringify(errorMsg))
     return
