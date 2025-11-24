@@ -42,10 +42,18 @@ export interface NextQuestionEvent {
 
 export interface AnswerResultEvent {
   type: 'answer_result';
-  player: 'p1' | 'p2';
+  match_id: string;
+  round_id: string;
+  question_id: string;
+  player_id: string;
   is_correct: boolean;
-  marks_earned: number;
-  explanation: string;
+  correct_index: number;
+}
+
+export interface ValidationErrorEvent {
+  type: 'validation_error';
+  message: string;
+  details?: any;
 }
 
 export type ServerEvent =
@@ -59,29 +67,42 @@ export type ServerEvent =
   | MatchEndEvent
   | RoundStartEvent
   | PhaseChangeEvent
-  | RoundResultEvent;
+  | RoundStartEvent
+  | PhaseChangeEvent
+  | RoundResultEvent
+  | ValidationErrorEvent;
 
 export interface ReadyMessage {
   type: 'ready';
 }
 
-export interface AnswerSubmitMessage {
-  type: 'answer_submit';
-  question_id: string;  // Snake case to match server schema
-  step_id: string;      // Snake case to match server schema
-  answer: number;
+export interface SubmitAnswerMessage {
+  type: 'submit_answer';
+  match_id: string;
+  round_id: string;
+  question_id: string;
+  step_id: string;
+  answer_index: number;
 }
 
 // ... (keep other interfaces)
 
-export function sendAnswer(ws: WebSocket, questionId: string, stepId: string, answer: number): void {
-  const message: AnswerSubmitMessage = {
-    type: 'answer_submit',
-    question_id: questionId,  // Snake case for server
-    step_id: stepId,          // Snake case for server
-    answer,
+export function sendAnswer(ws: WebSocket, matchId: string, roundId: string, questionId: string, stepId: string, answerIndex: number): void {
+  const message: SubmitAnswerMessage = {
+    type: 'submit_answer',
+    match_id: matchId,
+    round_id: roundId,
+    question_id: questionId,
+    step_id: stepId,
+    answer_index: answerIndex,
   };
-  console.log('[WS] 📤 Sending answer_submit:', message);
+  console.log('[WS] 📤 Sending submit_answer:', {
+    match_id: matchId,
+    round_id: roundId,
+    question_id: questionId,
+    step_id: stepId,
+    answer_index: answerIndex
+  });
   ws.send(JSON.stringify(message));
   console.log(`[WS] ✅ Answer submitted`);
 }
@@ -95,13 +116,9 @@ export interface ReadyForOptionsMessage {
   matchId: string;
 }
 
-export type ClientMessage = ReadyMessage | AnswerSubmitMessage | QuestionCompleteMessage | ReadyForOptionsMessage;
+export type ClientMessage = ReadyMessage | SubmitAnswerMessage | QuestionCompleteMessage | ReadyForOptionsMessage;
 
-export interface ValidationErrorEvent {
-  type: 'validation_error';
-  message: string;
-  details: any[];
-}
+
 
 export interface ConnectGameWSOptions {
   matchId: string;
@@ -137,6 +154,7 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
     onRoundStart,
     onPhaseChange,
     onRoundResult,
+
     onValidationError,
     onError,
     onClose,
@@ -196,7 +214,7 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
           break;
 
         case 'answer_result':
-          console.log(`WS: Answer result - correct: ${message.is_correct}, marks: ${message.marks_earned}`);
+          console.log(`WS: Answer result - correct: ${message.is_correct}`);
           onAnswerResult?.(message);
           break;
 
@@ -231,9 +249,11 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
           break;
 
         case 'validation_error':
-          console.error('WS: ❌ Validation error from server:', (message as any).message);
-          console.error('WS: Error details:', (message as any).details);
-          onValidationError?.(message as ValidationErrorEvent);
+          console.error('WS: ❌ Validation error from server:', message.message);
+          console.error('WS: Error details:', message.details);
+          onValidationError?.(message);
+          // Also trigger generic error handler if needed, but validation error might be handled specifically
+          // onError?.(new Error(`Server validation failed: ${message.message}`));
           break;
 
         default:

@@ -55,6 +55,7 @@ export const OnlineBattle = () => {
   const [phaseDeadline, setPhaseDeadline] = useState<Date | null>(null);
   const [roundOptions, setRoundOptions] = useState<Array<{ id: number; text: string }> | null>(null);
   const [roundIndex, setRoundIndex] = useState(0);
+  const [roundId, setRoundId] = useState<string | null>(null);
   const [phaseTimeRemaining, setPhaseTimeRemaining] = useState<number | null>(null);
   const [isServerDriven, setIsServerDriven] = useState(false);
   const [, setTimerTick] = useState(0); // Dummy state to force re-renders for timer
@@ -188,6 +189,7 @@ export const OnlineBattle = () => {
           setCorrectAnswer(null);
           setIsSubmitting(false);
           setRoundIndex(event.roundIndex);
+          setRoundId(event.roundId);
           setCurrentPhase(event.phase);
           setPhaseDeadline(new Date(event.thinkingEndsAt));
           setRoundOptions(null); // No options during thinking phase
@@ -275,9 +277,20 @@ export const OnlineBattle = () => {
           console.log('[OnlineBattle] Legacy next_question event (should not happen with 3-phase)', event);
         },
         onAnswerResult: (event) => {
-          console.log('[OnlineBattle] Legacy answer_result event (should not happen with 3-phase)', event);
+          console.log('[OnlineBattle] ✅ Answer result received:', event);
           setIsSubmitting(false);
+
+          if (event.player_id === currentUser) {
+            if (event.is_correct) {
+              toast.success('Correct!');
+              // Optionally advance step locally if needed, but server drives this usually?
+              // For multi-step, we might want to show "Correct" and wait for next step.
+            } else {
+              toast.error('Incorrect.');
+            }
+          }
         },
+
         onScoreUpdate: (event) => {
           console.log(`WS: Legacy score_update event (should not happen with 3-phase)`, event);
         },
@@ -398,16 +411,23 @@ export const OnlineBattle = () => {
       return;
     }
 
+    if (!roundId) {
+      console.error('[OnlineBattle] ❌ Cannot submit: roundId is missing');
+      toast.error('Game state error: Round ID missing');
+      return;
+    }
+
     // Always send answer to backend - backend will handle step progression
-    console.log('[OnlineBattle] 📤 Sending answer_submit to backend...', {
+    console.log('[OnlineBattle] 📤 Sending submit_answer to backend...', {
       matchId,
+      roundId,
       questionId,
       stepId,
       answerIndex,
       step: `${currentStepIndex + 1}/${totalSteps}`
     });
     setIsSubmitting(true);
-    sendAnswer(wsRef.current, questionId, stepId, answerIndex);
+    sendAnswer(wsRef.current, matchId!, roundId, questionId, stepId, answerIndex);
 
     // Failsafe: Reset isSubmitting if no response after 5 seconds
     setTimeout(() => {

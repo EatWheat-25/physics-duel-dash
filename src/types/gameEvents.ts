@@ -45,6 +45,7 @@ export interface PlayerResult {
 export interface RoundStartEvent {
   type: 'ROUND_START';
   matchId: string;
+  roundId: string;
   roundIndex: number;
   phase: 'thinking';
   question: QuestionDTO;

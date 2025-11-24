@@ -58,6 +58,15 @@ const AnswerSubmitSchema = z.object({
   answer: z.number().int().min(0).max(3)  // CRITICAL: Allow 0-3 for 4 options (A, B, C, D)
 }).strict()  // Reject unknown fields
 
+const SubmitAnswerSchema = z.object({
+  type: z.literal('submit_answer'),
+  match_id: z.string().uuid(),
+  round_id: z.string().uuid(),
+  question_id: z.string().uuid(),
+  step_id: z.string(),
+  answer_index: z.number().int().min(0).max(3)
+})
+
 const ReadyForOptionsSchema = z.object({
   type: z.literal('ready_for_options'),
   matchId: z.string().uuid()
@@ -66,7 +75,8 @@ const ReadyForOptionsSchema = z.object({
 const ClientMessageSchema = z.discriminatedUnion('type', [
   ReadyMessageSchema,
   AnswerSubmitSchema,
-  ReadyForOptionsSchema
+  ReadyForOptionsSchema,
+  SubmitAnswerSchema
 ])
 
 const games = new Map<string, GameState>()
@@ -159,10 +169,29 @@ async function startRound(game: GameState) {
     .eq('match_id', matchId)
     .eq('question_id', questionData.question_id)
 
+  // Create match_round
+  const { data: roundData, error: roundError } = await supabase
+    .from('match_rounds')
+    .insert({
+      match_id: matchId,
+      question_id: questionData.question_id,
+      round_number: game.currentRound,
+      status: 'pending'
+    })
+    .select()
+    .single()
+
+  if (roundError) {
+    console.error(`[${matchId}] Error creating match_round:`, roundError)
+  }
+
+  const roundId = roundData?.id
+
   // Send ROUND_START event
   const roundStartMsg = {
     type: 'ROUND_START',
     matchId,
+    roundId,
     roundIndex: game.currentRound,
     phase: 'thinking',
     question: questionData.question,
@@ -215,15 +244,15 @@ async function transitionToChoosing(game: GameState) {
     .eq('match_id', matchId)
     .eq('question_id', game.currentQuestionId)
 
-  // Extract first 3 options from current step
+  // Extract all options from current step
   const currentStep = game.currentQuestion.steps?.[game.currentStepIndex]
   if (!currentStep) {
     console.error(`[${matchId}] No step found at index ${game.currentStepIndex}`)
     return
   }
-  const options = currentStep.options.slice(0, 3).map((text: string, idx: number) => ({
+  const options = currentStep.options.map((text: string, idx: number) => ({
     id: idx,
-    text
+    text,
   }))
 
   // Send PHASE_CHANGE event
@@ -615,88 +644,154 @@ Deno.serve(async (req) => {
           break
         }
 
-        case 'answer_submit': {
-          const { answer } = message
+        case 'submit_answer': {
+          const { match_id, round_id, question_id, step_id, answer_index } = message
 
-          console.log(`[${matchId}] 🎯 ${isP1 ? 'P1' : 'P2'} submitted answer:`, {
-            answer,
-            currentPhase: game.currentPhase,
-            currentStepIndex: game.currentStepIndex,
-            totalSteps: game.currentQuestion?.steps?.length || 0
-          })
+          // Fetch question step to verify answer
+          const { data: stepData, error: stepError } = await supabase
+            .from('question_steps')
+            .select('correct_answer, correct_index')
+            .eq('id', step_id)
+            .single()
 
-          // Verify we're in choosing phase
-          if (game.currentPhase !== 'choosing') {
-            console.log(`[${matchId}] ❌ Answer rejected - not in choosing phase (current: ${game.currentPhase})`)
-            socket.send(JSON.stringify({ type: 'error', message: 'Not in choosing phase' }))
+          if (stepError || !stepData) {
+            console.error(`[${matchId}] Step not found: ${step_id}`, stepError)
+            socket.send(JSON.stringify({
+              type: 'validation_error',
+              message: 'Step not found',
+              details: stepError
+            }))
             return
+            message: 'Server configuration error: correct_index missing'
+          }))
+return
           }
 
-          // Store answer
-          if (isP1) {
-            if (game.p1Answer !== null) {
-              console.log(`[${matchId}] ⚠️ P1 already answered, ignoring`)
-              return
-            }
-            game.p1Answer = answer
-            console.log(`[${matchId}] ✅ P1 answer stored: ${answer}`)
-          } else {
-            if (game.p2Answer !== null) {
-              console.log(`[${matchId}] ⚠️ P2 already answered, ignoring`)
-              return
-            }
-            game.p2Answer = answer
-            console.log(`[${matchId}] ✅ P2 answer stored: ${answer}`)
-          }
+const is_correct = answer_index === correct_index
 
-          // If both answered, immediately transition to result
-          if (game.p1Answer !== null && game.p2Answer !== null) {
-            console.log(`[${matchId}] 🎉 Both players answered, transitioning to result immediately`)
-            await transitionToResult(game)
-          } else {
-            console.log(`[${matchId}] ⏳ Waiting for other player (P1: ${game.p1Answer !== null ? 'answered' : 'waiting'}, P2: ${game.p2Answer !== null ? 'answered' : 'waiting'})`)
-          }
+// Insert into match_answers
+const { error: insertError } = await supabase
+  .from('match_answers')
+  .insert({
+    match_id,
+    round_id,
+    player_id: user.id,
+    question_id,
+    step_id,
+    answer_index,
+    is_correct,
+    answered_at: new Date().toISOString()
+  })
 
-          break
+if (insertError) {
+  console.error(`[${matchId}] Error inserting answer:`, insertError)
+  socket.send(JSON.stringify({
+    type: 'validation_error',
+    message: 'Failed to save answer',
+    details: insertError
+  }))
+  return
+}
+
+// Send answer_result
+const resultMsg = {
+  type: 'answer_result',
+  match_id,
+  round_id,
+  question_id,
+  player_id: user.id,
+  is_correct,
+  correct_index
+}
+
+game.p1Socket?.send(JSON.stringify(resultMsg))
+game.p2Socket?.send(JSON.stringify(resultMsg))
+
+break
         }
+
+        case 'answer_submit': {
+  const { answer } = message
+
+  console.log(`[${matchId}] 🎯 ${isP1 ? 'P1' : 'P2'} submitted answer:`, {
+    answer,
+    currentPhase: game.currentPhase,
+    currentStepIndex: game.currentStepIndex,
+    totalSteps: game.currentQuestion?.steps?.length || 0
+  })
+
+  // Verify we're in choosing phase
+  if (game.currentPhase !== 'choosing') {
+    console.log(`[${matchId}] ❌ Answer rejected - not in choosing phase (current: ${game.currentPhase})`)
+    socket.send(JSON.stringify({ type: 'error', message: 'Not in choosing phase' }))
+    return
+  }
+
+  // Store answer
+  if (isP1) {
+    if (game.p1Answer !== null) {
+      console.log(`[${matchId}] ⚠️ P1 already answered, ignoring`)
+      return
+    }
+    game.p1Answer = answer
+    console.log(`[${matchId}] ✅ P1 answer stored: ${answer}`)
+  } else {
+    if (game.p2Answer !== null) {
+      console.log(`[${matchId}] ⚠️ P2 already answered, ignoring`)
+      return
+    }
+    game.p2Answer = answer
+    console.log(`[${matchId}] ✅ P2 answer stored: ${answer}`)
+  }
+
+  // If both answered, immediately transition to result
+  if (game.p1Answer !== null && game.p2Answer !== null) {
+    console.log(`[${matchId}] 🎉 Both players answered, transitioning to result immediately`)
+    await transitionToResult(game)
+  } else {
+    console.log(`[${matchId}] ⏳ Waiting for other player (P1: ${game.p1Answer !== null ? 'answered' : 'waiting'}, P2: ${game.p2Answer !== null ? 'answered' : 'waiting'})`)
+  }
+
+  break
+}
 
         case 'ready_for_options': {
-          console.log(`[${matchId}] ${isP1 ? 'P1' : 'P2'} ready for options`)
+  console.log(`[${matchId}] ${isP1 ? 'P1' : 'P2'} ready for options`)
 
-          if (game.currentPhase !== 'thinking') {
-            console.log(`[${matchId}] Ignoring ready_for_options - not in working phase`)
-            return
-          }
+  if (game.currentPhase !== 'thinking') {
+    console.log(`[${matchId}] Ignoring ready_for_options - not in working phase`)
+    return
+  }
 
-          if (isP1) game.p1ReadyForOptions = true
-          else game.p2ReadyForOptions = true
+  if (isP1) game.p1ReadyForOptions = true
+  else game.p2ReadyForOptions = true
 
-          // Notify other player? (Optional, but good for UI)
-          // For now, we rely on the heartbeat to trigger the phase change when both are ready
-          break
-        }
+  // Notify other player? (Optional, but good for UI)
+  // For now, we rely on the heartbeat to trigger the phase change when both are ready
+  break
+}
       }
     } catch (error) {
-      console.error(`[${matchId}] Error handling message:`, error)
-      socket.send(JSON.stringify({ type: 'error', message: 'Internal error' }))
-    }
+  console.error(`[${matchId}] Error handling message:`, error)
+  socket.send(JSON.stringify({ type: 'error', message: 'Internal error' }))
+}
   }
 
-  socket.onclose = () => {
-    console.log(`[${matchId}] WebSocket closed for ${isP1 ? 'P1' : 'P2'}`)
-    if (game.p1Socket === socket) game.p1Socket = null
-    if (game.p2Socket === socket) game.p2Socket = null
+socket.onclose = () => {
+  console.log(`[${matchId}] WebSocket closed for ${isP1 ? 'P1' : 'P2'}`)
+  if (game.p1Socket === socket) game.p1Socket = null
+  if (game.p2Socket === socket) game.p2Socket = null
 
-    // Clean up if both disconnected
-    if (!game.p1Socket && !game.p2Socket) {
-      games.delete(matchId)
-      console.log(`[${matchId}] Both players disconnected, cleaning up`)
-    }
+  // Clean up if both disconnected
+  if (!game.p1Socket && !game.p2Socket) {
+    games.delete(matchId)
+    console.log(`[${matchId}] Both players disconnected, cleaning up`)
   }
+}
 
-  socket.onerror = (error) => {
-    console.error(`[${matchId}] WebSocket error:`, error)
-  }
+socket.onerror = (error) => {
+  console.error(`[${matchId}] WebSocket error:`, error)
+}
 
-  return response
+return response
 })
