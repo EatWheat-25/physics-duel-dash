@@ -128,41 +128,111 @@ async function startRound(game: GameState) {
     sample: questionCheck?.map(q => ({ id: q.id, title: q.title, hasSteps: !!q.steps }))
   })
 
-  // Fetch next question using v3 RPC
-  console.log(`[${matchId}] Calling pick_next_question_v3 RPC...`)
-  const { data, error } = await supabase.rpc('pick_next_question_v3', {
-    p_match_id: matchId
-  })
+  // Fetch next question directly (bypassing broken RPC)
+  console.log(`[${matchId}] Fetching question directly from DB...`)
 
-  console.log(`[${matchId}] RPC result:`, {
-    hasData: !!data,
-    dataLength: data?.length || 0,
-    error: error?.message,
-    errorDetails: error
-  })
+  // 1. Get match preferences
+  const { data: matchData } = await supabase
+    .from('matches_new')
+    .select('subject, chapter, rank_tier')
+    .eq('id', matchId)
+    .single()
 
-  if (error || !data || data.length === 0) {
-    console.error(`[${matchId}] ❌ Failed to fetch question:`, {
-      error: error?.message,
-      errorCode: error?.code,
-      errorDetails: error,
-      dataIsNull: data === null,
-      dataIsEmpty: data?.length === 0
-    })
-    const errorMsg = { type: 'error', message: 'Failed to load question - no questions available' }
-    game.p1Socket?.send(JSON.stringify(errorMsg))
-    game.p2Socket?.send(JSON.stringify(errorMsg))
-    return
+  // 2. Get used questions
+  const { data: usedQuestions } = await supabase
+    .from('match_questions')
+    .select('question_id')
+    .eq('match_id', matchId)
+
+  const usedIds = usedQuestions?.map(q => q.question_id) || []
+
+  // 3. Query questions
+  // Strategy: Try strict match first, then relax
+  let query = supabase.from('questions').select('*, question_steps(*)')
+
+  // Apply filters (simplified for robustness)
+  if (matchData?.subject) query = query.eq('subject', matchData.subject)
+
+  if (usedIds.length > 0) {
+    query = query.not('id', 'in', `(${usedIds.join(',')})`)
   }
 
-  const questionData = data[0]
+  // Fetch a batch to pick random
+  const { data: candidates, error: fetchError } = await query.limit(20)
 
-  // Log the received question structure for debugging
-  console.log(`[${matchId}] Question loaded:`, {
+  if (fetchError || !candidates || candidates.length === 0) {
+    console.error(`[${matchId}] ❌ Failed to fetch candidates:`, fetchError)
+    // Fallback: Fetch ANY question not used
+    const { data: fallback, error: fallbackError } = await supabase
+      .from('questions')
+      .select('*, question_steps(*)')
+      .not('id', 'in', `(${usedIds.length > 0 ? usedIds.join(',') : '00000000-0000-0000-0000-000000000000'})`)
+      .limit(10)
+
+    if (fallbackError || !fallback || fallback.length === 0) {
+      console.error(`[${matchId}] ❌ Failed to fetch fallback questions:`, fallbackError)
+      const errorMsg = { type: 'error', message: 'No questions available' }
+      game.p1Socket?.send(JSON.stringify(errorMsg))
+      game.p2Socket?.send(JSON.stringify(errorMsg))
+      return
+    }
+    // Pick random from fallback
+    const randomIndex = Math.floor(Math.random() * fallback.length)
+    var selectedQuestion = fallback[randomIndex]
+  } else {
+    // Pick random from candidates
+    const randomIndex = Math.floor(Math.random() * candidates.length)
+    var selectedQuestion = candidates[randomIndex]
+  }
+
+  // Format question data to match expected structure
+  // The RPC returned { question_id, ordinal, question: { ... } }
+  // We need to construct this structure
+
+  // Sort steps by index
+  if (selectedQuestion.question_steps && Array.isArray(selectedQuestion.question_steps)) {
+    selectedQuestion.question_steps.sort((a: any, b: any) => a.step_index - b.step_index)
+  }
+
+  // Map steps to expected format if needed (mapper handles snake_case, but let's be safe)
+  const steps = selectedQuestion.question_steps?.map((s: any) => ({
+    id: s.id,
+    index: s.step_index,
+    type: s.step_type,
+    title: s.title,
+    prompt: s.prompt,
+    options: s.options,
+    correctAnswer: s.correct_answer?.correctIndex ?? 0,
+    timeLimitSeconds: s.time_limit_seconds,
+    marks: s.marks,
+    explanation: s.explanation
+  })) || []
+
+  // Construct the "question" object expected by frontend
+  const questionPayload = {
+    id: selectedQuestion.id,
+    title: selectedQuestion.title,
+    subject: selectedQuestion.subject,
+    chapter: selectedQuestion.chapter,
+    level: selectedQuestion.level,
+    difficulty: selectedQuestion.difficulty,
+    rankTier: selectedQuestion.rank_tier,
+    stem: selectedQuestion.question_text,
+    totalMarks: selectedQuestion.total_marks,
+    topicTags: selectedQuestion.topic_tags,
+    imageUrl: selectedQuestion.image_url,
+    steps: steps
+  }
+
+  const questionData = {
+    question_id: selectedQuestion.id,
+    question: questionPayload
+  }
+
+  console.log(`[${matchId}] Question loaded (Direct DB):`, {
     id: questionData.question_id,
     title: questionData.question?.title,
-    stepsCount: questionData.question?.steps?.length || 0,
-    hasSteps: !!questionData.question?.steps
+    stepsCount: steps.length
   })
   game.currentQuestionId = questionData.question_id
   game.currentQuestion = questionData.question
