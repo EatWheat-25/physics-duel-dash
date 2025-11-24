@@ -56,6 +56,11 @@ export interface ValidationErrorEvent {
   details?: any;
 }
 
+export interface ErrorEvent {
+  type: 'error';
+  message: string;
+}
+
 export type ServerEvent =
   | ConnectedEvent
   | PlayerReadyEvent
@@ -70,7 +75,9 @@ export type ServerEvent =
   | RoundStartEvent
   | PhaseChangeEvent
   | RoundResultEvent
-  | ValidationErrorEvent;
+  | RoundResultEvent
+  | ValidationErrorEvent
+  | ErrorEvent;
 
 export interface ReadyMessage {
   type: 'ready';
@@ -253,8 +260,11 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
           console.error('WS: ❌ Validation error from server:', message.message);
           console.error('WS: Error details:', message.details);
           onValidationError?.(message);
-          // Also trigger generic error handler if needed, but validation error might be handled specifically
-          // onError?.(new Error(`Server validation failed: ${message.message}`));
+          break;
+
+        case 'error':
+          console.error('WS: ❌ Error from server:', (message as any).message);
+          onError?.(new Error((message as any).message));
           break;
 
         default:
