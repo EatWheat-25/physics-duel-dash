@@ -25,6 +25,34 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
+
+// Load .env file manually since tsx doesn't do it by default
+try {
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    const envConfig = fs.readFileSync(envPath, 'utf8');
+    const lines = envConfig.split(/\r?\n/);
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx > 0) {
+        const key = trimmed.substring(0, eqIdx).trim();
+        let value = trimmed.substring(eqIdx + 1).trim();
+        // Remove quotes if present
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        process.env[key] = value;
+      }
+    });
+  }
+} catch (e) {
+  console.warn('⚠️ Could not load .env file:', e);
+}
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -58,7 +86,7 @@ type Step = {
 
 // Question input structure
 type QuestionInput = {
-  id: string; // Stable ID for upserts
+  id?: string; // Optional - let DB generate UUID if not provided
   title: string;
   subject: 'math' | 'physics' | 'chemistry';
   chapter: string;
@@ -79,7 +107,6 @@ type QuestionInput = {
 const questions: QuestionInput[] = [
   // A2 Functions
   {
-    id: 'math-a2-functions-domain-001',
     title: 'Domain of f(x) = 1/(x² - 4)',
     subject: 'math',
     chapter: 'Functions Advanced',
@@ -111,7 +138,6 @@ const questions: QuestionInput[] = [
 
   // A2 Logarithms
   {
-    id: 'math-a2-logs-001',
     title: 'Solve log₂(x) + log₂(x-2) = 3',
     subject: 'math',
     chapter: 'Logarithms',
@@ -149,7 +175,6 @@ const questions: QuestionInput[] = [
 
   // A2 Quadratics
   {
-    id: 'math-a2-quad-roots-001',
     title: 'Quadratic Roots — x² - 5x + 6 = 0',
     subject: 'math',
     chapter: 'Quadratics',
@@ -181,7 +206,6 @@ const questions: QuestionInput[] = [
 
   // A2 Exponents
   {
-    id: 'math-a2-exp-001',
     title: 'Solve 3^(x+1) = 27',
     subject: 'math',
     chapter: 'Exponents',
@@ -213,7 +237,6 @@ const questions: QuestionInput[] = [
 
   // A2 Inequalities
   {
-    id: 'math-a2-ineq-abs-001',
     title: 'Solve |2x - 5| ≤ 7',
     subject: 'math',
     chapter: 'Inequalities',
@@ -245,7 +268,6 @@ const questions: QuestionInput[] = [
 
   // A1 Quadratics
   {
-    id: 'math-a1-quad-complete-square-001',
     title: 'Complete the square: x² + 6x + 5',
     subject: 'math',
     chapter: 'Quadratics',
@@ -277,7 +299,6 @@ const questions: QuestionInput[] = [
 
   // A1 Indices
   {
-    id: 'math-a1-indices-001',
     title: 'Simplify (2x³)² × 3x⁴',
     subject: 'math',
     chapter: 'Indices & Surds',
@@ -309,7 +330,6 @@ const questions: QuestionInput[] = [
 
   // A1 Linear Equations
   {
-    id: 'math-a1-linear-simultaneous-001',
     title: 'Solve 2x + y = 7, x - y = 2',
     subject: 'math',
     chapter: 'Linear Equations',
@@ -339,6 +359,73 @@ const questions: QuestionInput[] = [
     ],
   },
 
+  // A2 Integration by Parts
+  {
+    title: 'Integration by Parts: ln x / x^3',
+    subject: 'math',
+    chapter: 'Integration by Parts',
+    level: 'A2',
+    difficulty: 'hard',
+    rank_tier: 'Silver',
+    question_text: 'Find the integral of ln(x) / x^3 with respect to x.',
+    total_marks: 4,
+    topic_tags: ['integration', 'calculus', 'by-parts'],
+    steps: [
+      {
+        id: 'ibp-lnx/x3-step-1',
+        question: 'For ∫ ln(x) / x^3 dx, which choice of u and dv/dx is most suitable for integration by parts?',
+        options: [
+          'u = 1/x^3, dv/dx = ln x',
+          'u = ln x, dv/dx = x^(-3)',
+          'u = x^(-3), dv/dx = ln x',
+          'u = ln x, dv/dx = 1/x^2'
+        ],
+        correctAnswer: 1,
+        marks: 1,
+        explanation: 'Take u = ln x (easy to differentiate) and dv/dx = x^(-3) (easy to integrate).'
+      },
+      {
+        id: 'ibp-lnx/x3-step-2',
+        question: 'Given u = ln x and dv/dx = x^(-3), what are du/dx and v?',
+        options: [
+          'du/dx = 1/x, v = -1/(2x^2)',
+          'du/dx = 1/x^2, v = -1/(2x^2)',
+          'du/dx = 1/x, v = 1/(2x^2)',
+          'du/dx = 1/x^2, v = 1/(2x^2)'
+        ],
+        correctAnswer: 0,
+        marks: 1,
+        explanation: 'du/dx = 1/x and ∫ x^(-3) dx = x^(-2)/(-2) = -1/(2x^2).'
+      },
+      {
+        id: 'ibp-lnx/x3-step-3',
+        question: 'Using ∫u dv = uv − ∫v du, which expression is correct for ∫ ln(x) / x^3 dx?',
+        options: [
+          '∫ ln(x) / x^3 dx = -ln x/(2x^2) + ∫ 1/(2x^3) dx',
+          '∫ ln(x) / x^3 dx = -ln x/(2x^2) − ∫ 1/(2x^3) dx',
+          '∫ ln(x) / x^3 dx = ln x/(2x^2) − ∫ 1/(2x^3) dx',
+          '∫ ln(x) / x^3 dx = ln x/(2x^2) + ∫ 1/(2x^3) dx'
+        ],
+        correctAnswer: 1,
+        marks: 1,
+        explanation: 'uv = ln x · (−1/(2x^2)); v du = (−1/(2x^2))·(1/x) = −1/(2x^3), so the integral is uv − ∫vdu = −ln x/(2x^2) − ∫ 1/(2x^3) dx.'
+      },
+      {
+        id: 'ibp-lnx/x3-step-4',
+        question: 'Evaluate the remaining integral and simplify. Which is the correct antiderivative?',
+        options: [
+          '−ln x/(2x^2) + 1/(4x^2) + C',
+          '−ln x/(2x^2) − 1/(4x^2) + C',
+          'ln x/(2x^2) − 1/(4x^2) + C',
+          'ln x/(2x^2) + 1/(4x^2) + C'
+        ],
+        correctAnswer: 1,
+        marks: 1,
+        explanation: '∫ 1/(2x^3) dx = 1/2 · x^(−2)/(-2) = −1/(4x^2), so the result is −ln x/(2x^2) − 1/(4x^2) + C.'
+      }
+    ]
+  },
+
 ];
 
 // =============================================================================
@@ -347,9 +434,8 @@ const questions: QuestionInput[] = [
 
 function validateQuestionStructure(q: QuestionInput, index: number): string[] {
   const errors: string[] = [];
-  const prefix = `Question ${index + 1} (${q.id || 'no-id'})`;
+  const prefix = `Question ${index + 1} (${q.title || 'no-title'})`;
 
-  if (!q.id) errors.push(`${prefix}: Missing stable ID`);
   if (!q.title?.trim()) errors.push(`${prefix}: Missing title`);
   if (!q.subject) errors.push(`${prefix}: Missing subject`);
   if (!q.chapter?.trim()) errors.push(`${prefix}: Missing chapter`);
@@ -400,12 +486,12 @@ async function main() {
   });
 
   if (allErrors.length > 0) {
-    console.error('\n❌ Validation failed:');
+    console.error('\\n❌ Validation failed:');
     allErrors.forEach((err) => console.error(`   ${err}`));
     process.exit(1);
   }
 
-  console.log(`✓ All ${questions.length} questions validated successfully\n`);
+  console.log(`✓ All ${questions.length} questions validated successfully\\n`);
   console.log('📤 Seeding questions to Supabase...');
 
   let successCount = 0;
@@ -414,19 +500,17 @@ async function main() {
   // Insert questions one by one for better error reporting
   for (const question of questions) {
     try {
-      const { error } = await supabase.from('questions').upsert(question, {
-        onConflict: 'id',
-      });
+      const { error } = await supabase.from('questions').insert(question);
 
       if (error) {
-        console.error(`   ❌ ${question.id}: ${error.message}`);
+        console.error(`   ❌ ${question.title}: ${error.message}`);
         failCount++;
       } else {
-        console.log(`   ✓ ${question.id}`);
+        console.log(`   ✓ ${question.title}`);
         successCount++;
       }
     } catch (err: any) {
-      console.error(`   ❌ ${question.id}: ${err.message}`);
+      console.error(`   ❌ ${question.title}: ${err.message}`);
       failCount++;
     }
   }
