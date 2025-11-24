@@ -149,6 +149,7 @@ async function startRound(game: GameState) {
   // 3. Query questions
   // Strategy: Try strict match first, then relax
   let query = supabase.from('questions').select('*, question_steps(*)')
+  let selectedQuestion: any = null;
 
   // Apply filters (simplified for robustness)
   if (matchData?.subject) query = query.eq('subject', matchData.subject)
@@ -178,11 +179,11 @@ async function startRound(game: GameState) {
     }
     // Pick random from fallback
     const randomIndex = Math.floor(Math.random() * fallback.length)
-    var selectedQuestion = fallback[randomIndex]
+    selectedQuestion = fallback[randomIndex]
   } else {
     // Pick random from candidates
     const randomIndex = Math.floor(Math.random() * candidates.length)
-    var selectedQuestion = candidates[randomIndex]
+    selectedQuestion = candidates[randomIndex]
   }
 
   // Format question data to match expected structure
@@ -747,7 +748,13 @@ Deno.serve(async (req) => {
 
             console.log(`[${matchId}] 🎮 Starting first round (round ${game.currentRound})`)
             // Start first round
-            await startRound(game)
+            try {
+              await startRound(game)
+            } catch (err) {
+              console.error(`[${matchId}] ❌ CRITICAL ERROR starting round:`, err)
+              game.p1Socket?.send(JSON.stringify({ type: 'error', message: 'Failed to start round' }))
+              game.p2Socket?.send(JSON.stringify({ type: 'error', message: 'Failed to start round' }))
+            }
           }
           break
         }
