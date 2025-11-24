@@ -151,7 +151,8 @@ export const OnlineBattle = () => {
           if (event.player !== (isPlayer1 ? 'p1' : 'p2')) setOpponentReady(true);
         },
         onRoundStart: (event: RoundStartEvent) => {
-          console.log('Round Start:', event);
+          console.log('Component: Round Start Event Received:', event);
+          console.log('Component: Question Payload:', event.question);
 
           // Reset Round State
           setRoundId(event.roundId);
@@ -165,9 +166,17 @@ export const OnlineBattle = () => {
           // Parse Question
           if (event.question) {
             try {
+              console.log('Component: Mapping question...');
               const q = mapRawQuestionToStepBasedQuestion(event.question);
+              console.log('Component: Mapped Question:', q);
               setQuestions([q]);
-            } catch (e) { console.error(e); }
+            } catch (e) {
+              console.error('Component: Error mapping question:', e);
+              toast.error('Error loading question data');
+            }
+          } else {
+            console.error('Component: No question data in ROUND_START event');
+            toast.error('Received empty question data');
           }
 
           // Show Round Overlay

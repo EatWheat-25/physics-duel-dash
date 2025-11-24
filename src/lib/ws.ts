@@ -235,6 +235,7 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
 
         case 'ROUND_START':
           console.log(`WS: Round ${message.roundIndex} starting - phase: ${message.phase}`);
+          console.log('WS: Full ROUND_START payload:', JSON.stringify(message, null, 2));
           onRoundStart?.(message);
           break;
 
