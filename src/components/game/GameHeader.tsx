@@ -33,7 +33,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
             <div className="flex items-center justify-between mb-6">
                 <button
                     onClick={onBack}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors backdrop-blur-sm"
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/40 hover:bg-black/60 transition-colors backdrop-blur-md border border-white/10"
                 >
                     <ArrowLeft className="w-4 h-4" />
                     <span className="hidden sm:inline">Back</span>
@@ -51,7 +51,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
                         </AvatarFallback>
                     </Avatar>
 
-                    <div className="px-4 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-sm font-mono text-muted-foreground">
+                    <div className="px-4 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-sm font-mono text-white shadow-[inset_0_2px_8px_rgba(0,0,0,0.4)]">
                         ROUND {currentRound}/{totalRounds}
                     </div>
 
