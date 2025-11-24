@@ -297,6 +297,12 @@ async function startRound(game: GameState) {
     hasSteps: !!questionData.question.steps,
     stepsIsArray: Array.isArray(questionData.question.steps)
   })
+  console.log(`[QA-LOG] [${matchId}] Emitting ROUND_START:`, {
+    roundIndex: game.currentRound,
+    questionId: questionData.question_id,
+    stepsCount: questionData.question.steps?.length || 0,
+    firstStepTitle: questionData.question.steps?.[0]?.title
+  })
   game.p1Socket?.send(JSON.stringify(roundStartMsg))
   game.p2Socket?.send(JSON.stringify(roundStartMsg))
 }
@@ -470,6 +476,12 @@ async function transitionToResult(game: GameState) {
   }
 
   console.log(`[game-ws] ROUND_RESULT`, { matchId, roundIndex: game.currentRound, step: game.currentStepIndex + 1, p1Correct: p1IsCorrect, p2Correct: p2IsCorrect, tugOfWar })
+  console.log(`[QA-LOG] [${matchId}] Emitting ROUND_RESULT:`, {
+    roundIndex: game.currentRound,
+    p1Correct: p1IsCorrect,
+    p2Correct: p2IsCorrect,
+    tugOfWar
+  })
   game.p1Socket?.send(JSON.stringify(roundResultMsg))
   game.p2Socket?.send(JSON.stringify(roundResultMsg))
 
@@ -672,6 +684,7 @@ Deno.serve(async (req) => {
       p1ReadyForOptions: false,
       p2ReadyForOptions: false
     })
+    console.log(`[QA-LOG] [${matchId}] New game state initialized`)
   }
 
   const game = games.get(matchId)!
@@ -723,7 +736,7 @@ Deno.serve(async (req) => {
 
           // Start game if both ready
           if (game.p1Ready && game.p2Ready && !game.gameActive) {
-            console.log(`[${matchId}] ✅ Both players ready, starting match`)
+            console.log(`[QA-LOG] [${matchId}] ✅ Both players ready, starting match`)
             game.gameActive = true
             game.currentRound = 1  // Initialize to round 1
 
@@ -742,7 +755,7 @@ Deno.serve(async (req) => {
         case 'answer_submit': {
           const { answer } = message
 
-          console.log(`[${matchId}] 🎯 ${isP1 ? 'P1' : 'P2'} submitted answer:`, {
+          console.log(`[QA-LOG] [${matchId}] 🎯 ${isP1 ? 'P1' : 'P2'} submitted answer:`, {
             answer,
             currentPhase: game.currentPhase,
             currentStepIndex: game.currentStepIndex,

@@ -187,12 +187,13 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
 
   ws.onopen = () => {
     clearTimeout(connectionTimeout);
-    console.log('WS: Connected successfully, readyState:', ws.readyState);
+    console.log('[QA-LOG] WS: Connected successfully, readyState:', ws.readyState);
   };
 
   ws.onmessage = (event) => {
     try {
       const message: ServerEvent = JSON.parse(event.data);
+      console.log(`[QA-LOG] WS: Received message type: ${message.type}`, message);
       console.log('WS: Received message:', message.type);
 
       switch (message.type) {

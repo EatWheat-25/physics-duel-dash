@@ -151,8 +151,8 @@ export const OnlineBattle = () => {
           if (event.player !== (isPlayer1 ? 'p1' : 'p2')) setOpponentReady(true);
         },
         onRoundStart: (event: RoundStartEvent) => {
-          console.log('Component: Round Start Event Received:', event);
-          console.log('Component: Question Payload:', event.question);
+          console.log('[QA-LOG] Component: Round Start Event Received:', event);
+          console.log('[QA-LOG] Component: Question Payload:', event.question);
 
           // Reset Round State
           setRoundId(event.roundId);
@@ -166,9 +166,9 @@ export const OnlineBattle = () => {
           // Parse Question
           if (event.question) {
             try {
-              console.log('Component: Mapping question...');
+              console.log('[QA-LOG] Component: Mapping question...');
               const q = mapRawQuestionToStepBasedQuestion(event.question);
-              console.log('Component: Mapped Question:', q);
+              console.log('[QA-LOG] Component: Mapped Question:', q);
               setQuestions([q]);
             } catch (e) {
               console.error('Component: Error mapping question:', e);
@@ -189,7 +189,7 @@ export const OnlineBattle = () => {
           setTimeout(() => setOverlay(prev => ({ ...prev, isVisible: false })), 2000);
         },
         onPhaseChange: (event: PhaseChangeEvent) => {
-          console.log('Phase Change:', event.phase);
+          console.log('[QA-LOG] Component: Phase Change:', event.phase);
           setCurrentPhase(event.phase);
           setPhaseDeadline(event.choosingEndsAt ? new Date(event.choosingEndsAt) : null);
 
