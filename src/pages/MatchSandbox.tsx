@@ -20,13 +20,15 @@ import { battleReducer, initialBattleState } from '@/lib/battleReducer';
 import { createMockGameWS, MockServerMessage } from '@/lib/mockWS';
 import { mapRawQuestionToStepBasedQuestion } from '@/utils/questionMapper';
 
-// Dev-only guard
-if (import.meta.env.PROD) {
-    throw new Error('Match Sandbox is not available in production');
-}
-
 const MatchSandbox = () => {
     const navigate = useNavigate();
+
+    // Dev-only guard - redirect in production
+    useEffect(() => {
+        if (import.meta.env.PROD) {
+            navigate('/');
+        }
+    }, [navigate]);
 
     // Core State
     const [state, dispatch] = useReducer(battleReducer, initialBattleState);
