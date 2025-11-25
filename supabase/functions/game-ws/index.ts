@@ -705,6 +705,27 @@ Deno.serve(async (req) => {
 
   socket.onopen = () => {
     socket.send(JSON.stringify({ type: 'connected', player: isP1 ? 'p1' : 'p2' }))
+
+    // Auto-start match when both players are connected
+    if (game.p1Socket && game.p2Socket && !game.gameActive) {
+      console.log(`[${matchId}] ✅ Both players connected, auto-starting match`)
+      game.gameActive = true
+      game.currentRound = 1
+
+      // Update match state to active
+      supabase
+        .from('matches_new')
+        .update({ state: 'active' })
+        .eq('id', matchId)
+        .then(({ error }) => {
+          if (error) console.error(`[${matchId}] ❌ Error updating match state:`, error)
+        })
+
+      // Start first round
+      startRound(game).catch(err => {
+        console.error(`[${matchId}] ❌ Error starting first round:`, err)
+      })
+    }
   }
 
   socket.onmessage = async (event) => {
@@ -730,40 +751,6 @@ Deno.serve(async (req) => {
       console.log(`[${matchId}] ✅ Message validated successfully:`, message.type)
 
       switch (message.type) {
-        case 'ready': {
-          if (isP1) game.p1Ready = true
-          else game.p2Ready = true
-
-          console.log(`[${matchId}] ${isP1 ? 'P1' : 'P2'} ready`)
-
-          // Notify both players
-          const readyMsg = { type: 'player_ready', player: isP1 ? 'p1' : 'p2' }
-          game.p1Socket?.send(JSON.stringify(readyMsg))
-          game.p2Socket?.send(JSON.stringify(readyMsg))
-
-
-          // Start game if both ready
-          if (game.p1Ready && game.p2Ready && !game.gameActive) {
-            console.log(`[QA-LOG] [${matchId}] ✅ Both players ready, starting match`)
-            game.gameActive = true
-            game.currentRound = 1  // Initialize to round 1
-
-            const { error: updateError } = await supabase
-              .from('matches_new')
-              .update({ state: 'active' })
-              .eq('id', matchId)
-
-            if (updateError) {
-              console.error(`[${matchId}] ❌ Error updating match state:`, updateError)
-            }
-
-            console.log(`[${matchId}] 🎮 Starting first round (round ${game.currentRound})`)
-            // Start first round
-            await startRound(game)
-          }
-          break
-        }
-
         case 'answer_submit': {
           const { answer } = message
 
