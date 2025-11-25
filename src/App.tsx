@@ -31,6 +31,7 @@ import AdminLogin from "./pages/AdminLogin";
 import OnlineBattlePage from "./pages/OnlineBattlePage";
 import DebugQuestions from "./pages/DebugQuestions";
 import Practice from "./pages/Practice";
+import MatchSandbox from "./pages/MatchSandbox";
 import { getRandomQuestions } from "./data/questions";
 
 const queryClient = new QueryClient();
@@ -40,40 +41,41 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <CharacterProvider>
         <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/" element={<Home />} />
-              <Route path="/lobby" element={<Lobby />} />
-              <Route path="/daily-challenge" element={<DailyChallenge />} />
-              <Route path="/study" element={<Study />} />
-              <Route path="/practice" element={<Practice />} />
-              <Route path="/battle/queue" element={<BattleQueue />} />
-              <Route path="/modules" element={<Modules />} />
-              <Route path="/challenges" element={<Challenges />} />
-              <Route path="/progression" element={<Progression />} />
-              <Route path="/shop" element={<Shop />} />
-              <Route path="/customize" element={<Customize />} />
-              <Route path="/loadout" element={<Loadout />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/old-home" element={<Index />} />
-              <Route path="/modes" element={<ModeSelection />} />
-              <Route path="/game-modes" element={<GameModes />} />
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin/questions" element={<AdminQuestions />} />
-            <Route path="/debug/questions" element={<DebugQuestions />} />
-              <Route path="/battle" element={<BattleLoader />} />
-              <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} />
-              <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => {}} onGoBack={() => window.location.href = '/'} />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <Routes>
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/onboarding" element={<Onboarding />} />
+                <Route path="/" element={<Home />} />
+                <Route path="/lobby" element={<Lobby />} />
+                <Route path="/daily-challenge" element={<DailyChallenge />} />
+                <Route path="/study" element={<Study />} />
+                <Route path="/practice" element={<Practice />} />
+                <Route path="/battle/queue" element={<BattleQueue />} />
+                <Route path="/modules" element={<Modules />} />
+                <Route path="/challenges" element={<Challenges />} />
+                <Route path="/progression" element={<Progression />} />
+                <Route path="/shop" element={<Shop />} />
+                <Route path="/customize" element={<Customize />} />
+                <Route path="/loadout" element={<Loadout />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/old-home" element={<Index />} />
+                <Route path="/modes" element={<ModeSelection />} />
+                <Route path="/game-modes" element={<GameModes />} />
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin/questions" element={<AdminQuestions />} />
+                <Route path="/debug/questions" element={<DebugQuestions />} />
+                <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
+                <Route path="/battle" element={<BattleLoader />} />
+                <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} />
+                <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => { }} onGoBack={() => window.location.href = '/'} />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
         </TooltipProvider>
       </CharacterProvider>
     </QueryClientProvider>

@@ -61,6 +61,7 @@ export interface ErrorEvent {
   message: string;
 }
 
+// Consolidated server event type (removing duplicates)
 export type ServerEvent =
   | ConnectedEvent
   | PlayerReadyEvent
@@ -72,12 +73,12 @@ export type ServerEvent =
   | MatchEndEvent
   | RoundStartEvent
   | PhaseChangeEvent
-  | RoundStartEvent
-  | PhaseChangeEvent
-  | RoundResultEvent
   | RoundResultEvent
   | ValidationErrorEvent
   | ErrorEvent;
+
+// Alias for clarity in components
+export type ServerMessage = ServerEvent;
 
 export interface ReadyMessage {
   type: 'ready';
