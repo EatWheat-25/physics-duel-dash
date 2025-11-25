@@ -241,23 +241,19 @@ export function createMockGameWS(
         }
     };
 
-    // Initialize connection
+    // Initialize connection - start game immediately!
     setTimeout(() => {
         console.log('[MockWS] Simulating connection...');
 
-        // Send connected event
-        scheduleMessage({ type: 'connected', player: 'p1' }, 100);
+        // Send connected event and immediately start first round
+        scheduleMessage({ type: 'connected', player: 'p1' }, 0);
 
-        // Send player ready events
-        scheduleMessage({ type: 'player_ready', player: 'p1' }, 500);
-        scheduleMessage({ type: 'player_ready', player: 'p2' }, 1000);
-
-        // Start first round
+        // Start first round right away (no ready waiting)
         setTimeout(() => {
             currentRound = 1;
             simulateRound(1);
-        }, 2000);
-    }, 500);
+        }, 100);
+    }, 100);
 
     return {
         send: (message: string) => {
