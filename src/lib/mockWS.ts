@@ -243,12 +243,9 @@ export function createMockGameWS(
 
     // Initialize connection - start game immediately!
     setTimeout(() => {
-        console.log('[MockWS] Simulating connection...');
+        console.log('[MockWS] Starting game immediately...');
 
-        // Send connected event and immediately start first round
-        scheduleMessage({ type: 'connected', player: 'p1' }, 0);
-
-        // Start first round right away (no ready waiting)
+        // Start first round right away (skip connected/ready phase)
         setTimeout(() => {
             currentRound = 1;
             simulateRound(1);
