@@ -699,34 +699,51 @@ Deno.serve(async (req) => {
   // Assign socket
   if (isP1) {
     game.p1Socket = socket
+    console.log(`[${matchId}] P1 socket assigned`)
   } else {
     game.p2Socket = socket
+    console.log(`[${matchId}] P2 socket assigned`)
   }
 
-  socket.onopen = () => {
-    socket.send(JSON.stringify({ type: 'connected', player: isP1 ? 'p1' : 'p2' }))
-
-    // Auto-start match when both players are connected
+  // Helper function to check and start match
+  const tryStartMatch = async () => {
     if (game.p1Socket && game.p2Socket && !game.gameActive) {
       console.log(`[${matchId}] ✅ Both players connected, auto-starting match`)
       game.gameActive = true
       game.currentRound = 1
 
       // Update match state to active
-      supabase
+      const { error: updateError } = await supabase
         .from('matches_new')
         .update({ state: 'active' })
         .eq('id', matchId)
-        .then(({ error }) => {
-          if (error) console.error(`[${matchId}] ❌ Error updating match state:`, error)
-        })
 
+      if (updateError) {
+        console.error(`[${matchId}] ❌ Error updating match state:`, updateError)
+      }
+
+      console.log(`[${matchId}] 🎮 Starting first round`)
       // Start first round
-      startRound(game).catch(err => {
-        console.error(`[${matchId}] ❌ Error starting first round:`, err)
-      })
+      await startRound(game)
+    } else {
+      console.log(`[${matchId}] Not starting yet - P1: ${!!game.p1Socket}, P2: ${!!game.p2Socket}, Active: ${game.gameActive}`)
     }
   }
+
+  socket.onopen = () => {
+    console.log(`[${matchId}] ${isP1 ? 'P1' : 'P2'} socket opened`)
+    socket.send(JSON.stringify({ type: 'connected', player: isP1 ? 'p1' : 'p2' }))
+
+    // Try to start match when socket opens
+    tryStartMatch().catch(err => {
+      console.error(`[${matchId}] ❌ Error in tryStartMatch:`, err)
+    })
+  }
+
+  // Also try to start immediately after assignment (in case both are already connected)
+  tryStartMatch().catch(err => {
+    console.error(`[${matchId}] ❌ Error in immediate tryStartMatch:`, err)
+  })
 
   socket.onmessage = async (event) => {
     try {
