@@ -61,10 +61,6 @@ export interface BattleState {
     p1Score: number;
     p2Score: number;
     winnerId: string | null;
-
-    // Player Ready State
-    youReady: boolean;
-    opponentReady: boolean;
 }
 
 // ============================================================================
@@ -73,7 +69,6 @@ export interface BattleState {
 
 export type BattleAction =
     | { type: 'WS_CONNECTED' }
-    | { type: 'PLAYER_READY'; payload: { isYou: boolean } }
     | {
         type: 'ROUND_START';
         payload: {
@@ -131,8 +126,6 @@ export const initialBattleState: BattleState = {
     p1Score: 0,
     p2Score: 0,
     winnerId: null,
-    youReady: false,
-    opponentReady: false,
 };
 
 // ============================================================================
@@ -148,13 +141,6 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
                 ...state,
                 phase: 'waiting_for_opponent',
             };
-
-        case 'PLAYER_READY':
-            if (action.payload.isYou) {
-                return { ...state, youReady: true };
-            } else {
-                return { ...state, opponentReady: true };
-            }
 
         case 'ROUND_START':
             return {

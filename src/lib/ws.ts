@@ -295,11 +295,7 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
   return ws;
 }
 
-export function sendReady(ws: WebSocket): void {
-  const message: ReadyMessage = { type: 'ready' };
-  ws.send(JSON.stringify(message));
-  console.log('WS: Sent ready signal');
-}
+
 
 export function sendQuestionComplete(ws: WebSocket): void {
   const message: QuestionCompleteMessage = { type: 'question_complete' };

@@ -52,11 +52,6 @@ const MatchSandbox = () => {
                     dispatch({ type: 'WS_CONNECTED' });
                     break;
 
-                case 'player_ready':
-                    const isYou = message.player === 'p1';
-                    dispatch({ type: 'PLAYER_READY', payload: { isYou } });
-                    break;
-
                 case 'ROUND_START':
                     try {
                         console.log('[Sandbox] ROUND_START - Raw question:', message.question);
@@ -196,14 +191,8 @@ const MatchSandbox = () => {
             <GameLayout className="items-center justify-center">
                 <div className="text-center space-y-4">
                     <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-                    <h2 className="text-2xl font-bold text-white">Waiting for Opponent...</h2>
-                    <p className="text-sm text-muted-foreground">(Simulated)</p>
-                    <p className="text-muted-foreground">
-                        {state.youReady ? '✓ You are ready' : 'Getting ready...'}
-                    </p>
-                    <p className="text-muted-foreground">
-                        {state.opponentReady ? '✓ Opponent is ready' : 'Waiting for opponent...'}
-                    </p>
+                    <h2 className="text-2xl font-bold text-white">Waiting for match to start...</h2>
+                    <p className="text-sm text-muted-foreground">(Simulated - Dev Mode)</p>
                 </div>
             </GameLayout>
         );

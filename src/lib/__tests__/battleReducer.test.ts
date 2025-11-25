@@ -47,24 +47,6 @@ describe('battleReducer', () => {
         expect(state.phase).toBe('waiting_for_opponent');
     });
 
-    it('should set youReady flag on PLAYER_READY (you)', () => {
-        const state = battleReducer(initialBattleState, {
-            type: 'PLAYER_READY',
-            payload: { isYou: true },
-        });
-        expect(state.youReady).toBe(true);
-        expect(state.opponentReady).toBe(false);
-    });
-
-    it('should set opponentReady flag on PLAYER_READY (opponent)', () => {
-        const state = battleReducer(initialBattleState, {
-            type: 'PLAYER_READY',
-            payload: { isYou: false },
-        });
-        expect(state.youReady).toBe(false);
-        expect(state.opponentReady).toBe(true);
-    });
-
     it('should transition to in_question on ROUND_START', () => {
         const thinkingEndsAt = new Date(Date.now() + 60000);
         const state = battleReducer(initialBattleState, {

@@ -12,7 +12,7 @@ import { PhaseOverlay } from './game/PhaseOverlay';
 
 // State Management & Logic
 import { battleReducer, initialBattleState, BattleState } from '@/lib/battleReducer';
-import { connectGameWS, sendReady, sendAnswer, ServerMessage } from '@/lib/ws';
+import { connectGameWS, sendAnswer, ServerMessage } from '@/lib/ws';
 import { mapRawQuestionToStepBasedQuestion } from '@/utils/questionMapper';
 
 interface Match {
@@ -56,15 +56,6 @@ export const OnlineBattle = () => {
     switch (message.type) {
       case 'connected':
         dispatch({ type: 'WS_CONNECTED' });
-        // Send ready immediately after connection
-        if (wsRef.current) {
-          sendReady(wsRef.current);
-        }
-        break;
-
-      case 'player_ready':
-        const isYou = message.player === (isPlayer1 ? 'p1' : 'p2');
-        dispatch({ type: 'PLAYER_READY', payload: { isYou } });
         break;
 
       case 'ROUND_START':
@@ -311,13 +302,7 @@ export const OnlineBattle = () => {
       <GameLayout className="items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-          <h2 className="text-2xl font-bold text-white">Waiting for Opponent...</h2>
-          <p className="text-muted-foreground">
-            {state.youReady ? '✓ You are ready' : 'Getting ready...'}
-          </p>
-          <p className="text-muted-foreground">
-            {state.opponentReady ? '✓ Opponent is ready' : 'Waiting for opponent...'}
-          </p>
+          <h2 className="text-2xl font-bold text-white">Waiting for match to start...</h2>
         </div>
       </GameLayout>
     );
