@@ -32,6 +32,9 @@ import OnlineBattlePage from "./pages/OnlineBattlePage";
 import DebugQuestions from "./pages/DebugQuestions";
 import Practice from "./pages/Practice";
 import MatchSandbox from "./pages/MatchSandbox";
+import { DevContractTest } from "./pages/DevContractTest";
+import { DevDatabaseTest } from "./pages/DevDatabaseTest";
+import { DevMapperTest } from "./pages/DevMapperTest";
 import { getRandomQuestions } from "./data/questions";
 
 const queryClient = new QueryClient();
@@ -68,6 +71,9 @@ const App = () => {
                 <Route path="/admin/questions" element={<AdminQuestions />} />
                 <Route path="/debug/questions" element={<DebugQuestions />} />
                 <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
+                <Route path="/dev/contract-test" element={<DevContractTest />} />
+                <Route path="/dev/db-test" element={<DevDatabaseTest />} />
+                <Route path="/dev/mapper-test" element={<DevMapperTest />} />
                 <Route path="/battle" element={<BattleLoader />} />
                 <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} />
                 <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => { }} onGoBack={() => window.location.href = '/'} />} />

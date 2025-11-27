@@ -128,8 +128,10 @@ async function startRound(game: GameState) {
     sample: questionCheck?.map(q => ({ id: q.id, title: q.title, hasSteps: !!q.steps }))
   })
 
-  // Fetch next question directly (bypassing broken RPC)
-  console.log(`[${matchId}] Fetching question directly from DB...`)
+  // ═══════════════════════════════════════════════════════════════
+  // FETCH QUESTION FROM QUESTIONS_V2 (Clean Contract-Based Table)
+  // ═══════════════════════════════════════════════════════════════
+  console.log(`[${matchId}] Fetching question from questions_v2...`)
 
   // 1. Get match preferences
   const { data: matchData } = await supabase
@@ -146,70 +148,52 @@ async function startRound(game: GameState) {
 
   const usedIds = usedQuestions?.map(q => q.question_id) || []
 
-  // 3. Query questions
-  // Strategy: Try strict match first, then relax
-  let query = supabase.from('questions').select('*, question_steps(*)')
+  // 3. Query questions_v2 (steps are JSONB, no join needed!)
+  let query = supabase.from('questions_v2').select('*')
   let selectedQuestion: any = null;
 
-  // Apply filters (simplified for robustness)
-  if (matchData?.subject) query = query.eq('subject', matchData.subject)
+  // Apply filters
+  if (matchData?.subject) {
+    query = query.eq('subject', matchData.subject)
+  }
 
+  // Exclude already used questions
   if (usedIds.length > 0) {
     query = query.not('id', 'in', `(${usedIds.join(',')})`)
   }
 
-  // Fetch a batch to pick random
+  // Fetch candidates
   const { data: candidates, error: fetchError } = await query.limit(20)
 
   if (fetchError || !candidates || candidates.length === 0) {
-    console.error(`[${matchId}] ❌ Failed to fetch candidates:`, fetchError)
-    // Fallback: Fetch ANY question not used
+    console.error(`[${matchId}] ❌ Failed to fetch from questions_v2:`, fetchError)
+
+    // Fallback: Try to get ANY question
     const { data: fallback, error: fallbackError } = await supabase
-      .from('questions')
-      .select('*, question_steps(*)')
+      .from('questions_v2')
+      .select('*')
       .not('id', 'in', `(${usedIds.length > 0 ? usedIds.join(',') : '00000000-0000-0000-0000-000000000000'})`)
       .limit(10)
 
     if (fallbackError || !fallback || fallback.length === 0) {
-      console.error(`[${matchId}] ❌ Failed to fetch fallback questions:`, fallbackError)
-      const errorMsg = { type: 'error', message: 'No questions available' }
+      console.error(`[${matchId}] ❌ No questions available in questions_v2:`, fallbackError)
+      const errorMsg = { type: 'error', message: 'No questions available. Run: npm run seed:test-v2' }
       game.p1Socket?.send(JSON.stringify(errorMsg))
       game.p2Socket?.send(JSON.stringify(errorMsg))
       return
     }
-    // Pick random from fallback
-    const randomIndex = Math.floor(Math.random() * fallback.length)
-    selectedQuestion = fallback[randomIndex]
+
+    selectedQuestion = fallback[Math.floor(Math.random() * fallback.length)]
   } else {
-    // Pick random from candidates
-    const randomIndex = Math.floor(Math.random() * candidates.length)
-    selectedQuestion = candidates[randomIndex]
+    selectedQuestion = candidates[Math.floor(Math.random() * candidates.length)]
   }
 
-  // Format question data to match expected structure
-  // The RPC returned { question_id, ordinal, question: { ... } }
-  // We need to construct this structure
+  // ═══════════════════════════════════════════════════════════════
+  // QUESTION PAYLOAD - Already in correct format from questions_v2!
+  // ═══════════════════════════════════════════════════════════════
+  // The DB row already matches our contract (snake_case)
+  // Frontend mapper will convert to StepBasedQuestion
 
-  // Sort steps by index
-  if (selectedQuestion.question_steps && Array.isArray(selectedQuestion.question_steps)) {
-    selectedQuestion.question_steps.sort((a: any, b: any) => a.step_index - b.step_index)
-  }
-
-  // Map steps to expected format if needed (mapper handles snake_case, but let's be safe)
-  const steps = selectedQuestion.question_steps?.map((s: any) => ({
-    id: s.id,
-    index: s.step_index,
-    type: s.step_type,
-    title: s.title,
-    prompt: s.prompt,
-    options: s.options,
-    correctAnswer: s.correct_answer?.correctIndex ?? 0,
-    timeLimitSeconds: s.time_limit_seconds,
-    marks: s.marks,
-    explanation: s.explanation
-  })) || []
-
-  // Construct the "question" object expected by frontend
   const questionPayload = {
     id: selectedQuestion.id,
     title: selectedQuestion.title,
@@ -217,12 +201,12 @@ async function startRound(game: GameState) {
     chapter: selectedQuestion.chapter,
     level: selectedQuestion.level,
     difficulty: selectedQuestion.difficulty,
-    rankTier: selectedQuestion.rank_tier,
-    stem: selectedQuestion.question_text,
-    totalMarks: selectedQuestion.total_marks,
-    topicTags: selectedQuestion.topic_tags,
-    imageUrl: selectedQuestion.image_url,
-    steps: steps
+    rank_tier: selectedQuestion.rank_tier,
+    stem: selectedQuestion.stem,  // Already "stem" in v2!
+    total_marks: selectedQuestion.total_marks,
+    topic_tags: selectedQuestion.topic_tags,
+    image_url: selectedQuestion.image_url,
+    steps: selectedQuestion.steps  // Already JSONB array in v2!
   }
 
   const questionData = {
@@ -230,10 +214,10 @@ async function startRound(game: GameState) {
     question: questionPayload
   }
 
-  console.log(`[${matchId}] Question loaded (Direct DB):`, {
+  console.log(`[${matchId}] ✅ Question loaded from questions_v2:`, {
     id: questionData.question_id,
-    title: questionData.question?.title,
-    stepsCount: steps.length
+    title: questionData.question.title,
+    stepsCount: Array.isArray(questionData.question.steps) ? questionData.question.steps.length : 0
   })
   game.currentQuestionId = questionData.question_id
   game.currentQuestion = questionData.question
@@ -696,8 +680,16 @@ Deno.serve(async (req) => {
 
   const game = games.get(matchId)!
 
+  // Check if self-play match
+  const isSelfPlay = match.p1 === match.p2
+
   // Assign socket
-  if (isP1) {
+  if (isSelfPlay) {
+    // Self-play: assign socket to BOTH p1 and p2
+    game.p1Socket = socket
+    game.p2Socket = socket
+    console.log(`[${matchId}] Self-play match - socket assigned to both P1 and P2`)
+  } else if (isP1) {
     game.p1Socket = socket
     console.log(`[${matchId}] P1 socket assigned`)
   } else {

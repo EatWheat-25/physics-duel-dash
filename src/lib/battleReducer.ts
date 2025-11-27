@@ -5,7 +5,7 @@
  * Handles all game phases: connecting, waiting, in-question, result, match-over.
  */
 
-import { StepBasedQuestion } from '@/types/questions';
+import { StepBasedQuestion } from '@/types/question-contract';
 import { RoundPhase } from '@/types/gameEvents';
 
 // ============================================================================

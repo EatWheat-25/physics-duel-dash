@@ -13,7 +13,7 @@ import { PhaseOverlay } from './game/PhaseOverlay';
 // State Management & Logic
 import { battleReducer, initialBattleState, BattleState } from '@/lib/battleReducer';
 import { connectGameWS, sendAnswer, ServerMessage } from '@/lib/ws';
-import { mapRawQuestionToStepBasedQuestion } from '@/utils/questionMapper';
+import { wsPayloadToQuestion } from '@/lib/question-contract';
 
 interface Match {
   id: string;
@@ -58,11 +58,19 @@ export const OnlineBattle = () => {
         dispatch({ type: 'WS_CONNECTED' });
         break;
 
+
       case 'ROUND_START':
         try {
-          console.log('[Battle] ROUND_START - Raw question:', message.question);
-          const mappedQuestion = mapRawQuestionToStepBasedQuestion(message.question);
-          console.log('[Battle] ROUND_START - Mapped question:', mappedQuestion);
+          console.log('[CONTRACT] ROUND_START - Raw payload:', message.question);
+
+          // Use fail-fast mapper - throws descriptive errors if contract violated
+          const mappedQuestion = wsPayloadToQuestion(message.question);
+
+          console.log('[CONTRACT] ✅ Mapped to StepBasedQuestion:', {
+            id: mappedQuestion.id,
+            title: mappedQuestion.title,
+            stepsCount: mappedQuestion.steps.length
+          });
 
           dispatch({
             type: 'ROUND_START',
@@ -73,9 +81,10 @@ export const OnlineBattle = () => {
               thinkingEndsAt: new Date(message.thinkingEndsAt),
             },
           });
-        } catch (e) {
-          console.error('[Battle] Error mapping question:', e);
-          toast.error('Failed to load question');
+        } catch (e: any) {
+          console.error('[CONTRACT VIOLATION] Failed to map question:', e.message);
+          console.error('[CONTRACT VIOLATION] Raw payload was:', message.question);
+          toast.error(`Question failed contract: ${e.message}`);
         }
         break;
 
