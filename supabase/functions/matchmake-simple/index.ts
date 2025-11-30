@@ -130,22 +130,32 @@ Deno.serve(async (req) => {
     console.log(`[MATCHMAKER] Matched ${user.id} with ${opponent.player_id}`)
 
     // Step 3: Create match (with explicit check that players are different)
+    console.log(`[MATCHMAKER] Attempting to create match: player1=${user.id}, player2=${opponent.player_id}`)
+    
     const { data: newMatch, error: matchError } = await supabase
-      .from('matches_new')
+      .from('matches')
       .insert({
-        p1: user.id,
-        p2: opponent.player_id,
-        state: 'pending',
-        subject: 'math',
-        chapter: 'all',
-        created_at: new Date().toISOString()
+        player1_id: user.id,
+        player2_id: opponent.player_id,
+        status: 'pending'
+        // created_at has DEFAULT now(), so we don't need to specify it
       })
       .select()
       .single()
 
     if (matchError) {
-      console.error(`[MATCHMAKER] Error creating match:`, matchError)
-      return new Response(JSON.stringify({ error: 'Failed to create match' }), {
+      console.error(`[MATCHMAKER] ❌ Error creating match:`, {
+        code: matchError.code,
+        message: matchError.message,
+        details: matchError.details,
+        hint: matchError.hint,
+        fullError: matchError
+      })
+      return new Response(JSON.stringify({ 
+        error: 'Failed to create match',
+        details: matchError.message,
+        code: matchError.code
+      }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
