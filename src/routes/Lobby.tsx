@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Starfield } from '@/components/Starfield';
 import { supabase } from '@/integrations/supabase/client';
-import { useMatchStart } from '@/hooks/useMatchStart';
+import { useMatchmaking } from '@/hooks/useMatchmaking';
 import { useActivePlayerCount } from '@/hooks/useActivePlayerCount';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, ArrowLeft, BookOpen, GraduationCap, Zap } from 'lucide-react';
@@ -28,46 +28,34 @@ export default function Lobby() {
   const [step, setStep] = useState<'subject' | 'grade' | 'ready'>('subject');
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
-  const [isQueued, setIsQueued] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
-  const [userId, setUserId] = useState<string | null>(null);
   const activePlayerCount = useActivePlayerCount();
+  const { status, startMatchmaking, leaveQueue, match } = useMatchmaking();
 
   useEffect(() => {
     document.title = 'Battle Lobby | BattleNerds';
-
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-      }
-    };
-    fetchUser();
   }, []);
 
-  const { start: startMatch, cleanup: cleanupMatch } = useMatchStart(
-    userId || '',
-    (matchId) => {
-      setIsQueued(false);
-      navigate(`/online-battle/${matchId}`);
+  // Navigate to battle when matched
+  useEffect(() => {
+    if (status === 'matched' && match) {
+      navigate(`/online-battle/${match.id}`, {
+        state: { match }
+      });
     }
-  );
+  }, [status, match, navigate]);
 
+  // Update queue time when searching
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isQueued) {
+    if (status === 'searching') {
+      setQueueTime(0);
       interval = setInterval(() => {
         setQueueTime((prev) => prev + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isQueued]);
-
-  useEffect(() => {
-    return () => {
-      cleanupMatch();
-    };
-  }, [cleanupMatch]);
+  }, [status]);
 
   const handleSubjectSelect = (subject: Subject) => {
     setSelectedSubject(subject);
@@ -80,54 +68,17 @@ export default function Lobby() {
   };
 
   const handleStartQueue = async () => {
-    if (!selectedSubject || !selectedGrade || !userId || isQueued) return;
+    if (!selectedSubject || !selectedGrade || status === 'searching') return;
 
-    // Map grade to chapter format expected by backend
-    const chapterMap: Record<Grade, string> = {
-      'as-level': 'A1',
-      'a2-level': 'A2',
-      'grade-12': 'All',
-      'grade-9': 'Grade 9',
-      'grade-10': 'Grade 10',
-      'grade-11': 'Grade 11',
-    };
-
-    try {
-      setIsQueued(true);
-      setQueueTime(0);
-
-      await startMatch({
-        subject: selectedSubject,
-        chapter: chapterMap[selectedGrade],
-        mode: 'Ranked',
-      });
-    } catch (error) {
-      console.error('Failed to start queue:', error);
-      setIsQueued(false);
-    }
+    await startMatchmaking();
   };
 
   const handleLeaveQueue = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      await supabase.functions.invoke('leave_queue', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      cleanupMatch();
-      setIsQueued(false);
-      setQueueTime(0);
-    } catch (error) {
-      console.error('Failed to leave queue:', error);
-    }
+    await leaveQueue();
   };
 
   const handleBack = async () => {
-    if (isQueued) {
+    if (status === 'searching') {
       await handleLeaveQueue();
     }
 
@@ -318,7 +269,7 @@ export default function Lobby() {
               </motion.div>
             )}
 
-            {step === 'ready' && !isQueued && (
+            {step === 'ready' && status !== 'searching' && (
               <motion.div
                 key="ready"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -365,10 +316,10 @@ export default function Lobby() {
 
                   <motion.button
                     onClick={handleStartQueue}
-                    disabled={isQueued}
+                    disabled={status === 'searching'}
                     className="relative px-12 py-6 rounded-full font-bold text-2xl uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-magenta-400 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-br from-red-500 to-red-400 text-white shadow-[0_0_40px_rgba(255,51,51,0.5)]"
-                    whileHover={!isQueued ? { scale: 1.1 } : {}}
-                    whileTap={!isQueued ? { scale: 0.95 } : {}}
+                    whileHover={status !== 'searching' ? { scale: 1.1 } : {}}
+                    whileTap={status !== 'searching' ? { scale: 0.95 } : {}}
                     animate={{
                       boxShadow: [
                         '0 0 40px rgba(255,51,51,0.5)',
@@ -383,7 +334,7 @@ export default function Lobby() {
                     }}
                   >
                     <Zap className="w-6 h-6 inline mr-2" />
-                    {isQueued ? 'STARTING...' : 'START BATTLE'}
+                    {status === 'searching' ? 'STARTING...' : 'START BATTLE'}
                   </motion.button>
 
                   <p className="text-sm mt-6 text-muted-foreground">
@@ -393,7 +344,7 @@ export default function Lobby() {
               </motion.div>
             )}
 
-            {isQueued && (
+            {status === 'searching' && (
               <motion.div
                 key="queued"
                 initial={{ opacity: 0, scale: 0.9 }}
