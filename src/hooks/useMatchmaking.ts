@@ -75,7 +75,7 @@ export function useMatchmaking() {
 
     toast.success('Match found! Starting battle...');
 
-    navigate(`/battle/${matchRow.id}`, {
+    navigate(`/online-battle/${matchRow.id}`, {
       state: {
         match: matchRow,
       }

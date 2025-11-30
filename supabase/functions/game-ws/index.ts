@@ -323,8 +323,16 @@ async function startRound(game: GameState) {
     stepsCount: questionData.question.steps?.length || 0,
     firstStepTitle: questionData.question.steps?.[0]?.title
   })
-  game.p1Socket?.send(JSON.stringify(roundStartMsg))
-  game.p2Socket?.send(JSON.stringify(roundStartMsg))
+
+  // Send to both players with detailed logging
+  const p1SendResult = game.p1Socket?.send(JSON.stringify(roundStartMsg))
+  const p2SendResult = game.p2Socket?.send(JSON.stringify(roundStartMsg))
+
+  console.log(`[${matchId}] ✅ ROUND_START message sent:`, {
+    sentToP1: !!game.p1Socket,
+    sentToP2: !!game.p2Socket,
+    messageSize: JSON.stringify(roundStartMsg).length
+  })
 }
 
 async function transitionToChoosing(game: GameState) {
@@ -668,7 +676,16 @@ Deno.serve(async (req) => {
     return new Response('Invalid match', { status: 403 })
   }
 
-  console.log(`[${matchId}] WebSocket connection for user ${user.id}`)
+  console.log(`[${matchId}] ========================================`)
+  console.log(`[${matchId}] WebSocket connection request from user ${user.id}`)
+  console.log(`[${matchId}] Match state:`, {
+    state: match.state,
+    p1: match.p1,
+    p2: match.p2,
+    subject: match.subject,
+    chapter: match.chapter,
+    created_at: match.created_at
+  })
 
   // Upgrade to WebSocket
   const upgrade = req.headers.get('upgrade') || ''
@@ -679,6 +696,7 @@ Deno.serve(async (req) => {
   const { socket, response } = Deno.upgradeWebSocket(req)
 
   const isP1 = match.p1 === user.id
+  console.log(`[${matchId}] User is ${isP1 ? 'P1' : 'P2'}`)
 
   // Initialize or get game state
   if (!games.has(matchId)) {
@@ -718,23 +736,40 @@ Deno.serve(async (req) => {
     // Self-play: assign socket to BOTH p1 and p2
     game.p1Socket = socket
     game.p2Socket = socket
-    console.log(`[${matchId}] Self-play match - socket assigned to both P1 and P2`)
+    console.log(`[${matchId}] 🔄 Self-play match - socket assigned to both P1 and P2`)
   } else if (isP1) {
+    const wasNull = !game.p1Socket
     game.p1Socket = socket
-    console.log(`[${matchId}] P1 socket assigned`)
+    console.log(`[${matchId}] ✅ P1 socket assigned (was null: ${wasNull})`)
+    console.log(`[${matchId}] Connection status: P1=${!!game.p1Socket}, P2=${!!game.p2Socket}`)
   } else {
+    const wasNull = !game.p2Socket
     game.p2Socket = socket
-    console.log(`[${matchId}] P2 socket assigned`)
+    console.log(`[${matchId}] ✅ P2 socket assigned (was null: ${wasNull})`)
+    console.log(`[${matchId}] Connection status: P1=${!!game.p1Socket}, P2=${!!game.p2Socket}`)
   }
 
   // Helper function to check and start match
   const tryStartMatch = async () => {
-    if (game.p1Socket && game.p2Socket && !game.gameActive) {
+    const bothConnected = game.p1Socket && game.p2Socket
+    const notStarted = !game.gameActive
+
+    console.log(`[${matchId}] [AUTO-START] Checking start conditions:`, {
+      p1Connected: !!game.p1Socket,
+      p2Connected: !!game.p2Socket,
+      gameActive: game.gameActive,
+      bothConnected,
+      notStarted
+    })
+
+    if (bothConnected && notStarted) {
       console.log(`[${matchId}] ✅ Both players connected, auto-starting match`)
+
+      // Set game as active FIRST to prevent duplicate starts
       game.gameActive = true
       game.currentRound = 1
 
-      // Update match state to active
+      // Update match state to active in database
       const { error: updateError } = await supabase
         .from('matches_new')
         .update({ state: 'active' })
@@ -742,13 +777,21 @@ Deno.serve(async (req) => {
 
       if (updateError) {
         console.error(`[${matchId}] ❌ Error updating match state:`, updateError)
+      } else {
+        console.log(`[${matchId}] ✅ Match state updated to 'active' in database`)
       }
 
       console.log(`[${matchId}] 🎮 Starting first round`)
       // Start first round
       await startRound(game)
+      console.log(`[${matchId}] ✅ ROUND_START sent to both players`)
     } else {
-      console.log(`[${matchId}] Not starting yet - P1: ${!!game.p1Socket}, P2: ${!!game.p2Socket}, Active: ${game.gameActive}`)
+      console.log(`[${matchId}] ⏸️  Not starting yet:`, {
+        reason: !bothConnected ? 'waiting for both players' : 'already started',
+        p1Socket: !!game.p1Socket,
+        p2Socket: !!game.p2Socket,
+        gameActive: game.gameActive
+      })
     }
   }
 
