@@ -1,6 +1,29 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { z } from 'npm:zod@3.23.8'
 
+// Types matching schema.ts
+interface Question {
+  id: string
+  text: string
+  steps: {
+    type: 'mcq'
+    options: string[]
+    answer: number
+  }
+  created_at: string
+}
+
+interface RoundStartEvent {
+  type: 'ROUND_START'
+  match_id: string
+  question: Question
+}
+
+interface GameErrorEvent {
+  type: 'GAME_ERROR'
+  message: string
+}
+
 // Dev-friendly durations (in milliseconds)
 const WORKING_TIME_MS = 60 * 1000  // 1 minute
 const OPTIONS_TIME_MS = 45 * 1000  // 45 seconds (3 options * 15s)
@@ -132,6 +155,18 @@ setInterval(() => {
   }
 }, 1000) // Check every second
 
+// Hardcoded fallback question (matches Question type from schema.ts)
+const FALLBACK_QUESTION = {
+  id: '00000000-0000-0000-0000-000000000000',
+  text: 'What is the formula for kinetic energy?',
+  steps: {
+    type: 'mcq',
+    options: ['E = mc²', 'E = ½mv²', 'E = mgh', 'E = Fd'],
+    answer: 1
+  },
+  created_at: new Date().toISOString()
+}
+
 async function startRound(game: GameState) {
   const matchId = game.matchId
   console.log(`[${matchId}] Starting round ${game.currentRound}`)
@@ -142,195 +177,75 @@ async function startRound(game: GameState) {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
 
-  // DEBUG: Log Supabase URL being used
-  console.log(`[${matchId}] Using Supabase URL:`, Deno.env.get('SUPABASE_URL'))
-
-  // DEBUG: First check if questions table has any data
-  const { data: questionCheck, error: checkError } = await supabase
-    .from('questions')
-    .select('id, title, steps')
-    .limit(5)
-
-  console.log(`[${matchId}] Question table check:`, {
-    count: questionCheck?.length || 0,
-    error: checkError?.message,
-    sample: questionCheck?.map(q => ({ id: q.id, title: q.title, hasSteps: !!q.steps }))
-  })
-
-  // ═══════════════════════════════════════════════════════════════
-  // FETCH QUESTION FROM QUESTIONS_V2 (Clean Contract-Based Table)
-  // ═══════════════════════════════════════════════════════════════
-  console.log(`[${matchId}] Fetching question from questions_v2...`)
-
-  // 1. Get match preferences
-  const { data: matchData } = await supabase
-    .from('matches_new')
-    .select('subject, chapter, rank_tier')
+  // 1. Fetch the match from public.matches
+  const { data: match, error: matchError } = await supabase
+    .from('matches')
+    .select('*')
     .eq('id', matchId)
     .single()
 
-  // 2. Get used questions
-  const { data: usedQuestions } = await supabase
-    .from('match_questions')
-    .select('question_id')
-    .eq('match_id', matchId)
-
-  const usedIds = usedQuestions?.map(q => q.question_id) || []
-
-  // 3. Query questions_v2 (steps are JSONB, no join needed!)
-  let query = supabase.from('questions_v2').select('*')
-  let selectedQuestion: any = null;
-
-  // Apply filters
-  if (matchData?.subject) {
-    query = query.eq('subject', matchData.subject)
+  if (matchError || !match) {
+    console.error(`[${matchId}] ❌ Failed to fetch match:`, matchError)
+    const errorMsg: GameErrorEvent = {
+      type: 'GAME_ERROR',
+      message: 'Match not found'
+    }
+    game.p1Socket?.send(JSON.stringify(errorMsg))
+    game.p2Socket?.send(JSON.stringify(errorMsg))
+    return
   }
 
-  // Exclude already used questions
-  if (usedIds.length > 0) {
-    query = query.not('id', 'in', `(${usedIds.join(',')})`)
-  }
+  // 2. Fetch ONE random question from public.questions
+  const { data: questions, error: questionError } = await supabase
+    .from('questions')
+    .select('*')
+    .order('random()')
+    .limit(1)
 
-  // Fetch candidates
-  const { data: candidates, error: fetchError } = await query.limit(20)
+  let selectedQuestion: any = null
 
-  if (fetchError || !candidates || candidates.length === 0) {
-    console.error(`[${matchId}] ❌ Failed to fetch from questions_v2:`, fetchError)
-
-    // Fallback: Try to get ANY question
-    let fallbackQuery = supabase
-      .from('questions_v2')
-      .select('*')
-      .limit(10)
-
-    if (usedIds.length > 0) {
-      // Use proper PostgREST syntax for NOT IN with a list of UUIDs
-      // Format: (uuid1,uuid2,uuid3)
-      const notInString = `(${usedIds.join(',')})`
-      fallbackQuery = fallbackQuery.not('id', 'in', notInString)
-    }
-
-    const { data: fallback, error: fallbackError } = await fallbackQuery
-
-    if (fallbackError || !fallback || fallback.length === 0) {
-      console.error(`[${matchId}] ❌ No questions available in questions_v2:`, fallbackError)
-      const errorMsg = { type: 'error', message: 'No questions available. Run: npm run seed:test-v2' }
-      game.p1Socket?.send(JSON.stringify(errorMsg))
-      game.p2Socket?.send(JSON.stringify(errorMsg))
-      return
-    }
-
-    selectedQuestion = fallback[Math.floor(Math.random() * fallback.length)]
+  // 3. If no question found, use hardcoded fallback
+  if (questionError || !questions || questions.length === 0) {
+    console.warn(`[${matchId}] ⚠️ No questions in DB, using fallback`)
+    selectedQuestion = FALLBACK_QUESTION
   } else {
-    selectedQuestion = candidates[Math.floor(Math.random() * candidates.length)]
+    selectedQuestion = questions[0]
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // QUESTION PAYLOAD - Already in correct format from questions_v2!
-  // ═══════════════════════════════════════════════════════════════
-  // The DB row already matches our contract (snake_case)
-  // Frontend mapper will convert to StepBasedQuestion
-
-  const questionPayload = {
+  // 4. Format question to match Question type from schema.ts
+  const question: Question = {
     id: selectedQuestion.id,
-    title: selectedQuestion.title,
-    subject: selectedQuestion.subject,
-    chapter: selectedQuestion.chapter,
-    level: selectedQuestion.level,
-    difficulty: selectedQuestion.difficulty,
-    rank_tier: selectedQuestion.rank_tier,
-    stem: selectedQuestion.stem,  // Already "stem" in v2!
-    total_marks: selectedQuestion.total_marks,
-    topic_tags: selectedQuestion.topic_tags,
-    image_url: selectedQuestion.image_url,
-    steps: selectedQuestion.steps  // Already JSONB array in v2!
+    text: selectedQuestion.text,
+    steps: selectedQuestion.steps,
+    created_at: selectedQuestion.created_at
   }
 
-  const questionData = {
-    question_id: selectedQuestion.id,
-    question: questionPayload
-  }
-
-  console.log(`[${matchId}] ✅ Question loaded from questions_v2:`, {
-    id: questionData.question_id,
-    title: questionData.question.title,
-    stepsCount: Array.isArray(questionData.question.steps) ? questionData.question.steps.length : 0
+  console.log(`[${matchId}] ✅ Question loaded:`, {
+    id: question.id,
+    text: question.text.substring(0, 50) + '...'
   })
-  game.currentQuestionId = questionData.question_id
-  game.currentQuestion = questionData.question
+
+  game.currentQuestionId = question.id
+  game.currentQuestion = question
   game.currentPhase = 'thinking'
-  game.currentStepIndex = 0  // Reset to first step for new question
+  game.currentStepIndex = 0
   game.p1Answer = null
   game.p2Answer = null
   game.p1ReadyForOptions = false
   game.p2ReadyForOptions = false
 
-  // Set thinking (WORKING) deadline
+  // Set thinking deadline
   const thinkingEndsAt = new Date(Date.now() + WORKING_TIME_MS)
   game.thinkingDeadline = thinkingEndsAt.getTime()
 
-  // Insert match_question record
-  const { error: mqError } = await supabase
-    .from('match_questions')
-    .insert({
-      match_id: matchId,
-      question_id: questionData.question_id,
-      ordinal: game.currentRound,
-      phase: 'thinking',
-      thinking_started_at: new Date().toISOString(),
-      thinking_ends_at: thinkingEndsAt.toISOString()
-    })
-
-  if (mqError) {
-    console.error(`[${matchId}] ❌ CRITICAL ERROR inserting match_question:`, mqError)
-    throw mqError
-  }
-
-  // Create match_round
-  const { data: roundData, error: roundError } = await supabase
-    .from('match_rounds')
-    .insert({
-      match_id: matchId,
-      question_id: questionData.question_id,
-      round_number: game.currentRound,
-      status: 'pending'
-    })
-    .select()
-    .single()
-
-  if (roundError) {
-    console.error(`[${matchId}] Error creating match_round:`, roundError)
-  }
-
-  const roundId = roundData?.id
-
-  // Send ROUND_START event
-  const roundStartMsg = {
+  // 5. Send ROUND_START event with Question payload
+  const roundStartMsg: RoundStartEvent = {
     type: 'ROUND_START',
-    matchId,
-    roundId,
-    roundIndex: game.currentRound,
-    phase: 'thinking',
-    question: questionData.question,
-    thinkingEndsAt: thinkingEndsAt.toISOString(),
-    currentStepIndex: 0  // Always start at step 0
+    match_id: matchId,
+    question: question
   }
 
-  console.log(`[game-ws] ROUND_START`, {
-    matchId,
-    roundIndex: game.currentRound,
-    thinkingEndsAt: thinkingEndsAt.toISOString(),
-    totalSteps: questionData.question.steps?.length || 1,
-    questionId: questionData.question_id,
-    hasSteps: !!questionData.question.steps,
-    stepsIsArray: Array.isArray(questionData.question.steps)
-  })
-  console.log(`[QA-LOG] [${matchId}] Emitting ROUND_START:`, {
-    roundIndex: game.currentRound,
-    questionId: questionData.question_id,
-    stepsCount: questionData.question.steps?.length || 0,
-    firstStepTitle: questionData.question.steps?.[0]?.title
-  })
+  console.log(`[${matchId}] Emitting ROUND_START`)
   game.p1Socket?.send(JSON.stringify(roundStartMsg))
   game.p2Socket?.send(JSON.stringify(roundStartMsg))
 }
@@ -459,8 +374,8 @@ async function transitionToResult(game: GameState) {
 
   // Get match data for player IDs
   const { data: match } = await supabase
-    .from('matches_new')
-    .select('p1, p2')
+    .from('matches')
+    .select('player1_id, player2_id')
     .eq('id', matchId)
     .single()
 
@@ -488,12 +403,12 @@ async function transitionToResult(game: GameState) {
     correctOptionId: correctAnswer,
     playerResults: [
       {
-        playerId: match?.p1,
+        playerId: match?.player1_id,
         selectedOptionId: game.p1Answer,
         isCorrect: p1IsCorrect
       },
       {
-        playerId: match?.p2,
+        playerId: match?.player2_id,
         selectedOptionId: game.p2Answer,
         isCorrect: p2IsCorrect
       }
@@ -571,24 +486,24 @@ async function endMatch(game: GameState) {
 
   // Get match data
   const { data: match } = await supabase
-    .from('matches_new')
-    .select('p1, p2')
+    .from('matches')
+    .select('player1_id, player2_id')
     .eq('id', matchId)
     .single()
 
   if (!match) return
 
-  const winnerId = game.p1Score > game.p2Score ? match.p1 :
-    game.p2Score > game.p1Score ? match.p2 : null
-  const loserId = winnerId ? (winnerId === match.p1 ? match.p2 : match.p1) : null
+  const winnerId = game.p1Score > game.p2Score ? match.player1_id :
+    game.p2Score > game.p1Score ? match.player2_id : null
+  const loserId = winnerId ? (winnerId === match.player1_id ? match.player2_id : match.player1_id) : null
 
-  // Calculate MMR changes
+  // Calculate MMR changes (if players table exists)
   let mmrChanges = {}
   if (winnerId && loserId) {
     const { data: players } = await supabase
       .from('players')
       .select('id, mmr')
-      .in('id', [match.p1, match.p2])
+      .in('id', [match.player1_id, match.player2_id])
 
     const winnerOldMmr = players?.find(p => p.id === winnerId)?.mmr || 1000
     const loserOldMmr = players?.find(p => p.id === loserId)?.mmr || 1000
@@ -604,15 +519,11 @@ async function endMatch(game: GameState) {
     }
   }
 
-  // Update match
+  // Update match status
   await supabase
-    .from('matches_new')
+    .from('matches')
     .update({
-      state: 'ended',
-      winner_id: winnerId,
-      p1_score: game.p1Score,
-      p2_score: game.p2Score,
-      ended_at: new Date().toISOString()
+      status: 'finished'
     })
     .eq('id', matchId)
 
@@ -669,12 +580,12 @@ Deno.serve(async (req) => {
 
   // Verify user is part of this match
   const { data: match, error: matchError } = await supabase
-    .from('matches_new')
+    .from('matches')
     .select('*')
     .eq('id', matchId)
     .single()
 
-  if (matchError || !match || (match.p1 !== user.id && match.p2 !== user.id)) {
+  if (matchError || !match || (match.player1_id !== user.id && match.player2_id !== user.id)) {
     return new Response('Invalid match', { status: 403 })
   }
 
@@ -688,7 +599,7 @@ Deno.serve(async (req) => {
 
   const { socket, response } = Deno.upgradeWebSocket(req)
 
-  const isP1 = match.p1 === user.id
+  const isP1 = match.player1_id === user.id
 
   // Initialize or get game state
   if (!games.has(matchId)) {
@@ -721,7 +632,7 @@ Deno.serve(async (req) => {
   const game = games.get(matchId)!
 
   // Check if self-play match
-  const isSelfPlay = match.p1 === match.p2
+  const isSelfPlay = match.player1_id === match.player2_id
 
   // Assign socket
   if (isSelfPlay) {
@@ -744,10 +655,10 @@ Deno.serve(async (req) => {
       game.gameActive = true
       game.currentRound = 1
 
-      // Update match state to active
+      // Update match status to active
       const { error: updateError } = await supabase
-        .from('matches_new')
-        .update({ state: 'active' })
+        .from('matches')
+        .update({ status: 'active' })
         .eq('id', matchId)
 
       if (updateError) {

@@ -50,7 +50,6 @@ Deno.serve(async (req) => {
       .from('matchmaking_queue')
       .upsert({
         player_id: user.id,
-        rank_score: 0,
         status: 'waiting',
         created_at: new Date().toISOString()
       }, {
@@ -105,11 +104,11 @@ Deno.serve(async (req) => {
 
     // Step 3: Create match
     const { data: newMatch, error: matchError } = await supabase
-      .from('battle_matches')
+      .from('matches')
       .insert({
         player1_id: user.id,
         player2_id: opponent.player_id,
-        status: 'active',
+        status: 'pending',
         created_at: new Date().toISOString()
       })
       .select()
@@ -123,10 +122,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Step 4: Remove both players from queue
+    // Step 4: Update both players' queue status to 'matched'
     await supabase
       .from('matchmaking_queue')
-      .delete()
+      .update({ status: 'matched' })
       .in('player_id', [user.id, opponent.player_id])
 
     console.log(`[MATCHMAKER] ✅ Match created: ${newMatch.id}`)

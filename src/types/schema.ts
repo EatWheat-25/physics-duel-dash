@@ -24,7 +24,6 @@ export interface QuestionSteps {
 export interface MatchmakingQueueRow {
   id: string
   player_id: string
-  rank_score: number
   status: 'waiting' | 'matched'
   created_at: string
 }
@@ -34,7 +33,6 @@ export interface MatchRow {
   id: string
   player1_id: string
   player2_id: string
-  current_question_id: string | null
   status: 'pending' | 'active' | 'finished'
   created_at: string
 }
