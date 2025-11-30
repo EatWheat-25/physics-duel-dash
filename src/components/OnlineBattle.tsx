@@ -29,6 +29,20 @@ export const OnlineBattle = () => {
     }
 
     const fetchMatch = async () => {
+      // Ensure user is authenticated first
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        console.error('[Battle] User not authenticated:', userError)
+        toast.error('Please log in to view match')
+        navigate('/')
+        return
+      }
+
+      console.log('[Battle] Fetching match:', matchId, 'for user:', user.id)
+
+      // Add small delay to ensure match is committed to DB
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       const { data, error } = await supabase
         .from('matches')
         .select('*')
@@ -37,25 +51,69 @@ export const OnlineBattle = () => {
 
       if (error) {
         console.error('[Battle] Error fetching match:', error)
-        toast.error('Failed to load match')
+        console.error('[Battle] Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        })
+        toast.error(`Failed to load match: ${error.message || 'Unknown error'}`)
         navigate('/')
         return
       }
 
       if (!data) {
         console.error('[Battle] Match not found:', matchId)
-        toast.error('Match not found')
+        console.log('[Battle] Checking if match exists with different query...')
+        
+        // Try alternative query to diagnose
+        const { data: allMatches, error: checkError } = await supabase
+          .from('matches')
+          .select('id, player1_id, player2_id, status')
+          .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+          .order('created_at', { ascending: false })
+          .limit(5)
+        
+        if (!checkError && allMatches) {
+          console.log('[Battle] User has these matches:', allMatches)
+          const foundMatch = allMatches.find(m => m.id === matchId)
+          if (foundMatch) {
+            console.log('[Battle] Match found in user matches but not by direct query - RLS issue?')
+          }
+        }
+        
+        toast.error('Match not found. It may have been deleted or you may not have access.')
         navigate('/')
         return
       }
 
       // Verify structure
       if (!data.player1_id || !data.player2_id) {
-        console.error('[Battle] Match has wrong structure')
+        console.error('[Battle] Match has wrong structure:', data)
         toast.error('Invalid match structure')
         navigate('/')
         return
       }
+
+      // Verify user is part of match
+      if (data.player1_id !== user.id && data.player2_id !== user.id) {
+        console.error('[Battle] User not part of match:', {
+          userId: user.id,
+          player1_id: data.player1_id,
+          player2_id: data.player2_id
+        })
+        toast.error('You are not part of this match')
+        navigate('/')
+        return
+      }
+
+      console.log('[Battle] ✅ Match loaded successfully:', {
+        id: data.id,
+        player1_id: data.player1_id,
+        player2_id: data.player2_id,
+        status: data.status,
+        isPlayer1: data.player1_id === user.id
+      })
 
       setMatch(data as MatchRow)
     }
@@ -77,15 +135,7 @@ export const OnlineBattle = () => {
   // Use the new useGame hook
   const { question, gameStatus, errorMessage } = useGame(match)
 
-  // Verify user is part of match
-  useEffect(() => {
-    if (match && currentUser) {
-      if (match.player1_id !== currentUser && match.player2_id !== currentUser) {
-        toast.error('You are not part of this match')
-        navigate('/')
-      }
-    }
-  }, [match, currentUser, navigate])
+  // Note: User verification is now done in fetchMatch to avoid double-checking
 
   // Render based on state
   if (!match || !currentUser) {
