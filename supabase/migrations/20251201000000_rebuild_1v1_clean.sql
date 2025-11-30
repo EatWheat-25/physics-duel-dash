@@ -1,13 +1,13 @@
-/*
-  # Rebuild 1v1 Battle System - Clean Minimal Schema
-  
-  Creates exactly 3 tables:
-  - public.questions
-  - public.matchmaking_queue  
-  - public.matches
-  
-  All with minimal RLS policies and seed data.
-*/
+-- ========================================
+-- Rebuild 1v1 Battle System - Clean Minimal Schema
+-- 
+-- Creates exactly 3 tables:
+-- - public.questions
+-- - public.matchmaking_queue  
+-- - public.matches
+-- 
+-- All with minimal RLS policies and seed data.
+-- ========================================
 
 -- ========================================
 -- DROP OLD TABLES (if they exist with wrong schema)
