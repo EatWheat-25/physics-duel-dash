@@ -1,89 +1,368 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useIsAdmin } from '@/hooks/useUserRole';
-import { useQuestions, useAddQuestion, useUpdateQuestion, useDeleteQuestion } from '@/hooks/useQuestions';
-import { StepBasedQuestion, RankTier } from '@/types/questions';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
+import { dbRowToQuestion } from '@/lib/question-contract';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft, Plus, Trash2, Settings as SettingsIcon, Trophy, ChevronDown, Image as ImageIcon, X, Pencil, Upload } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { A2_ONLY_QUESTIONS } from '@/data/questionPools/a2OnlyQuestions';
-import { Starfield } from '@/components/Starfield';
 
-interface CommonMetadata {
-  subject: 'math' | 'physics' | 'chemistry';
-  level: 'A1' | 'A2';
-  chapter: string;
-  rankTier: RankTier;
-}
-
-const rankTierColors: Record<RankTier, string> = {
-  'Bronze': 'bg-amber-700 text-white',
-  'Silver': 'bg-gray-400 text-white',
-  'Gold': 'bg-yellow-500 text-white',
-  'Diamond': 'bg-cyan-500 text-white',
-  'Unbeatable': 'bg-purple-600 text-white',
-  'Pocket Calculator': 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+type QuestionFilter = {
+  subject: 'all' | 'math' | 'physics' | 'chemistry';
+  level: 'all' | 'A1' | 'A2';
+  difficulty: 'all' | 'easy' | 'medium' | 'hard';
+  rankTier: string;
 };
 
-const rankTierEmojis: Record<RankTier, string> = {
-  'Bronze': '🥉',
-  'Silver': '🥈',
-  'Gold': '🥇',
-  'Diamond': '💎',
-  'Unbeatable': '👑',
-  'Pocket Calculator': '🧮'
+type EditorMode = 'idle' | 'creating' | 'editing';
+
+type FormStep = {
+  id?: string;
+  title: string;
+  prompt: string;
+  options: [string, string, string, string];
+  correctAnswer: 0 | 1 | 2 | 3;
+  marks: number;
+  timeLimitSeconds: number | null;
+  explanation: string;
+};
+
+type QuestionForm = {
+  title: string;
+  subject: 'math' | 'physics' | 'chemistry';
+  chapter: string;
+  level: 'A1' | 'A2';
+  difficulty: 'easy' | 'medium' | 'hard';
+  rankTier: string;
+  stem: string;
+  totalMarks: number;
+  topicTags: string; // Comma-separated string for editing
+  steps: FormStep[];
+  imageUrl: string;
 };
 
 export default function AdminQuestions() {
   const navigate = useNavigate();
-  const { isAdmin, isLoading: roleLoading } = useIsAdmin();
-  const { data: questions, isLoading: questionsLoading } = useQuestions();
-  const addQuestion = useAddQuestion();
-  const updateQuestion = useUpdateQuestion();
-  const deleteQuestion = useDeleteQuestion();
+  const { user, loading: authLoading } = useAuth();
 
-  // Two-step flow state
-  const [step, setStep] = useState<'metadata' | 'questions'>('metadata');
-  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
-  const [metadata, setMetadata] = useState<CommonMetadata>({
-    subject: 'math',
-    level: 'A1',
-    chapter: '',
-    rankTier: 'Bronze'
+  // Access control
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+
+  // Question list state
+  const [questions, setQuestions] = useState<StepBasedQuestion[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [filters, setFilters] = useState<QuestionFilter>({
+    subject: 'all',
+    level: 'all',
+    difficulty: 'all',
+    rankTier: ''
   });
 
-  // Filter state
-  const [filterRankTier, setFilterRankTier] = useState<RankTier | 'all'>('all');
-  const [isImporting, setIsImporting] = useState(false);
+  // Editor state
+  const [mode, setMode] = useState<EditorMode>('idle');
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+  const [form, setForm] = useState<QuestionForm>(getEmptyForm());
+  const [saving, setSaving] = useState(false);
 
-  // Question form state
-  const [questionForm, setQuestionForm] = useState({
-    questionText: '',
-    numberOfSteps: 1,
-    difficulty: 'medium' as 'easy' | 'medium' | 'hard',
-    imageFile: null as File | null,
-    steps: [
-      {
-        stepQuestion: '',
-        option1: '',
-        option2: '',
-        option3: '',
-        option4: '',
+  // Check admin access
+  useEffect(() => {
+    if (!authLoading && user) {
+      const role = user.user_metadata?.role;
+      setIsAdmin(role === 'admin');
+      setCheckingAdmin(false);
+    } else if (!authLoading && !user) {
+      setCheckingAdmin(false);
+    }
+  }, [user, authLoading]);
+
+  // Load questions on mount and filter changes
+  useEffect(() => {
+    if (isAdmin) {
+      fetchQuestions();
+    }
+  }, [isAdmin, filters]);
+
+  function getEmptyForm(): QuestionForm {
+    return {
+      title: '',
+      subject: 'math',
+      chapter: '',
+      level: 'A1',
+      difficulty: 'medium',
+      rankTier: '',
+      stem: '',
+      totalMarks: 1,
+      topicTags: '',
+      steps: [{
+        title: 'Step 1',
+        prompt: '',
+        options: ['', '', '', ''],
         correctAnswer: 0,
+        marks: 1,
+        timeLimitSeconds: 30,
         explanation: ''
-      }
-    ]
-  });
+      }],
+      imageUrl: ''
+    };
+  }
 
-  if (roleLoading || questionsLoading) {
+  async function fetchQuestions() {
+    setLoadingQuestions(true);
+    try {
+      let query = supabase
+        .from('questions_v2')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (filters.subject !== 'all') query = query.eq('subject', filters.subject);
+      if (filters.level !== 'all') query = query.eq('level', filters.level);
+      if (filters.difficulty !== 'all') query = query.eq('difficulty', filters.difficulty);
+      if (filters.rankTier.trim()) query = query.eq('rank_tier', filters.rankTier.trim());
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const mapped = (data || []).map(dbRowToQuestion);
+      setQuestions(mapped);
+    } catch (error: any) {
+      console.error('[AdminQuestions] Error fetching:', error);
+      toast.error(error.message || 'Failed to load questions');
+    } finally {
+      setLoadingQuestions(false);
+    }
+  }
+
+  function handleNewQuestion() {
+    setMode('creating');
+    setSelectedQuestionId(null);
+    setForm(getEmptyForm());
+  }
+
+  function handleSelectQuestion(q: StepBasedQuestion) {
+    setMode('editing');
+    setSelectedQuestionId(q.id);
+    setForm({
+      title: q.title,
+      subject: q.subject,
+      chapter: q.chapter,
+      level: q.level,
+      difficulty: q.difficulty,
+      rankTier: q.rankTier || '',
+      stem: q.stem,
+      totalMarks: q.totalMarks,
+      topicTags: q.topicTags.join(', '),
+      steps: q.steps.map(s => ({
+        id: s.id,
+        title: s.title,
+        prompt: s.prompt,
+        options: [s.options[0] || '', s.options[1] || '', s.options[2] || '', s.options[3] || ''],
+        correctAnswer: s.correctAnswer,
+        marks: s.marks,
+        timeLimitSeconds: s.timeLimitSeconds,
+        explanation: s.explanation
+      })),
+      imageUrl: q.imageUrl || ''
+    });
+  }
+
+  function handleAddStep() {
+    setForm({
+      ...form,
+      steps: [
+        ...form.steps,
+        {
+          title: `Step ${form.steps.length + 1}`,
+          prompt: '',
+          options: ['', '', '', ''],
+          correctAnswer: 0,
+          marks: 1,
+          timeLimitSeconds: 30,
+          explanation: ''
+        }
+      ]
+    });
+  }
+
+  function handleDeleteStep(index: number) {
+    if (form.steps.length <= 1) {
+      toast.error('Must have at least 1 step');
+      return;
+    }
+    const newSteps = form.steps.filter((_, i) => i !== index);
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function handleMoveStepUp(index: number) {
+    if (index === 0) return;
+    const newSteps = [...form.steps];
+    [newSteps[index - 1], newSteps[index]] = [newSteps[index], newSteps[index - 1]];
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function handleMoveStepDown(index: number) {
+    if (index === form.steps.length - 1) return;
+    const newSteps = [...form.steps];
+    [newSteps[index], newSteps[index + 1]] = [newSteps[index + 1], newSteps[index]];
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function updateStepField(index: number, field: keyof FormStep, value: any) {
+    const newSteps = [...form.steps];
+    newSteps[index] = { ...newSteps[index], [field]: value };
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function updateStepOption(stepIndex: number, optionIndex: number, value: string) {
+    const newSteps = [...form.steps];
+    const options = [...newSteps[stepIndex].options];
+    options[optionIndex] = value;
+    newSteps[stepIndex] = { ...newSteps[stepIndex], options: options as [string, string, string, string] };
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function validateForm(): boolean {
+    if (!form.title.trim()) {
+      toast.error('Title is required');
+      return false;
+    }
+    if (!form.chapter.trim()) {
+      toast.error('Chapter is required');
+      return false;
+    }
+    if (!form.stem.trim()) {
+      toast.error('Stem (main question text) is required');
+      return false;
+    }
+    if (form.steps.length < 1) {
+      toast.error('At least 1 step is required');
+      return false;
+    }
+
+    for (let i = 0; i < form.steps.length; i++) {
+      const step = form.steps[i];
+      if (!step.title.trim() || !step.prompt.trim()) {
+        toast.error(`Step ${i + 1}: title and prompt are required`);
+        return false;
+      }
+      if (step.options.some(opt => !opt.trim())) {
+        toast.error(`Step ${i + 1}: all 4 options must be filled`);
+        return false;
+      }
+      if (step.correctAnswer < 0 || step.correctAnswer > 3) {
+        toast.error(`Step ${i + 1}: correct answer must be 0-3`);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  async function handleSave() {
+    if (!validateForm()) return;
+
+    setSaving(true);
+    try {
+      const topicTagsArray = form.topicTags
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t.length > 0);
+
+      const stepsPayload: QuestionStep[] = form.steps.map((s, i) => ({
+        id: s.id || `step-${i + 1}`,
+        stepIndex: i,
+        type: 'mcq',
+        title: s.title,
+        prompt: s.prompt,
+        options: s.options,
+        correctAnswer: s.correctAnswer,
+        timeLimitSeconds: s.timeLimitSeconds ?? null,
+        marks: s.marks,
+        explanation: s.explanation
+      }));
+
+      const payload = {
+        title: form.title,
+        subject: form.subject,
+        chapter: form.chapter,
+        level: form.level,
+        difficulty: form.difficulty,
+        rank_tier: form.rankTier || null,
+        stem: form.stem,
+        total_marks: form.totalMarks,
+        topic_tags: topicTagsArray,
+        steps: stepsPayload,
+        image_url: form.imageUrl || null,
+      };
+
+      if (mode === 'creating') {
+        const { data, error } = await supabase
+          .from('questions_v2')
+          .insert([payload])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        toast.success('Question created successfully!');
+        fetchQuestions();
+        const newQuestion = dbRowToQuestion(data);
+        setMode('editing');
+        setSelectedQuestionId(newQuestion.id);
+      } else if (mode === 'editing' && selectedQuestionId) {
+        const { data, error } = await supabase
+          .from('questions_v2')
+          .update(payload)
+          .eq('id', selectedQuestionId)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        toast.success('Question updated successfully!');
+        fetchQuestions();
+      }
+    } catch (error: any) {
+      console.error('[AdminQuestions] Save error:', error);
+      toast.error(error.message || 'Failed to save question');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!selectedQuestionId) return;
+    if (!confirm('Are you sure you want to delete this question? This cannot be undone.')) return;
+
+    try {
+      const { error } = await supabase
+        .from('questions_v2')
+        .delete()
+        .eq('id', selectedQuestionId);
+
+      if (error) throw error;
+
+      toast.success('Question deleted successfully!');
+      setMode('idle');
+      setSelectedQuestionId(null);
+      setForm(getEmptyForm());
+      fetchQuestions();
+    } catch (error: any) {
+      console.error('[AdminQuestions] Delete error:', error);
+      toast.error(error.message || 'Failed to delete question');
+    }
+  }
+
+  // Loading state
+  if (authLoading || checkingAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -91,673 +370,103 @@ export default function AdminQuestions() {
     );
   }
 
-  if (!isAdmin) {
+  // Not logged in
+  if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-destructive">Access denied. Admin privileges required.</p>
-            <Button onClick={() => navigate('/dashboard')} className="mt-4">
-              Back to Dashboard
-            </Button>
+        <Card className="max-w-md">
+          <CardContent className="p-6 text-center">
+            <Shield className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground mb-4">Please login to access admin panel</p>
+            <Button onClick={() => navigate('/auth')}>Go to Login</Button>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const handleMetadataSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!metadata.chapter.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a chapter name",
-        variant: "destructive"
-      });
-      return;
-    }
-    setStep('questions');
-  };
-
-  const handleQuestionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validate main question text
-    if (!questionForm.questionText.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter the full question text",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Validate all steps
-    for (let i = 0; i < questionForm.steps.length; i++) {
-      const step = questionForm.steps[i];
-      if (!step.stepQuestion.trim() || !step.option1.trim() || !step.option2.trim() || 
-          !step.option3.trim() || !step.option4.trim() || !step.explanation.trim()) {
-        toast({
-          title: "Error",
-          description: `Please fill in all fields for Step ${i + 1}`,
-          variant: "destructive"
-        });
-        return;
-      }
-    }
-
-    let imageUrl = null;
-
-    // Upload image if provided
-    if (questionForm.imageFile) {
-      try {
-        const fileExt = questionForm.imageFile.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('question-images')
-          .upload(filePath, questionForm.imageFile);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('question-images')
-          .getPublicUrl(filePath);
-
-        imageUrl = publicUrl;
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to upload image",
-          variant: "destructive"
-        });
-        return;
-      }
-    }
-
-    // Auto-generate title from question text (first 50 chars)
-    const autoTitle = questionForm.questionText.substring(0, 50) + (questionForm.questionText.length > 50 ? '...' : '');
-
-    // Build steps array with proper structure
-    const stepsArray = questionForm.steps.map((step, index) => ({
-      id: `step-${index + 1}`,
-      question: step.stepQuestion,
-      options: [step.option1, step.option2, step.option3, step.option4] as [string, string, string, string],
-      correctAnswer: step.correctAnswer as 0 | 1 | 2 | 3,
-      marks: 1, // Each step worth 1 mark
-      explanation: step.explanation,
-      commonMistakes: []
-    }));
-
-    const newQuestion: Omit<StepBasedQuestion, 'id'> & { image_url?: string | null } = {
-      title: autoTitle,
-      subject: metadata.subject,
-      chapter: metadata.chapter,
-      level: metadata.level,
-      difficulty: questionForm.difficulty,
-      rankTier: metadata.rankTier,
-      totalMarks: questionForm.numberOfSteps, // Total marks = number of steps
-      questionText: questionForm.questionText,
-      topicTags: [],
-      steps: stepsArray,
-      image_url: imageUrl
-    };
-
-    try {
-      if (editingQuestionId) {
-        await updateQuestion.mutateAsync({ id: editingQuestionId, question: newQuestion });
-        toast({
-          title: "Success",
-          description: "Question updated successfully!"
-        });
-        setEditingQuestionId(null);
-      } else {
-        await addQuestion.mutateAsync(newQuestion);
-        toast({
-          title: "Success",
-          description: `Question with ${questionForm.numberOfSteps} step(s) added successfully!`
-        });
-      }
-      
-      // Reset question form
-      setQuestionForm({
-        questionText: '',
-        numberOfSteps: 1,
-        difficulty: 'medium',
-        imageFile: null,
-        steps: [
-          {
-            stepQuestion: '',
-            option1: '',
-            option2: '',
-            option3: '',
-            option4: '',
-            correctAnswer: 0,
-            explanation: ''
-          }
-        ]
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: editingQuestionId ? "Failed to update question" : "Failed to add question",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleNumberOfStepsChange = (value: number) => {
-    const newSteps = Array.from({ length: value }, (_, i) => 
-      questionForm.steps[i] || {
-        stepQuestion: '',
-        option1: '',
-        option2: '',
-        option3: '',
-        option4: '',
-        correctAnswer: 0,
-        explanation: ''
-      }
-    );
-    setQuestionForm({ ...questionForm, numberOfSteps: value, steps: newSteps });
-  };
-
-  const updateStep = (index: number, field: string, value: any) => {
-    const newSteps = [...questionForm.steps];
-    newSteps[index] = { ...newSteps[index], [field]: value };
-    setQuestionForm({ ...questionForm, steps: newSteps });
-  };
-
-  const handleEditQuestion = (question: StepBasedQuestion) => {
-    setEditingQuestionId(question.id);
-    setMetadata({
-      subject: question.subject,
-      level: question.level,
-      chapter: question.chapter,
-      rankTier: question.rankTier
-    });
-    setQuestionForm({
-      questionText: question.questionText,
-      imageFile: null,
-      numberOfSteps: question.steps.length,
-      difficulty: question.difficulty,
-      steps: question.steps.map(step => ({
-        stepQuestion: step.question,
-        option1: step.options[0] || '',
-        option2: step.options[1] || '',
-        option3: step.options[2] || '',
-        option4: step.options[3] || '',
-        correctAnswer: step.correctAnswer,
-        explanation: step.explanation
-      }))
-    });
-    setStep('questions');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleCancelEdit = () => {
-    setEditingQuestionId(null);
-    setQuestionForm({
-      questionText: '',
-      numberOfSteps: 1,
-      difficulty: 'medium',
-      imageFile: null,
-      steps: [
-        {
-          stepQuestion: '',
-          option1: '',
-          option2: '',
-          option3: '',
-          option4: '',
-          correctAnswer: 0,
-          explanation: ''
-        }
-      ]
-    });
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this question?')) {
-      try {
-        await deleteQuestion.mutateAsync(id);
-        toast({
-          title: "Success",
-          description: "Question deleted successfully"
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete question",
-          variant: "destructive"
-        });
-      }
-    }
-  };
-
-  const handleImportA2Questions = async () => {
-    if (!confirm(`Import ${A2_ONLY_QUESTIONS.length} A2 questions into the database?`)) return;
-    
-    setIsImporting(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    try {
-      for (const question of A2_ONLY_QUESTIONS) {
-        try {
-          await addQuestion.mutateAsync({
-            title: question.title,
-            subject: question.subject,
-            chapter: question.chapter,
-            level: question.level,
-            difficulty: question.difficulty,
-            rankTier: question.rankTier,
-            questionText: question.questionText,
-            totalMarks: question.totalMarks,
-            topicTags: question.topicTags,
-            steps: question.steps
-          });
-          successCount++;
-        } catch (error) {
-          console.error(`Failed to import question ${question.id}:`, error);
-          errorCount++;
-        }
-      }
-
-      toast({
-        title: "Import Complete",
-        description: `Successfully imported ${successCount} questions. ${errorCount > 0 ? `${errorCount} failed.` : ''}`
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to import questions",
-        variant: "destructive"
-      });
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  const filteredQuestions = filterRankTier === 'all' 
-    ? questions 
-    : questions?.filter(q => q.rankTier === filterRankTier);
-
-  // Step 1: Set Common Metadata
-  if (step === 'metadata') {
+  // Not admin
+  if (!isAdmin) {
     return (
-      <div className="relative min-h-screen overflow-hidden p-6">
-        <Starfield />
-        
-        {/* Dark gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-black pointer-events-none" />
-        
-        {/* Circuit Grid */}
-        <div className="absolute inset-0 opacity-15 pointer-events-none">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `
-              linear-gradient(90deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px),
-              linear-gradient(0deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px)
-            `,
-            backgroundSize: '60px 60px'
-          }} />
-        </div>
-        
-        {/* Floating particles */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div
-              key={`particle-${i}`}
-              className="absolute w-1 h-1 bg-game-neon rounded-full animate-pulse opacity-30"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 8}s`,
-                animationDuration: `${Math.random() * 15 + 10}s`,
-                filter: 'blur(0.5px)'
-              }}
-            />
-          ))}
-        </div>
-        
-        <div className="relative z-10 max-w-2xl mx-auto">
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/dashboard')}
-            className="mb-4"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-          </Button>
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="p-6 text-center">
+            <Shield className="w-12 h-12 mx-auto mb-4 text-destructive" />
+            <p className="text-destructive font-semibold mb-2">Access Denied</p>
+            <p className="text-muted-foreground mb-4">Admin privileges required</p>
+            <Button onClick={() => navigate('/')}>Go to Home</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-          <Card className="shadow-lg bg-card/80 backdrop-blur-sm border-game-border">
-            <CardHeader>
-              <CardTitle className="text-2xl flex items-center gap-2">
-                <SettingsIcon className="h-6 w-6" />
-                Set Question Metadata
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Configure common settings for all questions you'll add in this session
-              </p>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleMetadataSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="subject">Subject *</Label>
+  // Main UI
+  return (
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">Admin · Questions</h1>
+          <p className="text-muted-foreground">Create, edit and manage battle questions (questions_v2)</p>
+        </div>
+
+        {/* Two-column layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-[35%_65%] gap-6">
+          {/* LEFT PANEL: Question List */}
+          <div className="space-y-4">
+            {/* Filter Bar */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Filters</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label>Subject</Label>
                   <Select
-                    value={metadata.subject}
-                    onValueChange={(value: 'math' | 'physics' | 'chemistry') =>
-                      setMetadata({ ...metadata, subject: value })
-                    }
+                    value={filters.subject}
+                    onValueChange={(val: any) => setFilters({ ...filters, subject: val })}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="math">Mathematics</SelectItem>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="math">Math</SelectItem>
                       <SelectItem value="physics">Physics</SelectItem>
                       <SelectItem value="chemistry">Chemistry</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="level">Level *</Label>
+                <div>
+                  <Label>Level</Label>
                   <Select
-                    value={metadata.level}
-                    onValueChange={(value: 'A1' | 'A2') =>
-                      setMetadata({ ...metadata, level: value })
-                    }
+                    value={filters.level}
+                    onValueChange={(val: any) => setFilters({ ...filters, level: val })}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="A1">A1 (AS Level)</SelectItem>
-                      <SelectItem value="A2">A2 (A Level)</SelectItem>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="A1">A1</SelectItem>
+                      <SelectItem value="A2">A2</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="chapter">Chapter *</Label>
-                  <Input
-                    id="chapter"
-                    value={metadata.chapter}
-                    onChange={(e) => setMetadata({ ...metadata, chapter: e.target.value })}
-                    placeholder="e.g., Quadratic Equations"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="rankTier">Rank Tier *</Label>
+                <div>
+                  <Label>Difficulty</Label>
                   <Select
-                    value={metadata.rankTier}
-                    onValueChange={(value: RankTier) =>
-                      setMetadata({ ...metadata, rankTier: value })
-                    }
+                    value={filters.difficulty}
+                    onValueChange={(val: any) => setFilters({ ...filters, difficulty: val })}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {(['Bronze', 'Silver', 'Gold', 'Diamond', 'Unbeatable', 'Pocket Calculator'] as RankTier[]).map(tier => (
-                        <SelectItem key={tier} value={tier}>
-                          <span className="flex items-center gap-2">
-                            {rankTierEmojis[tier]} {tier}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Questions will be shown to players at this rank bracket
-                  </p>
-                </div>
-
-                <div className="bg-card/60 backdrop-blur-sm p-4 rounded-lg border border-game-neon/30">
-                  <h4 className="font-semibold mb-2 text-foreground">Summary</h4>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <p><strong>Subject:</strong> {metadata.subject}</p>
-                    <p><strong>Level:</strong> {metadata.level}</p>
-                    <p><strong>Chapter:</strong> {metadata.chapter || '(not set)'}</p>
-                    <p className="flex items-center gap-2">
-                      <strong>Rank Tier:</strong> 
-                      <Badge className={rankTierColors[metadata.rankTier]}>
-                        {rankTierEmojis[metadata.rankTier]} {metadata.rankTier}
-                      </Badge>
-                    </p>
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full" size="lg">
-                  Continue to Add Questions
-                  <Plus className="ml-2 h-4 w-4" />
-                </Button>
-
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Or import pre-made A2 questions directly:
-                  </p>
-                  <Button 
-                    type="button"
-                    variant="outline"
-                    className="w-full" 
-                    size="lg"
-                    onClick={handleImportA2Questions}
-                    disabled={isImporting}
-                  >
-                    {isImporting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Importing {A2_ONLY_QUESTIONS.length} Questions...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Import {A2_ONLY_QUESTIONS.length} A2 Questions to Database
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  // Step 2: Add Questions
-  return (
-    <div className="relative min-h-screen overflow-hidden p-6">
-      <Starfield />
-      
-      {/* Dark gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-black pointer-events-none" />
-      
-      {/* Circuit Grid */}
-      <div className="absolute inset-0 opacity-15 pointer-events-none">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `
-            linear-gradient(90deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px),
-            linear-gradient(0deg, rgba(0, 217, 255, 0.2) 1px, transparent 1px)
-          `,
-          backgroundSize: '60px 60px'
-        }} />
-      </div>
-      
-      {/* Floating particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <div
-            key={`particle-${i}`}
-            className="absolute w-1 h-1 bg-game-neon rounded-full animate-pulse opacity-30"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 8}s`,
-              animationDuration: `${Math.random() * 15 + 10}s`,
-              filter: 'blur(0.5px)'
-            }}
-          />
-        ))}
-      </div>
-      
-      <div className="relative z-10 max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => setStep('metadata')}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Change Metadata Settings
-          </Button>
-          
-          <Button
-            variant="outline"
-            onClick={() => navigate('/dashboard')}
-          >
-            Back to Dashboard
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column: Add/Edit Question Form */}
-          <Card className="shadow-lg bg-card/80 backdrop-blur-sm border-game-border">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  {editingQuestionId ? <Pencil className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                  {editingQuestionId ? 'Edit Question' : 'Add New Question'}
-                </CardTitle>
-                {editingQuestionId && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCancelEdit}
-                  >
-                    Cancel Edit
-                  </Button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <Badge variant="secondary">{metadata.subject}</Badge>
-                <Badge variant="secondary">{metadata.level}</Badge>
-                <Badge variant="secondary">{metadata.chapter}</Badge>
-                <Badge className={rankTierColors[metadata.rankTier]}>
-                  {rankTierEmojis[metadata.rankTier]} {metadata.rankTier}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleQuestionSubmit} className="space-y-6">
-                {/* Main Question Text */}
-                <div className="space-y-2">
-                  <Label htmlFor="questionText">Full Question Text *</Label>
-                  <Textarea
-                    id="questionText"
-                    value={questionForm.questionText}
-                    onChange={(e) => setQuestionForm({ ...questionForm, questionText: e.target.value })}
-                    placeholder="The complete question as it appears in the exam"
-                    rows={3}
-                    required
-                  />
-                </div>
-
-                {/* Image Upload */}
-                <div className="space-y-2">
-                  <Label htmlFor="questionImage">Question Diagram (Optional)</Label>
-                  <div className="space-y-2">
-                    {questionForm.imageFile ? (
-                      <div className="relative border rounded-lg p-4 bg-muted/50">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute top-2 right-2"
-                          onClick={() => setQuestionForm({ ...questionForm, imageFile: null })}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                        <div className="flex items-center gap-3">
-                          <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{questionForm.imageFile.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {(questionForm.imageFile.size / 1024).toFixed(1)} KB
-                            </p>
-                          </div>
-                        </div>
-                        <img 
-                          src={URL.createObjectURL(questionForm.imageFile)} 
-                          alt="Preview" 
-                          className="mt-3 max-h-48 rounded border"
-                        />
-                      </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer hover:bg-muted/50 transition-colors">
-                        <ImageIcon className="h-10 w-10 text-muted-foreground mb-2" />
-                        <span className="text-sm text-muted-foreground">
-                          Click to upload diagram or image
-                        </span>
-                        <span className="text-xs text-muted-foreground mt-1">
-                          PNG, JPG, or WEBP (max 5MB)
-                        </span>
-                        <input
-                          id="questionImage"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              if (file.size > 5 * 1024 * 1024) {
-                                toast({
-                                  title: "Error",
-                                  description: "Image must be smaller than 5MB",
-                                  variant: "destructive"
-                                });
-                                return;
-                              }
-                              setQuestionForm({ ...questionForm, imageFile: file });
-                            }
-                          }}
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
-
-                {/* Number of Steps Selector */}
-                <div className="space-y-2">
-                  <Label htmlFor="numberOfSteps">Number of Steps (Marks) *</Label>
-                  <Input
-                    id="numberOfSteps"
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={questionForm.numberOfSteps}
-                    onChange={(e) => handleNumberOfStepsChange(parseInt(e.target.value) || 1)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Total marks = Number of steps (1-20)
-                  </p>
-                </div>
-
-                {/* Difficulty Selector */}
-                <div className="space-y-2">
-                  <Label htmlFor="difficulty">Difficulty *</Label>
-                  <Select
-                    value={questionForm.difficulty}
-                    onValueChange={(value: 'easy' | 'medium' | 'hard') =>
-                      setQuestionForm({ ...questionForm, difficulty: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
                       <SelectItem value="easy">Easy</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="hard">Hard</SelectItem>
@@ -765,224 +474,365 @@ export default function AdminQuestions() {
                   </Select>
                 </div>
 
-                {/* Steps Accordion */}
-                <div className="space-y-2">
-                  <Label className="text-base">Question Steps</Label>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Fill in each step with a sub-question and 4 options. The last step should contain the final answer.
+                <div>
+                  <Label>Rank Tier</Label>
+                  <Input
+                    value={filters.rankTier}
+                    onChange={(e) => setFilters({ ...filters, rankTier: e.target.value })}
+                    placeholder="Filter by rank"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* New Question Button */}
+            <Button onClick={handleNewQuestion} className="w-full">
+              <Plus className="w-4 h-4 mr-2" />
+              New Question
+            </Button>
+
+            {/* Question List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  Questions ({questions.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingQuestions ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  </div>
+                ) : questions.length === 0 ? (
+                  <p className="text-muted-foreground text-sm text-center py-8">
+                    No questions found
                   </p>
-                  
-                  <Accordion type="single" collapsible className="w-full">
-                    {questionForm.steps.map((step, index) => (
-                      <AccordionItem key={index} value={`step-${index}`}>
-                        <AccordionTrigger className="hover:no-underline">
-                          <div className="flex items-center gap-2">
-                            <Badge variant={step.stepQuestion ? "default" : "secondary"}>
-                              Step {index + 1}
-                            </Badge>
-                            {step.stepQuestion && (
-                              <span className="text-sm text-muted-foreground truncate max-w-[200px]">
-                                {step.stepQuestion.substring(0, 40)}...
-                              </span>
-                            )}
+                ) : (
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                    {questions.map((q) => (
+                      <div
+                        key={q.id}
+                        onClick={() => handleSelectQuestion(q)}
+                        className={`p-3 border rounded cursor-pointer transition-colors ${selectedQuestionId === q.id
+                            ? 'bg-primary/10 border-primary'
+                            : 'hover:bg-muted'
+                          }`}
+                      >
+                        <div className="font-medium text-sm mb-1 line-clamp-1">{q.title}</div>
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          <Badge variant="secondary" className="text-xs">{q.subject}</Badge>
+                          <Badge variant="secondary" className="text-xs">{q.level}</Badge>
+                          <Badge variant="secondary" className="text-xs">{q.difficulty}</Badge>
+                          {q.rankTier && (
+                            <Badge variant="outline" className="text-xs">{q.rankTier}</Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {q.steps.length} steps • {q.totalMarks} marks
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* RIGHT PANEL: Question Editor */}
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {mode === 'idle' && 'Select a question or create new'}
+                {mode === 'creating' && 'Create New Question'}
+                {mode === 'editing' && 'Edit Question'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {mode === 'idle' ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Shield className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>Select a question from the list to edit</p>
+                  <p className="text-sm">or click "New Question" to create one</p>
+                </div>
+              ) : (
+                <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+                  {/* Meta Information */}
+                  <div className="space-y-4 border-b pb-6">
+                    <h3 className="font-semibold">Meta Information</h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Title *</Label>
+                        <Input
+                          value={form.title}
+                          onChange={(e) => setForm({ ...form, title: e.target.value })}
+                          placeholder="Integration by Parts: ln(x)/x³"
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Subject *</Label>
+                        <Select
+                          value={form.subject}
+                          onValueChange={(val: any) => setForm({ ...form, subject: val })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="math">Math</SelectItem>
+                            <SelectItem value="physics">Physics</SelectItem>
+                            <SelectItem value="chemistry">Chemistry</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label>Chapter *</Label>
+                        <Input
+                          value={form.chapter}
+                          onChange={(e) => setForm({ ...form, chapter: e.target.value })}
+                          placeholder="Integration"
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Level *</Label>
+                        <Select
+                          value={form.level}
+                          onValueChange={(val: any) => setForm({ ...form, level: val })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="A1">A1</SelectItem>
+                            <SelectItem value="A2">A2</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label>Difficulty *</Label>
+                        <Select
+                          value={form.difficulty}
+                          onValueChange={(val: any) => setForm({ ...form, difficulty: val })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="easy">Easy</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="hard">Hard</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label>Rank Tier</Label>
+                        <Input
+                          value={form.rankTier}
+                          onChange={(e) => setForm({ ...form, rankTier: e.target.value })}
+                          placeholder="Silver"
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Total Marks *</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={form.totalMarks}
+                          onChange={(e) => setForm({ ...form, totalMarks: parseInt(e.target.value) || 1 })}
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Topic Tags</Label>
+                        <Input
+                          value={form.topicTags}
+                          onChange={(e) => setForm({ ...form, topicTags: e.target.value })}
+                          placeholder="integration, by-parts"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Comma-separated</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>Stem (Main Question Text) *</Label>
+                      <Textarea
+                        value={form.stem}
+                        onChange={(e) => setForm({ ...form, stem: e.target.value })}
+                        placeholder="Find the integral of ln(x)/x³ using integration by parts."
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Image URL</Label>
+                      <Input
+                        value={form.imageUrl}
+                        onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                        placeholder="https://example.com/image.png"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Steps Editor */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Steps ({form.steps.length})</h3>
+                      <Button onClick={handleAddStep} size="sm">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Step
+                      </Button>
+                    </div>
+
+                    {form.steps.map((step, index) => (
+                      <Card key={index} className="border-l-4 border-l-primary">
+                        <CardContent className="pt-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">Step {index + 1}</h4>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleMoveStepUp(index)}
+                                disabled={index === 0}
+                              >
+                                <ArrowUp className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleMoveStepDown(index)}
+                                disabled={index === form.steps.length - 1}
+                              >
+                                <ArrowDown className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteStep(index)}
+                                disabled={form.steps.length <= 1}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <div className="space-y-4 pt-4">
-                            {/* Step Question */}
-                            <div className="space-y-2">
-                              <Label htmlFor={`stepQuestion-${index}`}>
-                                Sub-Question {index === questionForm.steps.length - 1 ? "(Final Answer)" : ""} *
-                              </Label>
-                              <Textarea
-                                id={`stepQuestion-${index}`}
-                                value={step.stepQuestion}
-                                onChange={(e) => updateStep(index, 'stepQuestion', e.target.value)}
-                                placeholder={index === questionForm.steps.length - 1 ? "What is the final answer?" : "What did you do in this step?"}
-                                rows={2}
-                                required
-                              />
-                            </div>
 
-                            {/* Options Grid */}
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-2">
-                                <Label htmlFor={`option1-${index}`}>Option 1 *</Label>
-                                <Input
-                                  id={`option1-${index}`}
-                                  value={step.option1}
-                                  onChange={(e) => updateStep(index, 'option1', e.target.value)}
-                                  required
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`option2-${index}`}>Option 2 *</Label>
-                                <Input
-                                  id={`option2-${index}`}
-                                  value={step.option2}
-                                  onChange={(e) => updateStep(index, 'option2', e.target.value)}
-                                  required
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`option3-${index}`}>Option 3 *</Label>
-                                <Input
-                                  id={`option3-${index}`}
-                                  value={step.option3}
-                                  onChange={(e) => updateStep(index, 'option3', e.target.value)}
-                                  required
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`option4-${index}`}>Option 4 *</Label>
-                                <Input
-                                  id={`option4-${index}`}
-                                  value={step.option4}
-                                  onChange={(e) => updateStep(index, 'option4', e.target.value)}
-                                  required
-                                />
-                              </div>
-                            </div>
+                          <div>
+                            <Label>Step Title *</Label>
+                            <Input
+                              value={step.title}
+                              onChange={(e) => updateStepField(index, 'title', e.target.value)}
+                              placeholder="Choose u and dv"
+                            />
+                          </div>
 
-                            {/* Correct Answer */}
-                            <div className="space-y-2">
-                              <Label htmlFor={`correctAnswer-${index}`}>Correct Answer *</Label>
+                          <div>
+                            <Label>Prompt (Sub-question) *</Label>
+                            <Textarea
+                              value={step.prompt}
+                              onChange={(e) => updateStepField(index, 'prompt', e.target.value)}
+                              placeholder="In integration by parts (∫u dv = uv - ∫v du), which should be u?"
+                              rows={2}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            {[0, 1, 2, 3].map((optIdx) => (
+                              <div key={optIdx}>
+                                <Label>Option {String.fromCharCode(65 + optIdx)} *</Label>
+                                <Input
+                                  value={step.options[optIdx]}
+                                  onChange={(e) => updateStepOption(index, optIdx, e.target.value)}
+                                  placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
+                                />
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <Label>Correct Answer *</Label>
                               <Select
                                 value={step.correctAnswer.toString()}
-                                onValueChange={(value) => updateStep(index, 'correctAnswer', parseInt(value))}
+                                onValueChange={(val) => updateStepField(index, 'correctAnswer', parseInt(val))}
                               >
                                 <SelectTrigger>
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="0">Option 1</SelectItem>
-                                  <SelectItem value="1">Option 2</SelectItem>
-                                  <SelectItem value="2">Option 3</SelectItem>
-                                  <SelectItem value="3">Option 4</SelectItem>
+                                  <SelectItem value="0">A</SelectItem>
+                                  <SelectItem value="1">B</SelectItem>
+                                  <SelectItem value="2">C</SelectItem>
+                                  <SelectItem value="3">D</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
 
-                            {/* Explanation */}
-                            <div className="space-y-2">
-                              <Label htmlFor={`explanation-${index}`}>Explanation *</Label>
-                              <Textarea
-                                id={`explanation-${index}`}
-                                value={step.explanation}
-                                onChange={(e) => updateStep(index, 'explanation', e.target.value)}
-                                placeholder="Explain why this is the correct answer"
-                                rows={2}
-                                required
+                            <div>
+                              <Label>Marks *</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={step.marks}
+                                onChange={(e) => updateStepField(index, 'marks', parseInt(e.target.value) || 1)}
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Time Limit (s)</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={step.timeLimitSeconds ?? ''}
+                                onChange={(e) => updateStepField(index, 'timeLimitSeconds', e.target.value ? parseInt(e.target.value) : null)}
+                                placeholder="30"
                               />
                             </div>
                           </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={addQuestion.isPending || updateQuestion.isPending}
-                >
-                  {(addQuestion.isPending || updateQuestion.isPending) ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {editingQuestionId ? 'Updating...' : 'Adding...'}
-                    </>
-                  ) : (
-                    <>
-                      {editingQuestionId ? <Pencil className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-                      {editingQuestionId 
-                        ? 'Update Question' 
-                        : `Add Question (${questionForm.numberOfSteps} ${questionForm.numberOfSteps === 1 ? 'Step' : 'Steps'})`
-                      }
-                    </>
-                  )}
-                </Button>
-              </form>
+                          <div>
+                            <Label>Explanation *</Label>
+                            <Textarea
+                              value={step.explanation}
+                              onChange={(e) => updateStepField(index, 'explanation', e.target.value)}
+                              placeholder="Why this answer is correct..."
+                              rows={2}
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 pt-4 border-t">
+                    <Button onClick={handleSave} disabled={saving} className="flex-1">
+                      {saving ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save Question'
+                      )}
+                    </Button>
+
+                    {mode === 'editing' && (
+                      <Button onClick={handleDelete} variant="destructive">
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
-
-          {/* Right Column: Questions List */}
-          <div className="space-y-4">
-            <Card className="shadow-lg bg-card/80 backdrop-blur-sm border-game-border">
-              <CardHeader>
-                <CardTitle className="text-xl flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5" />
-                    All Questions ({filteredQuestions?.length || 0})
-                  </span>
-                </CardTitle>
-                <div className="space-y-2">
-                  <Label>Filter by Rank Tier</Label>
-                  <Select
-                    value={filterRankTier}
-                    onValueChange={(value: RankTier | 'all') => setFilterRankTier(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Tiers</SelectItem>
-                      {(['Bronze', 'Silver', 'Gold', 'Diamond', 'Unbeatable', 'Pocket Calculator'] as RankTier[]).map(tier => (
-                        <SelectItem key={tier} value={tier}>
-                          {rankTierEmojis[tier]} {tier}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-            </Card>
-
-            <div className="space-y-3 max-h-[800px] overflow-y-auto pr-2">
-              {filteredQuestions?.map((question) => (
-                <Card key={question.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start gap-3">
-                      <div className="flex-1 space-y-2">
-                        <h3 className="font-semibold text-sm">{question.title}</h3>
-                        <div className="flex flex-wrap gap-1">
-                          <Badge variant="outline" className="text-xs">{question.subject}</Badge>
-                          <Badge variant="outline" className="text-xs">{question.level}</Badge>
-                          <Badge variant="outline" className="text-xs">{question.chapter}</Badge>
-                          <Badge className={`text-xs ${rankTierColors[question.rankTier]}`}>
-                            {rankTierEmojis[question.rankTier]} {question.rankTier}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {question.questionText}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {question.totalMarks} mark(s) • {question.steps.length} step(s)
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleEditQuestion(question)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          onClick={() => handleDelete(question.id)}
-                          disabled={deleteQuestion.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -28,6 +28,16 @@ export default function Home() {
 
       <main className="relative z-10 flex flex-col items-center justify-center gap-6 px-4 py-8">
         <PlayerCard />
+
+        {/* Temporary Dev Button */}
+        <div className="w-full max-w-[48rem] mx-auto flex justify-center">
+          <button
+            onClick={() => window.location.href = '/dev/db-test'}
+            className="px-6 py-3 bg-red-500/20 border border-red-500/50 text-red-200 rounded-xl font-bold hover:bg-red-500/30 transition-colors flex items-center gap-2"
+          >
+            🐞 DEV: Go to Test Match
+          </button>
+        </div>
       </main>
 
       <footer className="relative z-20 pb-8">

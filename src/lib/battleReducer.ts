@@ -161,9 +161,14 @@ export function battleReducer(state: BattleState, action: BattleAction): BattleS
         case 'PHASE_CHANGE':
             return {
                 ...state,
+                phase: 'in_question', // Ensure we exit 'showing_result' or other phases
                 roundPhase: action.payload.phase,
                 phaseDeadline: action.payload.choosingEndsAt || null,
                 currentStepIndex: action.payload.currentStepIndex ?? state.currentStepIndex,
+                // Reset selection for new phase/step
+                selectedAnswer: null,
+                correctAnswer: null,
+                isSubmitting: false,
             };
 
         case 'ANSWER_SUBMITTED':

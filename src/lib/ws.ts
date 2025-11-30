@@ -192,6 +192,7 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
   };
 
   ws.onmessage = (event) => {
+    console.log('[WS RAW]', event.data); // Step 3: Raw logging
     try {
       const message: ServerEvent = JSON.parse(event.data);
       console.log(`[QA-LOG] WS: Received message type: ${message.type}`, message);

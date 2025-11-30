@@ -39,7 +39,15 @@ export const AnswerGrid: React.FC<AnswerGridProps> = ({
             {options.map((option, index) => (
                 <motion.button
                     key={index}
-                    onClick={() => !disabled && onSelect(index)}
+                    onClick={() => {
+                        console.log('[AnswerGrid] Button clicked! Index:', index, 'Disabled:', disabled);
+                        if (!disabled) {
+                            console.log('[AnswerGrid] Calling onSelect with index:', index);
+                            onSelect(index);
+                        } else {
+                            console.log('[AnswerGrid] Click ignored - button is disabled');
+                        }
+                    }}
                     className={`
             relative p-6 rounded-xl border-2 text-left transition-all duration-200
             flex items-center gap-4 group overflow-hidden

@@ -44,6 +44,14 @@ interface GameState {
   // New: Early submit tracking
   p1ReadyForOptions: boolean
   p2ReadyForOptions: boolean
+
+  // Per-player round status for fail-early logic
+  playerRoundStatus: {
+    [playerId: string]: {
+      finished: boolean
+      marks: number
+    }
+  }
 }
 
 // Validation schemas
@@ -68,6 +76,27 @@ const ClientMessageSchema = z.discriminatedUnion('type', [
   AnswerSubmitSchema,
   ReadyForOptionsSchema
 ])
+
+// Helper function for fail-early marks calculation
+function computeMarksFailEarly(
+  answers: { step_index: number; is_correct: boolean }[],
+  totalSteps: number
+): { marks: number; finished: boolean; nextStepIndex: number | null } {
+  const firstWrong = answers.find(a => !a.is_correct)
+
+  if (firstWrong) {
+    const marks = firstWrong.step_index
+    return { marks, finished: true, nextStepIndex: null }
+  }
+
+  const answeredSteps = answers.length
+  if (answeredSteps >= totalSteps) {
+    return { marks: totalSteps, finished: true, nextStepIndex: null }
+  }
+
+  const nextStepIndex = answeredSteps
+  return { marks: answeredSteps, finished: false, nextStepIndex }
+}
 
 const games = new Map<string, GameState>()
 
@@ -673,7 +702,8 @@ Deno.serve(async (req) => {
       p1Answer: null,
       p2Answer: null,
       p1ReadyForOptions: false,
-      p2ReadyForOptions: false
+      p2ReadyForOptions: false,
+      playerRoundStatus: {}
     })
     console.log(`[QA-LOG] [${matchId}] New game state initialized`)
   }

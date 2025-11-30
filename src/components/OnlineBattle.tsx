@@ -89,7 +89,8 @@ export const OnlineBattle = () => {
         break;
 
       case 'PHASE_CHANGE':
-        console.log('[Battle] PHASE_CHANGE:', message.phase);
+        console.log('[Battle] PHASE_CHANGE received:', message);
+        console.log('[Battle] Options in payload:', message.options);
         dispatch({
           type: 'PHASE_CHANGE',
           payload: {
@@ -98,10 +99,6 @@ export const OnlineBattle = () => {
             currentStepIndex: message.currentStepIndex,
           },
         });
-
-        if (message.phase === 'choosing') {
-          toast.info('Choose your answer!');
-        }
         break;
 
       case 'ROUND_RESULT':
@@ -165,7 +162,32 @@ export const OnlineBattle = () => {
 
   // -- Answer Handler --
   const handleAnswer = useCallback((index: number) => {
-    if (!wsRef.current || !state.roundId || state.isSubmitting) return;
+    console.log('[Battle] handleAnswer called with index:', index);
+    console.log('[Battle] Current state:', {
+      wsConnected: !!wsRef.current,
+      roundId: state.roundId,
+      isSubmitting: state.isSubmitting,
+      phase: state.phase,
+      roundPhase: state.roundPhase
+    });
+
+    if (!wsRef.current) {
+      console.warn('[Battle] Cannot submit - wsRef is null');
+      toast.error('Connection error: WebSocket missing');
+      return;
+    }
+
+    if (!state.roundId) {
+      console.warn('[Battle] Cannot submit - roundId is missing');
+      toast.error('System error: Round ID missing');
+      return;
+    }
+
+    if (state.isSubmitting) {
+      console.warn('[Battle] Cannot submit - already submitting');
+      toast.warning('Already submitting answer...');
+      return;
+    }
 
     const currentQ = state.currentQuestion;
     const currentStep = currentQ?.steps[state.currentStepIndex];
@@ -175,7 +197,7 @@ export const OnlineBattle = () => {
       return;
     }
 
-    console.log('[Battle] Submitting answer:', {
+    console.log('[Battle] ✅ Submitting answer:', {
       matchId,
       roundId: state.roundId,
       questionId: currentQ.id,
@@ -291,6 +313,18 @@ export const OnlineBattle = () => {
     };
   }, [matchId, currentUser, match, handleWSMessage]);
 
+  // Timer update - force re-render to update countdown
+  const [, setTimerTick] = useState(0);
+  useEffect(() => {
+    if (state.phase !== 'in_question' || !state.phaseDeadline) return;
+
+    const interval = setInterval(() => {
+      setTimerTick(t => t + 1); // Force re-render
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [state.phase, state.phaseDeadline]);
+
   // -- Render Based on Phase --
 
   // Loading State
@@ -371,7 +405,7 @@ export const OnlineBattle = () => {
             }}
             phase={state.roundPhase || 'thinking'}
             timeLeft={
-              state.phaseDeadline ? state.phaseDeadline.getTime() - Date.now() : 0
+              Math.max(0, state.phaseDeadline ? state.phaseDeadline.getTime() - Date.now() : 0)
             }
             totalTime={state.roundPhase === 'thinking' ? 60000 : 15000}
             selectedIndex={state.selectedAnswer}
