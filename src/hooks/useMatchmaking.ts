@@ -19,6 +19,76 @@ export function useMatchmaking() {
   });
 
   const isSearchingRef = useRef(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Poll for matches when in searching state
+  useEffect(() => {
+    if (state.status !== 'searching') {
+      // Clear any existing polling
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const checkForMatch = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Check if user has a match in matches table
+        const { data: matches, error } = await supabase
+          .from('matches')
+          .select('*')
+          .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error) {
+          console.error('[MATCHMAKING] Error checking for match:', error);
+          return;
+        }
+
+        if (matches && matches.length > 0) {
+          const match = matches[0] as MatchRow;
+          console.log(`[MATCHMAKING] ✅ Match found via polling! Match ID: ${match.id}`);
+          
+          // Clear polling
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+
+          setState({
+            status: 'matched',
+            match: match,
+            error: null,
+          });
+
+          toast.success('Match found! Starting battle...');
+          
+          navigate(`/online-battle/${match.id}`, {
+            state: { match },
+          });
+        }
+      } catch (error) {
+        console.error('[MATCHMAKING] Error in polling:', error);
+      }
+    };
+
+    // Poll every 2 seconds
+    pollIntervalRef.current = setInterval(checkForMatch, 2000);
+
+    // Cleanup on unmount
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [state.status, navigate]);
 
   const startMatchmaking = useCallback(async () => {
     if (isSearchingRef.current) {
@@ -59,6 +129,12 @@ export function useMatchmaking() {
         const match = data.match as MatchRow;
         console.log(`[MATCHMAKING] ✅ Matched! Match ID: ${match.id}`);
         
+        // Clear polling if it exists
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+
         setState({
           status: 'matched',
           match: match,
@@ -71,10 +147,10 @@ export function useMatchmaking() {
           state: { match },
         });
       } else {
-        // Queued, keep searching state
+        // Queued, keep searching state - polling will handle match detection
         console.log('[MATCHMAKING] Queued, waiting for opponent...');
         toast.info('Searching for opponent...');
-        // State remains 'searching'
+        // State remains 'searching', polling effect will check for matches
       }
 
     } catch (error: any) {
@@ -85,6 +161,12 @@ export function useMatchmaking() {
         error: error.message || 'Failed to start matchmaking',
       }));
       toast.error('Failed to start matchmaking. Please try again.');
+      
+      // Clear polling on error
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
     } finally {
       isSearchingRef.current = false;
     }
@@ -92,6 +174,12 @@ export function useMatchmaking() {
 
   const leaveQueue = useCallback(async () => {
     console.log('[MATCHMAKING] Leaving queue');
+
+    // Clear polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
 
     try {
       const { data: { user } } = await supabase.auth.getUser();

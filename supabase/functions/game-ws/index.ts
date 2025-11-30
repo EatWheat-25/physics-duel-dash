@@ -195,12 +195,12 @@ async function startRound(game: GameState) {
     return
   }
 
-  // 2. Fetch ONE random question from public.questions
+  // 2. Fetch questions and pick one randomly (PostgREST doesn't support ORDER BY random())
+  // Fetch a batch and randomize in code for better distribution
   const { data: questions, error: questionError } = await supabase
     .from('questions')
     .select('*')
-    .order('random()')
-    .limit(1)
+    .limit(50) // Fetch up to 50 questions, then pick one randomly
 
   let selectedQuestion: any = null
 
@@ -209,7 +209,10 @@ async function startRound(game: GameState) {
     console.warn(`[${matchId}] ⚠️ No questions in DB, using fallback`)
     selectedQuestion = FALLBACK_QUESTION
   } else {
-    selectedQuestion = questions[0]
+    // Pick a random question from the fetched batch
+    const randomIndex = Math.floor(Math.random() * questions.length)
+    selectedQuestion = questions[randomIndex]
+    console.log(`[${matchId}] Selected random question ${randomIndex + 1}/${questions.length}: ${selectedQuestion.id}`)
   }
 
   // 4. Transform simple question format to StepBasedQuestion format that client expects
@@ -307,6 +310,10 @@ async function transitionToChoosing(game: GameState) {
   const currentStep = game.currentQuestion.steps?.[game.currentStepIndex]
   if (!currentStep) {
     console.error(`[${matchId}] No step found at index ${game.currentStepIndex}`)
+    return
+  }
+  if (!currentStep.options || !Array.isArray(currentStep.options)) {
+    console.error(`[${matchId}] Step at index ${game.currentStepIndex} has no options array`)
     return
   }
   const options = currentStep.options.map((text: string, idx: number) => ({

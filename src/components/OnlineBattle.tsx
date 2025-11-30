@@ -289,6 +289,12 @@ export const OnlineBattle = () => {
       } = await supabase.auth.getUser();
       if (!user || !match) return;
 
+      // Validate match has required fields
+      if (!match.player1_id || !match.player2_id) {
+        console.warn('[Battle] Match missing player IDs, skipping profile fetch');
+        return;
+      }
+
       // Your Profile
       const { data: myProfile } = await supabase
         .from('profiles')
@@ -302,6 +308,11 @@ export const OnlineBattle = () => {
 
       // Opponent Profile
       const opponentId = match.player1_id === user.id ? match.player2_id : match.player1_id;
+      if (!opponentId) {
+        console.warn('[Battle] Could not determine opponent ID');
+        return;
+      }
+
       const { data: oppProfile } = await supabase
         .from('profiles')
         .select('username')

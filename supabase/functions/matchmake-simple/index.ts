@@ -45,26 +45,39 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Step 1: Add this player to queue
-    const { error: queueError } = await supabase
+    // Step 1: Add this player to queue (only if not already waiting)
+    // Check if player is already in queue with status 'waiting'
+    const { data: existingEntry } = await supabase
       .from('matchmaking_queue')
-      .upsert({
-        player_id: user.id,
-        status: 'waiting',
-        created_at: new Date().toISOString()
-      }, {
-        onConflict: 'player_id'
-      })
+      .select('*')
+      .eq('player_id', user.id)
+      .eq('status', 'waiting')
+      .maybeSingle()
 
-    if (queueError) {
-      console.error(`[MATCHMAKER] Error adding to queue:`, queueError)
-      return new Response(JSON.stringify({ error: 'Failed to join queue' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    // Only insert if not already waiting (preserve original created_at for fairness)
+    if (!existingEntry) {
+      const { error: queueError } = await supabase
+        .from('matchmaking_queue')
+        .upsert({
+          player_id: user.id,
+          status: 'waiting',
+          created_at: new Date().toISOString()
+        }, {
+          onConflict: 'player_id'
+        })
+
+      if (queueError) {
+        console.error(`[MATCHMAKER] Error adding to queue:`, queueError)
+        return new Response(JSON.stringify({ error: 'Failed to join queue' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+    } else {
+      console.log(`[MATCHMAKER] Player ${user.id} already in queue, preserving original timestamp`)
     }
 
-    console.log(`[MATCHMAKER] Player ${user.id} added to queue`)
+    console.log(`[MATCHMAKER] Player ${user.id} in queue`)
 
     // Step 2: Look for another waiting player
     const { data: waitingPlayers, error: searchError } = await supabase
@@ -100,9 +113,23 @@ Deno.serve(async (req) => {
 
     // Found an opponent!
     const opponent = waitingPlayers[0]
+    
+    // Safety check: ensure we're not matching a player with themselves
+    if (opponent.player_id === user.id) {
+      console.error(`[MATCHMAKER] ❌ CRITICAL: Attempted to match player ${user.id} with themselves!`)
+      return new Response(JSON.stringify({
+        matched: false,
+        queued: true,
+        error: 'Matchmaking error: cannot match with self'
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     console.log(`[MATCHMAKER] Matched ${user.id} with ${opponent.player_id}`)
 
-    // Step 3: Create match
+    // Step 3: Create match (with explicit check that players are different)
     const { data: newMatch, error: matchError } = await supabase
       .from('matches')
       .insert({
@@ -122,10 +149,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Step 4: Update both players' queue status to 'matched'
+    // Step 4: Delete both players' queue entries (match found, no longer in queue)
     await supabase
       .from('matchmaking_queue')
-      .update({ status: 'matched' })
+      .delete()
       .in('player_id', [user.id, opponent.player_id])
 
     console.log(`[MATCHMAKER] ✅ Match created: ${newMatch.id}`)
