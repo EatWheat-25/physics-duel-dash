@@ -115,11 +115,18 @@ export const OnlineBattle = () => {
             console.log('[Battle] User has these matches:', allMatches)
             const foundMatch = allMatches.find(m => m.id === matchId)
             if (foundMatch) {
-              console.log('[Battle] Match found in user matches but not by direct query - RLS issue?')
+              console.log('[Battle] ✅ Match found in user matches but not by direct query - RLS issue!')
+              console.log('[Battle] Using match from alternative query:', foundMatch)
               // Use the found match
               setMatch(foundMatch as MatchRow)
               return
+            } else {
+              console.log('[Battle] ❌ Match ID not in user matches list either')
+              console.log('[Battle] Match ID we\'re looking for:', matchId)
+              console.log('[Battle] User ID:', user.id)
             }
+          } else if (checkError) {
+            console.error('[Battle] Error in alternative query:', checkError)
           }
           
           toast.error('Match not found. It may have been deleted or you may not have access.')
