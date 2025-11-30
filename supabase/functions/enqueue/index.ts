@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
         .eq('id', opponent.player_id)
         .maybeSingle()
 
-      // Create the match with 'pending' state - game-ws will set it to 'active' when both players connect
+      // Create the match
       const { data: newMatch, error: matchError } = await supabase
         .from('matches_new')
         .insert({
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
           p2: opponent.player_id,
           subject,
           chapter,
-          state: 'pending'
+          state: 'active'
         })
         .select()
         .single()
@@ -137,10 +137,7 @@ Deno.serve(async (req) => {
           .delete()
           .in('player_id', [user.id, opponent.player_id])
 
-        console.log(`✅ Instant match created: ${newMatch.id} (state: pending)`)
-        console.log(`   P1: ${user.id}`)
-        console.log(`   P2: ${opponent.player_id}`)
-        console.log(`   Trigger will create match_notifications for both players`)
+        console.log(`Instant match created: ${newMatch.id}`)
 
         return new Response(JSON.stringify({
           success: true,
