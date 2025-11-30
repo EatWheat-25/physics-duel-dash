@@ -21,7 +21,7 @@ export function QuickActionsStrip() {
   const items = [
     { icon: BookOpen, label: 'Modules', path: '/modules', emphasized: false },
     { icon: Trophy, label: 'Challenges', path: '/challenges', emphasized: false },
-    { icon: Swords, label: 'BATTLE', path: '/battle-queue', emphasized: true, excludeSubject: true },
+    { icon: Swords, label: 'BATTLE', path: '/matchmaking-new', emphasized: true, excludeSubject: true },
     { icon: TrendingUp, label: 'Progression', path: '/progression', emphasized: false },
     { icon: ShoppingBag, label: 'Shop', path: '/shop', emphasized: false },
   ];
