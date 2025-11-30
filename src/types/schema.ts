@@ -37,6 +37,15 @@ export interface MatchRow {
   created_at: string
 }
 
+// Match round - tracks which question is assigned to a match
+export interface MatchRoundRow {
+  id: string
+  match_id: string
+  question_id: string
+  status: 'active' | 'finished'
+  created_at: string
+}
+
 // WebSocket event types
 export interface RoundStartEvent {
   type: 'ROUND_START'

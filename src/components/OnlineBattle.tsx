@@ -1,484 +1,188 @@
-import { useReducer, useEffect, useRef, useCallback, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { supabase } from '@/integrations/supabase/client'
+import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
+import { useGame } from '@/hooks/useGame'
+import type { MatchRow } from '@/types/schema'
 
-// New Components
-import { GameLayout } from './game/GameLayout';
-import { GameHeader } from './game/GameHeader';
-import { ActiveQuestion } from './game/ActiveQuestion';
-import { PhaseOverlay } from './game/PhaseOverlay';
-
-// State Management & Logic
-import { battleReducer, initialBattleState, BattleState } from '@/lib/battleReducer';
-import { connectGameWS, sendAnswer, ServerMessage } from '@/lib/ws';
-import { wsPayloadToQuestion } from '@/lib/question-contract';
-
-interface Match {
-  id: string;
-  player1_id: string;
-  player2_id: string;
-  status: string;
-  created_at: string;
-}
-
+/**
+ * Simplified OnlineBattle component
+ * 
+ * Uses the new clean pipeline:
+ * 1. Fetch match from URL param
+ * 2. Use useGame hook to connect and get question
+ * 3. Display question or loading/error state
+ */
 export const OnlineBattle = () => {
-  const { matchId } = useParams();
-  const navigate = useNavigate();
+  const { matchId } = useParams()
+  const navigate = useNavigate()
+  const [match, setMatch] = useState<MatchRow | null>(null)
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
 
-  // -- Core State (Reducer) --
-  const [state, dispatch] = useReducer(battleReducer, initialBattleState);
-
-  // -- External Data (not in reducer) --
-  const [match, setMatch] = useState<Match | null>(null);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [yourUsername, setYourUsername] = useState<string>('You');
-  const [opponentUsername, setOpponentUsername] = useState<string>('Opponent');
-  const [yourAvatar, setYourAvatar] = useState<string>();
-  const [opponentAvatar, setOpponentAvatar] = useState<string>();
-
-  const wsRef = useRef<WebSocket | null>(null);
-
-  // -- Helpers --
-  const isPlayer1 = currentUser === match?.player1_id;
-
-  // -- WebSocket Message Handler --
-  const handleWSMessage = useCallback((message: ServerMessage) => {
-    console.log('[Battle] Processing WS message:', message.type, message);
-
-    switch (message.type) {
-      case 'connected':
-        dispatch({ type: 'WS_CONNECTED' });
-        break;
-
-
-      case 'ROUND_START':
-        try {
-          console.log('[CONTRACT] ROUND_START - Raw payload:', message.question);
-
-          // Use fail-fast mapper - throws descriptive errors if contract violated
-          const mappedQuestion = wsPayloadToQuestion(message.question);
-
-          console.log('[CONTRACT] ✅ Mapped to StepBasedQuestion:', {
-            id: mappedQuestion.id,
-            title: mappedQuestion.title,
-            stepsCount: mappedQuestion.steps.length
-          });
-
-          dispatch({
-            type: 'ROUND_START',
-            payload: {
-              roundId: message.roundId,
-              roundIndex: message.roundIndex,
-              question: mappedQuestion,
-              thinkingEndsAt: new Date(message.thinkingEndsAt),
-            },
-          });
-        } catch (e: any) {
-          console.error('[CONTRACT VIOLATION] Failed to map question:', e.message);
-          console.error('[CONTRACT VIOLATION] Raw payload was:', message.question);
-          toast.error(`Question failed contract: ${e.message}`);
-        }
-        break;
-
-      case 'PHASE_CHANGE':
-        console.log('[Battle] PHASE_CHANGE received:', message);
-        console.log('[Battle] Options in payload:', message.options);
-        dispatch({
-          type: 'PHASE_CHANGE',
-          payload: {
-            phase: message.phase,
-            choosingEndsAt: message.choosingEndsAt ? new Date(message.choosingEndsAt) : undefined,
-            currentStepIndex: message.currentStepIndex,
-          },
-        });
-        break;
-
-      case 'ROUND_RESULT':
-        console.log('[Battle] ROUND_RESULT:', message);
-        dispatch({
-          type: 'ROUND_RESULT',
-          payload: {
-            roundIndex: message.roundIndex,
-            questionId: message.questionId,
-            correctOptionId: message.correctOptionId,
-            playerResults: message.playerResults,
-            tugOfWar: message.tugOfWar,
-            p1Score: message.p1Score,
-            p2Score: message.p2Score,
-          },
-        });
-
-        // Show result feedback
-        const myResult = message.playerResults.find((r) => r.playerId === currentUser);
-        if (myResult?.isCorrect) {
-          toast.success('Correct!');
-        } else {
-          toast.error('Incorrect');
-        }
-        break;
-
-      case 'answer_result':
-        // Individual step result (if needed for immediate feedback)
-        console.log('[Battle] answer_result:', message);
-        break;
-
-      case 'MATCH_END':
-        console.log('[Battle] MATCH_END:', message);
-        dispatch({
-          type: 'MATCH_END',
-          payload: {
-            winnerId: message.winnerPlayerId,
-          },
-        });
-
-        const won = message.winnerPlayerId === currentUser;
-        const draw = !message.winnerPlayerId;
-        toast.success(draw ? 'Match ended in a draw!' : won ? 'You won!' : 'Match over');
-        break;
-
-      case 'validation_error':
-        console.error('[Battle] Validation error:', message.message);
-        toast.error(message.message);
-        dispatch({ type: 'VALIDATION_ERROR' });
-        break;
-
-      case 'error':
-        console.error('[Battle] Server error:', message.message);
-        toast.error(`Error: ${message.message}`);
-        break;
-
-      default:
-        console.warn('[Battle] Unknown message type:', (message as any).type);
-    }
-  }, [currentUser, isPlayer1]);
-
-  // -- Answer Handler --
-  const handleAnswer = useCallback((index: number) => {
-    console.log('[Battle] handleAnswer called with index:', index);
-    console.log('[Battle] Current state:', {
-      wsConnected: !!wsRef.current,
-      roundId: state.roundId,
-      isSubmitting: state.isSubmitting,
-      phase: state.phase,
-      roundPhase: state.roundPhase
-    });
-
-    if (!wsRef.current) {
-      console.warn('[Battle] Cannot submit - wsRef is null');
-      toast.error('Connection error: WebSocket missing');
-      return;
-    }
-
-    if (!state.roundId) {
-      console.warn('[Battle] Cannot submit - roundId is missing');
-      toast.error('System error: Round ID missing');
-      return;
-    }
-
-    if (state.isSubmitting) {
-      console.warn('[Battle] Cannot submit - already submitting');
-      toast.warning('Already submitting answer...');
-      return;
-    }
-
-    const currentQ = state.currentQuestion;
-    const currentStep = currentQ?.steps[state.currentStepIndex];
-
-    if (!currentQ || !currentStep) {
-      console.error('[Battle] No question/step available for answer');
-      return;
-    }
-
-    console.log('[Battle] ✅ Submitting answer:', {
-      matchId,
-      roundId: state.roundId,
-      questionId: currentQ.id,
-      stepId: currentStep.id,
-      answerIndex: index,
-    });
-
-    // Optimistic update
-    dispatch({ type: 'ANSWER_SUBMITTED', payload: { answerIndex: index } });
-
-    // Send to server
-    sendAnswer(wsRef.current, matchId!, state.roundId, currentQ.id, currentStep.id, index);
-  }, [matchId, state.roundId, state.currentQuestion, state.currentStepIndex, state.isSubmitting]);
-
-  // -- Effects --
-
-  // 1. Auth & User Info
+  // Fetch match from database
   useEffect(() => {
-    supabase.auth.getUser().then(({ data, error }) => {
-      if (error) {
-        console.error('[Battle] Auth error:', error);
-        toast.error('Authentication error');
-        return;
-      }
-      console.log('[Battle] Current user:', data.user?.id);
-      setCurrentUser(data.user?.id || null);
-    });
-  }, []);
-
-  // 2. Fetch Match & Profiles
-  useEffect(() => {
-    if (!matchId) return;
+    if (!matchId) {
+      toast.error('No match ID provided')
+      navigate('/')
+      return
+    }
 
     const fetchMatch = async () => {
-      console.log('[Battle] Fetching match:', matchId);
-      
-      // Try matches table first (new schema)
       const { data, error } = await supabase
         .from('matches')
         .select('*')
         .eq('id', matchId)
-        .maybeSingle();
+        .maybeSingle()
 
       if (error) {
-        console.error('[Battle] Error fetching match:', error);
-        console.error('[Battle] Error code:', error.code);
-        console.error('[Battle] Error details:', error.details);
-        
-        // Check if table doesn't exist
-        if (error.code === '42P01' || error.message.includes('does not exist')) {
-          toast.error('Database migration not applied. Run: supabase db push');
-        } else {
-          toast.error(`Failed to load match: ${error.message}`);
-        }
-        return;
+        console.error('[Battle] Error fetching match:', error)
+        toast.error('Failed to load match')
+        navigate('/')
+        return
       }
 
-      if (data) {
-        console.log('[Battle] Match loaded:', data);
-        
-        // Verify structure
-        if (!data.player1_id || !data.player2_id) {
-          console.error('[Battle] Match has wrong structure - missing player1_id or player2_id');
-          toast.error('Match structure error. Migration needed.');
-          return;
-        }
-        
-        setMatch(data as Match);
-      } else {
-        console.error('[Battle] Match not found in matches table:', matchId);
-        
-        // Fallback: Check matches_new (old table) for debugging
-        const { data: oldMatch } = await supabase
-          .from('matches_new')
-          .select('*')
-          .eq('id', matchId)
-          .maybeSingle();
-        
-        if (oldMatch) {
-          console.warn('[Battle] Match found in matches_new (old table)');
-          toast.error('Match in old table. Migration needed: supabase db push');
-        } else {
-          toast.error('Match not found. Check if matchmaking completed.');
-        }
+      if (!data) {
+        console.error('[Battle] Match not found:', matchId)
+        toast.error('Match not found')
+        navigate('/')
+        return
       }
-    };
 
-    fetchMatch();
-  }, [matchId]);
+      // Verify structure
+      if (!data.player1_id || !data.player2_id) {
+        console.error('[Battle] Match has wrong structure')
+        toast.error('Invalid match structure')
+        navigate('/')
+        return
+      }
 
+      setMatch(data as MatchRow)
+    }
+
+    fetchMatch()
+  }, [matchId, navigate])
+
+  // Get current user
   useEffect(() => {
-    const fetchProfiles = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user || !match) return;
-
-      // Validate match has required fields
-      if (!match.player1_id || !match.player2_id) {
-        console.warn('[Battle] Match missing player IDs, skipping profile fetch');
-        return;
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setCurrentUser(user.id)
       }
+    }
+    getUser()
+  }, [])
 
-      // Your Profile
-      const { data: myProfile } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', user.id)
-        .single();
+  // Use the new useGame hook
+  const { question, gameStatus, errorMessage } = useGame(match)
 
-      if (myProfile) {
-        setYourUsername(myProfile.username);
-      }
-
-      // Opponent Profile
-      const opponentId = match.player1_id === user.id ? match.player2_id : match.player1_id;
-      if (!opponentId) {
-        console.warn('[Battle] Could not determine opponent ID');
-        return;
-      }
-
-      const { data: oppProfile } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', opponentId)
-        .single();
-
-      if (oppProfile) {
-        setOpponentUsername(oppProfile.username);
-      }
-    };
-
-    fetchProfiles();
-  }, [match]);
-
-  // 3. WebSocket Connection
+  // Verify user is part of match
   useEffect(() => {
-    if (!matchId || !currentUser || !match) return;
+    if (match && currentUser) {
+      if (match.player1_id !== currentUser && match.player2_id !== currentUser) {
+        toast.error('You are not part of this match')
+        navigate('/')
+      }
+    }
+  }, [match, currentUser, navigate])
 
-    const setupWebSocket = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
-
-      console.log('[Battle] Setting up WebSocket for match:', matchId);
-
-      const ws = connectGameWS({
-        matchId,
-        token: session.access_token,
-        onConnected: () => handleWSMessage({ type: 'connected', player: 'p1' }),
-        onPlayerReady: (e) => handleWSMessage(e),
-        onRoundStart: (e) => handleWSMessage(e),
-        onPhaseChange: (e) => handleWSMessage(e),
-        onRoundResult: (e) => handleWSMessage(e),
-        onAnswerResult: (e) => handleWSMessage(e),
-        onMatchEnd: (e) => handleWSMessage(e),
-        onValidationError: (e) => handleWSMessage(e),
-        onError: (err) => toast.error(`Connection Error: ${err.message}`),
-        onClose: () => toast.error('Connection Lost'),
-      });
-
-      wsRef.current = ws;
-    };
-
-    setupWebSocket();
-
-    return () => {
-      wsRef.current?.close();
-    };
-  }, [matchId, currentUser, match, handleWSMessage]);
-
-  // Timer update - force re-render to update countdown
-  const [, setTimerTick] = useState(0);
-  useEffect(() => {
-    if (state.phase !== 'in_question' || !state.phaseDeadline) return;
-
-    const interval = setInterval(() => {
-      setTimerTick(t => t + 1); // Force re-render
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [state.phase, state.phaseDeadline]);
-
-  // -- Render Based on Phase --
-
-  // Loading State
-  if (!match || !currentUser || state.phase === 'connecting') {
+  // Render based on state
+  if (!match || !currentUser) {
     return (
-      <GameLayout className="items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-          <h2 className="text-2xl font-bold text-white">Connecting to Battle...</h2>
+          <h2 className="text-2xl font-bold text-white">Loading match...</h2>
         </div>
-      </GameLayout>
-    );
+      </div>
+    )
   }
 
-  // Waiting for Opponent
-  if (state.phase === 'waiting_for_opponent') {
+  if (gameStatus === 'error') {
     return (
-      <GameLayout className="items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-          <h2 className="text-2xl font-bold text-white">Waiting for match to start...</h2>
-        </div>
-      </GameLayout>
-    );
-  }
-
-  // Match Over
-  if (state.phase === 'match_over') {
-    const won = state.winnerId === currentUser;
-    const draw = !state.winnerId;
-
-    return (
-      <GameLayout className="items-center justify-center">
-        <PhaseOverlay
-          isVisible={true}
-          type={draw ? 'draw' : won ? 'victory' : 'defeat'}
-          title={draw ? 'DRAW' : won ? 'VICTORY!' : 'DEFEAT'}
-          subtitle={draw ? 'Well Played!' : won ? 'You Won!' : 'Better Luck Next Time'}
-        />
-        <div className="mt-8">
+          <div className="text-red-500 text-xl">⚠️ Error</div>
+          <p className="text-white">{errorMessage || 'Unknown error'}</p>
           <button
             onClick={() => navigate('/')}
-            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/80"
           >
-            Back to Home
+            Go Home
           </button>
         </div>
-      </GameLayout>
-    );
+      </div>
+    )
   }
 
-  // In-Question Phase
-  const currentQ = state.currentQuestion;
-  const currentStep = currentQ?.steps[state.currentStepIndex];
-  const myScore = isPlayer1 ? state.p1Score : state.p2Score;
-  const oppScore = isPlayer1 ? state.p2Score : state.p1Score;
-
-  return (
-    <GameLayout>
-      <GameHeader
-        player={{ username: yourUsername, avatarUrl: yourAvatar }}
-        opponent={{ username: opponentUsername, avatarUrl: opponentAvatar }}
-        currentRound={state.currentRound}
-        totalRounds={state.totalRounds}
-        tugPosition={state.tugOfWarPosition}
-        maxSteps={10}
-        onBack={() => navigate('/')}
-      />
-
-      <div className="flex-1 flex items-center justify-center py-8">
-        {currentQ && currentStep ? (
-          <ActiveQuestion
-            question={{
-              id: currentQ.id,
-              text: currentStep.prompt,
-              options: currentStep.options,
-              imageUrl: currentQ.imageUrl,
-            }}
-            phase={state.roundPhase || 'thinking'}
-            timeLeft={
-              Math.max(0, state.phaseDeadline ? state.phaseDeadline.getTime() - Date.now() : 0)
-            }
-            totalTime={state.roundPhase === 'thinking' ? 60000 : 15000}
-            selectedIndex={state.selectedAnswer}
-            correctIndex={state.roundPhase === 'result' ? state.correctAnswer : null}
-            onAnswer={handleAnswer}
-          />
-        ) : (
-          <div className="text-center text-muted-foreground">
-            Waiting for next round...
-          </div>
-        )}
+  if (gameStatus === 'connecting' || gameStatus === 'waiting_for_round') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+          <h2 className="text-2xl font-bold text-white">
+            {gameStatus === 'connecting' ? 'Connecting to battle...' : 'Waiting for question...'}
+          </h2>
+        </div>
       </div>
+    )
+  }
 
-      {/* Show result overlay */}
-      {state.phase === 'showing_result' && state.lastResult && (
-        <PhaseOverlay
-          isVisible={true}
-          type="round_start"
-          title={`Round ${state.lastResult.roundIndex} Complete`}
-          subtitle={`Score: ${myScore} - ${oppScore}`}
-        />
-      )}
-    </GameLayout>
-  );
-};
+  if (gameStatus === 'round_active' && question) {
+    // Simple question display
+    const steps = question.steps
+    const options = steps?.options || []
+    const correctAnswer = steps?.answer ?? 0
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-8 border border-purple-500/20">
+            <h1 className="text-3xl font-bold text-white mb-6">Battle Question</h1>
+            
+            <div className="mb-8">
+              <p className="text-xl text-white mb-6">{question.text}</p>
+            </div>
+
+            {steps?.type === 'mcq' && options.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-white mb-4">Select your answer:</h3>
+                <div className="grid gap-4">
+                  {options.map((option, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        // TODO: Implement answer submission
+                        toast.info(`Selected: ${option} (Answer ${index})`)
+                      }}
+                      className="p-4 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-left text-white transition-colors"
+                    >
+                      <span className="font-semibold mr-2">{String.fromCharCode(65 + index)}.</span>
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-8 text-sm text-slate-400">
+              <p>Question ID: {question.id}</p>
+              <p>Match ID: {match.id}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Fallback
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+        <h2 className="text-2xl font-bold text-white">Loading...</h2>
+      </div>
+    </div>
+  )
+}
