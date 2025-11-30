@@ -35,10 +35,10 @@ Deno.serve(async (req) => {
     const cutoffTime = new Date(Date.now() - 45000).toISOString()
 
     const { data: deletedEntries, error: deleteError } = await supabase
-      .from('queue')
+      .from('matchmaking_queue')
       .delete()
       .lt('last_heartbeat', cutoffTime)
-      .select('player_id')
+      .select('user_id')
 
     if (deleteError) {
       console.error('Cleanup error:', deleteError)
