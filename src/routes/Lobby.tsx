@@ -7,7 +7,6 @@ import { useActivePlayerCount } from '@/hooks/useActivePlayerCount';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, ArrowLeft, BookOpen, GraduationCap, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
 
 type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'grade-9' | 'grade-10' | 'grade-11' | 'grade-12' | 'as-level' | 'a2-level';
@@ -26,26 +25,28 @@ const grades = [
 
 export default function Lobby() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [step, setStep] = useState<'subject' | 'grade' | 'ready'>('subject');
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
   const [isQueued, setIsQueued] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
   const activePlayerCount = useActivePlayerCount();
 
   useEffect(() => {
     document.title = 'Battle Lobby | BattleNerds';
 
-    // Redirect to auth if not logged in
-    if (!user) {
-      console.log('No user found, redirecting to /auth');
-      navigate('/auth');
-    }
-  }, [user, navigate]);
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+      }
+    };
+    fetchUser();
+  }, []);
 
   const { start: startMatch, cleanup: cleanupMatch } = useMatchStart(
-    user?.id || '',
+    userId || '',
     (matchId) => {
       setIsQueued(false);
       navigate(`/online-battle/${matchId}`);
@@ -79,7 +80,7 @@ export default function Lobby() {
   };
 
   const handleStartQueue = async () => {
-    if (!selectedSubject || !selectedGrade || !user || isQueued) return;
+    if (!selectedSubject || !selectedGrade || !userId || isQueued) return;
 
     // Map grade to chapter format expected by backend
     const chapterMap: Record<Grade, string> = {
@@ -95,12 +96,6 @@ export default function Lobby() {
       setIsQueued(true);
       setQueueTime(0);
 
-      console.log('Starting matchmaking:', {
-        userId: user.id,
-        subject: selectedSubject,
-        chapter: chapterMap[selectedGrade]
-      });
-
       await startMatch({
         subject: selectedSubject,
         chapter: chapterMap[selectedGrade],
@@ -108,7 +103,6 @@ export default function Lobby() {
       });
     } catch (error) {
       console.error('Failed to start queue:', error);
-      alert(`Failed to start matchmaking: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsQueued(false);
     }
   };

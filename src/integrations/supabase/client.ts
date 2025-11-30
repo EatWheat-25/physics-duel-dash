@@ -3,10 +3,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://pwsgotzkeflizgfgqfbd.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c2dvdHprZWZsaXpnZmdxZmJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0OTE0ODIsImV4cCI6MjA3ODA2NzQ4Mn0.wTd5kPhXD1oX9upZwbhn7uoZxNay1aVbWxnTIrgsPbE';
+const SUPABASE_URL = 'https://qvunaswogfwhixecjpcn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2dW5hc3dvZ2Z3aGl4ZWNqcGNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5NDIyNDAsImV4cCI6MjA3MzUxODI0MH0.mNFMhdalJrFdpQNbORIC4FZVRNSHrrTEqx63zVILqlg';
 
-console.log('✅ Supabase client initialized:', SUPABASE_URL);
+console.log('✅ Supabase client initialized');
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {

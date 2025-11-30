@@ -7,7 +7,13 @@ export function HeaderUserMenu() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
 
-  const isAdmin = user?.user_metadata?.role === 'admin';
+  // TEMPORARY: Show admin button for ALL logged-in users (for testing)
+  // TODO: Fix proper admin role check once Supabase metadata is working
+  const isAdmin = !!user; // Show for anyone logged in
+
+  // DEBUG: Log to console
+  console.log('[HeaderUserMenu] User:', user?.email);
+  console.log('[HeaderUserMenu] Showing admin button:', isAdmin);
 
   return (
     <div className="flex items-center gap-2">
@@ -28,6 +34,7 @@ export function HeaderUserMenu() {
         <span className="hidden sm:inline">Profile</span>
       </Button>
 
+      {/* Admin Button - Shows for all logged-in users (TEMPORARY for testing) */}
       {isAdmin && (
         <Button
           variant="ghost"
