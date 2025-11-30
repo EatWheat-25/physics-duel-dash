@@ -122,10 +122,10 @@ export function useMatchmakingSimple() {
 
         // Query for active match
         const { data: matches, error } = await supabase
-          .from('battle_matches')
+          .from('matches_new')
           .select('*')
-          .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
-          .eq('status', 'active')
+          .or(`p1.eq.${userId},p2.eq.${userId}`)
+          .in('state', ['pending', 'active'])
           .order('created_at', { ascending: false })
           .limit(1)
 

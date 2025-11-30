@@ -131,11 +131,13 @@ Deno.serve(async (req) => {
 
     // Step 3: Create match (with explicit check that players are different)
     const { data: newMatch, error: matchError } = await supabase
-      .from('matches')
+      .from('matches_new')
       .insert({
-        player1_id: user.id,
-        player2_id: opponent.player_id,
-        status: 'pending',
+        p1: user.id,
+        p2: opponent.player_id,
+        state: 'pending',
+        subject: 'math',
+        chapter: 'all',
         created_at: new Date().toISOString()
       })
       .select()
