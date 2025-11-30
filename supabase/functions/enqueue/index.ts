@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
     const requestBody = await req.json()
     const { subject, chapter, region } = requestBody
-    
+
     // Validate input
     if (!subject || typeof subject !== 'string') {
       return new Response(JSON.stringify({ error: 'Invalid subject' }), {
@@ -45,14 +45,14 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-    
+
     if (!['math', 'physics', 'chemistry'].includes(subject)) {
       return new Response(JSON.stringify({ error: 'Subject must be math, physics, or chemistry' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-    
+
     if (!chapter || typeof chapter !== 'string' || chapter.trim().length === 0) {
       return new Response(JSON.stringify({ error: 'Invalid chapter' }), {
         status: 400,
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
 
     if (waitingPlayers && waitingPlayers.length > 0) {
       const opponent = waitingPlayers[0]
-      
+
       // Get opponent's display name
       const { data: opponentPlayer } = await supabase
         .from('players')
@@ -153,28 +153,40 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error: queueError } = await supabase.from('queue').upsert({
-      player_id: user.id,
-      subject,
-      chapter,
-      mmr,
-      region: region || null,
-      last_heartbeat: new Date().toISOString(),
-    })
+    const { data: queueData, error: queueError } = await supabase
+      .from('matchmaking_queue')
+      .insert({
+        user_id: user.id,
+        subject,
+        mode: chapter,
+        rank_tier: null,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    console.log('ENQUEUE DB INSERT RESULT', { data: queueData, error: queueError })
 
     if (queueError) {
       console.error('Queue error:', queueError)
-      return new Response(JSON.stringify({ error: 'Failed to join queue', details: queueError.message }), {
+      return new Response(JSON.stringify({
+        ok: false,
+        stage: 'insert',
+        error: 'Failed to join queue',
+        details: queueError.message
+      }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    console.log(`Player ${user.id} added to queue, waiting for opponent`)
+    console.log(`Player ${user.id} added to matchmaking_queue, waiting for opponent`)
 
     return new Response(JSON.stringify({
+      ok: true,
       success: true,
       matched: false,
+      queueRow: queueData,
       mmr
     }), {
       status: 200,

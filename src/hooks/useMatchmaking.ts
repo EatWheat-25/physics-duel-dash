@@ -246,7 +246,10 @@ export function useMatchmaking() {
         body: { subject, chapter, region },
       });
 
+      console.log('ENQUEUE RESPONSE', { data, error });
+
       if (error) {
+        console.error('ENQUEUE FAILED', error);
         throw error;
       }
 
