@@ -403,12 +403,12 @@ export default function AdminQuestions() {
 
   // Main UI
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-white p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold">Admin · Questions</h1>
-          <p className="text-muted-foreground">Create, edit and manage battle questions (questions_v2)</p>
+          <h1 className="text-3xl font-bold text-gray-900">Admin · Questions</h1>
+          <p className="text-gray-600">Create, edit and manage battle questions (questions_v2)</p>
         </div>
 
         {/* Two-column layout */}
@@ -416,13 +416,13 @@ export default function AdminQuestions() {
           {/* LEFT PANEL: Question List */}
           <div className="space-y-4">
             {/* Filter Bar */}
-            <Card>
+            <Card className="bg-white border-2 border-gray-300">
               <CardHeader>
-                <CardTitle className="text-lg">Filters</CardTitle>
+                <CardTitle className="text-lg text-gray-900">Filters</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <Label>Subject</Label>
+                  <Label className="text-gray-700 font-medium">Subject</Label>
                   <Select
                     value={filters.subject}
                     onValueChange={(val: any) => setFilters({ ...filters, subject: val })}
@@ -440,7 +440,7 @@ export default function AdminQuestions() {
                 </div>
 
                 <div>
-                  <Label>Level</Label>
+                  <Label className="text-gray-700 font-medium">Level</Label>
                   <Select
                     value={filters.level}
                     onValueChange={(val: any) => setFilters({ ...filters, level: val })}
@@ -492,9 +492,9 @@ export default function AdminQuestions() {
             </Button>
 
             {/* Question List */}
-            <Card>
+            <Card className="bg-white border-2 border-gray-300">
               <CardHeader>
-                <CardTitle className="text-lg">
+                <CardTitle className="text-lg text-gray-900">
                   Questions ({questions.length})
                 </CardTitle>
               </CardHeader>
@@ -514,8 +514,8 @@ export default function AdminQuestions() {
                         key={q.id}
                         onClick={() => handleSelectQuestion(q)}
                         className={`p-3 border rounded cursor-pointer transition-colors ${selectedQuestionId === q.id
-                            ? 'bg-primary/10 border-primary'
-                            : 'hover:bg-muted'
+                          ? 'bg-primary/10 border-primary'
+                          : 'hover:bg-muted'
                           }`}
                       >
                         <div className="font-medium text-sm mb-1 line-clamp-1">{q.title}</div>
@@ -539,9 +539,9 @@ export default function AdminQuestions() {
           </div>
 
           {/* RIGHT PANEL: Question Editor */}
-          <Card>
+          <Card className="bg-white border-2 border-gray-300">
             <CardHeader>
-              <CardTitle>
+              <CardTitle className="text-gray-900">
                 {mode === 'idle' && 'Select a question or create new'}
                 {mode === 'creating' && 'Create New Question'}
                 {mode === 'editing' && 'Edit Question'}
