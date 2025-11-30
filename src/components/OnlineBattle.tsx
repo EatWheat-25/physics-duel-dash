@@ -17,16 +17,10 @@ import { wsPayloadToQuestion } from '@/lib/question-contract';
 
 interface Match {
   id: string;
-  p1: string;
-  p2: string;
-  subject: string;
-  chapter: string;
-  state: string;
-  p1_score: number;
-  p2_score: number;
-  winner_id?: string;
+  player1_id: string;
+  player2_id: string;
+  status: string;
   created_at: string;
-  ended_at?: string;
 }
 
 export const OnlineBattle = () => {
@@ -47,7 +41,7 @@ export const OnlineBattle = () => {
   const wsRef = useRef<WebSocket | null>(null);
 
   // -- Helpers --
-  const isPlayer1 = currentUser === match?.p1;
+  const isPlayer1 = currentUser === match?.player1_id;
 
   // -- WebSocket Message Handler --
   const handleWSMessage = useCallback((message: ServerMessage) => {
@@ -227,7 +221,7 @@ export const OnlineBattle = () => {
 
     const fetchMatch = async () => {
       const { data, error } = await supabase
-        .from('matches_new')
+        .from('matches')
         .select('*')
         .eq('id', matchId)
         .maybeSingle();
@@ -261,7 +255,7 @@ export const OnlineBattle = () => {
       }
 
       // Opponent Profile
-      const opponentId = match.p1 === user.id ? match.p2 : match.p1;
+      const opponentId = match.player1_id === user.id ? match.player2_id : match.player1_id;
       const { data: oppProfile } = await supabase
         .from('profiles')
         .select('username')

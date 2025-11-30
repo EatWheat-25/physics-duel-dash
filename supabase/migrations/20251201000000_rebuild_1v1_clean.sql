@@ -146,3 +146,4 @@ SELECT * FROM (VALUES
 ) AS v(text, steps)
 WHERE NOT EXISTS (SELECT 1 FROM public.questions LIMIT 1);
 
+
