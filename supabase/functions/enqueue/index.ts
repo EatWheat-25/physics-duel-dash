@@ -97,12 +97,12 @@ Deno.serve(async (req) => {
 
     // Try to find an opponent waiting in queue
     const { data: waitingPlayers } = await supabase
-      .from('queue')
+      .from('matchmaking_queue')
       .select('*')
       .eq('subject', subject)
-      .eq('chapter', chapter)
-      .neq('player_id', user.id)
-      .order('enqueued_at', { ascending: true })
+      .eq('mode', chapter)
+      .neq('user_id', user.id)
+      .order('created_at', { ascending: true })
       .limit(1)
 
     if (waitingPlayers && waitingPlayers.length > 0) {
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
       const { data: opponentPlayer } = await supabase
         .from('players')
         .select('display_name')
-        .eq('id', opponent.player_id)
+        .eq('id', opponent.user_id)
         .maybeSingle()
 
       // Create the match
@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
         .from('matches_new')
         .insert({
           p1: user.id,
-          p2: opponent.player_id,
+          p2: opponent.user_id,
           subject,
           chapter,
           state: 'active'
@@ -133,9 +133,9 @@ Deno.serve(async (req) => {
       } else {
         // Remove both players from queue
         await supabase
-          .from('queue')
+          .from('matchmaking_queue')
           .delete()
-          .in('player_id', [user.id, opponent.player_id])
+          .in('user_id', [user.id, opponent.user_id])
 
         console.log(`Instant match created: ${newMatch.id}`)
 
