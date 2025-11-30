@@ -61,7 +61,6 @@ async function handleJoinMatch(
 ): Promise<void> {
   console.log(`[${matchId}] JOIN_MATCH from player ${playerId}`)
 
-  // 1. Validate match exists and player is part of it
   const { data: match, error: matchError } = await supabase
     .from('matches')
     .select('*')
@@ -86,96 +85,103 @@ async function handleJoinMatch(
     return
   }
 
-  // 2. Check if match_round already exists
-  const { data: existingRound, error: roundError } = await supabase
-    .from('match_rounds')
+  const loadActiveRound = async () => {
+    const { data } = await supabase
+      .from('match_rounds')
+      .select('*')
+      .eq('match_id', matchId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    return data
+  }
+
+  const fetchQuestion = async (questionId: string): Promise<Question> => {
+    const { data } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('id', questionId)
+      .single()
+
+    if (!data) {
+      console.error(`[${matchId}] ❌ Question ${questionId} not found, using fallback`)
+      return FALLBACK_QUESTION
+    }
+
+    return {
+      id: data.id,
+      text: data.text,
+      steps: data.steps as Question['steps'],
+      created_at: data.created_at
+    }
+  }
+
+  const sendRoundStart = (question: Question) => {
+    const roundStartEvent: RoundStartEvent = {
+      type: 'ROUND_START',
+      match_id: matchId,
+      question
+    }
+    console.log(`[${matchId}] 📤 Sending ROUND_START with question: ${question.id}`)
+    socket.send(JSON.stringify(roundStartEvent))
+  }
+
+  let activeRound = await loadActiveRound()
+  if (activeRound) {
+    console.log(`[${matchId}] ✅ Using existing round ${activeRound.id}`)
+    const question = await fetchQuestion(activeRound.question_id)
+    sendRoundStart(question)
+    return
+  }
+
+  console.log(`[${matchId}] No existing round, selecting question`)
+  const { data: randomQuestion, error: randomError } = await supabase
+    .from('questions')
     .select('*')
-    .eq('match_id', matchId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: true })
+    .order('random()')
     .limit(1)
     .maybeSingle()
 
-  let question: Question
-
-  if (roundError) {
-    console.error(`[${matchId}] ❌ Error checking match_rounds:`, roundError)
-    // Fall through to create new round
+  if (randomError || !randomQuestion) {
+    console.warn(`[${matchId}] ⚠️ Could not fetch random question, using fallback`)
+    sendRoundStart(FALLBACK_QUESTION)
+    return
   }
 
-  if (existingRound) {
-    // 3a. Round exists - fetch the question
-    console.log(`[${matchId}] ✅ Found existing round with question_id: ${existingRound.question_id}`)
-    
-    const { data: questionData, error: questionError } = await supabase
-      .from('questions')
-      .select('*')
-      .eq('id', existingRound.question_id)
-      .single()
-
-    if (questionError || !questionData) {
-      console.error(`[${matchId}] ❌ Question not found:`, questionError)
-      // Use fallback
-      question = FALLBACK_QUESTION
-    } else {
-      question = {
-        id: questionData.id,
-        text: questionData.text,
-        steps: questionData.steps as Question['steps'],
-        created_at: questionData.created_at
-      }
-    }
-  } else {
-    // 3b. No round exists - pick random question and create round
-    console.log(`[${matchId}] No existing round, picking new question`)
-
-    // Fetch questions and pick one randomly
-    const { data: questions, error: questionError } = await supabase
-      .from('questions')
-      .select('*')
-      .limit(50)
-
-    if (questionError || !questions || questions.length === 0) {
-      console.warn(`[${matchId}] ⚠️ No questions in DB, using fallback`)
-      question = FALLBACK_QUESTION
-    } else {
-      const randomIndex = Math.floor(Math.random() * questions.length)
-      const selectedQuestion = questions[randomIndex]
-      question = {
-        id: selectedQuestion.id,
-        text: selectedQuestion.text,
-        steps: selectedQuestion.steps as Question['steps'],
-        created_at: selectedQuestion.created_at
-      }
-      console.log(`[${matchId}] Selected question ${randomIndex + 1}/${questions.length}: ${question.id}`)
-    }
-
-    // Insert into match_rounds
-    const { error: insertError } = await supabase
-      .from('match_rounds')
-      .insert({
-        match_id: matchId,
-        question_id: question.id,
-        status: 'active'
-      })
-
-    if (insertError) {
-      console.error(`[${matchId}] ❌ Error inserting match_round:`, insertError)
-      // Still send the question, but log the error
-    } else {
-      console.log(`[${matchId}] ✅ Created match_round for question ${question.id}`)
-    }
+  const canonicalQuestion: Question = {
+    id: randomQuestion.id,
+    text: randomQuestion.text,
+    steps: randomQuestion.steps as Question['steps'],
+    created_at: randomQuestion.created_at
   }
 
-  // 4. Send ROUND_START event
-  const roundStartEvent: RoundStartEvent = {
-    type: 'ROUND_START',
-    match_id: matchId,
-    question
+  const { error: insertError } = await supabase
+    .from('match_rounds')
+    .insert({
+      match_id: matchId,
+      question_id: canonicalQuestion.id,
+      status: 'active'
+    })
+
+  if (!insertError) {
+    console.log(`[${matchId}] ✅ Created match_round for question ${canonicalQuestion.id}`)
+    sendRoundStart(canonicalQuestion)
+    return
   }
 
-  console.log(`[${matchId}] 📤 Sending ROUND_START with question: ${question.id}`)
-  socket.send(JSON.stringify(roundStartEvent))
+  console.error(`[${matchId}] ❌ Error inserting match_round:`, insertError)
+
+  activeRound = await loadActiveRound()
+  if (activeRound) {
+    console.log(`[${matchId}] ♻️ Reusing round created concurrently (${activeRound.id})`)
+    const question = await fetchQuestion(activeRound.question_id)
+    sendRoundStart(question)
+    return
+  }
+
+  console.warn(`[${matchId}] ⚠️ Active round still missing, sending fallback question`)
+  sendRoundStart(canonicalQuestion || FALLBACK_QUESTION)
 }
 
 Deno.serve(async (req) => {
