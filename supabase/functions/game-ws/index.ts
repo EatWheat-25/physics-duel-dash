@@ -637,6 +637,8 @@ async function endMatch(game: GameState) {
 }
 
 Deno.serve(async (req) => {
+  console.log('[game-ws] 🔔 REQUEST HIT:', req.url);
+
   const url = new URL(req.url)
   const token = url.searchParams.get('token')
   const matchId = url.searchParams.get('match_id')
