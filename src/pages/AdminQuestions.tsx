@@ -8,11 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield } from 'lucide-react';
+import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import SpaceBackground from '@/components/SpaceBackground';
 
 type QuestionFilter = {
   subject: 'all' | 'math' | 'physics' | 'chemistry';
@@ -361,76 +361,92 @@ export default function AdminQuestions() {
     }
   }
 
+  // Common styles
+  const glassPanel = "bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-xl";
+  const glassInput = "bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-primary/50 focus:ring-primary/20";
+  const labelStyle = "text-white/70 font-medium mb-1.5 block text-sm";
+
   // Loading state
   if (authLoading || checkingAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
+        <SpaceBackground />
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+          <p className="text-white/70 font-medium animate-pulse">Authenticating...</p>
+        </div>
       </div>
     );
   }
 
-  // Not logged in
-  if (!user) {
+  // Not logged in / Not admin
+  if (!user || !isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="p-6 text-center">
-            <Shield className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground mb-4">Please login to access admin panel</p>
-            <Button onClick={() => navigate('/auth')}>Go to Login</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Not admin
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="p-6 text-center">
-            <Shield className="w-12 h-12 mx-auto mb-4 text-destructive" />
-            <p className="text-destructive font-semibold mb-2">Access Denied</p>
-            <p className="text-muted-foreground mb-4">Admin privileges required</p>
-            <Button onClick={() => navigate('/')}>Go to Home</Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
+        <SpaceBackground />
+        <div className={`relative z-10 max-w-md w-full p-8 ${glassPanel} text-center`}>
+          <Shield className={`w-16 h-16 mx-auto mb-6 ${!user ? 'text-white/50' : 'text-red-500'}`} />
+          <h2 className="text-2xl font-black text-white mb-2">
+            {!user ? 'Authentication Required' : 'Access Denied'}
+          </h2>
+          <p className="text-white/60 mb-8">
+            {!user ? 'Please login to access the admin panel.' : 'You do not have permission to view this page.'}
+          </p>
+          <Button
+            onClick={() => navigate(!user ? '/auth' : '/')}
+            className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/10 h-12 text-lg font-bold"
+          >
+            {!user ? 'Go to Login' : 'Return Home'}
+          </Button>
+        </div>
       </div>
     );
   }
 
   // Main UI
   return (
-    <div className="min-h-screen bg-white p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen text-foreground relative overflow-hidden font-sans">
+      <SpaceBackground />
+
+      <div className="relative z-10 max-w-[1600px] mx-auto p-6">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Admin · Questions</h1>
-          <p className="text-gray-600">Create, edit and manage battle questions (questions_v2)</p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-black text-white mb-2 tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>
+              ADMIN <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">DASHBOARD</span>
+            </h1>
+            <p className="text-white/60 font-medium">Manage battle questions and content</p>
+          </div>
+          <Button
+            onClick={() => navigate('/')}
+            variant="ghost"
+            className="text-white/70 hover:text-white hover:bg-white/10"
+          >
+            Exit to App
+          </Button>
         </div>
 
         {/* Two-column layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[35%_65%] gap-6">
-          {/* LEFT PANEL: Question List */}
-          <div className="space-y-4">
-            {/* Filter Bar */}
-            <Card className="bg-white border-2 border-gray-300">
-              <CardHeader>
-                <CardTitle className="text-lg text-gray-900">Filters</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8 h-[calc(100vh-140px)]">
+
+          {/* LEFT PANEL: Filters & List */}
+          <div className="flex flex-col gap-6 h-full overflow-hidden">
+
+            {/* Filters */}
+            <div className={`p-5 ${glassPanel} space-y-4`}>
+              <div className="flex items-center gap-2 text-white/90 font-bold uppercase tracking-wider text-sm mb-2">
+                <Filter className="w-4 h-4 text-primary" />
+                Filters
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-gray-700 font-medium">Subject</Label>
-                  <Select
-                    value={filters.subject}
-                    onValueChange={(val: any) => setFilters({ ...filters, subject: val })}
-                  >
-                    <SelectTrigger>
+                  <label className={labelStyle}>Subject</label>
+                  <Select value={filters.subject} onValueChange={(v: any) => setFilters({ ...filters, subject: v })}>
+                    <SelectTrigger className={glassInput}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-gray-900 border-white/10 text-white">
                       <SelectItem value="all">All</SelectItem>
                       <SelectItem value="math">Math</SelectItem>
                       <SelectItem value="physics">Physics</SelectItem>
@@ -438,148 +454,153 @@ export default function AdminQuestions() {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div>
-                  <Label className="text-gray-700 font-medium">Level</Label>
-                  <Select
-                    value={filters.level}
-                    onValueChange={(val: any) => setFilters({ ...filters, level: val })}
-                  >
-                    <SelectTrigger>
+                  <label className={labelStyle}>Level</label>
+                  <Select value={filters.level} onValueChange={(v: any) => setFilters({ ...filters, level: v })}>
+                    <SelectTrigger className={glassInput}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-gray-900 border-white/10 text-white">
                       <SelectItem value="all">All</SelectItem>
                       <SelectItem value="A1">A1</SelectItem>
                       <SelectItem value="A2">A2</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
-                <div>
-                  <Label>Difficulty</Label>
-                  <Select
-                    value={filters.difficulty}
-                    onValueChange={(val: any) => setFilters({ ...filters, difficulty: val })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>Rank Tier</Label>
-                  <Input
-                    value={filters.rankTier}
-                    onChange={(e) => setFilters({ ...filters, rankTier: e.target.value })}
-                    placeholder="Filter by rank"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* New Question Button */}
-            <Button onClick={handleNewQuestion} className="w-full">
-              <Plus className="w-4 h-4 mr-2" />
-              New Question
-            </Button>
+              <Button
+                onClick={handleNewQuestion}
+                className="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-10 shadow-lg shadow-orange-500/20"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create New Question
+              </Button>
+            </div>
 
             {/* Question List */}
-            <Card className="bg-white border-2 border-gray-300">
-              <CardHeader>
-                <CardTitle className="text-lg text-gray-900">
-                  Questions ({questions.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <div className={`flex-1 ${glassPanel} flex flex-col min-h-0`}>
+              <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-md flex justify-between items-center">
+                <h3 className="font-bold text-white flex items-center gap-2">
+                  <Search className="w-4 h-4 text-primary" />
+                  Questions <span className="text-white/40 text-sm font-normal">({questions.length})</span>
+                </h3>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
                 {loadingQuestions ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin" />
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
                 ) : questions.length === 0 ? (
-                  <p className="text-muted-foreground text-sm text-center py-8">
-                    No questions found
-                  </p>
-                ) : (
-                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                    {questions.map((q) => (
-                      <div
-                        key={q.id}
-                        onClick={() => handleSelectQuestion(q)}
-                        className={`p-3 border rounded cursor-pointer transition-colors ${selectedQuestionId === q.id
-                          ? 'bg-primary/10 border-primary'
-                          : 'hover:bg-muted'
-                          }`}
-                      >
-                        <div className="font-medium text-sm mb-1 line-clamp-1">{q.title}</div>
-                        <div className="flex flex-wrap gap-1 mb-1">
-                          <Badge variant="secondary" className="text-xs">{q.subject}</Badge>
-                          <Badge variant="secondary" className="text-xs">{q.level}</Badge>
-                          <Badge variant="secondary" className="text-xs">{q.difficulty}</Badge>
-                          {q.rankTier && (
-                            <Badge variant="outline" className="text-xs">{q.rankTier}</Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {q.steps.length} steps • {q.totalMarks} marks
-                        </div>
-                      </div>
-                    ))}
+                  <div className="text-center py-12 text-white/40">
+                    <p>No questions found</p>
                   </div>
+                ) : (
+                  questions.map((q) => (
+                    <div
+                      key={q.id}
+                      onClick={() => handleSelectQuestion(q)}
+                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border ${selectedQuestionId === q.id
+                          ? 'bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
+                          : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
+                        }`}
+                    >
+                      <div className="font-bold text-white mb-2 line-clamp-2 text-sm">{q.title}</div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
+                            q.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
+                          }`}>
+                          {q.subject}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 text-white/70">{q.level}</Badge>
+                        <Badge variant="outline" className={`text-[10px] border-0 ${q.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
+                            q.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
+                          }`}>
+                          {q.difficulty}
+                        </Badge>
+                      </div>
+                      <div className="text-[10px] text-white/40 font-medium flex justify-between">
+                        <span>{q.steps.length} Steps</span>
+                        <span>{q.totalMarks} Marks</span>
+                      </div>
+                    </div>
+                  ))
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
-          {/* RIGHT PANEL: Question Editor */}
-          <Card className="bg-white border-2 border-gray-300">
-            <CardHeader>
-              <CardTitle className="text-gray-900">
-                {mode === 'idle' && 'Select a question or create new'}
-                {mode === 'creating' && 'Create New Question'}
-                {mode === 'editing' && 'Edit Question'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {mode === 'idle' ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Shield className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>Select a question from the list to edit</p>
-                  <p className="text-sm">or click "New Question" to create one</p>
+          {/* RIGHT PANEL: Editor */}
+          <div className={`${glassPanel} flex flex-col h-full overflow-hidden relative`}>
+            {mode === 'idle' ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-white/30">
+                <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
+                  <Shield className="w-10 h-10" />
                 </div>
-              ) : (
-                <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-                  {/* Meta Information */}
-                  <div className="space-y-4 border-b pb-6">
-                    <h3 className="font-semibold">Meta Information</h3>
+                <h3 className="text-xl font-bold text-white/50 mb-2">Ready to Edit</h3>
+                <p>Select a question or create a new one</p>
+              </div>
+            ) : (
+              <>
+                {/* Editor Header */}
+                <div className="p-6 border-b border-white/10 bg-white/5 flex justify-between items-center sticky top-0 z-20 backdrop-blur-xl">
+                  <div>
+                    <h2 className="text-xl font-black text-white tracking-wide">
+                      {mode === 'creating' ? 'NEW QUESTION' : 'EDIT QUESTION'}
+                    </h2>
+                    <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-widest">
+                      {mode === 'creating' ? 'DRAFTING MODE' : `ID: ${selectedQuestionId?.slice(0, 8)}...`}
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    {mode === 'editing' && (
+                      <Button
+                        onClick={handleDelete}
+                        variant="destructive"
+                        className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
+                    )}
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/20 border-0"
+                    >
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                      Save Changes
+                    </Button>
+                  </div>
+                </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Title *</Label>
+                {/* Editor Content */}
+                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+
+                  {/* Section: Meta */}
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-white/90 border-b border-white/10 pb-2 flex items-center gap-2">
+                      <div className="w-1 h-5 bg-primary rounded-full"></div>
+                      Meta Information
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Title *</label>
                         <Input
                           value={form.title}
-                          onChange={(e) => setForm({ ...form, title: e.target.value })}
-                          placeholder="Integration by Parts: ln(x)/x³"
+                          onChange={e => setForm({ ...form, title: e.target.value })}
+                          className={glassInput}
+                          placeholder="e.g. Integration by Parts: ln(x)/x³"
                         />
                       </div>
 
                       <div>
-                        <Label>Subject *</Label>
-                        <Select
-                          value={form.subject}
-                          onValueChange={(val: any) => setForm({ ...form, subject: val })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
+                        <label className={labelStyle}>Subject *</label>
+                        <Select value={form.subject} onValueChange={(v: any) => setForm({ ...form, subject: v })}>
+                          <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-white/10 text-white">
                             <SelectItem value="math">Math</SelectItem>
                             <SelectItem value="physics">Physics</SelectItem>
                             <SelectItem value="chemistry">Chemistry</SelectItem>
@@ -588,251 +609,178 @@ export default function AdminQuestions() {
                       </div>
 
                       <div>
-                        <Label>Chapter *</Label>
+                        <label className={labelStyle}>Chapter *</label>
                         <Input
                           value={form.chapter}
-                          onChange={(e) => setForm({ ...form, chapter: e.target.value })}
-                          placeholder="Integration"
+                          onChange={e => setForm({ ...form, chapter: e.target.value })}
+                          className={glassInput}
+                          placeholder="e.g. Integration"
                         />
                       </div>
 
-                      <div>
-                        <Label>Level *</Label>
-                        <Select
-                          value={form.level}
-                          onValueChange={(val: any) => setForm({ ...form, level: val })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="A1">A1</SelectItem>
-                            <SelectItem value="A2">A2</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelStyle}>Level *</label>
+                          <Select value={form.level} onValueChange={(v: any) => setForm({ ...form, level: v })}>
+                            <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                            <SelectContent className="bg-gray-900 border-white/10 text-white">
+                              <SelectItem value="A1">A1</SelectItem>
+                              <SelectItem value="A2">A2</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label className={labelStyle}>Difficulty *</label>
+                          <Select value={form.difficulty} onValueChange={(v: any) => setForm({ ...form, difficulty: v })}>
+                            <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                            <SelectContent className="bg-gray-900 border-white/10 text-white">
+                              <SelectItem value="easy">Easy</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="hard">Hard</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
 
                       <div>
-                        <Label>Difficulty *</Label>
-                        <Select
-                          value={form.difficulty}
-                          onValueChange={(val: any) => setForm({ ...form, difficulty: val })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="easy">Easy</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="hard">Hard</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label>Rank Tier</Label>
-                        <Input
-                          value={form.rankTier}
-                          onChange={(e) => setForm({ ...form, rankTier: e.target.value })}
-                          placeholder="Silver"
-                        />
-                      </div>
-
-                      <div>
-                        <Label>Total Marks *</Label>
+                        <label className={labelStyle}>Total Marks</label>
                         <Input
                           type="number"
-                          min={1}
                           value={form.totalMarks}
-                          onChange={(e) => setForm({ ...form, totalMarks: parseInt(e.target.value) || 1 })}
+                          onChange={e => setForm({ ...form, totalMarks: parseInt(e.target.value) || 1 })}
+                          className={glassInput}
                         />
                       </div>
 
-                      <div>
-                        <Label>Topic Tags</Label>
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Stem (Main Question) *</label>
+                        <Textarea
+                          value={form.stem}
+                          onChange={e => setForm({ ...form, stem: e.target.value })}
+                          className={`${glassInput} min-h-[100px]`}
+                          placeholder="Enter the main question text here..."
+                        />
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Image URL (Optional)</label>
                         <Input
-                          value={form.topicTags}
-                          onChange={(e) => setForm({ ...form, topicTags: e.target.value })}
-                          placeholder="integration, by-parts"
+                          value={form.imageUrl}
+                          onChange={e => setForm({ ...form, imageUrl: e.target.value })}
+                          className={glassInput}
+                          placeholder="https://..."
                         />
-                        <p className="text-xs text-muted-foreground mt-1">Comma-separated</p>
                       </div>
                     </div>
-
-                    <div>
-                      <Label>Stem (Main Question Text) *</Label>
-                      <Textarea
-                        value={form.stem}
-                        onChange={(e) => setForm({ ...form, stem: e.target.value })}
-                        placeholder="Find the integral of ln(x)/x³ using integration by parts."
-                        rows={3}
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Image URL</Label>
-                      <Input
-                        value={form.imageUrl}
-                        onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                        placeholder="https://example.com/image.png"
-                      />
-                    </div>
                   </div>
 
-                  {/* Steps Editor */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold">Steps ({form.steps.length})</h3>
-                      <Button onClick={handleAddStep} size="sm">
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Step
+                  {/* Section: Steps */}
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                      <h3 className="text-lg font-bold text-white/90 flex items-center gap-2">
+                        <div className="w-1 h-5 bg-secondary rounded-full"></div>
+                        Steps ({form.steps.length})
+                      </h3>
+                      <Button
+                        onClick={handleAddStep}
+                        size="sm"
+                        className="bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                      >
+                        <Plus className="w-4 h-4 mr-2" /> Add Step
                       </Button>
                     </div>
 
-                    {form.steps.map((step, index) => (
-                      <Card key={index} className="border-l-4 border-l-primary">
-                        <CardContent className="pt-4 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium">Step {index + 1}</h4>
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleMoveStepUp(index)}
-                                disabled={index === 0}
-                              >
-                                <ArrowUp className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleMoveStepDown(index)}
-                                disabled={index === form.steps.length - 1}
-                              >
-                                <ArrowDown className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteStep(index)}
-                                disabled={form.steps.length <= 1}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                    <div className="space-y-6">
+                      {form.steps.map((step, index) => (
+                        <div key={index} className="bg-white/5 border border-white/10 rounded-2xl p-6 relative group">
+                          <div className="absolute top-4 right-4 flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepUp(index)} disabled={index === 0}><ArrowUp className="w-4 h-4" /></Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepDown(index)} disabled={index === form.steps.length - 1}><ArrowDown className="w-4 h-4" /></Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:bg-red-500/20" onClick={() => handleDeleteStep(index)} disabled={form.steps.length <= 1}><Trash2 className="w-4 h-4" /></Button>
+                          </div>
+
+                          <div className="mb-4">
+                            <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0 mb-2">STEP {index + 1}</Badge>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-4">
+                            <div>
+                              <label className={labelStyle}>Step Title</label>
+                              <Input
+                                value={step.title}
+                                onChange={e => updateStepField(index, 'title', e.target.value)}
+                                className={glassInput}
+                              />
                             </div>
-                          </div>
+                            <div>
+                              <label className={labelStyle}>Prompt</label>
+                              <Textarea
+                                value={step.prompt}
+                                onChange={e => updateStepField(index, 'prompt', e.target.value)}
+                                className={`${glassInput} min-h-[80px]`}
+                              />
+                            </div>
 
-                          <div>
-                            <Label>Step Title *</Label>
-                            <Input
-                              value={step.title}
-                              onChange={(e) => updateStepField(index, 'title', e.target.value)}
-                              placeholder="Choose u and dv"
-                            />
-                          </div>
+                            <div className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-xl border border-white/5">
+                              {[0, 1, 2, 3].map((optIdx) => (
+                                <div key={optIdx}>
+                                  <label className="text-xs text-white/50 mb-1 block uppercase tracking-wider">Option {String.fromCharCode(65 + optIdx)}</label>
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step.correctAnswer === optIdx ? 'bg-green-500 text-black' : 'bg-white/10 text-white/50'}`}>
+                                      {String.fromCharCode(65 + optIdx)}
+                                    </div>
+                                    <Input
+                                      value={step.options[optIdx]}
+                                      onChange={e => updateStepOption(index, optIdx, e.target.value)}
+                                      className={`${glassInput} h-9 text-sm`}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
 
-                          <div>
-                            <Label>Prompt (Sub-question) *</Label>
-                            <Textarea
-                              value={step.prompt}
-                              onChange={(e) => updateStepField(index, 'prompt', e.target.value)}
-                              placeholder="In integration by parts (∫u dv = uv - ∫v du), which should be u?"
-                              rows={2}
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2">
-                            {[0, 1, 2, 3].map((optIdx) => (
-                              <div key={optIdx}>
-                                <Label>Option {String.fromCharCode(65 + optIdx)} *</Label>
-                                <Input
-                                  value={step.options[optIdx]}
-                                  onChange={(e) => updateStepOption(index, optIdx, e.target.value)}
-                                  placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
-                                />
+                            <div className="grid grid-cols-3 gap-4">
+                              <div>
+                                <label className={labelStyle}>Correct Answer</label>
+                                <Select value={step.correctAnswer.toString()} onValueChange={(v) => updateStepField(index, 'correctAnswer', parseInt(v))}>
+                                  <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                                  <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                    <SelectItem value="0">Option A</SelectItem>
+                                    <SelectItem value="1">Option B</SelectItem>
+                                    <SelectItem value="2">Option C</SelectItem>
+                                    <SelectItem value="3">Option D</SelectItem>
+                                  </SelectContent>
+                                </Select>
                               </div>
-                            ))}
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-2">
-                            <div>
-                              <Label>Correct Answer *</Label>
-                              <Select
-                                value={step.correctAnswer.toString()}
-                                onValueChange={(val) => updateStepField(index, 'correctAnswer', parseInt(val))}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="0">A</SelectItem>
-                                  <SelectItem value="1">B</SelectItem>
-                                  <SelectItem value="2">C</SelectItem>
-                                  <SelectItem value="3">D</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              <div>
+                                <label className={labelStyle}>Marks</label>
+                                <Input type="number" value={step.marks} onChange={e => updateStepField(index, 'marks', parseInt(e.target.value) || 1)} className={glassInput} />
+                              </div>
+                              <div>
+                                <label className={labelStyle}>Time (s)</label>
+                                <Input type="number" value={step.timeLimitSeconds ?? ''} onChange={e => updateStepField(index, 'timeLimitSeconds', e.target.value ? parseInt(e.target.value) : null)} className={glassInput} placeholder="30" />
+                              </div>
                             </div>
 
                             <div>
-                              <Label>Marks *</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={step.marks}
-                                onChange={(e) => updateStepField(index, 'marks', parseInt(e.target.value) || 1)}
-                              />
-                            </div>
-
-                            <div>
-                              <Label>Time Limit (s)</Label>
-                              <Input
-                                type="number"
-                                min={0}
-                                value={step.timeLimitSeconds ?? ''}
-                                onChange={(e) => updateStepField(index, 'timeLimitSeconds', e.target.value ? parseInt(e.target.value) : null)}
-                                placeholder="30"
+                              <label className={labelStyle}>Explanation</label>
+                              <Textarea
+                                value={step.explanation}
+                                onChange={e => updateStepField(index, 'explanation', e.target.value)}
+                                className={`${glassInput} h-20 text-sm`}
+                                placeholder="Explain why the answer is correct..."
                               />
                             </div>
                           </div>
-
-                          <div>
-                            <Label>Explanation *</Label>
-                            <Textarea
-                              value={step.explanation}
-                              onChange={(e) => updateStepField(index, 'explanation', e.target.value)}
-                              placeholder="Why this answer is correct..."
-                              rows={2}
-                            />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 pt-4 border-t">
-                    <Button onClick={handleSave} disabled={saving} className="flex-1">
-                      {saving ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        'Save Question'
-                      )}
-                    </Button>
-
-                    {mode === 'editing' && (
-                      <Button onClick={handleDelete} variant="destructive">
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </Button>
-                    )}
-                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
