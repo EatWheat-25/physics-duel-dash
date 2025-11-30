@@ -210,7 +210,13 @@ export const OnlineBattle = () => {
 
   // 1. Auth & User Info
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (error) {
+        console.error('[Battle] Auth error:', error);
+        toast.error('Authentication error');
+        return;
+      }
+      console.log('[Battle] Current user:', data.user?.id);
       setCurrentUser(data.user?.id || null);
     });
   }, []);
@@ -220,16 +226,25 @@ export const OnlineBattle = () => {
     if (!matchId) return;
 
     const fetchMatch = async () => {
+      console.log('[Battle] Fetching match:', matchId);
       const { data, error } = await supabase
         .from('matches')
         .select('*')
         .eq('id', matchId)
         .maybeSingle();
 
+      if (error) {
+        console.error('[Battle] Error fetching match:', error);
+        toast.error(`Failed to load match: ${error.message}`);
+        return;
+      }
+
       if (data) {
+        console.log('[Battle] Match loaded:', data);
         setMatch(data as Match);
-      } else if (error) {
-        toast.error('Failed to load match');
+      } else {
+        console.error('[Battle] Match not found:', matchId);
+        toast.error('Match not found');
       }
     };
 

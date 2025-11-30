@@ -67,7 +67,7 @@ export function useMatchmaking() {
 
         toast.success('Match found! Starting battle...');
         
-        navigate(`/battle/${match.id}`, {
+        navigate(`/online-battle/${match.id}`, {
           state: { match },
         });
       } else {
