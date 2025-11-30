@@ -198,11 +198,19 @@ async function startRound(game: GameState) {
     console.error(`[${matchId}] ❌ Failed to fetch from questions_v2:`, fetchError)
 
     // Fallback: Try to get ANY question
-    const { data: fallback, error: fallbackError } = await supabase
+    let fallbackQuery = supabase
       .from('questions_v2')
       .select('*')
-      .not('id', 'in', `(${usedIds.length > 0 ? usedIds.join(',') : '00000000-0000-0000-0000-000000000000'})`)
       .limit(10)
+
+    if (usedIds.length > 0) {
+      // Use proper PostgREST syntax for NOT IN with a list of UUIDs
+      // Format: (uuid1,uuid2,uuid3)
+      const notInString = `(${usedIds.join(',')})`
+      fallbackQuery = fallbackQuery.not('id', 'in', notInString)
+    }
+
+    const { data: fallback, error: fallbackError } = await fallbackQuery
 
     if (fallbackError || !fallback || fallback.length === 0) {
       console.error(`[${matchId}] ❌ No questions available in questions_v2:`, fallbackError)
