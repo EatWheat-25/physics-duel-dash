@@ -8,6 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Index from "./pages/Index";
 import Home from "./routes/Home";
 import Lobby from "./routes/Lobby";
+import LobbyNew from "./pages/LobbyNew";
 import DailyChallenge from "./routes/DailyChallenge";
 import Study from "./routes/Study";
 import BattleQueue from "./routes/BattleQueue";
@@ -29,6 +30,7 @@ import Onboarding from "./pages/Onboarding";
 import AdminQuestions from "./pages/AdminQuestions";
 import AdminLogin from "./pages/AdminLogin";
 import OnlineBattlePage from "./pages/OnlineBattlePage";
+import OnlineBattleNew from "./pages/OnlineBattleNew";
 import DebugQuestions from "./pages/DebugQuestions";
 import Practice from "./pages/Practice";
 import MatchSandbox from "./pages/MatchSandbox";
@@ -56,6 +58,7 @@ const App = () => {
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/" element={<Home />} />
                 <Route path="/lobby" element={<Lobby />} />
+                <Route path="/matchmaking-new" element={<LobbyNew />} />
                 <Route path="/daily-challenge" element={<DailyChallenge />} />
                 <Route path="/study" element={<Study />} />
                 <Route path="/practice" element={<Practice />} />
@@ -82,6 +85,7 @@ const App = () => {
                 <Route path="/battle-simple/:matchId" element={<BattleSimple />} />
                 <Route path="/battle" element={<BattleLoader />} />
                 <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} />
+                <Route path="/online-battle-new/:matchId" element={<OnlineBattleNew />} />
                 <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => { }} onGoBack={() => window.location.href = '/'} />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
