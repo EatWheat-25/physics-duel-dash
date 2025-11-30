@@ -20,12 +20,88 @@
 -- QUESTIONS TABLE
 -- ========================================
 
+-- Handle existing table with different column names
+DO $$
+BEGIN
+  -- If table exists but doesn't have 'text' column, add it
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'questions'
+  ) THEN
+    -- Add 'text' column if it doesn't exist (map from question_text or title if they exist)
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'questions' 
+      AND column_name = 'text'
+    ) THEN
+      -- Check if question_text exists and use it, otherwise use title, otherwise add empty
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'questions' 
+        AND column_name = 'question_text'
+      ) THEN
+        ALTER TABLE public.questions ADD COLUMN text TEXT;
+        UPDATE public.questions SET text = question_text WHERE text IS NULL;
+        ALTER TABLE public.questions ALTER COLUMN text SET NOT NULL;
+      ELSIF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'questions' 
+        AND column_name = 'title'
+      ) THEN
+        ALTER TABLE public.questions ADD COLUMN text TEXT;
+        UPDATE public.questions SET text = title WHERE text IS NULL;
+        ALTER TABLE public.questions ALTER COLUMN text SET NOT NULL;
+      ELSE
+        ALTER TABLE public.questions ADD COLUMN text TEXT NOT NULL DEFAULT '';
+      END IF;
+    END IF;
+    
+    -- Ensure steps column exists
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'questions' 
+      AND column_name = 'steps'
+    ) THEN
+      ALTER TABLE public.questions ADD COLUMN steps JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+    
+    -- Ensure created_at exists
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'questions' 
+      AND column_name = 'created_at'
+    ) THEN
+      ALTER TABLE public.questions ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+    END IF;
+  END IF;
+END $$;
+
+-- Create table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.questions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   text TEXT NOT NULL,
   steps JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Ensure text column exists (in case table was created without it)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'questions' 
+    AND column_name = 'text'
+  ) THEN
+    ALTER TABLE public.questions ADD COLUMN text TEXT NOT NULL DEFAULT '';
+  END IF;
+END $$;
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS "Anyone can view questions" ON public.questions;
