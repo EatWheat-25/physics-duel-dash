@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
@@ -10,18 +10,33 @@ import type { MatchRow } from '@/types/schema'
  * Simplified OnlineBattle component
  * 
  * Uses the new clean pipeline:
- * 1. Fetch match from URL param
- * 2. Use useGame hook to connect and get question
- * 3. Display question or loading/error state
+ * 1. Use match from navigation state if available (faster)
+ * 2. Otherwise fetch match from URL param
+ * 3. Use useGame hook to connect and get question
+ * 4. Display question or loading/error state
  */
 export const OnlineBattle = () => {
   const { matchId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [match, setMatch] = useState<MatchRow | null>(null)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
 
-  // Fetch match from database
+  // Try to use match from navigation state first (faster, no DB query)
   useEffect(() => {
+    const stateMatch = location.state?.match as MatchRow | undefined
+    if (stateMatch && stateMatch.id === matchId) {
+      console.log('[Battle] ✅ Using match from navigation state:', stateMatch.id)
+      setMatch(stateMatch)
+      return
+    }
+  }, [location.state, matchId])
+
+  // Fetch match from database if not in state
+  useEffect(() => {
+    // If we already have match from state, skip fetching
+    if (match) return
+
     if (!matchId) {
       toast.error('No match ID provided')
       navigate('/')
@@ -38,88 +53,115 @@ export const OnlineBattle = () => {
         return
       }
 
-      console.log('[Battle] Fetching match:', matchId, 'for user:', user.id)
+      console.log('[Battle] Fetching match from DB:', matchId, 'for user:', user.id)
 
-      // Add small delay to ensure match is committed to DB
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Retry logic with increasing delays
+      let retries = 3
+      let delay = 1000 // Start with 1 second
 
-      const { data, error } = await supabase
-        .from('matches')
-        .select('*')
-        .eq('id', matchId)
-        .maybeSingle()
-
-      if (error) {
-        console.error('[Battle] Error fetching match:', error)
-        console.error('[Battle] Error details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        })
-        toast.error(`Failed to load match: ${error.message || 'Unknown error'}`)
-        navigate('/')
-        return
-      }
-
-      if (!data) {
-        console.error('[Battle] Match not found:', matchId)
-        console.log('[Battle] Checking if match exists with different query...')
-        
-        // Try alternative query to diagnose
-        const { data: allMatches, error: checkError } = await supabase
+      while (retries > 0) {
+        const { data, error } = await supabase
           .from('matches')
-          .select('id, player1_id, player2_id, status')
-          .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
-          .order('created_at', { ascending: false })
-          .limit(5)
-        
-        if (!checkError && allMatches) {
-          console.log('[Battle] User has these matches:', allMatches)
-          const foundMatch = allMatches.find(m => m.id === matchId)
-          if (foundMatch) {
-            console.log('[Battle] Match found in user matches but not by direct query - RLS issue?')
+          .select('*')
+          .eq('id', matchId)
+          .maybeSingle()
+
+        if (error) {
+          console.error('[Battle] Error fetching match (attempt):', error)
+          console.error('[Battle] Error details:', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          })
+          
+          // If RLS error, retry
+          if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('RLS')) {
+            retries--
+            if (retries > 0) {
+              console.log(`[Battle] RLS error, retrying in ${delay}ms... (${retries} retries left)`)
+              await new Promise(resolve => setTimeout(resolve, delay))
+              delay *= 2
+              continue
+            }
           }
+          
+          toast.error(`Failed to load match: ${error.message || 'Unknown error'}`)
+          navigate('/')
+          return
         }
-        
-        toast.error('Match not found. It may have been deleted or you may not have access.')
-        navigate('/')
-        return
-      }
 
-      // Verify structure
-      if (!data.player1_id || !data.player2_id) {
-        console.error('[Battle] Match has wrong structure:', data)
-        toast.error('Invalid match structure')
-        navigate('/')
-        return
-      }
+        if (!data) {
+          retries--
+          if (retries > 0) {
+            console.log(`[Battle] Match not found, retrying in ${delay}ms... (${retries} retries left)`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+            delay *= 2
+            continue
+          }
+          
+          console.error('[Battle] Match not found after retries:', matchId)
+          console.log('[Battle] Checking if match exists with different query...')
+          
+          // Try alternative query to diagnose
+          const { data: allMatches, error: checkError } = await supabase
+            .from('matches')
+            .select('id, player1_id, player2_id, status')
+            .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+            .order('created_at', { ascending: false })
+            .limit(5)
+          
+          if (!checkError && allMatches) {
+            console.log('[Battle] User has these matches:', allMatches)
+            const foundMatch = allMatches.find(m => m.id === matchId)
+            if (foundMatch) {
+              console.log('[Battle] Match found in user matches but not by direct query - RLS issue?')
+              // Use the found match
+              setMatch(foundMatch as MatchRow)
+              return
+            }
+          }
+          
+          toast.error('Match not found. It may have been deleted or you may not have access.')
+          navigate('/')
+          return
+        }
 
-      // Verify user is part of match
-      if (data.player1_id !== user.id && data.player2_id !== user.id) {
-        console.error('[Battle] User not part of match:', {
-          userId: user.id,
+        // Verify structure
+        if (!data.player1_id || !data.player2_id) {
+          console.error('[Battle] Match has wrong structure:', data)
+          toast.error('Invalid match structure')
+          navigate('/')
+          return
+        }
+
+        // Verify user is part of match
+        if (data.player1_id !== user.id && data.player2_id !== user.id) {
+          console.error('[Battle] User not part of match:', {
+            userId: user.id,
+            player1_id: data.player1_id,
+            player2_id: data.player2_id
+          })
+          toast.error('You are not part of this match')
+          navigate('/')
+          return
+        }
+
+        console.log('[Battle] ✅ Match loaded successfully:', {
+          id: data.id,
           player1_id: data.player1_id,
-          player2_id: data.player2_id
+          player2_id: data.player2_id,
+          status: data.status,
+          isPlayer1: data.player1_id === user.id
         })
-        toast.error('You are not part of this match')
-        navigate('/')
-        return
+
+        setMatch(data as MatchRow)
+        return // Success, exit retry loop
       }
-
-      console.log('[Battle] ✅ Match loaded successfully:', {
-        id: data.id,
-        player1_id: data.player1_id,
-        player2_id: data.player2_id,
-        status: data.status,
-        isPlayer1: data.player1_id === user.id
-      })
-
-      setMatch(data as MatchRow)
     }
 
     fetchMatch()
-  }, [matchId, navigate])
+  }, [matchId, navigate, match])
 
   // Get current user
   useEffect(() => {
