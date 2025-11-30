@@ -212,21 +212,53 @@ async function startRound(game: GameState) {
     selectedQuestion = questions[0]
   }
 
-  // 4. Format question to match Question type from schema.ts
-  const question: Question = {
-    id: selectedQuestion.id,
-    text: selectedQuestion.text,
-    steps: selectedQuestion.steps,
-    created_at: selectedQuestion.created_at
+  // 4. Transform simple question format to StepBasedQuestion format that client expects
+  // Our simple format: { id, text, steps: { type, options, answer } }
+  // Client expects: { id, title, subject, chapter, level, difficulty, stem, totalMarks, topicTags, steps: [...] }
+  const simpleSteps = selectedQuestion.steps
+  if (!simpleSteps || typeof simpleSteps !== 'object') {
+    console.error(`[${matchId}] ❌ Invalid steps format`)
+    const errorMsg: GameErrorEvent = {
+      type: 'GAME_ERROR',
+      message: 'Invalid question format'
+    }
+    game.p1Socket?.send(JSON.stringify(errorMsg))
+    game.p2Socket?.send(JSON.stringify(errorMsg))
+    return
   }
 
-  console.log(`[${matchId}] ✅ Question loaded:`, {
-    id: question.id,
-    text: question.text.substring(0, 50) + '...'
+  // Transform simple step to StepBasedQuestion format
+  const transformedQuestion = {
+    id: selectedQuestion.id,
+    title: selectedQuestion.text, // Use text as title
+    subject: 'physics' as const, // Default to physics
+    chapter: 'general',
+    level: 'A2' as const,
+    difficulty: 'medium' as const,
+    stem: selectedQuestion.text, // Use text as stem
+    totalMarks: 1,
+    topicTags: [] as string[],
+    steps: [{
+      id: `${selectedQuestion.id}-step-0`,
+      index: 0,
+      type: 'mcq' as const,
+      title: 'Select the correct answer',
+      prompt: selectedQuestion.text,
+      options: simpleSteps.options || [],
+      correctAnswer: simpleSteps.answer ?? 0,
+      marks: 1
+    }],
+    imageUrl: undefined
+  }
+
+  console.log(`[${matchId}] ✅ Question loaded and transformed:`, {
+    id: transformedQuestion.id,
+    title: transformedQuestion.title.substring(0, 50) + '...',
+    stepsCount: transformedQuestion.steps.length
   })
 
-  game.currentQuestionId = question.id
-  game.currentQuestion = question
+  game.currentQuestionId = transformedQuestion.id
+  game.currentQuestion = transformedQuestion
   game.currentPhase = 'thinking'
   game.currentStepIndex = 0
   game.p1Answer = null
@@ -238,14 +270,19 @@ async function startRound(game: GameState) {
   const thinkingEndsAt = new Date(Date.now() + WORKING_TIME_MS)
   game.thinkingDeadline = thinkingEndsAt.getTime()
 
-  // 5. Send ROUND_START event with Question payload
-  const roundStartMsg: RoundStartEvent = {
+  // 5. Send ROUND_START event with transformed question
+  const roundStartMsg = {
     type: 'ROUND_START',
     match_id: matchId,
-    question: question
+    matchId: matchId,
+    roundId: `${matchId}-round-${game.currentRound}`, // Generate roundId
+    roundIndex: game.currentRound,
+    phase: 'thinking',
+    thinkingEndsAt: thinkingEndsAt.toISOString(),
+    question: transformedQuestion
   }
 
-  console.log(`[${matchId}] Emitting ROUND_START`)
+  console.log(`[${matchId}] Emitting ROUND_START for round ${game.currentRound}`)
   game.p1Socket?.send(JSON.stringify(roundStartMsg))
   game.p2Socket?.send(JSON.stringify(roundStartMsg))
 }
@@ -265,22 +302,6 @@ async function transitionToChoosing(game: GameState) {
   const choosingEndsAt = new Date(Date.now() + OPTIONS_TIME_MS)
   game.choosingDeadline = choosingEndsAt.getTime()
   game.thinkingDeadline = null
-
-  // Update DB
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
-
-  await supabase
-    .from('match_questions')
-    .update({
-      phase: 'choosing',
-      choosing_started_at: new Date().toISOString(),
-      choosing_ends_at: choosingEndsAt.toISOString()
-    })
-    .eq('match_id', matchId)
-    .eq('question_id', game.currentQuestionId)
 
   // Extract all options from current step
   const currentStep = game.currentQuestion.steps?.[game.currentStepIndex]
@@ -322,18 +343,6 @@ async function transitionToResult(game: GameState) {
   game.currentPhase = 'result'
   game.choosingDeadline = null
 
-  // Update DB
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
-
-  await supabase
-    .from('match_questions')
-    .update({ phase: 'result' })
-    .eq('match_id', matchId)
-    .eq('question_id', game.currentQuestionId)
-
   // Get correct answer from current step
   const steps = game.currentQuestion?.steps
   if (!Array.isArray(steps) || steps.length === 0) {
@@ -373,23 +382,16 @@ async function transitionToResult(game: GameState) {
   game.p2Score += p2Marks
 
   // Get match data for player IDs
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+
   const { data: match } = await supabase
     .from('matches')
     .select('player1_id, player2_id')
     .eq('id', matchId)
     .single()
-
-  // Update DB with results
-  await supabase
-    .from('match_questions')
-    .update({
-      p1_answer: game.p1Answer,
-      p2_answer: game.p2Answer,
-      p1_correct: p1IsCorrect,
-      p2_correct: p2IsCorrect
-    })
-    .eq('match_id', matchId)
-    .eq('question_id', game.currentQuestionId)
 
   // Calculate tug-of-war
   const tugOfWar = game.p1Score - game.p2Score

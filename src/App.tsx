@@ -37,6 +37,7 @@ import { DevDatabaseTest } from "./pages/DevDatabaseTest";
 import { DevMapperTest } from "./pages/DevMapperTest";
 import MatchmakingTest from "./pages/MatchmakingTest";
 import BattleSimple from "./pages/BattleSimple";
+import SupabaseDebug from "./pages/SupabaseDebug";
 import { getRandomQuestions } from "./data/questions";
 
 const queryClient = new QueryClient();
@@ -76,6 +77,7 @@ const App = () => {
                 <Route path="/dev/contract-test" element={<DevContractTest />} />
                 <Route path="/dev/db-test" element={<DevDatabaseTest />} />
                 <Route path="/dev/mapper-test" element={<DevMapperTest />} />
+                <Route path="/supabase-debug" element={<SupabaseDebug />} />
                 <Route path="/matchmaking-test" element={<MatchmakingTest />} />
                 <Route path="/battle-simple/:matchId" element={<BattleSimple />} />
                 <Route path="/battle" element={<BattleLoader />} />

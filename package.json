@@ -10,7 +10,13 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed:questions": "tsx scripts/seed-questions.ts",
-    "seed:test-v2": "tsx scripts/seed-test-question-v2.ts"
+    "seed:test-v2": "tsx scripts/seed-test-question-v2.ts",
+    "db:matches": "tsx scripts/query-supabase.ts matches",
+    "db:queue": "tsx scripts/query-supabase.ts queue",
+    "db:questions": "tsx scripts/query-supabase.ts questions",
+    "db:check": "tsx scripts/query-supabase.ts check",
+    "db:match": "tsx scripts/query-supabase.ts match",
+    "debug:connection": "tsx scripts/debug-connection.ts"
   },
   "dependencies": {
     "@fontsource/orbitron": "^5.2.8",
