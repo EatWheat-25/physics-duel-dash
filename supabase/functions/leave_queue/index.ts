@@ -33,9 +33,9 @@ Deno.serve(async (req) => {
 
     // Delete from queue
     const { error: deleteError } = await supabase
-      .from('matchmaking_queue')
+      .from('queue')
       .delete()
-      .eq('user_id', user.id)
+      .eq('player_id', user.id)
 
     if (deleteError) {
       console.error('Leave queue error:', deleteError)

@@ -97,12 +97,12 @@ Deno.serve(async (req) => {
 
     // Try to find an opponent waiting in queue
     const { data: waitingPlayers } = await supabase
-      .from('matchmaking_queue')
+      .from('queue')
       .select('*')
       .eq('subject', subject)
-      .eq('mode', chapter)
-      .neq('user_id', user.id)
-      .order('created_at', { ascending: true })
+      .eq('chapter', chapter)
+      .neq('player_id', user.id)
+      .order('enqueued_at', { ascending: true })
       .limit(1)
 
     if (waitingPlayers && waitingPlayers.length > 0) {
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
       const { data: opponentPlayer } = await supabase
         .from('players')
         .select('display_name')
-        .eq('id', opponent.user_id)
+        .eq('id', opponent.player_id)
         .maybeSingle()
 
       // Create the match
@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
         .from('matches_new')
         .insert({
           p1: user.id,
-          p2: opponent.user_id,
+          p2: opponent.player_id,
           subject,
           chapter,
           state: 'active'
@@ -133,9 +133,9 @@ Deno.serve(async (req) => {
       } else {
         // Remove both players from queue
         await supabase
-          .from('matchmaking_queue')
+          .from('queue')
           .delete()
-          .in('user_id', [user.id, opponent.user_id])
+          .in('player_id', [user.id, opponent.player_id])
 
         console.log(`Instant match created: ${newMatch.id}`)
 
@@ -153,40 +153,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { data: queueData, error: queueError } = await supabase
-      .from('matchmaking_queue')
-      .insert({
-        user_id: user.id,
-        subject,
-        mode: chapter,
-        rank_tier: null,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
-
-    console.log('ENQUEUE DB INSERT RESULT', { data: queueData, error: queueError })
+    const { error: queueError } = await supabase.from('queue').upsert({
+      player_id: user.id,
+      subject,
+      chapter,
+      mmr,
+      region: region || null,
+      last_heartbeat: new Date().toISOString(),
+    })
 
     if (queueError) {
       console.error('Queue error:', queueError)
-      return new Response(JSON.stringify({
-        ok: false,
-        stage: 'insert',
-        error: 'Failed to join queue',
-        details: queueError.message
-      }), {
+      return new Response(JSON.stringify({ error: 'Failed to join queue', details: queueError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    console.log(`Player ${user.id} added to matchmaking_queue, waiting for opponent`)
+    console.log(`Player ${user.id} added to queue, waiting for opponent`)
 
     return new Response(JSON.stringify({
-      ok: true,
       success: true,
       matched: false,
-      queueRow: queueData,
       mmr
     }), {
       status: 200,

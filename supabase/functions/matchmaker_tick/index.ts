@@ -37,12 +37,12 @@ Deno.serve(async (req) => {
     console.log('🔄 Running matchmaker tick...')
 
     const { data: queueEntries, error: queueError } = await supabase
-      .from('matchmaking_queue')
+      .from('queue')
       .select('*')
-      .order('created_at', { ascending: true })
+      .order('enqueued_at', { ascending: true })
 
     if (queueError || !queueEntries || queueEntries.length === 0) {
-      console.log('No players in matchmaking_queue or error:', queueError)
+      console.log('No players in queue or error:', queueError)
       return new Response(JSON.stringify({ matched: 0, message: 'No players in queue' }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -55,20 +55,20 @@ Deno.serve(async (req) => {
     const processedPlayers = new Set<string>()
 
     for (const player of queueEntries) {
-      if (processedPlayers.has(player.user_id)) {
+      if (processedPlayers.has(player.player_id)) {
         continue
       }
 
-      const waitSeconds = Math.floor((Date.now() - new Date(player.created_at).getTime()) / 1000)
+      const waitSeconds = Math.floor((Date.now() - new Date(player.enqueued_at).getTime()) / 1000)
 
-      console.log(`⏳ Trying to match player ${player.user_id} (mode: ${player.mode}, waited: ${waitSeconds}s)`)
+      console.log(`⏳ Trying to match player ${player.player_id} (MMR: ${player.mmr}, waited: ${waitSeconds}s)`)
 
       const { data: matchResult, error: matchError } = await supabase
         .rpc('try_match_player_enhanced', {
-          p_player_id: player.user_id,
+          p_player_id: player.player_id,
           p_subject: player.subject,
-          p_chapter: player.mode,
-          p_mmr: 1000,
+          p_chapter: player.chapter,
+          p_mmr: player.mmr,
           p_wait_seconds: waitSeconds,
         })
         .maybeSingle() as { data: MatchResult | null, error: any }
@@ -80,23 +80,23 @@ Deno.serve(async (req) => {
 
       if (matchResult && matchResult.matched && matchResult.opponent_id) {
         console.log(`✅ Match created: ${matchResult.match_id}`)
-        console.log(`   Player 1: ${player.user_id}`)
+        console.log(`   Player 1: ${player.player_id} (MMR: ${player.mmr})`)
         console.log(`   Player 2: ${matchResult.opponent_id}`)
         console.log(`   Quality: ${matchResult.match_quality}/100`)
 
-        processedPlayers.add(player.user_id)
+        processedPlayers.add(player.player_id)
         processedPlayers.add(matchResult.opponent_id)
         matchesMade++
 
         await supabase.from('player_activity').upsert([
-          { player_id: player.user_id, last_seen: new Date().toISOString() },
+          { player_id: player.player_id, last_seen: new Date().toISOString() },
           { player_id: matchResult.opponent_id, last_seen: new Date().toISOString() }
         ], {
           onConflict: 'player_id',
           ignoreDuplicates: false
         })
       } else {
-        console.log(`⏸️  No suitable match found for player ${player.user_id}`)
+        console.log(`⏸️  No suitable match found for player ${player.player_id}`)
       }
     }
 

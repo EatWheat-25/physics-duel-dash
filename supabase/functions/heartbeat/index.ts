@@ -31,9 +31,9 @@ Deno.serve(async (req) => {
 
     // Update heartbeat timestamp
     const { error: updateError } = await supabase
-      .from('matchmaking_queue')
+      .from('queue')
       .update({ last_heartbeat: new Date().toISOString() })
-      .eq('user_id', user.id)
+      .eq('player_id', user.id)
 
     if (updateError) {
       console.error('Heartbeat error:', updateError)
