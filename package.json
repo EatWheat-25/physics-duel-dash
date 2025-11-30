@@ -16,6 +16,7 @@
     "db:questions": "tsx scripts/query-supabase.ts questions",
     "db:check": "tsx scripts/query-supabase.ts check",
     "db:match": "tsx scripts/query-supabase.ts match",
+    "check:match": "tsx scripts/check-match.ts",
     "debug:connection": "tsx scripts/debug-connection.ts"
   },
   "dependencies": {

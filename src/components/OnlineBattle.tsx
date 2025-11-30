@@ -227,6 +227,8 @@ export const OnlineBattle = () => {
 
     const fetchMatch = async () => {
       console.log('[Battle] Fetching match:', matchId);
+      
+      // Try matches table first (new schema)
       const { data, error } = await supabase
         .from('matches')
         .select('*')
@@ -235,16 +237,45 @@ export const OnlineBattle = () => {
 
       if (error) {
         console.error('[Battle] Error fetching match:', error);
-        toast.error(`Failed to load match: ${error.message}`);
+        console.error('[Battle] Error code:', error.code);
+        console.error('[Battle] Error details:', error.details);
+        
+        // Check if table doesn't exist
+        if (error.code === '42P01' || error.message.includes('does not exist')) {
+          toast.error('Database migration not applied. Run: supabase db push');
+        } else {
+          toast.error(`Failed to load match: ${error.message}`);
+        }
         return;
       }
 
       if (data) {
         console.log('[Battle] Match loaded:', data);
+        
+        // Verify structure
+        if (!data.player1_id || !data.player2_id) {
+          console.error('[Battle] Match has wrong structure - missing player1_id or player2_id');
+          toast.error('Match structure error. Migration needed.');
+          return;
+        }
+        
         setMatch(data as Match);
       } else {
-        console.error('[Battle] Match not found:', matchId);
-        toast.error('Match not found');
+        console.error('[Battle] Match not found in matches table:', matchId);
+        
+        // Fallback: Check matches_new (old table) for debugging
+        const { data: oldMatch } = await supabase
+          .from('matches_new')
+          .select('*')
+          .eq('id', matchId)
+          .maybeSingle();
+        
+        if (oldMatch) {
+          console.warn('[Battle] Match found in matches_new (old table)');
+          toast.error('Match in old table. Migration needed: supabase db push');
+        } else {
+          toast.error('Match not found. Check if matchmaking completed.');
+        }
       }
     };
 
