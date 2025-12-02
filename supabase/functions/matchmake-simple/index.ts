@@ -38,7 +38,15 @@ Deno.serve(async (req) => {
     }
 
     // Read subject and level from request body
-    const { subject = 'maths', level = 'a2' } = (await req.json().catch(() => ({}))) as {
+    let requestBody = {}
+    try {
+      requestBody = await req.json()
+      console.log(`[MATCHMAKER] Request body:`, requestBody)
+    } catch (e) {
+      console.warn(`[MATCHMAKER] Failed to parse request body:`, e)
+    }
+    
+    const { subject = 'maths', level = 'a2' } = requestBody as {
       subject?: string
       level?: string
     }
@@ -75,19 +83,35 @@ Deno.serve(async (req) => {
         })
 
       if (queueError) {
-        console.error(`[MATCHMAKER] Error adding to queue:`, queueError)
-        return new Response(JSON.stringify({ error: 'Failed to join queue' }), {
+        console.error(`[MATCHMAKER] Error adding to queue:`, {
+          code: queueError.code,
+          message: queueError.message,
+          details: queueError.details,
+          hint: queueError.hint,
+          fullError: queueError
+        })
+        return new Response(JSON.stringify({ 
+          error: 'Failed to join queue',
+          details: queueError.message,
+          hint: queueError.hint || 'Make sure database migrations have been applied (subject/level columns)'
+        }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
     } else {
       // Update subject/level if player is already in queue (in case they changed selection)
-      await supabase
+      const { error: updateError } = await supabase
         .from('matchmaking_queue')
         .update({ subject, level })
         .eq('player_id', user.id)
-      console.log(`[MATCHMAKER] Player ${user.id} already in queue, updated subject/level`)
+      
+      if (updateError) {
+        console.error(`[MATCHMAKER] Error updating queue entry:`, updateError)
+        // Continue anyway - the player is already in queue
+      } else {
+        console.log(`[MATCHMAKER] Player ${user.id} already in queue, updated subject/level`)
+      }
     }
 
     console.log(`[MM] Queued player ${user.id}`)

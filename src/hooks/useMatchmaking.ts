@@ -138,7 +138,21 @@ export function useMatchmaking() {
       });
 
       if (error) {
-        throw error;
+        // If error is an object with message/details, extract them
+        const errorMessage = error.message || error.details || JSON.stringify(error);
+        const errorObj = new Error(errorMessage);
+        (errorObj as any).details = error.details;
+        (errorObj as any).hint = error.hint;
+        throw errorObj;
+      }
+      
+      // Check if data contains an error field (edge function returned error in 200 response)
+      if (data && typeof data === 'object' && 'error' in data) {
+        const errorMessage = data.error || 'Failed to start matchmaking';
+        const errorObj = new Error(errorMessage);
+        (errorObj as any).details = data.details;
+        (errorObj as any).hint = data.hint;
+        throw errorObj;
       }
 
       console.log('[MATCHMAKING] Response:', data);
@@ -182,12 +196,15 @@ export function useMatchmaking() {
 
     } catch (error: any) {
       console.error('[MATCHMAKING] Failed:', error);
+      const errorMessage = error?.message || error?.details || 'Failed to start matchmaking';
+      const errorHint = error?.hint || '';
+      console.error('[MATCHMAKING] Error details:', { message: errorMessage, hint: errorHint, fullError: error });
       setState(prev => ({
         ...prev,
         status: 'idle',
-        error: error.message || 'Failed to start matchmaking',
+        error: errorMessage,
       }));
-      toast.error('Failed to start matchmaking. Please try again.');
+      toast.error(`Failed to start matchmaking. ${errorHint ? errorHint : 'Please try again.'}`);
       
       // Clear polling on error
       if (pollIntervalRef.current) {
