@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { supabase } from '@/integrations/supabase/client'
+import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import type { Question, GameEvent } from '@/types/schema'
@@ -30,7 +30,8 @@ export default function BattleSimple() {
           return
         }
 
-        const wsUrl = `${import.meta.env.VITE_SUPABASE_URL?.replace('http', 'ws')}/functions/v1/game-ws-simple?token=${session.access_token}&match_id=${matchId}`
+        // Use the unified SUPABASE_URL constant
+        const wsUrl = `${SUPABASE_URL.replace('http', 'ws')}/functions/v1/game-ws-simple?token=${session.access_token}&match_id=${matchId}`
 
         console.log('[BATTLE] Connecting to WebSocket:', wsUrl)
 

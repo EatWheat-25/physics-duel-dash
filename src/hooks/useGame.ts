@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from '@/integrations/supabase/client'
+import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
 import type { MatchRow, Question, RoundStartEvent, GameErrorEvent } from '@/types/schema'
 
 interface GameState {
@@ -70,9 +70,9 @@ export function useGame(match: MatchRow | null) {
           return
         }
 
-        // Build WebSocket URL
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-        if (!supabaseUrl) {
+        // Build WebSocket URL - use the exported SUPABASE_URL constant
+        if (!SUPABASE_URL) {
+          console.error('[useGame] ❌ SUPABASE_URL is not defined. Check src/integrations/supabase/client.ts');
           setState(prev => ({
             ...prev,
             gameStatus: 'error',
@@ -80,6 +80,8 @@ export function useGame(match: MatchRow | null) {
           }))
           return
         }
+
+        const supabaseUrl = SUPABASE_URL
 
         const wsUrl = `${supabaseUrl.replace('http', 'ws')}/functions/v1/game-ws?token=${session.access_token}&match_id=${match.id}`
         console.log('[useGame] Connecting to:', wsUrl)

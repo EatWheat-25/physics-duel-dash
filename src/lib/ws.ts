@@ -1,5 +1,6 @@
 // Import 3-phase event types from gameEvents
 import type { RoundStartEvent, PhaseChangeEvent, RoundResultEvent, MatchEndEvent } from '@/types/gameEvents';
+import { SUPABASE_URL } from '@/integrations/supabase/client';
 
 export interface GameStartEvent {
   type: 'game_start';
@@ -168,7 +169,8 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
     onClose,
   } = options;
 
-  const supabaseUrl = 'https://qvunaswogfwhixecjpcn.supabase.co';
+  // Use the unified SUPABASE_URL constant
+  const supabaseUrl = SUPABASE_URL;
   const wsUrl = supabaseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
   const fullUrl = `${wsUrl}/functions/v1/game-ws?token=${encodeURIComponent(token)}&match_id=${encodeURIComponent(matchId)}`;
 

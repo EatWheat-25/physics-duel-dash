@@ -20,6 +20,7 @@ export function useMatchmaking() {
 
   const isSearchingRef = useRef(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const matchmakingStartTimeRef = useRef<Date | null>(null);
 
   // Poll for matches when in searching state
   useEffect(() => {
@@ -56,7 +57,21 @@ export function useMatchmaking() {
 
         if (matches && matches.length > 0) {
           const match = matches[0] as MatchRow;
-          console.log(`[MATCHMAKING] ✅ Poll detected match! Match ID: ${match.id}, navigating...`);
+          
+          // Only navigate if match was created after we started searching
+          if (matchmakingStartTimeRef.current) {
+            const matchCreatedAt = new Date(match.created_at);
+            if (matchCreatedAt < matchmakingStartTimeRef.current) {
+              console.log('[MATCHMAKING] Poll: Found old match, ignoring...', {
+                matchId: match.id,
+                matchCreatedAt,
+                startedSearchingAt: matchmakingStartTimeRef.current,
+              });
+              return;
+            }
+          }
+          
+          console.log(`[MATCHMAKING] ✅ Poll detected fresh match, navigating...`, match.id);
           
           // Clear polling
           if (pollIntervalRef.current) {
@@ -153,12 +168,14 @@ export function useMatchmaking() {
       } else if (data?.matched === false && data?.queued === true) {
         // Queued - enter searching state and start polling
         console.log('[MATCHMAKING] Entering searching state, will poll for match...');
+        matchmakingStartTimeRef.current = new Date();
         setState(prev => ({ ...prev, status: 'searching', error: null }));
         toast.info('Searching for opponent...');
         // Polling effect will handle match detection
       } else {
         // Unexpected response - treat as queued
         console.warn('[MATCHMAKING] Unexpected response format, treating as queued:', data);
+        matchmakingStartTimeRef.current = new Date();
         setState(prev => ({ ...prev, status: 'searching', error: null }));
         toast.info('Searching for opponent...');
       }
@@ -177,6 +194,8 @@ export function useMatchmaking() {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
+      // Reset matchmaking start time on error
+      matchmakingStartTimeRef.current = null;
     } finally {
       isSearchingRef.current = false;
     }
@@ -211,6 +230,7 @@ export function useMatchmaking() {
       error: null,
     });
     isSearchingRef.current = false;
+    matchmakingStartTimeRef.current = null;
   }, []);
 
   return {
