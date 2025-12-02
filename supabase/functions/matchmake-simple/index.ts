@@ -38,19 +38,22 @@ Deno.serve(async (req) => {
     }
 
     // Read subject and level from request body
-    let requestBody = {}
-    try {
-      requestBody = await req.json()
-      console.log(`[MATCHMAKER] Request body:`, requestBody)
-    } catch (e) {
-      console.warn(`[MATCHMAKER] Failed to parse request body:`, e)
-    }
-    
-    const { subject = 'math', level = 'A2' } = requestBody as {
+    const body = (await req.json().catch(() => ({}))) as {
       subject?: string
       level?: string
     }
 
+    let subject = body.subject ?? 'math'
+    let level = body.level ?? 'A2'
+
+    // Normalize subject: 'maths' → 'math'
+    if (subject === 'maths') subject = 'math'
+
+    // Normalize level: ensure uppercase 'A1' or 'A2'
+    if (level.toLowerCase() === 'a1') level = 'A1'
+    if (level.toLowerCase() === 'a2') level = 'A2'
+
+    console.log(`[MM] Normalized subject/level:`, subject, level)
     console.log(`[MATCHMAKER] Player ${user.id} requesting match (subject: ${subject}, level: ${level})`)
 
     // Use service role for database operations

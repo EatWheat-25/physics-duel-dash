@@ -64,13 +64,19 @@ export default function LobbyNew() {
   const handleStartQueue = async () => {
     if (!selectedSubject || !selectedGrade || status === 'searching') return;
     
-    // Pass subject and level directly without normalization
-    // subject: 'math', 'physics', or 'chemistry' (matches DB constraint)
-    // level: 'A1' or 'A2' (matches DB constraint, uppercase)
-    await startMatchmaking(
-      selectedSubject,
-      selectedGrade === 'Both' ? 'A2' : selectedGrade
-    );
+    // Normalize values as safety net (authoritative normalization is in matchmake-simple)
+    let subject = selectedSubject;
+    let level = selectedGrade;
+    
+    // Normalize subject: 'maths' → 'math'
+    if (subject === 'maths') subject = 'math';
+    
+    // Normalize level: ensure uppercase 'A1' or 'A2'
+    if (level === 'Both') level = 'A2';
+    if (level.toLowerCase() === 'a1') level = 'A1';
+    if (level.toLowerCase() === 'a2') level = 'A2';
+    
+    await startMatchmaking(subject, level);
   };
 
   const handleLeaveQueue = async () => {
