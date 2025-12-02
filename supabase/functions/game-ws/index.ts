@@ -135,16 +135,18 @@ async function handleJoinMatch(
     return
   }
 
-  console.log(`[${matchId}] No existing round, selecting question`)
+  console.log(`[${matchId}] No existing round, selecting question (subject: ${match.subject}, level: ${match.mode})`)
   const { data: randomQuestion, error: randomError } = await supabase
     .from('questions')
     .select('*')
+    .eq('subject', match.subject)
+    .eq('level', match.mode)
     .order('random()')
     .limit(1)
     .maybeSingle()
 
   if (randomError || !randomQuestion) {
-    console.warn(`[${matchId}] ⚠️ Could not fetch random question, using fallback`)
+    console.error(`[${matchId}] ⚠️ No question found for subject=${match.subject}, level=${match.mode}. Using fallback.`)
     sendRoundStart(FALLBACK_QUESTION)
     return
   }

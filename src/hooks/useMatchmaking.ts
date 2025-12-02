@@ -110,7 +110,7 @@ export function useMatchmaking() {
     };
   }, [state.status, navigate]);
 
-  const startMatchmaking = useCallback(async () => {
+  const startMatchmaking = useCallback(async (subject: string, level: string) => {
     if (isSearchingRef.current) {
       console.log('[MATCHMAKING] Already searching, ignoring duplicate call');
       return;
@@ -130,11 +130,11 @@ export function useMatchmaking() {
         throw new Error('No authenticated user');
       }
 
-      console.log(`[MATCHMAKING] Starting matchmaking for user ${user.id}`);
+      console.log(`[MATCHMAKING] Starting matchmaking for user ${user.id} (subject: ${subject}, level: ${level})`);
 
-      // Call matchmaker edge function
+      // Call matchmaker edge function with subject and level
       const { data, error } = await supabase.functions.invoke('matchmake-simple', {
-        body: {},
+        body: { subject, level },
       });
 
       if (error) {

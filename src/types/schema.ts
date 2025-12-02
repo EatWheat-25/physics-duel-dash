@@ -9,6 +9,8 @@
 export interface Question {
   id: string
   text: string
+  subject?: string // 'maths' | 'physics' | 'chemistry'
+  level?: string // 'a1' | 'a2'
   steps: QuestionSteps // JSONB in database
   created_at: string
 }
@@ -25,6 +27,8 @@ export interface MatchmakingQueueRow {
   id: string
   player_id: string
   status: 'waiting' | 'matched'
+  subject?: string // 'maths' | 'physics' | 'chemistry'
+  level?: string // 'a1' | 'a2'
   created_at: string
 }
 
@@ -34,6 +38,8 @@ export interface MatchRow {
   player1_id: string
   player2_id: string
   status: 'pending' | 'active' | 'finished'
+  subject?: string // 'maths' | 'physics' | 'chemistry'
+  mode?: string // 'a1' | 'a2' (level)
   created_at: string
 }
 

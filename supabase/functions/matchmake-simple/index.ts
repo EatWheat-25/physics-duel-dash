@@ -37,7 +37,13 @@ Deno.serve(async (req) => {
       })
     }
 
-    console.log(`[MATCHMAKER] Player ${user.id} requesting match`)
+    // Read subject and level from request body
+    const { subject = 'maths', level = 'a2' } = (await req.json().catch(() => ({}))) as {
+      subject?: string
+      level?: string
+    }
+
+    console.log(`[MATCHMAKER] Player ${user.id} requesting match (subject: ${subject}, level: ${level})`)
 
     // Use service role for database operations
     const supabase = createClient(
@@ -61,6 +67,8 @@ Deno.serve(async (req) => {
         .upsert({
           player_id: user.id,
           status: 'waiting',
+          subject,
+          level,
           created_at: new Date().toISOString()
         }, {
           onConflict: 'player_id'
@@ -74,18 +82,25 @@ Deno.serve(async (req) => {
         })
       }
     } else {
-      console.log(`[MATCHMAKER] Player ${user.id} already in queue, preserving original timestamp`)
+      // Update subject/level if player is already in queue (in case they changed selection)
+      await supabase
+        .from('matchmaking_queue')
+        .update({ subject, level })
+        .eq('player_id', user.id)
+      console.log(`[MATCHMAKER] Player ${user.id} already in queue, updated subject/level`)
     }
 
     console.log(`[MM] Queued player ${user.id}`)
 
     // Step 2: Find and atomically claim an opponent
-    // Strategy: Find the earliest waiting opponent, then atomically update their status
+    // Strategy: Find the earliest waiting opponent with same subject/level, then atomically update their status
     // This prevents both players from creating matches with each other
     const { data: waitingPlayers, error: searchError } = await supabase
       .from('matchmaking_queue')
       .select('*')
       .eq('status', 'waiting')
+      .eq('subject', subject)
+      .eq('level', level)
       .neq('player_id', user.id)
       .order('created_at', { ascending: true })
       .limit(1)
@@ -182,6 +197,8 @@ Deno.serve(async (req) => {
       .insert({
         player1_id: player1Id,
         player2_id: player2Id,
+        subject,
+        mode: level,
         status: 'pending'
         // created_at has DEFAULT now(), so we don't need to specify it
       })
