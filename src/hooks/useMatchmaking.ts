@@ -35,7 +35,10 @@ export function useMatchmaking() {
     const checkForMatch = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          console.log('[MATCHMAKING] Poll: No user, skipping check');
+          return;
+        }
 
         // Check if user has a match in matches table
         const { data: matches, error } = await supabase
@@ -47,13 +50,13 @@ export function useMatchmaking() {
           .limit(1);
 
         if (error) {
-          console.error('[MATCHMAKING] Error checking for match:', error);
+          console.error('[MATCHMAKING] Poll: Error checking for match:', error);
           return;
         }
 
         if (matches && matches.length > 0) {
           const match = matches[0] as MatchRow;
-          console.log(`[MATCHMAKING] ✅ Match found via polling! Match ID: ${match.id}`);
+          console.log(`[MATCHMAKING] ✅ Poll detected match! Match ID: ${match.id}, navigating...`);
           
           // Clear polling
           if (pollIntervalRef.current) {
@@ -72,9 +75,11 @@ export function useMatchmaking() {
           navigate(`/online-battle/${match.id}`, {
             state: { match },
           });
+        } else {
+          console.log('[MATCHMAKING] Poll: No match found yet, continuing to wait...');
         }
       } catch (error) {
-        console.error('[MATCHMAKING] Error in polling:', error);
+        console.error('[MATCHMAKING] Poll: Error in polling:', error);
       }
     };
 
@@ -102,7 +107,6 @@ export function useMatchmaking() {
     }
 
     isSearchingRef.current = true;
-    setState(prev => ({ ...prev, status: 'searching', error: null }));
 
     try {
       // Get current user
@@ -124,10 +128,10 @@ export function useMatchmaking() {
 
       console.log('[MATCHMAKING] Response:', data);
 
-      // If matched, update state and navigate
+      // If matched immediately, navigate right away
       if (data?.matched && data?.match) {
         const match = data.match as MatchRow;
-        console.log(`[MATCHMAKING] ✅ Matched! Match ID: ${match.id}`);
+        console.log(`[MATCHMAKING] ✅ Instant match! Match ID: ${match.id}`);
         
         // Clear polling if it exists
         if (pollIntervalRef.current) {
@@ -146,11 +150,17 @@ export function useMatchmaking() {
         navigate(`/online-battle/${match.id}`, {
           state: { match },
         });
-      } else {
-        // Queued, keep searching state - polling will handle match detection
-        console.log('[MATCHMAKING] Queued, waiting for opponent...');
+      } else if (data?.matched === false && data?.queued === true) {
+        // Queued - enter searching state and start polling
+        console.log('[MATCHMAKING] Entering searching state, will poll for match...');
+        setState(prev => ({ ...prev, status: 'searching', error: null }));
         toast.info('Searching for opponent...');
-        // State remains 'searching', polling effect will check for matches
+        // Polling effect will handle match detection
+      } else {
+        // Unexpected response - treat as queued
+        console.warn('[MATCHMAKING] Unexpected response format, treating as queued:', data);
+        setState(prev => ({ ...prev, status: 'searching', error: null }));
+        toast.info('Searching for opponent...');
       }
 
     } catch (error: any) {
