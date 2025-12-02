@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       console.warn(`[MATCHMAKER] Failed to parse request body:`, e)
     }
     
-    const { subject = 'maths', level = 'a2' } = requestBody as {
+    const { subject = 'math', level = 'A2' } = requestBody as {
       subject?: string
       level?: string
     }

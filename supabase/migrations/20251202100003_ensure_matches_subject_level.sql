@@ -12,3 +12,5 @@ UPDATE public.matches
   SET mode = 'a2'
   WHERE mode IS NULL OR mode = 'general';
 
+
+

@@ -6,3 +6,5 @@ ALTER TABLE public.questions
 CREATE INDEX IF NOT EXISTS idx_questions_subject_level
   ON public.questions(subject, level);
 
+
+

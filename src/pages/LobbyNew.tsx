@@ -64,15 +64,13 @@ export default function LobbyNew() {
   const handleStartQueue = async () => {
     if (!selectedSubject || !selectedGrade || status === 'searching') return;
     
-    // Normalize subject: 'math' → 'maths', keep 'physics'/'chemistry' as-is
-    const normalizedSubject = selectedSubject === 'math' ? 'maths' : selectedSubject;
-    
-    // Normalize level: 'A1' → 'a1', 'A2' → 'a2', 'Both' → default to 'a2'
-    const normalizedLevel = selectedGrade === 'A1' ? 'a1' 
-      : selectedGrade === 'A2' ? 'a2' 
-      : 'a2'; // fallback for 'Both'
-    
-    await startMatchmaking(normalizedSubject, normalizedLevel);
+    // Pass subject and level directly without normalization
+    // subject: 'math', 'physics', or 'chemistry' (matches DB constraint)
+    // level: 'A1' or 'A2' (matches DB constraint, uppercase)
+    await startMatchmaking(
+      selectedSubject,
+      selectedGrade === 'Both' ? 'A2' : selectedGrade
+    );
   };
 
   const handleLeaveQueue = async () => {
