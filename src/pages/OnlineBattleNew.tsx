@@ -218,7 +218,7 @@ export default function OnlineBattleNew() {
           {/* Top: Match info + scores */}
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-600">
             <div>
-              <p className="text-sm text-slate-400">Round {currentRound.roundNumber} / {(match as any)?.max_rounds || 9}</p>
+              <p className="text-sm text-slate-400">Round {currentRound.roundNumber} / {(match as any)?.max_rounds || 3}</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-center">
@@ -298,7 +298,7 @@ export default function OnlineBattleNew() {
               {hasSubmitted ? 'Submitted' : 'Submit answer'}
             </button>
             <p className="text-xs text-center text-slate-400">
-              Target points: {(match as any)?.target_points || 5} | Max rounds: {(match as any)?.max_rounds || 9}
+              Target points: {(match as any)?.target_points || 5} | Max rounds: {(match as any)?.max_rounds || 3}
             </p>
           </div>
         </div>

@@ -226,7 +226,9 @@ Deno.serve(async (req) => {
         player2_id: player2Id,
         subject,
         mode: level,
-        status: 'pending'
+        status: 'pending',
+        max_rounds: 3,  // Set to 3 for testing
+        target_points: 5  // Explicitly set target points
         // created_at has DEFAULT now(), so we don't need to specify it
       })
       .select()
