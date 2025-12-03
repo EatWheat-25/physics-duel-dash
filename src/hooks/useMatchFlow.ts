@@ -58,7 +58,7 @@ export function useMatchFlow(matchId: string | null) {
   const stepTimersRef = useRef<Map<number, number>>(new Map()) // stepIndex -> startTime
   const roundResultTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Fetch match data
+  // Fetch match data (normal polling)
   useEffect(() => {
     if (!matchId) return
 
@@ -71,29 +71,91 @@ export function useMatchFlow(matchId: string | null) {
 
       if (error || !data) {
         console.error('[useMatchFlow] Error fetching match:', error)
-        toast.error('Failed to load match')
         return
       }
 
       const matchData = data as MatchRow
-      
-      // If match is finished in DB but we haven't marked it as finished, update state
-      setState(prev => {
-        const shouldBeFinished = matchData.status === 'finished'
-        return {
-          ...prev,
-          match: matchData,
-          isMatchFinished: prev.isMatchFinished || shouldBeFinished
-        }
-      })
+      const shouldBeFinished = matchData.status === 'finished'
+      setState(prev => ({
+        ...prev,
+        match: matchData,
+        isMatchFinished: prev.isMatchFinished || shouldBeFinished
+      }))
     }
 
     fetchMatch()
     
-    // Periodically check match status as backup (every 5 seconds)
+    // Normal polling every 5 seconds
     const interval = setInterval(fetchMatch, 5000)
     return () => clearInterval(interval)
   }, [matchId])
+
+  // Aggressive polling when waiting for opponent (checks round status)
+  useEffect(() => {
+    if (!matchId || !state.hasSubmitted || !state.currentRound) return
+
+    const checkRoundStatus = async () => {
+      const { data: roundData, error: roundError } = await supabase
+        .from('match_rounds')
+        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number')
+        .eq('id', state.currentRound!.id)
+        .single()
+      
+      if (roundError || !roundData) {
+        return
+      }
+
+      // If round is finished, update state from DB
+      if (roundData.status === 'finished' && roundData.player1_answered_at && roundData.player2_answered_at) {
+        const { data: matchData } = await supabase
+          .from('matches')
+          .select('*')
+          .eq('id', matchId)
+          .single()
+        
+        if (matchData) {
+          const targetPoints = (matchData as any).target_points || 5
+          const maxRounds = (matchData as any).max_rounds || 3
+          const p1Score = (matchData as any).player1_score || 0
+          const p2Score = (matchData as any).player2_score || 0
+          const currentRoundNum = (matchData as any).current_round_number || 0
+          
+          const matchContinues = 
+            p1Score < targetPoints && 
+            p2Score < targetPoints && 
+            currentRoundNum < maxRounds &&
+            matchData.status === 'in_progress'
+          
+          const syntheticResult: RoundResult = {
+            roundWinnerId: roundData.player1_round_score > roundData.player2_round_score 
+              ? (matchData as any).player1_id 
+              : roundData.player2_round_score > roundData.player1_round_score
+              ? (matchData as any).player2_id
+              : null,
+            player1RoundScore: roundData.player1_round_score || 0,
+            player2RoundScore: roundData.player2_round_score || 0,
+            matchContinues,
+            matchWinnerId: !matchContinues ? (matchData as any).winner_id : null
+          }
+          
+          console.log('[useMatchFlow] Polling: Round finished, updating state from DB')
+          setState(prev => ({
+            ...prev,
+            roundResult: syntheticResult,
+            hasSubmitted: false,
+            isMatchFinished: !matchContinues,
+            match: matchData as MatchRow
+          }))
+        }
+      }
+    }
+
+    checkRoundStatus()
+    
+    // Aggressive polling every 2 seconds when waiting
+    const interval = setInterval(checkRoundStatus, 2000)
+    return () => clearInterval(interval)
+  }, [matchId, state.hasSubmitted, state.currentRound])
 
   // Connect to WebSocket
   const connect = useCallback((matchId: string) => {
@@ -403,21 +465,18 @@ export function useMatchFlow(matchId: string | null) {
     }
     
     roundResultTimeoutRef.current = setTimeout(async () => {
-      if (!matchId) return
+      if (!matchId || !state.currentRound) return
       
       console.log('[useMatchFlow] Timeout: Checking if round was evaluated...')
       
-      // Check if round was evaluated by querying match_rounds
+      // Check the specific current round
       const { data: round } = await supabase
         .from('match_rounds')
-        .select('status, player1_answered_at, player2_answered_at, round_number')
-        .eq('match_id', matchId)
-        .eq('status', 'finished')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+        .select('status, player1_answered_at, player2_answered_at, round_number, player1_round_score, player2_round_score')
+        .eq('id', state.currentRound.id)
+        .single()
       
-      if (round && round.player1_answered_at && round.player2_answered_at) {
+      if (round && round.status === 'finished' && round.player1_answered_at && round.player2_answered_at) {
         // Round was evaluated, fetch the match to get updated scores
         const { data: match } = await supabase
           .from('matches')
@@ -426,20 +485,42 @@ export function useMatchFlow(matchId: string | null) {
           .single()
         
         if (match) {
+          const targetPoints = (match as any).target_points || 5
+          const maxRounds = (match as any).max_rounds || 3
+          const p1Score = (match as any).player1_score || 0
+          const p2Score = (match as any).player2_score || 0
+          const currentRoundNum = (match as any).current_round_number || 0
+          
+          const matchContinues = 
+            p1Score < targetPoints && 
+            p2Score < targetPoints && 
+            currentRoundNum < maxRounds &&
+            match.status === 'in_progress'
+          
+          // Create synthetic ROUND_RESULT
+          const syntheticResult: RoundResult = {
+            roundWinnerId: round.player1_round_score > round.player2_round_score 
+              ? (match as any).player1_id 
+              : round.player2_round_score > round.player1_round_score
+              ? (match as any).player2_id
+              : null,
+            player1RoundScore: round.player1_round_score || 0,
+            player2RoundScore: round.player2_round_score || 0,
+            matchContinues,
+            matchWinnerId: !matchContinues ? (match as any).winner_id : null
+          }
+          
           console.log('[useMatchFlow] Timeout: Round was evaluated, updating state from DB')
           setState(prev => ({
             ...prev,
-            match: match as MatchRow,
-            hasSubmitted: false, // Clear hasSubmitted since round is done
-            isMatchFinished: match.status === 'finished' || match.status === 'abandoned'
+            roundResult: syntheticResult,
+            hasSubmitted: false,
+            isMatchFinished: !matchContinues,
+            match: match as MatchRow
           }))
-          
-          // If match is still in progress, we should get a ROUND_START soon
-          // If match is finished, we should get MATCH_FINISHED soon
-          // This is just a fallback to prevent stuck "waiting" state
         }
       }
-    }, 10000) // 10 second timeout
+    }, 5000) // 5 second timeout (reduced from 10)
   }, [state.currentRound, state.currentQuestion, state.playerAnswers, state.responseTimes, state.hasSubmitted, matchId])
 
   return {
