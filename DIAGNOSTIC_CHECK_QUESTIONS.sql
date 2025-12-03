@@ -54,4 +54,3 @@ JOIN questions q ON q.id = mr.question_id
 ORDER BY mr.created_at DESC
 LIMIT 10;
 
-

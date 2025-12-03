@@ -236,4 +236,3 @@ ORDER BY round_number;
 4. Add round timeout auto-evaluation
 5. Polish UI/UX (animations, better feedback, etc.)
 
-
