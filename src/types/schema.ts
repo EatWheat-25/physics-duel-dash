@@ -37,9 +37,18 @@ export interface MatchRow {
   id: string
   player1_id: string
   player2_id: string
-  status: 'pending' | 'active' | 'finished'
+  status: 'pending' | 'in_progress' | 'finished' | 'abandoned'
   subject?: string // 'math' | 'physics' | 'chemistry'
   mode?: string // 'A1' | 'A2' (level)
+  target_points?: number
+  max_rounds?: number
+  player1_score?: number
+  player2_score?: number
+  winner_id?: string | null
+  started_at?: string
+  completed_at?: string
+  current_round_number?: number
+  rules_version?: number
   created_at: string
 }
 
@@ -48,7 +57,15 @@ export interface MatchRoundRow {
   id: string
   match_id: string
   question_id: string
-  status: 'active' | 'finished'
+  round_number?: number
+  status: 'active' | 'evaluating' | 'finished'
+  player1_round_score?: number
+  player2_round_score?: number
+  player1_answered_at?: string | null
+  player2_answered_at?: string | null
+  player1_answer_payload?: any | null
+  player2_answer_payload?: any | null
+  round_deadline?: string | null
   created_at: string
 }
 
