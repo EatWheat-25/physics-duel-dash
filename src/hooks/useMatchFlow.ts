@@ -29,6 +29,10 @@ export type UseMatchFlowState = {
   responseTimes: Map<number, number>
   isConnected: boolean
   hasSubmitted: boolean
+  // Step-by-step state
+  currentStepIndex: number
+  stepTimeLeft: number | null
+  hasAnsweredCurrentStep: boolean
 }
 
 /**
@@ -50,13 +54,20 @@ export function useMatchFlow(matchId: string | null) {
     playerAnswers: new Map(),
     responseTimes: new Map(),
     isConnected: false,
-    hasSubmitted: false
+    hasSubmitted: false,
+    // Step-by-step state
+    currentStepIndex: 0,
+    stepTimeLeft: null,
+    hasAnsweredCurrentStep: false
   })
 
   const wsRef = useRef<WebSocket | null>(null)
   const currentUserIdRef = useRef<string | null>(null)
   const stepTimersRef = useRef<Map<number, number>>(new Map()) // stepIndex -> startTime
   const roundResultTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const stepTimerIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const stepAnswersRef = useRef<Map<number, number>>(new Map()) // Track which steps we've answered
+  const startStepRef = useRef<((stepIndex: number, durationSeconds: number) => void) | null>(null)
 
   // Fetch match data (normal polling)
   useEffect(() => {
@@ -230,6 +241,15 @@ export function useMatchFlow(matchId: string | null) {
                 roundResultTimeoutRef.current = null
               }
               
+              // Clear step timer
+              if (stepTimerIntervalRef.current) {
+                clearInterval(stepTimerIntervalRef.current)
+                stepTimerIntervalRef.current = null
+              }
+              
+              // Clear step answers
+              stepAnswersRef.current.clear()
+              
               try {
                 const question = mapRawToQuestion(message.question)
                 console.log('[useMatchFlow] Mapped question:', question)
@@ -253,8 +273,19 @@ export function useMatchFlow(matchId: string | null) {
                   roundResult: null, // Clear round result when new round starts
                   playerAnswers: new Map(),
                   responseTimes: new Map(),
-                  hasSubmitted: false // IMPORTANT: Clear hasSubmitted on new round
+                  hasSubmitted: false, // IMPORTANT: Clear hasSubmitted on new round
+                  // Reset step state
+                  currentStepIndex: 0,
+                  stepTimeLeft: null,
+                  hasAnsweredCurrentStep: false
                 }))
+                
+                // Start first step after state update
+                setTimeout(() => {
+                  if (startStepRef.current) {
+                    startStepRef.current(0, 15)
+                  }
+                }, 100)
               } catch (error) {
                 console.error('[useMatchFlow] Error mapping question:', error)
                 console.error('[useMatchFlow] Error stack:', error instanceof Error ? error.stack : 'No stack')
@@ -356,6 +387,11 @@ export function useMatchFlow(matchId: string | null) {
         clearTimeout(roundResultTimeoutRef.current)
         roundResultTimeoutRef.current = null
       }
+      // Clear step timer
+      if (stepTimerIntervalRef.current) {
+        clearInterval(stepTimerIntervalRef.current)
+        stepTimerIntervalRef.current = null
+      }
     }
   }, [matchId, connect])
 
@@ -395,6 +431,170 @@ export function useMatchFlow(matchId: string | null) {
       stepTimersRef.current.delete(stepIndex)
     }
   }, [])
+
+  // Start a step with timer
+  const startStep = useCallback((stepIndex: number, durationSeconds: number) => {
+    // Clear any existing timer
+    if (stepTimerIntervalRef.current) {
+      clearInterval(stepTimerIntervalRef.current)
+      stepTimerIntervalRef.current = null
+    }
+
+    setState(prev => ({
+      ...prev,
+      currentStepIndex: stepIndex,
+      stepTimeLeft: durationSeconds,
+      hasAnsweredCurrentStep: false
+    }))
+
+    // Start countdown timer
+    let timeLeft = durationSeconds
+    stepTimerIntervalRef.current = setInterval(() => {
+      timeLeft -= 1
+      setState(prev => {
+        if (timeLeft <= 0) {
+          // Timer expired - submit no answer (wrong)
+          if (stepTimerIntervalRef.current) {
+            clearInterval(stepTimerIntervalRef.current)
+            stepTimerIntervalRef.current = null
+          }
+          
+          // Auto-submit with null answer (will be treated as wrong)
+          const currentStepIndex = prev.currentStepIndex
+          if (!stepAnswersRef.current.has(currentStepIndex)) {
+            // Submit step answer with null (wrong)
+            stepAnswersRef.current.set(currentStepIndex, -1)
+            
+            const payload = {
+              version: 1,
+              steps: [{
+                step_index: currentStepIndex,
+                answer_index: -1,
+                response_time_ms: prev.responseTimes.get(currentStepIndex) || 0
+              }]
+            }
+
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
+              const message = {
+                type: 'SUBMIT_ROUND_ANSWER',
+                matchId,
+                roundId: prev.currentRound.id,
+                payload
+              }
+              console.log('[useMatchFlow] Auto-submitting step answer (timer expired):', message)
+              wsRef.current.send(JSON.stringify(message))
+            }
+            
+            // Advance to next step after delay
+            setTimeout(() => {
+              setState(prev => {
+                if (!prev.currentQuestion) return prev
+                
+                const nextStepIndex = prev.currentStepIndex + 1
+                if (nextStepIndex < prev.currentQuestion.steps.length) {
+                  // Start next step (recursive call)
+                  startStep(nextStepIndex, 15)
+                  return prev
+                } else {
+                  // All steps done - wait for opponent
+                  return {
+                    ...prev,
+                    hasSubmitted: true
+                  }
+                }
+              })
+            }, 500)
+          }
+          
+          return { ...prev, stepTimeLeft: 0 }
+        }
+        return { ...prev, stepTimeLeft: timeLeft }
+      })
+    }, 1000)
+  }, [matchId])
+
+  // Store startStep in ref so it can be called from anywhere
+  useEffect(() => {
+    startStepRef.current = startStep
+  }, [startStep])
+
+  // Submit answer for current step
+  const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number | null) => {
+    if (!matchId || !state.currentRound || !state.currentQuestion) {
+      return
+    }
+
+    // Guard: if already answered this step, return
+    if (stepAnswersRef.current.has(stepIndex)) {
+      return
+    }
+
+    setState(prev => {
+      // Mark as answered
+      stepAnswersRef.current.set(stepIndex, answerIndex ?? -1)
+      
+      // Stop timer
+      if (stepTimerIntervalRef.current) {
+        clearInterval(stepTimerIntervalRef.current)
+        stepTimerIntervalRef.current = null
+      }
+
+      // Build payload with just this step
+      const payload = {
+        version: 1,
+        steps: [{
+          step_index: stepIndex,
+          answer_index: answerIndex ?? -1, // -1 means no answer / wrong
+          response_time_ms: prev.responseTimes.get(stepIndex) || 0
+        }]
+      }
+
+      // Send via existing WebSocket flow
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const message = {
+          type: 'SUBMIT_ROUND_ANSWER',
+          matchId,
+          roundId: prev.currentRound!.id,
+          payload
+        }
+        console.log('[useMatchFlow] Submitting step answer:', message)
+        wsRef.current.send(JSON.stringify(message))
+      }
+
+      // Update state
+      const newAnswers = new Map(prev.playerAnswers)
+      if (answerIndex !== null) {
+        newAnswers.set(stepIndex, answerIndex)
+      }
+
+      return {
+        ...prev,
+        hasAnsweredCurrentStep: true,
+        playerAnswers: newAnswers,
+        stepTimeLeft: null
+      }
+    })
+
+    // After short delay, advance to next step if exists
+    setTimeout(() => {
+      setState(prev => {
+        if (!prev.currentQuestion) return prev
+        
+        const nextStepIndex = prev.currentStepIndex + 1
+        if (nextStepIndex < prev.currentQuestion.steps.length) {
+          // Start next step
+          startStep(nextStepIndex, 15)
+          return prev
+        } else {
+          // All steps done - wait for opponent
+          return {
+            ...prev,
+            hasSubmitted: true // Use existing flag to show "waiting for opponent"
+          }
+        }
+      })
+    }, 500) // 500ms delay before advancing
+  }, [matchId, state.currentRound, state.currentQuestion, startStep])
 
   // Submit round answer
   const submitRoundAnswer = useCallback(() => {
@@ -530,7 +730,10 @@ export function useMatchFlow(matchId: string | null) {
     setAnswer,
     startStepTimer,
     stopStepTimer,
-    submitRoundAnswer
+    submitRoundAnswer,
+    // Step-by-step helpers
+    startStep,
+    submitStepAnswer
   }
 }
 

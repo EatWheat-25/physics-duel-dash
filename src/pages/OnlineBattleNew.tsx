@@ -30,7 +30,12 @@ export default function OnlineBattleNew() {
     isConnected,
     hasSubmitted,
     setAnswer,
-    submitRoundAnswer
+    submitRoundAnswer,
+    // Step-by-step state
+    currentStepIndex,
+    stepTimeLeft,
+    hasAnsweredCurrentStep,
+    submitStepAnswer
   } = useMatchFlow(matchId || null);
 
   // Get current user
@@ -245,125 +250,125 @@ export default function OnlineBattleNew() {
 
   // 6. Active round with question
   if (currentQuestion && currentRound) {
-    const firstStep = currentQuestion.steps && currentQuestion.steps.length > 0 
-      ? currentQuestion.steps[0] 
-      : null;
+    // Check if all steps are done
+    const allStepsDone = currentStepIndex >= (currentQuestion.steps?.length || 0)
     
-    if (!firstStep) {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto" />
-            <h2 className="text-2xl font-bold text-white">Loading question...</h2>
-          </div>
-        </div>
-      );
-    }
-
-    // Debug logging
-    console.log('[OnlineBattleNew] firstStep:', firstStep);
-    console.log('[OnlineBattleNew] firstStep.options:', firstStep.options);
-    console.log('[OnlineBattleNew] options type:', typeof firstStep.options);
-    console.log('[OnlineBattleNew] is array:', Array.isArray(firstStep.options));
-    console.log('[OnlineBattleNew] options length:', firstStep.options?.length);
-
-    const selectedAnswer = playerAnswers.get(firstStep.index ?? 0);
+    // Get current step
+    const currentStep = !allStepsDone && currentQuestion.steps?.[currentStepIndex] 
+      ? currentQuestion.steps[currentStepIndex]
+      : null
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex justify-center pt-10 pb-10 px-4">
-        <div className="w-full max-w-3xl bg-slate-800/90 backdrop-blur-lg rounded-xl p-6 border-2 border-slate-600 text-white">
-          {/* Top: Match info + scores */}
-          <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-600">
-            <div>
-              <p className="text-sm text-slate-400">Round {currentRound.roundNumber} / {(match as any)?.max_rounds || 3}</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-center">
-                <p className="text-xs text-slate-400">You</p>
-                <p className="text-2xl font-bold text-blue-400">{playerScore}</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
+        {/* Main question stem - ALWAYS VISIBLE at top */}
+        <div className="bg-slate-800/90 border-b-2 border-slate-600 p-4 sticky top-0 z-10">
+          <h1 className="text-2xl font-bold text-white">
+            {currentQuestion.stem || currentQuestion.text || 'Question'}
+          </h1>
+        </div>
+
+        <div className="flex-1 flex justify-center pt-10 pb-10 px-4">
+          <div className="w-full max-w-3xl bg-slate-800/90 backdrop-blur-lg rounded-xl p-6 border-2 border-slate-600 text-white">
+            {/* Top: Match info + scores */}
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-600">
+              <div>
+                <p className="text-sm text-slate-400">Round {currentRound.roundNumber} / {(match as any)?.max_rounds || 3}</p>
               </div>
-              <Users className="w-5 h-5 text-slate-400" />
-              <div className="text-center">
-                <p className="text-xs text-slate-400">Opponent</p>
-                <p className="text-2xl font-bold text-white">{opponentScore}</p>
+              <div className="flex items-center gap-4">
+                <div className="text-center">
+                  <p className="text-xs text-slate-400">You</p>
+                  <p className="text-2xl font-bold text-blue-400">{playerScore}</p>
+                </div>
+                <Users className="w-5 h-5 text-slate-400" />
+                <div className="text-center">
+                  <p className="text-xs text-slate-400">Opponent</p>
+                  <p className="text-2xl font-bold text-white">{opponentScore}</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Tug-of-war progress bar */}
-          <TugOfWarBar 
-            playerScore={playerScore} 
-            opponentScore={opponentScore} 
-            targetPoints={(match as any)?.target_points || 5} 
-          />
+            {/* Tug-of-war progress bar */}
+            <TugOfWarBar 
+              playerScore={playerScore} 
+              opponentScore={opponentScore} 
+              targetPoints={(match as any)?.target_points || 5} 
+            />
 
-          {/* Round result banner */}
-          {roundResultBanner}
+            {/* Round result banner */}
+            {roundResultBanner}
 
-          {/* Middle: Question + step prompt */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold mb-4 text-white">
-              {currentQuestion.stem || currentQuestion.text || 'Question'}
-            </h1>
-            {firstStep.prompt && (
-              <p className="text-lg text-slate-200 mb-4">{firstStep.prompt}</p>
+            {/* Step content */}
+            {allStepsDone ? (
+              // All steps done - waiting for opponent
+              <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
+                <Loader2 className="w-16 h-16 animate-spin text-blue-400" />
+                <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
+                <p className="text-slate-300">You've completed all steps. Waiting for your opponent to finish.</p>
+              </div>
+            ) : currentStep ? (
+              // Current step with options
+              <div>
+                {/* Step header with timer */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-white">
+                      {currentStep.title || `Step ${currentStepIndex + 1}`}
+                    </h2>
+                    {stepTimeLeft !== null && (
+                      <div className={`px-4 py-2 rounded-full font-bold text-lg ${
+                        stepTimeLeft <= 5 
+                          ? 'bg-red-500/20 text-red-400 border-2 border-red-400' 
+                          : 'bg-blue-500/20 text-blue-400 border-2 border-blue-400'
+                      }`}>
+                        {stepTimeLeft}s
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-lg text-slate-200">{currentStep.prompt}</p>
+                </div>
+
+                {/* Step options */}
+                {currentStep.options && Array.isArray(currentStep.options) && currentStep.options.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    {currentStep.options.map((optText: string, optIndex: number) => {
+                      if (!optText || optText.trim() === '') {
+                        return null
+                      }
+                      
+                      const isSelected = playerAnswers.get(currentStep.index) === optIndex
+                      return (
+                        <button
+                          key={optIndex}
+                          onClick={() => submitStepAnswer(currentStep.index, optIndex)}
+                          disabled={hasAnsweredCurrentStep}
+                          className={`rounded-lg border-2 px-4 py-3 text-left text-sm transition-all ${
+                            isSelected
+                              ? 'border-blue-400 bg-blue-500/20 text-white'
+                              : 'border-slate-600 bg-slate-700/50 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                          } ${hasAnsweredCurrentStep ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          {optText}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
+                    <p className="text-red-400 text-sm">No options available for this step.</p>
+                  </div>
+                )}
+
+                {/* Step progress indicator */}
+                <div className="text-center text-sm text-slate-400">
+                  Step {currentStepIndex + 1} of {currentQuestion.steps.length}
+                </div>
+              </div>
+            ) : (
+              // No step available
+              <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="w-12 h-12 animate-spin text-blue-400" />
+              </div>
             )}
-          </div>
-
-          {/* Below: 2x2 grid of options */}
-          {firstStep.options && Array.isArray(firstStep.options) && firstStep.options.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {firstStep.options.map((optText: string, optIndex: number) => {
-                // Skip empty options
-                if (!optText || optText.trim() === '') {
-                  return null;
-                }
-                
-                const isSelected = selectedAnswer === optIndex;
-                return (
-                  <button
-                    key={optIndex}
-                    onClick={() => setAnswer(firstStep.index, optIndex)}
-                    disabled={hasSubmitted}
-                    className={`rounded-lg border-2 px-4 py-3 text-left text-sm transition-all ${
-                      isSelected
-                        ? 'border-blue-400 bg-blue-500/20 text-white'
-                        : 'border-slate-600 bg-slate-700/50 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
-                    } ${hasSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    {optText}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
-              <p className="text-red-400 text-sm font-semibold mb-2">⚠️ No options available</p>
-              <p className="text-red-300 text-xs mb-2">Debug info:</p>
-              <pre className="text-xs text-red-200 overflow-auto max-h-40">
-                {JSON.stringify({
-                  hasOptions: !!firstStep.options,
-                  isArray: Array.isArray(firstStep.options),
-                  optionsLength: firstStep.options?.length,
-                  options: firstStep.options,
-                  firstStep: firstStep
-                }, null, 2)}
-              </pre>
-            </div>
-          )}
-
-          {/* Bottom: Submit button + match info */}
-          <div className="space-y-3">
-            <button
-              onClick={submitRoundAnswer}
-              disabled={hasSubmitted || selectedAnswer === undefined}
-              className="w-full px-4 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold transition-colors"
-            >
-              {hasSubmitted ? 'Submitted' : 'Submit answer'}
-            </button>
-            <p className="text-xs text-center text-slate-400">
-              Target points: {(match as any)?.target_points || 5} | Max rounds: {(match as any)?.max_rounds || 3}
-            </p>
           </div>
         </div>
       </div>
