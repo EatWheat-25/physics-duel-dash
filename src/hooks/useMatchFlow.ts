@@ -345,7 +345,12 @@ export function useMatchFlow(matchId: string | null) {
 
         ws.onopen = () => {
           console.log('[useMatchFlow] WebSocket connected')
-          setState(prev => ({ ...prev, isConnected: true }))
+          // Defer state update to avoid React hooks violations
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setState(prev => ({ ...prev, isConnected: true }))
+            }
+          }, 0)
           
           // Send JOIN_MATCH
           ws.send(JSON.stringify({
@@ -355,146 +360,157 @@ export function useMatchFlow(matchId: string | null) {
         }
 
         ws.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data)
-            console.log('[useMatchFlow] Message received:', message.type)
+          // Defer state updates to next tick to avoid React hooks violations
+          setTimeout(() => {
+            if (!isMountedRef.current) return
+            
+            try {
+              const message = JSON.parse(event.data)
+              console.log('[useMatchFlow] Message received:', message.type)
 
-            if (message.type === 'connected') {
-              // Connection confirmed, already sent JOIN_MATCH
-              return
-            }
-
-            if (message.type === 'MATCH_START') {
-              console.log('[useMatchFlow] MATCH_START received')
-              // Match started, round will come next
-            }
-
-            if (message.type === 'ROUND_START') {
-              console.log('[useMatchFlow] ROUND_START received')
-              console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
-              
-              // Clear any existing timeout for round result
-              if (roundResultTimeoutRef.current) {
-                clearTimeout(roundResultTimeoutRef.current)
-                roundResultTimeoutRef.current = null
+              if (message.type === 'connected') {
+                // Connection confirmed, already sent JOIN_MATCH
+                return
               }
-              
-              // Clear step timer
-              if (stepTimerIntervalRef.current) {
-                clearInterval(stepTimerIntervalRef.current)
-                stepTimerIntervalRef.current = null
+
+              if (message.type === 'MATCH_START') {
+                console.log('[useMatchFlow] MATCH_START received')
+                // Match started, round will come next
               }
-              
-              // Clear step answers
-              stepAnswersRef.current.clear()
-              
-              // Reset restored round ref for new round
-              restoredRoundIdRef.current = null
-              currentRoundIdRef.current = message.roundId
-              
-              try {
-                const question = mapRawToQuestion(message.question)
-                console.log('[useMatchFlow] Mapped question:', question)
-                console.log('[useMatchFlow] Steps count:', question.steps.length)
-                if (question.steps.length > 0) {
-                  const firstStep = question.steps[0]
-                  console.log('[useMatchFlow] First step:', firstStep)
-                  console.log('[useMatchFlow] First step options:', firstStep.options)
-                  console.log('[useMatchFlow] Options type:', typeof firstStep.options)
-                  console.log('[useMatchFlow] Is array:', Array.isArray(firstStep.options))
-                  console.log('[useMatchFlow] Options length:', firstStep.options?.length)
-                }
-                setState(prev => ({
-                  ...prev,
-                  currentRound: {
-                    id: message.roundId,
-                    roundNumber: message.roundNumber,
-                    status: 'active'
-                  },
-                  currentQuestion: question,
-                  roundResult: null, // Clear round result when new round starts
-                  playerAnswers: new Map(),
-                  responseTimes: new Map(),
-                  hasSubmitted: false, // IMPORTANT: Clear hasSubmitted on new round
-                  // Reset step state - start with thinking phase
-                  currentStepIndex: -1,
-                  stepTimeLeft: null,
-                  hasAnsweredCurrentStep: false,
-                  thinkingTimeLeft: null,
-                  isThinkingPhase: false
-                }))
+
+              if (message.type === 'ROUND_START') {
+                console.log('[useMatchFlow] ROUND_START received')
+                console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
                 
-                // Start thinking phase after state update
-                setTimeout(() => {
-                  if (startThinkingPhaseRef.current) {
-                    startThinkingPhaseRef.current(60) // 60 seconds for thinking
+                // Clear any existing timeout for round result
+                if (roundResultTimeoutRef.current) {
+                  clearTimeout(roundResultTimeoutRef.current)
+                  roundResultTimeoutRef.current = null
+                }
+                
+                // Clear step timer
+                if (stepTimerIntervalRef.current) {
+                  clearInterval(stepTimerIntervalRef.current)
+                  stepTimerIntervalRef.current = null
+                }
+                
+                // Clear step answers
+                stepAnswersRef.current.clear()
+                
+                // Reset restored round ref for new round
+                restoredRoundIdRef.current = null
+                currentRoundIdRef.current = message.roundId
+                
+                try {
+                  const question = mapRawToQuestion(message.question)
+                  console.log('[useMatchFlow] Mapped question:', question)
+                  console.log('[useMatchFlow] Steps count:', question.steps.length)
+                  if (question.steps.length > 0) {
+                    const firstStep = question.steps[0]
+                    console.log('[useMatchFlow] First step:', firstStep)
+                    console.log('[useMatchFlow] First step options:', firstStep.options)
+                    console.log('[useMatchFlow] Options type:', typeof firstStep.options)
+                    console.log('[useMatchFlow] Is array:', Array.isArray(firstStep.options))
+                    console.log('[useMatchFlow] Options length:', firstStep.options?.length)
                   }
-                }, 100)
-              } catch (error) {
-                console.error('[useMatchFlow] Error mapping question:', error)
-                console.error('[useMatchFlow] Error stack:', error instanceof Error ? error.stack : 'No stack')
-                toast.error('Failed to load question')
+                  if (isMountedRef.current) {
+                    setState(prev => ({
+                      ...prev,
+                      currentRound: {
+                        id: message.roundId,
+                        roundNumber: message.roundNumber,
+                        status: 'active'
+                      },
+                      currentQuestion: question,
+                      roundResult: null, // Clear round result when new round starts
+                      playerAnswers: new Map(),
+                      responseTimes: new Map(),
+                      hasSubmitted: false, // IMPORTANT: Clear hasSubmitted on new round
+                      // Reset step state - start with thinking phase
+                      currentStepIndex: -1,
+                      stepTimeLeft: null,
+                      hasAnsweredCurrentStep: false,
+                      thinkingTimeLeft: null,
+                      isThinkingPhase: false
+                    }))
+                    
+                    // Start thinking phase after state update
+                    setTimeout(() => {
+                      if (startThinkingPhaseRef.current && isMountedRef.current) {
+                        startThinkingPhaseRef.current(60) // 60 seconds for thinking
+                      }
+                    }, 100)
+                  }
+                } catch (error) {
+                  console.error('[useMatchFlow] Error mapping question:', error)
+                  console.error('[useMatchFlow] Error stack:', error instanceof Error ? error.stack : 'No stack')
+                  toast.error('Failed to load question')
+                }
               }
-            }
 
-            if (message.type === 'ROUND_RESULT') {
-              console.log('[useMatchFlow] ROUND_RESULT received')
-              const roundResult: RoundResult = {
-                roundWinnerId: message.roundWinnerId,
-                player1RoundScore: message.player1RoundScore,
-                player2RoundScore: message.player2RoundScore,
-                matchContinues: message.matchContinues,
-                matchWinnerId: message.matchWinnerId
+              if (message.type === 'ROUND_RESULT') {
+                console.log('[useMatchFlow] ROUND_RESULT received')
+                const roundResult: RoundResult = {
+                  roundWinnerId: message.roundWinnerId,
+                  player1RoundScore: message.player1RoundScore,
+                  player2RoundScore: message.player2RoundScore,
+                  matchContinues: message.matchContinues,
+                  matchWinnerId: message.matchWinnerId
+                }
+                
+                // If match doesn't continue, mark as finished immediately (don't wait for MATCH_FINISHED)
+                const isFinished = !message.matchContinues || message.matchWinnerId !== null
+                
+                // Clear timeout since we got the result
+                if (roundResultTimeoutRef.current) {
+                  clearTimeout(roundResultTimeoutRef.current)
+                  roundResultTimeoutRef.current = null
+                }
+                
+                // Update match scores by accumulating round scores (no DB refetch needed)
+                if (isMountedRef.current) {
+                  setState(prev => ({
+                    ...prev,
+                    roundResult,
+                    hasSubmitted: false, // Clear hasSubmitted when result arrives
+                    isMatchFinished: isFinished, // Set immediately if match ended
+                    match: prev.match ? {
+                      ...prev.match,
+                      player1_score: ((prev.match as any).player1_score || 0) + message.player1RoundScore,
+                      player2_score: ((prev.match as any).player2_score || 0) + message.player2RoundScore,
+                      current_round_number: message.roundNumber,
+                      status: isFinished ? 'finished' : prev.match.status,
+                      winner_id: message.matchWinnerId || prev.match.winner_id
+                    } : null
+                  }))
+                }
               }
-              
-              // If match doesn't continue, mark as finished immediately (don't wait for MATCH_FINISHED)
-              const isFinished = !message.matchContinues || message.matchWinnerId !== null
-              
-              // Clear timeout since we got the result
-              if (roundResultTimeoutRef.current) {
-                clearTimeout(roundResultTimeoutRef.current)
-                roundResultTimeoutRef.current = null
+
+              if (message.type === 'MATCH_FINISHED') {
+                console.log('[useMatchFlow] MATCH_FINISHED received')
+                if (isMountedRef.current) {
+                  setState(prev => ({
+                    ...prev,
+                    isMatchFinished: true,
+                    match: prev.match ? {
+                      ...prev.match,
+                      status: 'finished',
+                      winner_id: message.winnerId,
+                      player1_score: message.player1FinalScore,
+                      player2_score: message.player2FinalScore
+                    } : null
+                  }))
+                }
               }
-              
-              // Update match scores by accumulating round scores (no DB refetch needed)
-              setState(prev => ({
-                ...prev,
-                roundResult,
-                hasSubmitted: false, // Clear hasSubmitted when result arrives
-                isMatchFinished: isFinished, // Set immediately if match ended
-                match: prev.match ? {
-                  ...prev.match,
-                  player1_score: ((prev.match as any).player1_score || 0) + message.player1RoundScore,
-                  player2_score: ((prev.match as any).player2_score || 0) + message.player2RoundScore,
-                  current_round_number: message.roundNumber,
-                  status: isFinished ? 'finished' : prev.match.status,
-                  winner_id: message.matchWinnerId || prev.match.winner_id
-                } : null
-              }))
-            }
 
-            if (message.type === 'MATCH_FINISHED') {
-              console.log('[useMatchFlow] MATCH_FINISHED received')
-              setState(prev => ({
-                ...prev,
-                isMatchFinished: true,
-                match: prev.match ? {
-                  ...prev.match,
-                  status: 'finished',
-                  winner_id: message.winnerId,
-                  player1_score: message.player1FinalScore,
-                  player2_score: message.player2FinalScore
-                } : null
-              }))
+              if (message.type === 'GAME_ERROR') {
+                console.error('[useMatchFlow] GAME_ERROR:', message.message)
+                toast.error(message.message || 'Game error occurred')
+              }
+            } catch (error) {
+              console.error('[useMatchFlow] Error parsing message:', error)
             }
-
-            if (message.type === 'GAME_ERROR') {
-              console.error('[useMatchFlow] GAME_ERROR:', message.message)
-              toast.error(message.message || 'Game error occurred')
-            }
-          } catch (error) {
-            console.error('[useMatchFlow] Error parsing message:', error)
-          }
+          }, 0)
         }
 
         ws.onerror = (error) => {
@@ -504,7 +520,12 @@ export function useMatchFlow(matchId: string | null) {
 
         ws.onclose = () => {
           console.log('[useMatchFlow] WebSocket closed')
-          setState(prev => ({ ...prev, isConnected: false }))
+          // Defer state update to avoid React hooks violations
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setState(prev => ({ ...prev, isConnected: false }))
+            }
+          }, 0)
         }
       } catch (error: any) {
         console.error('[useMatchFlow] Connection error:', error)
