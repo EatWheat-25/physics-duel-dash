@@ -87,7 +87,7 @@ export function useMatchmaking() {
 
           toast.success('Match found! Starting battle...');
           
-          navigate(`/online-battle/${match.id}`, {
+          navigate(`/online-battle-new/${match.id}`, {
             state: { match },
           });
         } else {
@@ -176,7 +176,7 @@ export function useMatchmaking() {
 
         toast.success('Match found! Starting battle...');
         
-        navigate(`/online-battle/${match.id}`, {
+        navigate(`/online-battle-new/${match.id}`, {
           state: { match },
         });
       } else if (data?.matched === false && data?.queued === true) {
