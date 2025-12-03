@@ -17,57 +17,67 @@ type DbQuestion = {
   id: string
   subject: string
   level: string
-  rank_tier: string | null
   question_text: string | null
   text: string | null
-  image_url: string | null
+  title: string | null
   steps: any
-  total_marks: number | null
-  working_time_seconds: number | null
-  title?: string | null
-  chapter?: string | null
-  difficulty?: string | null
-  topic_tags?: any
 }
 
-// StepBasedQuestion format (matches frontend questionMapper expectations)
+type StepOption = {
+  answer_index: number
+  text: string
+}
+
+type Step = {
+  step_index: number
+  prompt: string
+  options: StepOption[]
+  // keep extras for later scoring/explanations if you want
+  marks?: number
+  explanation?: string
+  correct_answer_index?: number | null
+}
+
 type StepBasedQuestion = {
   id: string
   subject: string
   level: string
-  rankTier: string | null
   text: string
-  imageUrl: string | null
-  totalMarks: number
-  workingTimeSeconds: number | null
-  steps: any
-  title?: string
-  chapter?: string
-  difficulty?: string
-  stem?: string
-  topicTags?: any
+  version: 1
+  steps: Step[]
 }
 
 /**
  * Map database question row to StepBasedQuestion format
- * This matches what the frontend questionMapper expects
+ * This matches what the frontend expects
  */
-function mapDbQuestionToStepBased(q: DbQuestion): StepBasedQuestion {
+function mapDbQuestionToStepBased(row: DbQuestion): StepBasedQuestion {
+  const rawSteps = (row.steps ?? []) as any[]
+
+  const steps: Step[] = rawSteps.map((step, index) => {
+    const opts = (step.options ?? []) as string[]
+
+    return {
+      step_index: index,
+      prompt: step.question ?? row.question_text ?? row.text ?? row.title ?? '',
+      options: opts.map((optText, i) => ({
+        answer_index: i,
+        text: optText,
+      })),
+      marks: step.marks ?? 1,
+      explanation: step.explanation ?? null,
+      correct_answer_index:
+        typeof step.correctAnswer === 'number' ? step.correctAnswer : null,
+    }
+  })
+
   return {
-    id: q.id,
-    subject: q.subject,
-    level: q.level,
-    rankTier: q.rank_tier,
-    text: q.question_text ?? q.text ?? '',
-    stem: q.question_text ?? q.text ?? '',
-    imageUrl: q.image_url,
-    totalMarks: q.total_marks ?? 1,
-    workingTimeSeconds: q.working_time_seconds,
-    steps: q.steps ?? [],
-    title: q.title ?? undefined,
-    chapter: q.chapter ?? undefined,
-    difficulty: q.difficulty ?? undefined,
-    topicTags: q.topic_tags ?? undefined,
+    id: row.id,
+    subject: row.subject,
+    level: row.level,
+    text: row.question_text ?? row.text ?? row.title ?? '',
+    version: 1,
+    steps,
   }
 }
 

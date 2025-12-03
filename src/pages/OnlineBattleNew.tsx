@@ -212,12 +212,10 @@ export default function OnlineBattleNew() {
     );
   }
 
-  // Get the first step (for now assume single-step or show first step)
-  const step = currentQuestion.steps && currentQuestion.steps.length > 0 
-    ? currentQuestion.steps[currentStepIndex] || currentQuestion.steps[0]
-    : null;
+  // Get the first step
+  const firstStep = currentQuestion?.steps?.[0];
 
-  if (!step) {
+  if (!firstStep) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -228,16 +226,11 @@ export default function OnlineBattleNew() {
     );
   }
 
-  const handleOptionClick = (stepIndex: number, answerIndex: number) => {
-    if (hasSubmitted) return;
-    setAnswer(stepIndex, answerIndex);
-  };
-
   const handleSubmit = () => {
     submitRoundAnswer();
   };
 
-  const selectedAnswer = playerAnswers.get(step.index ?? step.step_index ?? 0);
+  const selectedAnswer = playerAnswers.get(firstStep.step_index ?? 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#14002e] to-[#3b0099] flex justify-center pt-10">
@@ -255,23 +248,24 @@ export default function OnlineBattleNew() {
           {currentQuestion.text || currentQuestion.stem || 'Question'}
         </h1>
 
-        {step && step.options && (
-          <div className="space-y-3 mb-6">
-            {step.options.map((opt: any, idx: number) => {
-              const isSelected = selectedAnswer === idx;
-              const optionText = typeof opt === 'string' ? opt : (opt?.text ?? String(opt));
+        {firstStep.prompt && (
+          <p className="text-lg text-purple-100 mb-6">{firstStep.prompt}</p>
+        )}
+
+        {firstStep && firstStep.options && (
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            {firstStep.options.map((opt: any) => {
+              const isSelected = selectedAnswer === opt.answer_index;
               return (
                 <button
-                  key={idx}
-                  onClick={() => handleOptionClick(step.index ?? step.step_index ?? 0, idx)}
+                  key={opt.answer_index}
+                  onClick={() => setAnswer(firstStep.step_index, opt.answer_index)}
                   disabled={hasSubmitted}
-                  className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
-                    isSelected 
-                      ? 'bg-white/10 border-white' 
-                      : 'bg-white/5 border-white/20 hover:bg-white/10'
+                  className={`rounded-2xl border border-purple-400/40 bg-purple-900/40 px-4 py-3 text-left text-sm text-purple-50 hover:bg-purple-700/50 transition-all ${
+                    isSelected ? 'ring-2 ring-purple-400 bg-purple-700/60' : ''
                   } ${hasSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 >
-                  {optionText}
+                  {opt.text}
                 </button>
               );
             })}
@@ -281,7 +275,7 @@ export default function OnlineBattleNew() {
         <button
           onClick={handleSubmit}
           disabled={hasSubmitted || selectedAnswer === undefined}
-          className="w-full px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/40 disabled:cursor-not-allowed transition-colors"
+          className="mt-6 w-full px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/40 disabled:cursor-not-allowed transition-colors"
         >
           {hasSubmitted ? 'Submitted' : 'Submit answer'}
         </button>
