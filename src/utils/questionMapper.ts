@@ -49,20 +49,29 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
       : (typeof s.index === 'number' ? s.index : fallbackIndex);
     
     // Handle options: can be string[] or { answer_index, text }[]
-    let optionsArray: string[];
-    if (Array.isArray(s.options)) {
-      if (s.options.length > 0 && typeof s.options[0] === 'object' && 'text' in s.options[0]) {
-        // New format: [{ answer_index, text }]
-        optionsArray = s.options.map((opt: any) => String(opt.text || opt.answer_text || ''));
+    let optionsArray: string[] = [];
+    if (Array.isArray(s.options) && s.options.length > 0) {
+      const firstOpt = s.options[0];
+      // Check if first element is an object with 'text' property (not null, not array)
+      if (typeof firstOpt === 'object' && firstOpt !== null && !Array.isArray(firstOpt) && ('text' in firstOpt || 'answer_text' in firstOpt)) {
+        // New format: [{ answer_index, text }] or [{ answer_index, answer_text }]
+        optionsArray = s.options
+          .map((opt: any) => {
+            if (typeof opt === 'object' && opt !== null) {
+              return String(opt.text || opt.answer_text || '');
+            }
+            return String(opt || '');
+          })
+          .filter((opt: string) => opt.trim() !== ''); // Remove empty strings
       } else {
-        // Old format: [string, string, string, string]
-        optionsArray = s.options.map((opt: any) => String(opt || ''));
+        // Old format: [string, string, string, string] or mixed
+        optionsArray = s.options
+          .map((opt: any) => String(opt || ''))
+          .filter((opt: string) => opt.trim() !== ''); // Remove empty strings
       }
-    } else {
-      optionsArray = [];
     }
     
-    // Pad to exactly 4 options
+    // Pad to exactly 4 options (fill with empty strings if needed)
     while (optionsArray.length < 4) {
       optionsArray.push('');
     }
@@ -105,7 +114,7 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
     level: (q.level as any) || 'A1',
     difficulty: (q.difficulty as any) || 'medium',
     rankTier: q.rankTier || q.rank_tier || undefined,
-    stem: String(q.stem || q.question_text || ''),
+    stem: String(q.stem || q.question_text || q.text || ''),
     totalMarks: Number(q.totalMarks || q.total_marks || steps.reduce((sum, s) => sum + s.marks, 0)),
     topicTags: Array.isArray(q.topicTags) ? q.topicTags : (Array.isArray(q.topic_tags) ? q.topic_tags : []),
     steps,

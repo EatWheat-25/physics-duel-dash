@@ -188,7 +188,9 @@ export default function OnlineBattleNew() {
 
   // 6. Active round with question
   if (currentQuestion && currentRound) {
-    const firstStep = currentQuestion.steps[0];
+    const firstStep = currentQuestion.steps && currentQuestion.steps.length > 0 
+      ? currentQuestion.steps[0] 
+      : null;
     
     if (!firstStep) {
       return (
@@ -200,6 +202,13 @@ export default function OnlineBattleNew() {
         </div>
       );
     }
+
+    // Debug logging
+    console.log('[OnlineBattleNew] firstStep:', firstStep);
+    console.log('[OnlineBattleNew] firstStep.options:', firstStep.options);
+    console.log('[OnlineBattleNew] options type:', typeof firstStep.options);
+    console.log('[OnlineBattleNew] is array:', Array.isArray(firstStep.options));
+    console.log('[OnlineBattleNew] options length:', firstStep.options?.length);
 
     const selectedAnswer = playerAnswers.get(firstStep.index ?? 0);
 
@@ -238,25 +247,46 @@ export default function OnlineBattleNew() {
           </div>
 
           {/* Below: 2x2 grid of options */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {firstStep.options.map((optText: string, optIndex: number) => {
-              const isSelected = selectedAnswer === optIndex;
-              return (
-                <button
-                  key={optIndex}
-                  onClick={() => setAnswer(firstStep.index, optIndex)}
-                  disabled={hasSubmitted}
-                  className={`rounded-lg border-2 px-4 py-3 text-left text-sm transition-all ${
-                    isSelected
-                      ? 'border-blue-400 bg-blue-500/20 text-white'
-                      : 'border-slate-600 bg-slate-700/50 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
-                  } ${hasSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  {optText}
-                </button>
-              );
-            })}
-          </div>
+          {firstStep.options && Array.isArray(firstStep.options) && firstStep.options.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {firstStep.options.map((optText: string, optIndex: number) => {
+                // Skip empty options
+                if (!optText || optText.trim() === '') {
+                  return null;
+                }
+                
+                const isSelected = selectedAnswer === optIndex;
+                return (
+                  <button
+                    key={optIndex}
+                    onClick={() => setAnswer(firstStep.index, optIndex)}
+                    disabled={hasSubmitted}
+                    className={`rounded-lg border-2 px-4 py-3 text-left text-sm transition-all ${
+                      isSelected
+                        ? 'border-blue-400 bg-blue-500/20 text-white'
+                        : 'border-slate-600 bg-slate-700/50 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                    } ${hasSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    {optText}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
+              <p className="text-red-400 text-sm font-semibold mb-2">⚠️ No options available</p>
+              <p className="text-red-300 text-xs mb-2">Debug info:</p>
+              <pre className="text-xs text-red-200 overflow-auto max-h-40">
+                {JSON.stringify({
+                  hasOptions: !!firstStep.options,
+                  isArray: Array.isArray(firstStep.options),
+                  optionsLength: firstStep.options?.length,
+                  options: firstStep.options,
+                  firstStep: firstStep
+                }, null, 2)}
+              </pre>
+            </div>
+          )}
 
           {/* Bottom: Submit button + match info */}
           <div className="space-y-3">

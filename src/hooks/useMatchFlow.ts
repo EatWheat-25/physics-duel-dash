@@ -145,8 +145,19 @@ export function useMatchFlow(matchId: string | null) {
 
             if (message.type === 'ROUND_START') {
               console.log('[useMatchFlow] ROUND_START received')
+              console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
               try {
                 const question = mapRawToQuestion(message.question)
+                console.log('[useMatchFlow] Mapped question:', question)
+                console.log('[useMatchFlow] Steps count:', question.steps.length)
+                if (question.steps.length > 0) {
+                  const firstStep = question.steps[0]
+                  console.log('[useMatchFlow] First step:', firstStep)
+                  console.log('[useMatchFlow] First step options:', firstStep.options)
+                  console.log('[useMatchFlow] Options type:', typeof firstStep.options)
+                  console.log('[useMatchFlow] Is array:', Array.isArray(firstStep.options))
+                  console.log('[useMatchFlow] Options length:', firstStep.options?.length)
+                }
                 setState(prev => ({
                   ...prev,
                   currentRound: {
@@ -162,6 +173,7 @@ export function useMatchFlow(matchId: string | null) {
                 }))
               } catch (error) {
                 console.error('[useMatchFlow] Error mapping question:', error)
+                console.error('[useMatchFlow] Error stack:', error instanceof Error ? error.stack : 'No stack')
                 toast.error('Failed to load question')
               }
             }
