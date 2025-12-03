@@ -76,6 +76,7 @@ export function useMatchFlow(matchId: string | null) {
   const isMountedRef = useRef<boolean>(true) // Track if component is mounted
   const restoredRoundIdRef = useRef<string | null>(null) // Track which round we've restored
   const currentRoundIdRef = useRef<string | null>(null) // Track current round ID for effect dependencies
+  const isWebSocketInitializingRef = useRef<boolean>(false) // Track if WebSocket is setting up initial state
 
   // Fetch match data (normal polling)
   useEffect(() => {
@@ -112,6 +113,9 @@ export function useMatchFlow(matchId: string | null) {
   // Restore round state on mount (handles page reload) - only run once per round
   useEffect(() => {
     if (!matchId || !state.currentRound || !state.match || !isMountedRef.current) return
+    
+    // Don't restore if WebSocket is actively initializing (will handle state setup)
+    if (isWebSocketInitializingRef.current) return
     
     const roundId = state.currentRound.id
     
@@ -345,12 +349,14 @@ export function useMatchFlow(matchId: string | null) {
 
         ws.onopen = () => {
           console.log('[useMatchFlow] WebSocket connected')
+          // Mark WebSocket as initializing to prevent restoreRoundState from interfering
+          isWebSocketInitializingRef.current = true
           // Defer state update to avoid React hooks violations
-          setTimeout(() => {
+          requestAnimationFrame(() => {
             if (isMountedRef.current) {
               setState(prev => ({ ...prev, isConnected: true }))
             }
-          }, 0)
+          })
           
           // Send JOIN_MATCH
           ws.send(JSON.stringify({
@@ -360,8 +366,8 @@ export function useMatchFlow(matchId: string | null) {
         }
 
         ws.onmessage = (event) => {
-          // Defer state updates to next tick to avoid React hooks violations
-          setTimeout(() => {
+          // Defer state updates to next animation frame to avoid React hooks violations
+          requestAnimationFrame(() => {
             if (!isMountedRef.current) return
             
             try {
@@ -400,6 +406,9 @@ export function useMatchFlow(matchId: string | null) {
                 // Reset restored round ref for new round
                 restoredRoundIdRef.current = null
                 currentRoundIdRef.current = message.roundId
+                
+                // WebSocket has finished initializing, allow restoreRoundState to run if needed
+                isWebSocketInitializingRef.current = false
                 
                 try {
                   const question = mapRawToQuestion(message.question)
@@ -520,12 +529,14 @@ export function useMatchFlow(matchId: string | null) {
 
         ws.onclose = () => {
           console.log('[useMatchFlow] WebSocket closed')
+          // Clear initialization flag
+          isWebSocketInitializingRef.current = false
           // Defer state update to avoid React hooks violations
-          setTimeout(() => {
+          requestAnimationFrame(() => {
             if (isMountedRef.current) {
               setState(prev => ({ ...prev, isConnected: false }))
             }
-          }, 0)
+          })
         }
       } catch (error: any) {
         console.error('[useMatchFlow] Connection error:', error)
