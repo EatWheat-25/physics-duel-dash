@@ -72,3 +72,4 @@ COMMENT ON COLUMN public.match_rounds.round_deadline IS 'Round-level timeout cut
 COMMENT ON COLUMN public.match_rounds.player1_answer_payload IS 'Full answer payload (versioned JSON). Format: {"version": 1, "steps": [{"step_index": 0, "answer_index": 2, "response_time_ms": 1200}, ...]}. Single source of truth for step-level analytics.';
 COMMENT ON COLUMN public.match_rounds.player2_answer_payload IS 'Full answer payload (versioned JSON). Format: {"version": 1, "steps": [{"step_index": 0, "answer_index": 2, "response_time_ms": 1200}, ...]}. Single source of truth for step-level analytics.';
 
+
