@@ -64,6 +64,63 @@ export default function OnlineBattleNew() {
     ? ((match as any)?.player2_score || 0)
     : ((match as any)?.player1_score || 0);
 
+  // Tug-of-war progress bar component
+  const TugOfWarBar = ({ playerScore, opponentScore, targetPoints }: { 
+    playerScore: number; 
+    opponentScore: number; 
+    targetPoints: number 
+  }) => {
+    const playerPercentage = (playerScore / targetPoints) * 100
+    const opponentPercentage = (opponentScore / targetPoints) * 100
+    const isPlayerWinning = playerScore > opponentScore
+    const isDraw = playerScore === opponentScore
+    
+    // Clamp percentages to 0-100
+    const clampedPlayer = Math.min(100, Math.max(0, playerPercentage))
+    const clampedOpponent = Math.min(100, Math.max(0, opponentPercentage))
+    
+    return (
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold text-blue-400">You: {playerScore}</span>
+          <span className="text-xs text-slate-400">Target: {targetPoints}</span>
+          <span className="text-sm font-semibold text-white">Opponent: {opponentScore}</span>
+        </div>
+        <div className="relative h-6 bg-slate-700 rounded-full overflow-hidden border-2 border-slate-600">
+          {/* Player side (left, blue) */}
+          <div 
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 ease-out"
+            style={{ width: `${clampedPlayer}%` }}
+          />
+          {/* Center divider */}
+          <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/50 transform -translate-x-1/2 z-10" />
+          {/* Opponent side (right, grey/red) */}
+          <div 
+            className="absolute right-0 top-0 h-full bg-gradient-to-l from-slate-500 to-slate-600 transition-all duration-500 ease-out"
+            style={{ width: `${clampedOpponent}%` }}
+          />
+          {/* Winning indicator */}
+          {isPlayerWinning && clampedPlayer >= 50 && (
+            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-blue-400 transform -translate-x-1/2 z-20 animate-pulse" />
+          )}
+          {!isPlayerWinning && !isDraw && clampedOpponent >= 50 && (
+            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-red-400 transform -translate-x-1/2 z-20 animate-pulse" />
+          )}
+        </div>
+        {/* Score difference indicator */}
+        <div className="text-center mt-1">
+          {isDraw ? (
+            <span className="text-xs text-slate-400">Tied</span>
+          ) : isPlayerWinning ? (
+            <span className="text-xs text-blue-400">+{playerScore - opponentScore} ahead</span>
+          ) : (
+            <span className="text-xs text-red-400">-{opponentScore - playerScore} behind</span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   // State priority order (explicit, non-overlapping):
   // 1. Loading/connecting states
   // 2. Match finished
@@ -216,7 +273,7 @@ export default function OnlineBattleNew() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex justify-center pt-10 pb-10 px-4">
         <div className="w-full max-w-3xl bg-slate-800/90 backdrop-blur-lg rounded-xl p-6 border-2 border-slate-600 text-white">
           {/* Top: Match info + scores */}
-          <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-600">
+          <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-600">
             <div>
               <p className="text-sm text-slate-400">Round {currentRound.roundNumber} / {(match as any)?.max_rounds || 3}</p>
             </div>
@@ -232,6 +289,13 @@ export default function OnlineBattleNew() {
               </div>
             </div>
           </div>
+
+          {/* Tug-of-war progress bar */}
+          <TugOfWarBar 
+            playerScore={playerScore} 
+            opponentScore={opponentScore} 
+            targetPoints={(match as any)?.target_points || 5} 
+          />
 
           {/* Round result banner */}
           {roundResultBanner}

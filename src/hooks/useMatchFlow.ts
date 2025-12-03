@@ -56,6 +56,7 @@ export function useMatchFlow(matchId: string | null) {
   const wsRef = useRef<WebSocket | null>(null)
   const currentUserIdRef = useRef<string | null>(null)
   const stepTimersRef = useRef<Map<number, number>>(new Map()) // stepIndex -> startTime
+  const roundResultTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch match data
   useEffect(() => {
@@ -160,6 +161,13 @@ export function useMatchFlow(matchId: string | null) {
             if (message.type === 'ROUND_START') {
               console.log('[useMatchFlow] ROUND_START received')
               console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
+              
+              // Clear any existing timeout for round result
+              if (roundResultTimeoutRef.current) {
+                clearTimeout(roundResultTimeoutRef.current)
+                roundResultTimeoutRef.current = null
+              }
+              
               try {
                 const question = mapRawToQuestion(message.question)
                 console.log('[useMatchFlow] Mapped question:', question)
@@ -183,7 +191,7 @@ export function useMatchFlow(matchId: string | null) {
                   roundResult: null, // Clear round result when new round starts
                   playerAnswers: new Map(),
                   responseTimes: new Map(),
-                  hasSubmitted: false
+                  hasSubmitted: false // IMPORTANT: Clear hasSubmitted on new round
                 }))
               } catch (error) {
                 console.error('[useMatchFlow] Error mapping question:', error)
@@ -205,10 +213,17 @@ export function useMatchFlow(matchId: string | null) {
               // If match doesn't continue, mark as finished immediately (don't wait for MATCH_FINISHED)
               const isFinished = !message.matchContinues || message.matchWinnerId !== null
               
+              // Clear timeout since we got the result
+              if (roundResultTimeoutRef.current) {
+                clearTimeout(roundResultTimeoutRef.current)
+                roundResultTimeoutRef.current = null
+              }
+              
               // Update match scores by accumulating round scores (no DB refetch needed)
               setState(prev => ({
                 ...prev,
                 roundResult,
+                hasSubmitted: false, // Clear hasSubmitted when result arrives
                 isMatchFinished: isFinished, // Set immediately if match ended
                 match: prev.match ? {
                   ...prev.match,
@@ -273,6 +288,11 @@ export function useMatchFlow(matchId: string | null) {
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
+      }
+      // Clear timeout on unmount
+      if (roundResultTimeoutRef.current) {
+        clearTimeout(roundResultTimeoutRef.current)
+        roundResultTimeoutRef.current = null
       }
     }
   }, [matchId, connect])
@@ -375,6 +395,51 @@ export function useMatchFlow(matchId: string | null) {
     
     setState(prev => ({ ...prev, hasSubmitted: true }))
     toast.success('Answer submitted!')
+    
+    // Set timeout to check match status if ROUND_RESULT doesn't arrive
+    // Clear any existing timeout first
+    if (roundResultTimeoutRef.current) {
+      clearTimeout(roundResultTimeoutRef.current)
+    }
+    
+    roundResultTimeoutRef.current = setTimeout(async () => {
+      if (!matchId) return
+      
+      console.log('[useMatchFlow] Timeout: Checking if round was evaluated...')
+      
+      // Check if round was evaluated by querying match_rounds
+      const { data: round } = await supabase
+        .from('match_rounds')
+        .select('status, player1_answered_at, player2_answered_at, round_number')
+        .eq('match_id', matchId)
+        .eq('status', 'finished')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (round && round.player1_answered_at && round.player2_answered_at) {
+        // Round was evaluated, fetch the match to get updated scores
+        const { data: match } = await supabase
+          .from('matches')
+          .select('*')
+          .eq('id', matchId)
+          .single()
+        
+        if (match) {
+          console.log('[useMatchFlow] Timeout: Round was evaluated, updating state from DB')
+          setState(prev => ({
+            ...prev,
+            match: match as MatchRow,
+            hasSubmitted: false, // Clear hasSubmitted since round is done
+            isMatchFinished: match.status === 'finished' || match.status === 'abandoned'
+          }))
+          
+          // If match is still in progress, we should get a ROUND_START soon
+          // If match is finished, we should get MATCH_FINISHED soon
+          // This is just a fallback to prevent stuck "waiting" state
+        }
+      }
+    }, 10000) // 10 second timeout
   }, [state.currentRound, state.currentQuestion, state.playerAnswers, state.responseTimes, state.hasSubmitted, matchId])
 
   return {
