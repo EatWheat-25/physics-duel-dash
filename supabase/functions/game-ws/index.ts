@@ -340,13 +340,14 @@ async function checkAndEvaluateRound(
     }
   } else {
     // Match continues - create next round
+    // Double-check match is still in_progress before creating next round
     const { data: updatedMatch } = await supabase
       .from('matches')
       .select('*')
       .eq('id', matchId)
       .single()
     
-    if (updatedMatch) {
+    if (updatedMatch && updatedMatch.status === 'in_progress') {
       const nextRound = await createRound(updatedMatch, round.round_number, supabase)
       if (nextRound) {
         const roundStartMsg: RoundStartMsg = {
@@ -357,6 +358,20 @@ async function checkAndEvaluateRound(
           question: nextRound.question
         }
         broadcastToMatch(matchId, roundStartMsg)
+      }
+    } else {
+      console.warn(`[${matchId}] Match is not in_progress (status: ${updatedMatch?.status}), not creating next round`)
+      // If match finished but MATCH_FINISHED wasn't sent, send it now
+      if (updatedMatch && updatedMatch.status === 'finished') {
+        const matchFinishedMsg: MatchFinishedMsg = {
+          type: 'MATCH_FINISHED',
+          matchId,
+          winnerId: updatedMatch.winner_id,
+          player1FinalScore: updatedMatch.player1_score,
+          player2FinalScore: updatedMatch.player2_score,
+          totalRounds: updatedMatch.current_round_number
+        }
+        broadcastToMatch(matchId, matchFinishedMsg)
       }
     }
   }

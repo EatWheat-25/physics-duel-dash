@@ -74,10 +74,24 @@ export function useMatchFlow(matchId: string | null) {
         return
       }
 
-      setState(prev => ({ ...prev, match: data as MatchRow }))
+      const matchData = data as MatchRow
+      
+      // If match is finished in DB but we haven't marked it as finished, update state
+      setState(prev => {
+        const shouldBeFinished = matchData.status === 'finished'
+        return {
+          ...prev,
+          match: matchData,
+          isMatchFinished: prev.isMatchFinished || shouldBeFinished
+        }
+      })
     }
 
     fetchMatch()
+    
+    // Periodically check match status as backup (every 5 seconds)
+    const interval = setInterval(fetchMatch, 5000)
+    return () => clearInterval(interval)
   }, [matchId])
 
   // Connect to WebSocket
@@ -188,15 +202,21 @@ export function useMatchFlow(matchId: string | null) {
                 matchWinnerId: message.matchWinnerId
               }
               
+              // If match doesn't continue, mark as finished immediately (don't wait for MATCH_FINISHED)
+              const isFinished = !message.matchContinues || message.matchWinnerId !== null
+              
               // Update match scores by accumulating round scores (no DB refetch needed)
               setState(prev => ({
                 ...prev,
                 roundResult,
+                isMatchFinished: isFinished, // Set immediately if match ended
                 match: prev.match ? {
                   ...prev.match,
                   player1_score: ((prev.match as any).player1_score || 0) + message.player1RoundScore,
                   player2_score: ((prev.match as any).player2_score || 0) + message.player2RoundScore,
-                  current_round_number: message.roundNumber
+                  current_round_number: message.roundNumber,
+                  status: isFinished ? 'finished' : prev.match.status,
+                  winner_id: message.matchWinnerId || prev.match.winner_id
                 } : null
               }))
             }
