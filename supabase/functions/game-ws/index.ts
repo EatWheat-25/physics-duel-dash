@@ -12,6 +12,65 @@ import { corsHeaders } from '../_shared/cors.ts'
  * - Match completion via finish_match RPC
  */
 
+// Database question type (matches public.questions table)
+type DbQuestion = {
+  id: string
+  subject: string
+  level: string
+  rank_tier: string | null
+  question_text: string | null
+  text: string | null
+  image_url: string | null
+  steps: any
+  total_marks: number | null
+  working_time_seconds: number | null
+  title?: string | null
+  chapter?: string | null
+  difficulty?: string | null
+  topic_tags?: any
+}
+
+// StepBasedQuestion format (matches frontend questionMapper expectations)
+type StepBasedQuestion = {
+  id: string
+  subject: string
+  level: string
+  rankTier: string | null
+  text: string
+  imageUrl: string | null
+  totalMarks: number
+  workingTimeSeconds: number | null
+  steps: any
+  title?: string
+  chapter?: string
+  difficulty?: string
+  stem?: string
+  topicTags?: any
+}
+
+/**
+ * Map database question row to StepBasedQuestion format
+ * This matches what the frontend questionMapper expects
+ */
+function mapDbQuestionToStepBased(q: DbQuestion): StepBasedQuestion {
+  return {
+    id: q.id,
+    subject: q.subject,
+    level: q.level,
+    rankTier: q.rank_tier,
+    text: q.question_text ?? q.text ?? '',
+    stem: q.question_text ?? q.text ?? '',
+    imageUrl: q.image_url,
+    totalMarks: q.total_marks ?? 1,
+    workingTimeSeconds: q.working_time_seconds,
+    steps: q.steps ?? [],
+    title: q.title ?? undefined,
+    chapter: q.chapter ?? undefined,
+    difficulty: q.difficulty ?? undefined,
+    topicTags: q.topic_tags ?? undefined,
+  }
+}
+
 // Message types
 interface MatchStartMsg {
   type: 'MATCH_START'
@@ -100,7 +159,7 @@ async function pickQuestionForMatch(
   subject: string,
   mode: string,
   supabase: ReturnType<typeof createClient>
-): Promise<{ raw: any; mapped: any } | null> {
+): Promise<{ raw: DbQuestion; mapped: StepBasedQuestion } | null> {
   // Get already used question IDs for this match
   const { data: usedRounds } = await supabase
     .from('match_rounds')
@@ -118,7 +177,7 @@ async function pickQuestionForMatch(
   
   // Filter out used questions
   const unusedQuestions = (questions || []).filter(q => !usedQuestionIds.has(q.id))
-  const question = unusedQuestions.length > 0 ? unusedQuestions[0] : null
+  let question: DbQuestion | null = unusedQuestions.length > 0 ? unusedQuestions[0] as DbQuestion : null
   
   // Fallback: any question for that subject/level (allow reuse)
   if (!question) {
@@ -130,7 +189,7 @@ async function pickQuestionForMatch(
       .limit(1)
       .maybeSingle()
     
-    question = fallbackQuestion
+    question = fallbackQuestion as DbQuestion | null
   }
   
   if (!question) {
@@ -138,23 +197,8 @@ async function pickQuestionForMatch(
     return null
   }
   
-  // Map to StepBasedQuestion format (simplified mapping for edge function)
-  // The frontend questionMapper will handle full transformation
-  // Handle both simple (text, steps) and complex (title, question_text, etc.) question structures
-  const mapped = {
-    id: question.id,
-    title: question.title || question.text || 'Untitled Question',
-    subject: question.subject || 'math',
-    chapter: question.chapter || '',
-    level: question.level || 'A2',
-    difficulty: question.difficulty || 'medium',
-    rankTier: question.rank_tier || undefined,
-    stem: question.question_text || question.text || question.stem || '',
-    totalMarks: question.total_marks || 0,
-    topicTags: question.topic_tags || [],
-    steps: question.steps || [],
-    imageUrl: question.image_url || undefined,
-  }
+  // Map to StepBasedQuestion format using helper
+  const mapped = mapDbQuestionToStepBased(question)
   
   return { raw: question, mapped }
 }
@@ -382,39 +426,32 @@ async function handleJoinMatch(
 
   if (activeRound) {
     // Round already exists, fetch the question for this round
-    const { data: questionRow } = await supabase
+    const { data: questionRow, error: qError } = await supabase
       .from('questions')
       .select('*')
       .eq('id', activeRound.question_id)
-      .single()
+      .single<DbQuestion>()
     
-    if (questionRow) {
-      // Map to StepBasedQuestion format
-      // Handle both simple (text, steps) and complex (title, question_text, etc.) question structures
-      const mapped = {
-        id: questionRow.id,
-        title: questionRow.title || questionRow.text || 'Untitled Question',
-        subject: questionRow.subject || 'math',
-        chapter: questionRow.chapter || '',
-        level: questionRow.level || 'A2',
-        difficulty: questionRow.difficulty || 'medium',
-        rankTier: questionRow.rank_tier || undefined,
-        stem: questionRow.question_text || questionRow.text || questionRow.stem || '',
-        totalMarks: questionRow.total_marks || 0,
-        topicTags: questionRow.topic_tags || [],
-        steps: questionRow.steps || [],
-        imageUrl: questionRow.image_url || undefined,
-      }
-      
-      const roundStartMsg: RoundStartMsg = {
-        type: 'ROUND_START',
-        matchId,
-        roundId: activeRound.id,
-        roundNumber: activeRound.round_number,
-        question: mapped
-      }
-      socket.send(JSON.stringify(roundStartMsg))
+    if (qError || !questionRow) {
+      console.error(`[${matchId}] Failed to fetch question for round:`, qError)
+      socket.send(JSON.stringify({
+        type: 'GAME_ERROR',
+        message: 'Failed to load question'
+      } as GameErrorEvent))
+      return
     }
+    
+    // Map to StepBasedQuestion format using helper
+    const mapped = mapDbQuestionToStepBased(questionRow)
+    
+    const roundStartMsg: RoundStartMsg = {
+      type: 'ROUND_START',
+      matchId,
+      roundId: activeRound.id,
+      roundNumber: activeRound.round_number,
+      question: mapped
+    }
+    socket.send(JSON.stringify(roundStartMsg))
     return
   }
 

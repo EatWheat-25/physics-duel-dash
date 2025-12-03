@@ -200,144 +200,109 @@ export default function OnlineBattleNew() {
   }
 
   // Render active round with question
-  if (currentQuestion && currentRound) {
-    const currentStep = currentQuestion.steps[currentStepIndex];
-    const selectedAnswer = playerAnswers.get(currentStep?.index || 0);
-    const allStepsAnswered = currentQuestion.steps.every(step => playerAnswers.has(step.index));
-
+  if (!match || !currentRound || !currentQuestion) {
+    // Waiting for battle to start
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="mb-6">
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/matchmaking-new')}
-              className="text-white mb-4"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-            
-            {/* Match Info */}
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-3xl font-bold text-white">Round {currentRound.roundNumber}</h1>
-                <p className="text-gray-400">
-                  Target: {(match as any)?.target_points || 5} points | 
-                  Max Rounds: {(match as any)?.max_rounds || 9}
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="text-center">
-                  <p className="text-sm text-gray-400">You</p>
-                  <p className="text-2xl font-bold text-primary">{playerScore}</p>
-                </div>
-                <Users className="w-6 h-6 text-gray-400" />
-                <div className="text-center">
-                  <p className="text-sm text-gray-400">Opponent</p>
-                  <p className="text-2xl font-bold text-white">{opponentScore}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Question Card */}
-          <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-8 border border-purple-500/20">
-            {/* Question Stem */}
-            {currentQuestion.stem && (
-              <div className="mb-6 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                <p className="text-white text-lg">{currentQuestion.stem}</p>
-              </div>
-            )}
-
-            {/* Step Info */}
-            {currentQuestion.steps.length > 1 && (
-              <div className="mb-4 flex items-center justify-between">
-                <p className="text-sm text-gray-400">
-                  Step {currentStepIndex + 1} of {currentQuestion.steps.length}
-                </p>
-                {currentStep && (
-                  <p className="text-sm text-gray-400">{currentStep.marks} marks</p>
-                )}
-              </div>
-            )}
-
-            {/* Step Prompt */}
-            {currentStep && (
-              <>
-                {currentStep.title && (
-                  <h3 className="text-xl font-semibold text-white mb-4">{currentStep.title}</h3>
-                )}
-                <p className="text-lg text-white mb-6">{currentStep.prompt}</p>
-
-                {/* Answer Options */}
-                <div className="space-y-3 mb-6">
-                  {currentStep.options.map((option, index) => {
-                    const isSelected = selectedAnswer === index;
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => handleAnswerClick(currentStep.index, index)}
-                        disabled={hasSubmitted}
-                        className={`w-full p-4 text-left rounded-lg border-2 transition-all ${
-                          isSelected
-                            ? 'bg-primary/20 border-primary text-white'
-                            : 'bg-slate-700/50 border-slate-600 text-white hover:bg-slate-700 hover:border-slate-500'
-                        } ${hasSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                      >
-                        <span className="font-semibold mr-3">{String.fromCharCode(65 + index)}.</span>
-                        {option}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Step Navigation */}
-                {currentQuestion.steps.length > 1 && (
-                  <div className="flex justify-between mb-6">
-                    <Button
-                      variant="outline"
-                      onClick={() => setCurrentStepIndex(Math.max(0, currentStepIndex - 1))}
-                      disabled={currentStepIndex === 0}
-                    >
-                      Previous Step
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setCurrentStepIndex(Math.min(currentQuestion.steps.length - 1, currentStepIndex + 1))}
-                      disabled={currentStepIndex === currentQuestion.steps.length - 1}
-                    >
-                      Next Step
-                    </Button>
-                  </div>
-                )}
-
-                {/* Submit Button */}
-                <div className="flex justify-center">
-                  <Button
-                    onClick={submitRoundAnswer}
-                    disabled={!allStepsAnswered || hasSubmitted}
-                    size="lg"
-                    className="min-w-[200px]"
-                  >
-                    {hasSubmitted ? 'Submitted' : allStepsAnswered ? 'Submit Answer' : 'Complete All Steps'}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+          <h2 className="text-2xl font-bold text-white">Waiting for battle to start…</h2>
         </div>
       </div>
     );
   }
 
-  // Fallback - waiting for round
+  // Get the first step (for now assume single-step or show first step)
+  const step = currentQuestion.steps && currentQuestion.steps.length > 0 
+    ? currentQuestion.steps[currentStepIndex] || currentQuestion.steps[0]
+    : null;
+
+  if (!step) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+          <h2 className="text-2xl font-bold text-white">Loading question...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  const handleOptionClick = (stepIndex: number, answerIndex: number) => {
+    if (hasSubmitted) return;
+    setAnswer(stepIndex, answerIndex);
+  };
+
+  const handleSubmit = () => {
+    submitRoundAnswer();
+  };
+
+  const selectedAnswer = playerAnswers.get(step.index ?? step.step_index ?? 0);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-        <h2 className="text-2xl font-bold text-white">Waiting for round to start...</h2>
+    <div className="min-h-screen bg-gradient-to-br from-[#14002e] to-[#3b0099] flex justify-center pt-10">
+      <div className="w-full max-w-3xl bg-[#12002a]/80 rounded-2xl p-6 text-white">
+        <div className="flex justify-between items-center mb-4 text-sm opacity-80">
+          <div>
+            Round {currentRound.roundNumber} / {(match as any)?.max_rounds || 9}
+          </div>
+          <div>
+            {(match as any)?.player1_score || 0} - {(match as any)?.player2_score || 0}
+          </div>
+        </div>
+
+        <h1 className="text-2xl font-semibold mb-4">
+          {currentQuestion.text || currentQuestion.stem || 'Question'}
+        </h1>
+
+        {step && step.options && (
+          <div className="space-y-3 mb-6">
+            {step.options.map((opt: any, idx: number) => {
+              const isSelected = selectedAnswer === idx;
+              const optionText = typeof opt === 'string' ? opt : (opt?.text ?? String(opt));
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleOptionClick(step.index ?? step.step_index ?? 0, idx)}
+                  disabled={hasSubmitted}
+                  className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                    isSelected 
+                      ? 'bg-white/10 border-white' 
+                      : 'bg-white/5 border-white/20 hover:bg-white/10'
+                  } ${hasSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  {optionText}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <button
+          onClick={handleSubmit}
+          disabled={hasSubmitted || selectedAnswer === undefined}
+          className="w-full px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/40 disabled:cursor-not-allowed transition-colors"
+        >
+          {hasSubmitted ? 'Submitted' : 'Submit answer'}
+        </button>
+
+        {roundResult && (
+          <div className="mt-4 text-sm p-4 bg-black/30 rounded-xl">
+            <div>Round winner: {roundResult.roundWinnerId ?? 'Draw'}</div>
+            <div>
+              Round score: {roundResult.player1RoundScore} - {roundResult.player2RoundScore}
+            </div>
+          </div>
+        )}
+
+        {isMatchFinished && (
+          <div className="mt-6 p-4 bg-black/30 rounded-xl text-sm">
+            <div>Match finished.</div>
+            <div>
+              Winner: {(match as any)?.winner_id ? (match as any).winner_id : 'Draw'}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
