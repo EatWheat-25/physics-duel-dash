@@ -155,7 +155,7 @@ export function useMatchFlow(matchId: string | null) {
                     status: 'active'
                   },
                   currentQuestion: question,
-                  roundResult: null,
+                  roundResult: null, // Clear round result when new round starts
                   playerAnswers: new Map(),
                   responseTimes: new Map(),
                   hasSubmitted: false
@@ -176,31 +176,17 @@ export function useMatchFlow(matchId: string | null) {
                 matchWinnerId: message.matchWinnerId
               }
               
+              // Update match scores by accumulating round scores (no DB refetch needed)
               setState(prev => ({
                 ...prev,
                 roundResult,
-                // Update match scores
                 match: prev.match ? {
                   ...prev.match,
-                  player1_score: (prev.match as any).player1_score || 0,
-                  player2_score: (prev.match as any).player2_score || 0,
+                  player1_score: ((prev.match as any).player1_score || 0) + message.player1RoundScore,
+                  player2_score: ((prev.match as any).player2_score || 0) + message.player2RoundScore,
                   current_round_number: message.roundNumber
                 } : null
               }))
-
-              // Refetch match to get updated scores
-              if (matchId) {
-                supabase
-                  .from('matches')
-                  .select('*')
-                  .eq('id', matchId)
-                  .single()
-                  .then(({ data }) => {
-                    if (data) {
-                      setState(prev => ({ ...prev, match: data as MatchRow }))
-                    }
-                  })
-              }
             }
 
             if (message.type === 'MATCH_FINISHED') {
@@ -321,6 +307,21 @@ export function useMatchFlow(matchId: string | null) {
         response_time_ms: responseTime
       }
     })
+
+    // Validate: at least one answer chosen
+    if (steps.length === 0) {
+      toast.error('Please select an answer')
+      return
+    }
+
+    // Validate: every step_index exists in currentQuestion.steps
+    const questionStepIndices = state.currentQuestion.steps.map(s => s.index)
+    const invalidSteps = steps.filter(s => !questionStepIndices.includes(s.step_index))
+    if (invalidSteps.length > 0) {
+      console.error('[useMatchFlow] Invalid step indices:', invalidSteps)
+      toast.error('Invalid answer format')
+      return
+    }
 
     // Ensure steps are sorted by step_index
     steps.sort((a, b) => a.step_index - b.step_index)

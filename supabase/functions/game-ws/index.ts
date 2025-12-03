@@ -507,6 +507,7 @@ async function handleSubmitRoundAnswer(
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   console.log(`[${matchId}] SUBMIT_ROUND_ANSWER from player ${playerId} for round ${roundId}`)
+  console.log(`[${matchId}] Payload:`, JSON.stringify(payload, null, 2))
 
   // Call submit_round_answer RPC
   const { data: result, error } = await supabase.rpc('submit_round_answer', {
@@ -526,7 +527,7 @@ async function handleSubmitRoundAnswer(
     return
   }
 
-  console.log(`[${matchId}] ✅ Answer submitted successfully`)
+  console.log(`[${matchId}] ✅ Answer submitted successfully, result:`, result)
 
   // Check if both players answered and evaluate if ready
   await checkAndEvaluateRound(matchId, roundId, supabase)

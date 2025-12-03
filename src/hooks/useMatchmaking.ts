@@ -98,8 +98,8 @@ export function useMatchmaking() {
       }
     };
 
-    // Poll every 2 seconds
-    pollIntervalRef.current = setInterval(checkForMatch, 2000);
+    // Poll every 3 seconds (reduced from 2s to reduce backend load)
+    pollIntervalRef.current = setInterval(checkForMatch, 3000);
 
     // Cleanup on unmount
     return () => {

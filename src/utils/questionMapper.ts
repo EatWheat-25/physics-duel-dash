@@ -43,16 +43,40 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
   }
 
   const steps: QuestionStep[] = rawSteps.map((s: any, fallbackIndex: number) => {
+    // Map step index: prefer step_index, then index, then fallbackIndex
+    const stepIndex = typeof s.step_index === 'number' 
+      ? s.step_index 
+      : (typeof s.index === 'number' ? s.index : fallbackIndex);
+    
+    // Handle options: can be string[] or { answer_index, text }[]
+    let optionsArray: string[];
+    if (Array.isArray(s.options)) {
+      if (s.options.length > 0 && typeof s.options[0] === 'object' && 'text' in s.options[0]) {
+        // New format: [{ answer_index, text }]
+        optionsArray = s.options.map((opt: any) => String(opt.text || opt.answer_text || ''));
+      } else {
+        // Old format: [string, string, string, string]
+        optionsArray = s.options.map((opt: any) => String(opt || ''));
+      }
+    } else {
+      optionsArray = [];
+    }
+    
+    // Pad to exactly 4 options
+    while (optionsArray.length < 4) {
+      optionsArray.push('');
+    }
+    // Trim to 4 if more
+    optionsArray = optionsArray.slice(0, 4);
+    
     // Map all possible field name variations
     const step: QuestionStep = {
       id: String(s.id || s.step_id || `${id}-step-${fallbackIndex}`),
-      index: typeof s.index === 'number' ? s.index : (typeof s.step_index === 'number' ? s.step_index : fallbackIndex),
+      index: stepIndex,
       type: 'mcq' as const,
       title: String(s.title || ''),
       prompt: String(s.prompt || s.question || ''),
-      options: Array.isArray(s.options) && s.options.length === 4
-        ? (s.options as [string, string, string, string])
-        : ['', '', '', ''] as [string, string, string, string],
+      options: optionsArray as [string, string, string, string],
       correctAnswer: extractCorrectAnswer(s),
       timeLimitSeconds: s.timeLimitSeconds ?? s.time_limit_seconds ?? null,
       marks: Number(s.marks || 1),
