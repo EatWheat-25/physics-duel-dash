@@ -35,7 +35,10 @@ export default function OnlineBattleNew() {
     currentStepIndex,
     stepTimeLeft,
     hasAnsweredCurrentStep,
-    submitStepAnswer
+    submitStepAnswer,
+    // Thinking phase state
+    isThinkingPhase,
+    thinkingTimeLeft
   } = useMatchFlow(matchId || null);
 
   // Get current user
@@ -250,11 +253,14 @@ export default function OnlineBattleNew() {
 
   // 6. Active round with question
   if (currentQuestion && currentRound) {
+    // Check if in thinking phase
+    const isInThinkingPhase = isThinkingPhase || currentStepIndex === -1
+    
     // Check if all steps are done
-    const allStepsDone = currentStepIndex >= (currentQuestion.steps?.length || 0)
+    const allStepsDone = !isInThinkingPhase && currentStepIndex >= (currentQuestion.steps?.length || 0)
     
     // Get current step
-    const currentStep = !allStepsDone && currentQuestion.steps?.[currentStepIndex] 
+    const currentStep = !isInThinkingPhase && !allStepsDone && currentQuestion.steps?.[currentStepIndex] 
       ? currentQuestion.steps[currentStepIndex]
       : null
 
@@ -298,7 +304,22 @@ export default function OnlineBattleNew() {
             {roundResultBanner}
 
             {/* Step content */}
-            {allStepsDone ? (
+            {isInThinkingPhase ? (
+              // Thinking phase - only show main question with timer
+              <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
+                <div className={`px-8 py-4 rounded-full font-bold text-4xl ${
+                  (thinkingTimeLeft || 0) <= 10 
+                    ? 'bg-red-500/20 text-red-400 border-4 border-red-400' 
+                    : 'bg-blue-500/20 text-blue-400 border-4 border-blue-400'
+                }`}>
+                  {thinkingTimeLeft || 0}s
+                </div>
+                <h2 className="text-2xl font-semibold text-white">Read the question carefully...</h2>
+                <p className="text-slate-300 text-center max-w-md">
+                  Think about your approach. The steps will appear once the timer runs out.
+                </p>
+              </div>
+            ) : allStepsDone ? (
               // All steps done - waiting for opponent
               <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
                 <Loader2 className="w-16 h-16 animate-spin text-blue-400" />

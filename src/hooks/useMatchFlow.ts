@@ -30,9 +30,11 @@ export type UseMatchFlowState = {
   isConnected: boolean
   hasSubmitted: boolean
   // Step-by-step state
-  currentStepIndex: number
+  currentStepIndex: number // -1 = thinking phase, 0+ = step index
   stepTimeLeft: number | null
   hasAnsweredCurrentStep: boolean
+  thinkingTimeLeft: number | null // Timer for thinking phase
+  isThinkingPhase: boolean // Whether we're in thinking phase
 }
 
 /**
@@ -56,9 +58,11 @@ export function useMatchFlow(matchId: string | null) {
     isConnected: false,
     hasSubmitted: false,
     // Step-by-step state
-    currentStepIndex: 0,
+    currentStepIndex: -1, // Start at -1 (thinking phase)
     stepTimeLeft: null,
-    hasAnsweredCurrentStep: false
+    hasAnsweredCurrentStep: false,
+    thinkingTimeLeft: null,
+    isThinkingPhase: false
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -68,6 +72,7 @@ export function useMatchFlow(matchId: string | null) {
   const stepTimerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const stepAnswersRef = useRef<Map<number, number>>(new Map()) // Track which steps we've answered
   const startStepRef = useRef<((stepIndex: number, durationSeconds: number) => void) | null>(null)
+  const startThinkingPhaseRef = useRef<((durationSeconds: number) => void) | null>(null)
 
   // Fetch match data (normal polling)
   useEffect(() => {
@@ -100,6 +105,88 @@ export function useMatchFlow(matchId: string | null) {
     const interval = setInterval(fetchMatch, 5000)
     return () => clearInterval(interval)
   }, [matchId])
+
+  // Restore round state on mount (handles page reload)
+  useEffect(() => {
+    if (!matchId || !state.currentRound || !state.match) return
+
+    const restoreRoundState = async () => {
+      // Check current round status
+      const { data: roundData } = await supabase
+        .from('match_rounds')
+        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number, question_id')
+        .eq('id', state.currentRound!.id)
+        .single()
+
+      if (!roundData) return
+
+      // If round is finished, restore roundResult
+      if (roundData.status === 'finished') {
+        const { data: matchData } = await supabase
+          .from('matches')
+          .select('*')
+          .eq('id', matchId)
+          .single()
+
+        if (matchData) {
+          const targetPoints = (matchData as any).target_points || 5
+          const maxRounds = (matchData as any).max_rounds || 3
+          const p1Score = (matchData as any).player1_score || 0
+          const p2Score = (matchData as any).player2_score || 0
+          const currentRoundNum = (matchData as any).current_round_number || 0
+
+          const matchContinues = 
+            p1Score < targetPoints && 
+            p2Score < targetPoints && 
+            currentRoundNum < maxRounds &&
+            matchData.status === 'in_progress'
+
+          const syntheticResult: RoundResult = {
+            roundWinnerId: roundData.player1_round_score > roundData.player2_round_score 
+              ? (matchData as any).player1_id 
+              : roundData.player2_round_score > roundData.player1_round_score
+              ? (matchData as any).player2_id
+              : null,
+            player1RoundScore: roundData.player1_round_score || 0,
+            player2RoundScore: roundData.player2_round_score || 0,
+            matchContinues,
+            matchWinnerId: !matchContinues ? (matchData as any).winner_id : null
+          }
+
+          setState(prev => ({
+            ...prev,
+            roundResult: syntheticResult,
+            hasSubmitted: false,
+            isMatchFinished: !matchContinues,
+            match: matchData as MatchRow
+          }))
+          return // Don't restore step state if round is finished
+        }
+      }
+
+      // If round is active, check if player has already answered
+      if (roundData.status === 'active' && state.currentQuestion) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const isPlayer1 = (state.match as any)?.player1_id === user.id
+        const hasAnswered = isPlayer1 
+          ? !!roundData.player1_answered_at 
+          : !!roundData.player2_answered_at
+
+        if (hasAnswered) {
+          // Player has already answered - restore to "waiting" state
+          setState(prev => ({
+            ...prev,
+            hasSubmitted: true,
+            currentStepIndex: prev.currentQuestion?.steps.length || 0 // Set to beyond last step
+          }))
+        }
+      }
+    }
+
+    restoreRoundState()
+  }, [matchId, state.currentRound?.id, state.match?.id]) // Only run when round changes
 
   // Aggressive polling when waiting for opponent (checks round status)
   useEffect(() => {
@@ -274,16 +361,18 @@ export function useMatchFlow(matchId: string | null) {
                   playerAnswers: new Map(),
                   responseTimes: new Map(),
                   hasSubmitted: false, // IMPORTANT: Clear hasSubmitted on new round
-                  // Reset step state
-                  currentStepIndex: 0,
+                  // Reset step state - start with thinking phase
+                  currentStepIndex: -1,
                   stepTimeLeft: null,
-                  hasAnsweredCurrentStep: false
+                  hasAnsweredCurrentStep: false,
+                  thinkingTimeLeft: null,
+                  isThinkingPhase: false
                 }))
                 
-                // Start first step after state update
+                // Start thinking phase after state update
                 setTimeout(() => {
-                  if (startStepRef.current) {
-                    startStepRef.current(0, 15)
+                  if (startThinkingPhaseRef.current) {
+                    startThinkingPhaseRef.current(60) // 60 seconds for thinking
                   }
                 }, 100)
               } catch (error) {
@@ -432,6 +521,51 @@ export function useMatchFlow(matchId: string | null) {
     }
   }, [])
 
+  // Start thinking phase
+  const startThinkingPhase = useCallback((durationSeconds: number) => {
+    // Clear any existing timers
+    if (stepTimerIntervalRef.current) {
+      clearInterval(stepTimerIntervalRef.current)
+      stepTimerIntervalRef.current = null
+    }
+
+    setState(prev => ({
+      ...prev,
+      currentStepIndex: -1,
+      isThinkingPhase: true,
+      thinkingTimeLeft: durationSeconds,
+      stepTimeLeft: null,
+      hasAnsweredCurrentStep: false
+    }))
+
+    // Start countdown timer
+    let timeLeft = durationSeconds
+    stepTimerIntervalRef.current = setInterval(() => {
+      timeLeft -= 1
+      setState(prev => {
+        if (timeLeft <= 0) {
+          // Thinking phase over - start step 0
+          if (stepTimerIntervalRef.current) {
+            clearInterval(stepTimerIntervalRef.current)
+            stepTimerIntervalRef.current = null
+          }
+          
+          // Start first step
+          if (startStepRef.current) {
+            startStepRef.current(0, 15)
+          }
+          
+          return { 
+            ...prev, 
+            thinkingTimeLeft: 0,
+            isThinkingPhase: false
+          }
+        }
+        return { ...prev, thinkingTimeLeft: timeLeft }
+      })
+    }, 1000)
+  }, [])
+
   // Start a step with timer
   const startStep = useCallback((stepIndex: number, durationSeconds: number) => {
     // Clear any existing timer
@@ -517,6 +651,11 @@ export function useMatchFlow(matchId: string | null) {
   useEffect(() => {
     startStepRef.current = startStep
   }, [startStep])
+
+  // Store startThinkingPhase in ref
+  useEffect(() => {
+    startThinkingPhaseRef.current = startThinkingPhase
+  }, [startThinkingPhase])
 
   // Submit answer for current step
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number | null) => {
@@ -732,6 +871,7 @@ export function useMatchFlow(matchId: string | null) {
     stopStepTimer,
     submitRoundAnswer,
     // Step-by-step helpers
+    startThinkingPhase,
     startStep,
     submitStepAnswer
   }
