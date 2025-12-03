@@ -74,6 +74,8 @@ export function useMatchFlow(matchId: string | null) {
   const startStepRef = useRef<((stepIndex: number, durationSeconds: number) => void) | null>(null)
   const startThinkingPhaseRef = useRef<((durationSeconds: number) => void) | null>(null)
   const isMountedRef = useRef<boolean>(true) // Track if component is mounted
+  const restoredRoundIdRef = useRef<string | null>(null) // Track which round we've restored
+  const currentRoundIdRef = useRef<string | null>(null) // Track current round ID for effect dependencies
 
   // Fetch match data (normal polling)
   useEffect(() => {
@@ -107,10 +109,15 @@ export function useMatchFlow(matchId: string | null) {
     return () => clearInterval(interval)
   }, [matchId])
 
-  // Restore round state on mount (handles page reload)
+  // Restore round state on mount (handles page reload) - only run once per round
   useEffect(() => {
     if (!matchId || !state.currentRound || !state.match || !isMountedRef.current) return
-
+    
+    const roundId = state.currentRound.id
+    
+    // Only restore once per round
+    if (restoredRoundIdRef.current === roundId) return
+    
     const restoreRoundState = async () => {
       if (!isMountedRef.current) return
       
@@ -118,7 +125,7 @@ export function useMatchFlow(matchId: string | null) {
       const { data: roundData } = await supabase
         .from('match_rounds')
         .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number, question_id')
-        .eq('id', state.currentRound!.id)
+        .eq('id', roundId)
         .single()
 
       if (!roundData || !isMountedRef.current) return
@@ -211,10 +218,16 @@ export function useMatchFlow(matchId: string | null) {
           }
         }
       }
+      
+      // Mark this round as restored
+      if (isMountedRef.current) {
+        restoredRoundIdRef.current = roundId
+        currentRoundIdRef.current = roundId
+      }
     }
 
     restoreRoundState()
-  }, [matchId, state.currentRound?.id, state.match?.id, state.currentQuestion?.id]) // Only run when round/question changes
+  }, [matchId, state.currentRound?.id]) // Only run when round ID changes
 
   // Aggressive polling when waiting for opponent (checks round status)
   useEffect(() => {
@@ -374,6 +387,10 @@ export function useMatchFlow(matchId: string | null) {
               
               // Clear step answers
               stepAnswersRef.current.clear()
+              
+              // Reset restored round ref for new round
+              restoredRoundIdRef.current = null
+              currentRoundIdRef.current = message.roundId
               
               try {
                 const question = mapRawToQuestion(message.question)
