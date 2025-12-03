@@ -6,6 +6,8 @@ import { Loader2, Trophy, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMatchFlow } from '@/hooks/useMatchFlow';
 
+// Auto-hide round result banner after timeout
+
 /**
  * OnlineBattleNew - Stage 2.5 Runtime Flow
  * 
@@ -216,8 +218,23 @@ export default function OnlineBattleNew() {
     );
   }
 
+  // Auto-hide round result banner after 3 seconds
+  const [showRoundResultBanner, setShowRoundResultBanner] = useState(false);
+  
+  useEffect(() => {
+    if (roundResult && currentRound && !isMatchFinished) {
+      setShowRoundResultBanner(true);
+      const timer = setTimeout(() => {
+        setShowRoundResultBanner(false);
+      }, 3000); // Hide after 3 seconds
+      return () => clearTimeout(timer);
+    } else {
+      setShowRoundResultBanner(false);
+    }
+  }, [roundResult, currentRound, isMatchFinished]);
+
   // 4. Round result banner (show as banner, not full screen)
-  const roundResultBanner = roundResult && currentRound && !isMatchFinished ? (() => {
+  const roundResultBanner = showRoundResultBanner && roundResult && currentRound && !isMatchFinished ? (() => {
     const roundWon = roundResult.roundWinnerId === currentUser;
     const isDraw = !roundResult.roundWinnerId;
     
