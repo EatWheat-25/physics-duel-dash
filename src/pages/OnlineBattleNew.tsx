@@ -265,132 +265,132 @@ export default function OnlineBattleNew() {
       : null
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
-        {/* Main question stem - ALWAYS VISIBLE at top */}
-        <div className="bg-slate-800/90 border-b-2 border-slate-600 p-4 sticky top-0 z-10">
-          <h1 className="text-2xl font-bold text-white">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white px-4 py-8">
+        {/* Top: Match info + scores */}
+        <div className="max-w-4xl mx-auto mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <p className="text-sm text-slate-400">Round {currentRound.roundNumber} / {(match as any)?.max_rounds || 3}</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-center">
+                <p className="text-xs text-slate-400">You</p>
+                <p className="text-2xl font-bold text-blue-400">{playerScore}</p>
+              </div>
+              <Users className="w-5 h-5 text-slate-400" />
+              <div className="text-center">
+                <p className="text-xs text-slate-400">Opponent</p>
+                <p className="text-2xl font-bold text-white">{opponentScore}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tug-of-war progress bar */}
+          <TugOfWarBar 
+            playerScore={playerScore} 
+            opponentScore={opponentScore} 
+            targetPoints={(match as any)?.target_points || 5} 
+          />
+
+          {/* Round result banner */}
+          {roundResultBanner}
+        </div>
+
+        {/* Main question stem - ALWAYS VISIBLE, directly on background */}
+        <div className="max-w-4xl mx-auto mb-8">
+          <h1 className="text-3xl font-bold text-white text-center">
             {currentQuestion.stem || currentQuestion.text || 'Question'}
           </h1>
         </div>
 
-        <div className="flex-1 flex justify-center pt-10 pb-10 px-4">
-          <div className="w-full max-w-3xl bg-slate-800/90 backdrop-blur-lg rounded-xl p-6 border-2 border-slate-600 text-white">
-            {/* Top: Match info + scores */}
-            <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-600">
-              <div>
-                <p className="text-sm text-slate-400">Round {currentRound.roundNumber} / {(match as any)?.max_rounds || 3}</p>
+        {/* Step content - directly on background */}
+        <div className="max-w-4xl mx-auto">
+          {isInThinkingPhase ? (
+            // Thinking phase - only show timer
+            <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
+              <div className={`px-8 py-4 rounded-full font-bold text-4xl ${
+                (thinkingTimeLeft || 0) <= 10 
+                  ? 'bg-red-500/20 text-red-400 border-4 border-red-400' 
+                  : 'bg-blue-500/20 text-blue-400 border-4 border-blue-400'
+              }`}>
+                {thinkingTimeLeft || 0}s
               </div>
-              <div className="flex items-center gap-4">
-                <div className="text-center">
-                  <p className="text-xs text-slate-400">You</p>
-                  <p className="text-2xl font-bold text-blue-400">{playerScore}</p>
+              <h2 className="text-2xl font-semibold text-white">Read the question carefully...</h2>
+              <p className="text-slate-300 text-center max-w-md">
+                Think about your approach. The steps will appear once the timer runs out.
+              </p>
+            </div>
+          ) : allStepsDone ? (
+            // All steps done - waiting for opponent
+            <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
+              <Loader2 className="w-16 h-16 animate-spin text-blue-400" />
+              <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
+              <p className="text-slate-300">You've completed all steps. Waiting for your opponent to finish.</p>
+            </div>
+          ) : currentStep ? (
+            // Current step with options
+            <div>
+              {/* Step header with timer */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-white">
+                    {currentStep.title || `Step ${currentStepIndex + 1}`}
+                  </h2>
+                  {stepTimeLeft !== null && (
+                    <div className={`px-4 py-2 rounded-full font-bold text-lg ${
+                      stepTimeLeft <= 5 
+                        ? 'bg-red-500/20 text-red-400 border-2 border-red-400' 
+                        : 'bg-blue-500/20 text-blue-400 border-2 border-blue-400'
+                    }`}>
+                      {stepTimeLeft}s
+                    </div>
+                  )}
                 </div>
-                <Users className="w-5 h-5 text-slate-400" />
-                <div className="text-center">
-                  <p className="text-xs text-slate-400">Opponent</p>
-                  <p className="text-2xl font-bold text-white">{opponentScore}</p>
+                <p className="text-lg text-slate-200">{currentStep.prompt}</p>
+              </div>
+
+              {/* Step options */}
+              {currentStep.options && Array.isArray(currentStep.options) && currentStep.options.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  {currentStep.options.map((optText: string, optIndex: number) => {
+                    if (!optText || optText.trim() === '') {
+                      return null
+                    }
+                    
+                    const isSelected = playerAnswers.get(currentStep.index) === optIndex
+                    return (
+                      <button
+                        key={optIndex}
+                        onClick={() => submitStepAnswer(currentStep.index, optIndex)}
+                        disabled={hasAnsweredCurrentStep}
+                        className={`rounded-lg border-2 px-4 py-3 text-left text-sm transition-all ${
+                          isSelected
+                            ? 'border-blue-400 bg-blue-500/20 text-white'
+                            : 'border-slate-600 bg-slate-700/50 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                        } ${hasAnsweredCurrentStep ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        {optText}
+                      </button>
+                    )
+                  })}
                 </div>
+              ) : (
+                <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
+                  <p className="text-red-400 text-sm">No options available for this step.</p>
+                </div>
+              )}
+
+              {/* Step progress indicator */}
+              <div className="text-center text-sm text-slate-400">
+                Step {currentStepIndex + 1} of {currentQuestion.steps.length}
               </div>
             </div>
-
-            {/* Tug-of-war progress bar */}
-            <TugOfWarBar 
-              playerScore={playerScore} 
-              opponentScore={opponentScore} 
-              targetPoints={(match as any)?.target_points || 5} 
-            />
-
-            {/* Round result banner */}
-            {roundResultBanner}
-
-            {/* Step content */}
-            {isInThinkingPhase ? (
-              // Thinking phase - only show main question with timer
-              <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
-                <div className={`px-8 py-4 rounded-full font-bold text-4xl ${
-                  (thinkingTimeLeft || 0) <= 10 
-                    ? 'bg-red-500/20 text-red-400 border-4 border-red-400' 
-                    : 'bg-blue-500/20 text-blue-400 border-4 border-blue-400'
-                }`}>
-                  {thinkingTimeLeft || 0}s
-                </div>
-                <h2 className="text-2xl font-semibold text-white">Read the question carefully...</h2>
-                <p className="text-slate-300 text-center max-w-md">
-                  Think about your approach. The steps will appear once the timer runs out.
-                </p>
-              </div>
-            ) : allStepsDone ? (
-              // All steps done - waiting for opponent
-              <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
-                <Loader2 className="w-16 h-16 animate-spin text-blue-400" />
-                <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
-                <p className="text-slate-300">You've completed all steps. Waiting for your opponent to finish.</p>
-              </div>
-            ) : currentStep ? (
-              // Current step with options
-              <div>
-                {/* Step header with timer */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-semibold text-white">
-                      {currentStep.title || `Step ${currentStepIndex + 1}`}
-                    </h2>
-                    {stepTimeLeft !== null && (
-                      <div className={`px-4 py-2 rounded-full font-bold text-lg ${
-                        stepTimeLeft <= 5 
-                          ? 'bg-red-500/20 text-red-400 border-2 border-red-400' 
-                          : 'bg-blue-500/20 text-blue-400 border-2 border-blue-400'
-                      }`}>
-                        {stepTimeLeft}s
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-lg text-slate-200">{currentStep.prompt}</p>
-                </div>
-
-                {/* Step options */}
-                {currentStep.options && Array.isArray(currentStep.options) && currentStep.options.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3 mb-6">
-                    {currentStep.options.map((optText: string, optIndex: number) => {
-                      if (!optText || optText.trim() === '') {
-                        return null
-                      }
-                      
-                      const isSelected = playerAnswers.get(currentStep.index) === optIndex
-                      return (
-                        <button
-                          key={optIndex}
-                          onClick={() => submitStepAnswer(currentStep.index, optIndex)}
-                          disabled={hasAnsweredCurrentStep}
-                          className={`rounded-lg border-2 px-4 py-3 text-left text-sm transition-all ${
-                            isSelected
-                              ? 'border-blue-400 bg-blue-500/20 text-white'
-                              : 'border-slate-600 bg-slate-700/50 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
-                          } ${hasAnsweredCurrentStep ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                        >
-                          {optText}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
-                    <p className="text-red-400 text-sm">No options available for this step.</p>
-                  </div>
-                )}
-
-                {/* Step progress indicator */}
-                <div className="text-center text-sm text-slate-400">
-                  Step {currentStepIndex + 1} of {currentQuestion.steps.length}
-                </div>
-              </div>
-            ) : (
-              // No step available
-              <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="w-12 h-12 animate-spin text-blue-400" />
-              </div>
-            )}
-          </div>
+          ) : (
+            // No step available
+            <div className="flex items-center justify-center min-h-[400px]">
+              <Loader2 className="w-12 h-12 animate-spin text-blue-400" />
+            </div>
+          )}
         </div>
       </div>
     );
