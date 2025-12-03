@@ -102,11 +102,13 @@ BEGIN
   SET status = 'finished'
   WHERE id = p_round_id;
   
-  -- Return result
+  -- Return result with round scores and updated total match scores
   RETURN jsonb_build_object(
     'round_winner_id', v_round_winner_id,
     'player1_round_score', COALESCE(v_round.player1_round_score, 0),
     'player2_round_score', COALESCE(v_round.player2_round_score, 0),
+    'player1_total_score', v_match.player1_score,
+    'player2_total_score', v_match.player2_score,
     'match_continues', v_match_continues,
     'match_winner_id', v_match_winner_id
   );
