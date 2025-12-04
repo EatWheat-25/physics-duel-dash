@@ -462,6 +462,12 @@ export function useMatchFlow(matchId: string | null) {
                 roundResultTimeoutRef.current = null
               }
               
+              // Stop step timer to prevent any pending auto-submits
+              if (stepTimerIntervalRef.current) {
+                clearInterval(stepTimerIntervalRef.current)
+                stepTimerIntervalRef.current = null
+              }
+              
               // Clear step answers ref
               stepAnswersRef.current.clear()
               
@@ -714,6 +720,12 @@ export function useMatchFlow(matchId: string | null) {
           }
           
           stepStartTimeRef.current = null
+          
+          // Do NOT auto-submit if round is already resolved or during transition
+          if (prev.roundResult || prev.isShowingRoundTransition || prev.isMatchFinished) {
+            console.log('[useMatchFlow] Ignoring auto-submit on timer expiry: round already resolved')
+            return { ...prev, stepTimeLeft: 0 }
+          }
           
           // Auto-submit with null answer (will be treated as wrong)
           const currentStepIndex = prev.currentStepIndex
