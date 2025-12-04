@@ -181,23 +181,6 @@ export function useMatchFlow(matchId: string | null) {
             hasSubmitted: true,
             currentStepIndex: prev.currentQuestion?.steps.length || 0 // Set to beyond last step
           }))
-          return
-        }
-
-        // Player hasn't answered - restore step state
-        // For simplicity, restart from thinking phase on reload
-        setState(prev => ({
-          ...prev,
-          currentStepIndex: -1,
-          isThinkingPhase: true,
-          thinkingTimeLeft: 60, // Restart thinking phase
-          stepTimeLeft: null,
-          hasAnsweredCurrentStep: false
-        }))
-        
-        // Start thinking phase timer
-        if (startThinkingPhaseRef.current) {
-          startThinkingPhaseRef.current(60)
         }
       }
     }
@@ -613,60 +596,48 @@ export function useMatchFlow(matchId: string | null) {
           // Auto-submit with null answer (will be treated as wrong)
           const currentStepIndex = prev.currentStepIndex
           if (!stepAnswersRef.current.has(currentStepIndex)) {
-            // Mark as answered locally
+            // Submit step answer with null (wrong)
             stepAnswersRef.current.set(currentStepIndex, -1)
             
-            // Check if this is the last step
-            const isLastStep = currentStepIndex === (prev.currentQuestion?.steps.length || 0) - 1
-            
-            if (isLastStep) {
-              // Last step - submit ALL answers at once
-              const allSteps = Array.from(stepAnswersRef.current.entries()).map(([sIndex, aIndex]) => ({
-                step_index: sIndex,
-                answer_index: aIndex,
-                response_time_ms: prev.responseTimes.get(sIndex) || 0
-              })).sort((a, b) => a.step_index - b.step_index)
-
-              const payload = {
-                version: 1,
-                steps: allSteps
-              }
-
-              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
-                const message = {
-                  type: 'SUBMIT_ROUND_ANSWER',
-                  matchId,
-                  roundId: prev.currentRound.id,
-                  payload
-                }
-                console.log('[useMatchFlow] Auto-submitting all step answers (timer expired):', message)
-                wsRef.current.send(JSON.stringify(message))
-              }
-              
-              setState(prev => ({
-                ...prev,
-                hasSubmitted: true
-              }))
-            } else {
-              // Not last step - just advance to next
-              setTimeout(() => {
-                setState(prev => {
-                  if (!prev.currentQuestion) return prev
-                  
-                  const nextStepIndex = prev.currentStepIndex + 1
-                  if (nextStepIndex < prev.currentQuestion.steps.length) {
-                    // Start next step (recursive call)
-                    startStep(nextStepIndex, 15)
-                    return prev
-                  } else {
-                    return {
-                      ...prev,
-                      hasSubmitted: true
-                    }
-                  }
-                })
-              }, 500)
+            const payload = {
+              version: 1,
+              steps: [{
+                step_index: currentStepIndex,
+                answer_index: -1,
+                response_time_ms: prev.responseTimes.get(currentStepIndex) || 0
+              }]
             }
+
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
+              const message = {
+                type: 'SUBMIT_ROUND_ANSWER',
+                matchId,
+                roundId: prev.currentRound.id,
+                payload
+              }
+              console.log('[useMatchFlow] Auto-submitting step answer (timer expired):', message)
+              wsRef.current.send(JSON.stringify(message))
+            }
+            
+            // Advance to next step after delay
+            setTimeout(() => {
+              setState(prev => {
+                if (!prev.currentQuestion) return prev
+                
+                const nextStepIndex = prev.currentStepIndex + 1
+                if (nextStepIndex < prev.currentQuestion.steps.length) {
+                  // Start next step (recursive call)
+                  startStep(nextStepIndex, 15)
+                  return prev
+                } else {
+                  // All steps done - wait for opponent
+                  return {
+                    ...prev,
+                    hasSubmitted: true
+                  }
+                }
+              })
+            }, 500)
           }
           
           return { ...prev, stepTimeLeft: 0 }
@@ -697,20 +668,42 @@ export function useMatchFlow(matchId: string | null) {
       return
     }
 
-    // Mark as answered locally
-    stepAnswersRef.current.set(stepIndex, answerIndex ?? -1)
-    
     setState(prev => {
-      // Update local state
-      const newAnswers = new Map(prev.playerAnswers)
-      if (answerIndex !== null) {
-        newAnswers.set(stepIndex, answerIndex)
-      }
-
+      // Mark as answered
+      stepAnswersRef.current.set(stepIndex, answerIndex ?? -1)
+      
       // Stop timer
       if (stepTimerIntervalRef.current) {
         clearInterval(stepTimerIntervalRef.current)
         stepTimerIntervalRef.current = null
+      }
+
+      // Build payload with just this step
+      const payload = {
+        version: 1,
+        steps: [{
+          step_index: stepIndex,
+          answer_index: answerIndex ?? -1, // -1 means no answer / wrong
+          response_time_ms: prev.responseTimes.get(stepIndex) || 0
+        }]
+      }
+
+      // Send via existing WebSocket flow
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const message = {
+          type: 'SUBMIT_ROUND_ANSWER',
+          matchId,
+          roundId: prev.currentRound!.id,
+          payload
+        }
+        console.log('[useMatchFlow] Submitting step answer:', message)
+        wsRef.current.send(JSON.stringify(message))
+      }
+
+      // Update state
+      const newAnswers = new Map(prev.playerAnswers)
+      if (answerIndex !== null) {
+        newAnswers.set(stepIndex, answerIndex)
       }
 
       return {
@@ -721,58 +714,26 @@ export function useMatchFlow(matchId: string | null) {
       }
     })
 
-    // Check if this is the last step
-    const isLastStep = stepIndex === (state.currentQuestion.steps.length - 1)
-    
-    if (isLastStep) {
-      // Last step - submit ALL answers at once
-      const allSteps = Array.from(stepAnswersRef.current.entries()).map(([sIndex, aIndex]) => ({
-        step_index: sIndex,
-        answer_index: aIndex,
-        response_time_ms: state.responseTimes.get(sIndex) || 0
-      })).sort((a, b) => a.step_index - b.step_index)
-
-      const payload = {
-        version: 1,
-        steps: allSteps
-      }
-
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        const message = {
-          type: 'SUBMIT_ROUND_ANSWER',
-          matchId,
-          roundId: state.currentRound.id,
-          payload
-        }
-        console.log('[useMatchFlow] Submitting all step answers:', message)
-        wsRef.current.send(JSON.stringify(message))
+    // After short delay, advance to next step if exists
+    setTimeout(() => {
+      setState(prev => {
+        if (!prev.currentQuestion) return prev
         
-        setState(prev => ({
-          ...prev,
-          hasSubmitted: true
-        }))
-      }
-    } else {
-      // Not last step - just advance to next
-      setTimeout(() => {
-        setState(prev => {
-          if (!prev.currentQuestion) return prev
-          
-          const nextStepIndex = prev.currentStepIndex + 1
-          if (nextStepIndex < prev.currentQuestion.steps.length) {
-            // Start next step
-            startStep(nextStepIndex, 15)
-            return prev
-          } else {
-            return {
-              ...prev,
-              hasSubmitted: true
-            }
+        const nextStepIndex = prev.currentStepIndex + 1
+        if (nextStepIndex < prev.currentQuestion.steps.length) {
+          // Start next step
+          startStep(nextStepIndex, 15)
+          return prev
+        } else {
+          // All steps done - wait for opponent
+          return {
+            ...prev,
+            hasSubmitted: true // Use existing flag to show "waiting for opponent"
           }
-        })
-      }, 500)
-    }
-  }, [matchId, state.currentRound, state.currentQuestion, state.responseTimes, startStep])
+        }
+      })
+    }, 500) // 500ms delay before advancing
+  }, [matchId, state.currentRound, state.currentQuestion, startStep])
 
   // Submit round answer
   const submitRoundAnswer = useCallback(() => {

@@ -441,13 +441,13 @@ async function handleJoinMatch(
 
   // Check for existing active round
   const { data: activeRound } = await supabase
-      .from('match_rounds')
-      .select('*')
-      .eq('match_id', matchId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+    .from('match_rounds')
+    .select('*')
+    .eq('match_id', matchId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
   if (activeRound) {
     // Round already exists, fetch the question for this round
@@ -456,7 +456,7 @@ async function handleJoinMatch(
       .select('*')
       .eq('id', activeRound.question_id)
       .single<DbQuestion>()
-
+    
     if (qError || !questionRow) {
       console.error(`[${matchId}] Failed to fetch question for round:`, qError)
       socket.send(JSON.stringify({

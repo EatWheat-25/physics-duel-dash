@@ -379,7 +379,7 @@ export default function LobbyNew() {
                       duration: 2,
                       repeat: Infinity,
                       ease: 'easeInOut',
-                  }}
+                    }}
                   />
                   
                   <motion.div
@@ -519,9 +519,9 @@ export default function LobbyNew() {
                         }}
                         transition={{
                           duration: 2,
-                      repeat: Infinity,
-                      ease: 'easeInOut',
-                    }}
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                        }}
                       />
                     )}
                   </motion.button>
@@ -570,7 +570,7 @@ export default function LobbyNew() {
                       duration: 2,
                       repeat: Infinity,
                       ease: 'easeInOut',
-                  }}
+                    }}
                   />
                   
                   <motion.h1 
