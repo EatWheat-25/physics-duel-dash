@@ -317,7 +317,43 @@ async function checkAndEvaluateRound(
     matchContinues: evalResult.match_continues,
     matchWinnerId: evalResult.match_winner_id
   }
+  
+  // Log before broadcast to debug
+  const matchSockets = sockets.get(matchId)
+  const socketStates = matchSockets ? Array.from(matchSockets).map(s => {
+    const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED']
+    return states[s.readyState] || s.readyState
+  }) : []
+  const openSockets = matchSockets ? Array.from(matchSockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
+  
+  console.log(`[${matchId}] 📊 Broadcasting ROUND_RESULT for round ${round.round_number}:`, {
+    roundWinnerId: evalResult.round_winner_id,
+    player1Score: evalResult.player1_round_score,
+    player2Score: evalResult.player2_round_score,
+    matchContinues: evalResult.match_continues,
+    socketsInMatch: matchSockets?.size || 0,
+    socketStates: socketStates.join(', '),
+    openSockets
+  })
+  
+  // Broadcast to all open sockets
   broadcastToMatch(matchId, roundResultMsg)
+  
+  // If we have fewer than 2 open sockets, retry broadcast after a short delay
+  // This handles the case where the second player's socket might not be ready yet
+  if (openSockets < 2) {
+    console.warn(`[${matchId}] ⚠️ Only ${openSockets} open socket(s), retrying broadcast after 200ms...`)
+    setTimeout(() => {
+      const retrySockets = sockets.get(matchId)
+      const retryOpen = retrySockets ? Array.from(retrySockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
+      console.log(`[${matchId}] 🔄 Retry broadcast: ${retryOpen} open socket(s)`)
+      if (retryOpen > 0) {
+        broadcastToMatch(matchId, roundResultMsg)
+      }
+    }, 200)
+  }
+  
+  console.log(`[${matchId}] ✅ ROUND_RESULT broadcast completed`)
   
   if (!evalResult.match_continues) {
     // Match finished
@@ -552,7 +588,11 @@ async function handleSubmitRoundAnswer(
   }
 
   // Check if both players answered and evaluate if ready
-  await checkAndEvaluateRound(matchId, roundId, supabase)
+  // Use setTimeout to ensure this happens after the current message handler completes
+  // This gives time for socket state to stabilize, especially for the second player
+  setTimeout(async () => {
+    await checkAndEvaluateRound(matchId, roundId, supabase)
+  }, 50) // Small delay to ensure socket registration is complete
 }
 
 Deno.serve(async (req) => {

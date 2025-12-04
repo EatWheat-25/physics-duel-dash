@@ -449,7 +449,16 @@ export function useMatchFlow(matchId: string | null) {
             }
 
             if (message.type === 'ROUND_RESULT') {
-              console.log('[useMatchFlow] ROUND_RESULT received')
+              console.log('[useMatchFlow] ROUND_RESULT received', {
+                roundId: message.roundId,
+                roundNumber: message.roundNumber,
+                roundWinnerId: message.roundWinnerId,
+                player1RoundScore: message.player1RoundScore,
+                player2RoundScore: message.player2RoundScore,
+                matchContinues: message.matchContinues,
+                currentRoundId: state.currentRound?.id,
+                hasRoundResult: !!state.roundResult
+              })
               const roundResult: RoundResult = {
                 roundWinnerId: message.roundWinnerId,
                 player1RoundScore: message.player1RoundScore,
