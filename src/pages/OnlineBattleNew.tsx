@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Trophy, Users } from 'lucide-react';
+import { Trophy, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMatchFlow } from '@/hooks/useMatchFlow';
 import { CircularTimer } from '@/components/CircularTimer';
+import { GameLoader } from '@/components/GameLoader';
 import '@/styles/match-battle.css';
 
 /**
@@ -128,8 +129,7 @@ export default function OnlineBattleNew() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto" />
-          <h2 className="text-2xl font-bold text-white">Loading match...</h2>
+          <GameLoader text="loading match" />
         </div>
       </div>
     );
@@ -140,8 +140,7 @@ export default function OnlineBattleNew() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto" />
-          <h2 className="text-2xl font-bold text-white">Connecting to battle...</h2>
+          <GameLoader text="connecting" />
         </div>
       </div>
     );
@@ -230,7 +229,9 @@ export default function OnlineBattleNew() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-8">
         <div className="max-w-2xl w-full bg-slate-800/90 backdrop-blur-lg rounded-xl p-8 border-2 border-slate-600 text-center space-y-6">
-          <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto" />
+          <div className="flex justify-center">
+            <GameLoader text="waiting" />
+          </div>
           <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
           <p className="text-slate-300">Your answer has been submitted. Waiting for your opponent to answer.</p>
         </div>
@@ -339,7 +340,9 @@ export default function OnlineBattleNew() {
                 ) : allStepsDone ? (
                   // All steps done - waiting for opponent
                   <div className="flex flex-col items-center justify-center min-h-[300px] space-y-6">
-                    <Loader2 className="w-16 h-16 animate-spin" style={{ color: '#06b6d4' }} />
+                    <div className="flex justify-center">
+                      <GameLoader text="waiting" />
+                    </div>
                     <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
                     <p className="text-slate-300">You've completed all steps. Waiting for your opponent to finish.</p>
                   </div>
@@ -385,7 +388,7 @@ export default function OnlineBattleNew() {
                 ) : (
                   // No step available
                   <div className="flex items-center justify-center min-h-[300px]">
-                    <Loader2 className="w-12 h-12 animate-spin" style={{ color: '#06b6d4' }} />
+                    <GameLoader text="loading" />
                   </div>
                 )}
               </div>
@@ -400,7 +403,7 @@ export default function OnlineBattleNew() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
       <div className="text-center space-y-4">
-        <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto" />
+        <GameLoader text="starting" />
         <h2 className="text-2xl font-bold text-white">Waiting for battle to start…</h2>
       </div>
     </div>
