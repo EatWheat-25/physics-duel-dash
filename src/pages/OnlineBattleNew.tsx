@@ -216,16 +216,15 @@ export default function OnlineBattleNew() {
     );
   }
 
-  // 4. Round result banner (show as banner, not full screen) with auto-hide
+  // 4. Round result banner (show as banner, not full screen) - auto-hide after 3 seconds
   const [showRoundResultBanner, setShowRoundResultBanner] = useState(false);
   
   useEffect(() => {
     if (roundResult && currentRound && !isMatchFinished) {
       setShowRoundResultBanner(true);
-      // Auto-hide after 3 seconds
       const timer = setTimeout(() => {
         setShowRoundResultBanner(false);
-      }, 3000);
+      }, 3000); // Hide after 3 seconds
       return () => clearTimeout(timer);
     } else {
       setShowRoundResultBanner(false);

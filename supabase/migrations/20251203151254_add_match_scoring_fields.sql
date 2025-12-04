@@ -38,4 +38,3 @@ COMMENT ON COLUMN public.matches.target_points IS 'Points needed to win (first t
 COMMENT ON COLUMN public.matches.max_rounds IS 'Maximum rounds before forced end (best-of-9 style)';
 COMMENT ON COLUMN public.matches.rules_version IS 'Version for future rule changes';
 
-
