@@ -387,13 +387,16 @@ export default function OnlineBattleNew() {
                             return null
                           }
                           
+                          const roundLocked = !!roundResult || isMatchFinished || isShowingRoundTransition
                           const isSelected = playerAnswers.get(currentStep.index) === optIndex
                           return (
                             <button
                               key={optIndex}
-                              onClick={() => submitStepAnswer(currentStep.index, optIndex)}
-                              disabled={hasAnsweredCurrentStep}
-                              className={`answer-option ${isSelected ? 'selected' : ''} ${hasAnsweredCurrentStep ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              onClick={() => {
+                                if (!roundLocked) submitStepAnswer(currentStep.index, optIndex)
+                              }}
+                              disabled={hasAnsweredCurrentStep || roundLocked}
+                              className={`answer-option ${isSelected ? 'selected' : ''} ${hasAnsweredCurrentStep || roundLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {optText}
                             </button>

@@ -462,6 +462,9 @@ export function useMatchFlow(matchId: string | null) {
                 roundResultTimeoutRef.current = null
               }
               
+              // Clear step answers ref
+              stepAnswersRef.current.clear()
+              
               // Update match scores by accumulating round scores (no DB refetch needed)
               setState(prev => ({
                 ...prev,
@@ -469,6 +472,12 @@ export function useMatchFlow(matchId: string | null) {
                 hasSubmitted: false, // Clear hasSubmitted when result arrives
                 isMatchFinished: isFinished, // Set immediately if match ended
                 isShowingRoundTransition: true, // Show transition overlay
+                // Clear all answer state
+                playerAnswers: new Map(),
+                responseTimes: new Map(),
+                currentStepIndex: -1,
+                stepTimeLeft: null,
+                hasAnsweredCurrentStep: false,
                 match: prev.match ? {
                   ...prev.match,
                   player1_score: ((prev.match as any).player1_score || 0) + message.player1RoundScore,
@@ -772,6 +781,12 @@ export function useMatchFlow(matchId: string | null) {
 
   // Submit answer for current step
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number | null) => {
+    // Do NOT allow any answers once round is resolved or during transition
+    if (state.roundResult || state.isShowingRoundTransition || state.isMatchFinished) {
+      console.log('[useMatchFlow] Ignoring submitStepAnswer: round already resolved')
+      return
+    }
+
     if (!matchId || !state.currentRound || !state.currentQuestion) {
       return
     }
@@ -849,10 +864,24 @@ export function useMatchFlow(matchId: string | null) {
         }
       })
     }, 500) // 500ms delay before advancing
-  }, [matchId, state.currentRound, state.currentQuestion, startStep])
+  }, [
+    matchId,
+    state.roundResult,
+    state.isShowingRoundTransition,
+    state.isMatchFinished,
+    state.currentRound,
+    state.currentQuestion,
+    startStep
+  ])
 
   // Submit round answer
   const submitRoundAnswer = useCallback(() => {
+    // Do NOT allow any answers once round is resolved or during transition
+    if (state.roundResult || state.isShowingRoundTransition || state.isMatchFinished) {
+      console.log('[useMatchFlow] Ignoring submitRoundAnswer: round already resolved')
+      return
+    }
+
     if (!matchId) {
       toast.error('No match ID')
       return
@@ -976,7 +1005,17 @@ export function useMatchFlow(matchId: string | null) {
         }
       }
     }, 5000) // 5 second timeout (reduced from 10)
-  }, [state.currentRound, state.currentQuestion, state.playerAnswers, state.responseTimes, state.hasSubmitted, matchId])
+  }, [
+    state.currentRound,
+    state.currentQuestion,
+    state.playerAnswers,
+    state.responseTimes,
+    state.hasSubmitted,
+    state.roundResult,
+    state.isShowingRoundTransition,
+    state.isMatchFinished,
+    matchId
+  ])
 
   return {
     ...state,
