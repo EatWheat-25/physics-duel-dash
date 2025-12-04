@@ -682,19 +682,19 @@ export function useMatchFlow(matchId: string | null) {
 
   // Submit answer for current step
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number | null) => {
-    if (!matchId || !state.currentRound || !state.currentQuestion) {
-      return
-    }
-
-    // Guard: if already answered this step, return
-    if (stepAnswersRef.current.has(stepIndex)) {
-      return
-    }
-
-    // Mark as answered locally
-    stepAnswersRef.current.set(stepIndex, answerIndex ?? -1)
-    
     setState(prev => {
+      if (!matchId || !prev.currentRound || !prev.currentQuestion) {
+        return prev
+      }
+
+      // Guard: if already answered this step, return
+      if (stepAnswersRef.current.has(stepIndex)) {
+        return prev
+      }
+
+      // Mark as answered locally
+      stepAnswersRef.current.set(stepIndex, answerIndex ?? -1)
+      
       // Stop timer
       if (stepTimerIntervalRef.current) {
         clearInterval(stepTimerIntervalRef.current)
@@ -708,7 +708,7 @@ export function useMatchFlow(matchId: string | null) {
       }
 
       // Check if this is the last step
-      const isLastStep = stepIndex === (prev.currentQuestion!.steps.length - 1)
+      const isLastStep = stepIndex === (prev.currentQuestion.steps.length - 1)
       
       if (isLastStep) {
         // Last step - submit ALL answers at once
@@ -729,12 +729,31 @@ export function useMatchFlow(matchId: string | null) {
           const message = {
             type: 'SUBMIT_ROUND_ANSWER',
             matchId,
-            roundId: prev.currentRound!.id,
+            roundId: prev.currentRound.id,
             payload
           }
           console.log('[useMatchFlow] Submitting all step answers:', message)
           wsRef.current.send(JSON.stringify(message))
         }
+
+        // After short delay, advance to next step if exists
+        setTimeout(() => {
+          setState(prevState => {
+            if (!prevState.currentQuestion) return prevState
+            
+            const nextStepIndex = prevState.currentStepIndex + 1
+            if (nextStepIndex < prevState.currentQuestion.steps.length) {
+              // Start next step
+              if (startStepRef.current) {
+                startStepRef.current(nextStepIndex, 15)
+              }
+              return prevState
+            } else {
+              // All steps done - already set hasSubmitted above
+              return prevState
+            }
+          })
+        }, 500) // 500ms delay before advancing
 
         return {
           ...prev,
@@ -745,6 +764,24 @@ export function useMatchFlow(matchId: string | null) {
         }
       } else {
         // Not last step - just update state, don't submit yet
+        // After short delay, advance to next step
+        setTimeout(() => {
+          setState(prevState => {
+            if (!prevState.currentQuestion) return prevState
+            
+            const nextStepIndex = prevState.currentStepIndex + 1
+            if (nextStepIndex < prevState.currentQuestion.steps.length) {
+              // Start next step
+              if (startStepRef.current) {
+                startStepRef.current(nextStepIndex, 15)
+              }
+              return prevState
+            } else {
+              return prevState
+            }
+          })
+        }, 500) // 500ms delay before advancing
+
         return {
           ...prev,
           hasAnsweredCurrentStep: true,
@@ -753,26 +790,7 @@ export function useMatchFlow(matchId: string | null) {
         }
       }
     })
-
-    // After short delay, advance to next step if exists
-    setTimeout(() => {
-      setState(prev => {
-        if (!prev.currentQuestion) return prev
-        
-        const nextStepIndex = prev.currentStepIndex + 1
-        if (nextStepIndex < prev.currentQuestion.steps.length) {
-          // Start next step
-          if (startStepRef.current) {
-            startStepRef.current(nextStepIndex, 15)
-          }
-          return prev
-        } else {
-          // All steps done - already set hasSubmitted above
-          return prev
-        }
-      })
-    }, 500) // 500ms delay before advancing
-  }, [matchId, state.currentRound, state.currentQuestion, state.responseTimes])
+  }, [matchId])
 
   // Submit round answer
   const submitRoundAnswer = useCallback(() => {
