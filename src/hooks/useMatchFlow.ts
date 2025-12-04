@@ -83,6 +83,10 @@ export function useMatchFlow(matchId: string | null) {
   const roundTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isTransitioningRef = useRef(false)
   const queuedRoundStartRef = useRef<any | null>(null) // Queued ROUND_START message
+  // Guard condition refs (to avoid stale closures in callbacks)
+  const roundResultRef = useRef<RoundResult | null>(null)
+  const isShowingRoundTransitionRef = useRef(false)
+  const isMatchFinishedRef = useRef(false)
 
   // Fetch match data (normal polling)
   useEffect(() => {
@@ -197,6 +201,13 @@ export function useMatchFlow(matchId: string | null) {
 
     restoreRoundState()
   }, [matchId, state.currentRound?.id, state.match?.id]) // Only run when round changes
+
+  // Keep refs in sync with state for guards (avoids stale closures)
+  useEffect(() => {
+    roundResultRef.current = state.roundResult
+    isShowingRoundTransitionRef.current = state.isShowingRoundTransition
+    isMatchFinishedRef.current = state.isMatchFinished
+  }, [state.roundResult, state.isShowingRoundTransition, state.isMatchFinished])
 
   // Aggressive polling when waiting for opponent (checks round status)
   useEffect(() => {
@@ -722,7 +733,8 @@ export function useMatchFlow(matchId: string | null) {
           stepStartTimeRef.current = null
           
           // Do NOT auto-submit if round is already resolved or during transition
-          if (prev.roundResult || prev.isShowingRoundTransition || prev.isMatchFinished) {
+          // Use refs to avoid stale closures
+          if (roundResultRef.current || isShowingRoundTransitionRef.current || isMatchFinishedRef.current) {
             console.log('[useMatchFlow] Ignoring auto-submit on timer expiry: round already resolved')
             return { ...prev, stepTimeLeft: 0 }
           }
@@ -794,7 +806,8 @@ export function useMatchFlow(matchId: string | null) {
   // Submit answer for current step
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number | null) => {
     // Do NOT allow any answers once round is resolved or during transition
-    if (state.roundResult || state.isShowingRoundTransition || state.isMatchFinished) {
+    // Use refs to avoid stale closures
+    if (roundResultRef.current || isShowingRoundTransitionRef.current || isMatchFinishedRef.current) {
       console.log('[useMatchFlow] Ignoring submitStepAnswer: round already resolved')
       return
     }
@@ -876,20 +889,13 @@ export function useMatchFlow(matchId: string | null) {
         }
       })
     }, 500) // 500ms delay before advancing
-  }, [
-    matchId,
-    state.roundResult,
-    state.isShowingRoundTransition,
-    state.isMatchFinished,
-    state.currentRound,
-    state.currentQuestion,
-    startStep
-  ])
+  }, [matchId, state.currentRound, state.currentQuestion, startStep])
 
   // Submit round answer
   const submitRoundAnswer = useCallback(() => {
     // Do NOT allow any answers once round is resolved or during transition
-    if (state.roundResult || state.isShowingRoundTransition || state.isMatchFinished) {
+    // Use refs to avoid stale closures
+    if (roundResultRef.current || isShowingRoundTransitionRef.current || isMatchFinishedRef.current) {
       console.log('[useMatchFlow] Ignoring submitRoundAnswer: round already resolved')
       return
     }
