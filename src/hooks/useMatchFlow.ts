@@ -35,6 +35,8 @@ export type UseMatchFlowState = {
   hasAnsweredCurrentStep: boolean
   thinkingTimeLeft: number | null // Timer for thinking phase
   isThinkingPhase: boolean // Whether we're in thinking phase
+  // Round transition state
+  isShowingRoundTransition: boolean
 }
 
 /**
@@ -62,7 +64,9 @@ export function useMatchFlow(matchId: string | null) {
     stepTimeLeft: null,
     hasAnsweredCurrentStep: false,
     thinkingTimeLeft: null,
-    isThinkingPhase: false
+    isThinkingPhase: false,
+    // Round transition state
+    isShowingRoundTransition: false
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -75,6 +79,10 @@ export function useMatchFlow(matchId: string | null) {
   const startThinkingPhaseRef = useRef<((durationSeconds: number) => void) | null>(null)
   const thinkingPhaseStartTimeRef = useRef<number | null>(null) // Start time for thinking phase
   const stepStartTimeRef = useRef<number | null>(null) // Start time for current step
+  // Round transition refs
+  const roundTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isTransitioningRef = useRef(false)
+  const queuedRoundStartRef = useRef<any | null>(null) // Queued ROUND_START message
 
   // Fetch match data (normal polling)
   useEffect(() => {
@@ -257,6 +265,103 @@ export function useMatchFlow(matchId: string | null) {
     return () => clearInterval(interval)
   }, [matchId, state.hasSubmitted, state.currentRound])
 
+  // Handle ROUND_START message - factored out for reuse
+  const handleRoundStart = useCallback((message: any) => {
+    console.log('[useMatchFlow] ROUND_START received')
+    console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
+    
+    // Clear any existing timeout for round result
+    if (roundResultTimeoutRef.current) {
+      clearTimeout(roundResultTimeoutRef.current)
+      roundResultTimeoutRef.current = null
+    }
+    
+    // Clear step timer
+    if (stepTimerIntervalRef.current) {
+      clearInterval(stepTimerIntervalRef.current)
+      stepTimerIntervalRef.current = null
+    }
+    
+    // Clear timer start times
+    thinkingPhaseStartTimeRef.current = null
+    stepStartTimeRef.current = null
+    
+    // Clear step answers
+    stepAnswersRef.current.clear()
+    
+    try {
+      const question = mapRawToQuestion(message.question)
+      console.log('[useMatchFlow] Mapped question:', question)
+      console.log('[useMatchFlow] Steps count:', question.steps.length)
+      if (question.steps.length > 0) {
+        const firstStep = question.steps[0]
+        console.log('[useMatchFlow] First step:', firstStep)
+        console.log('[useMatchFlow] First step options:', firstStep.options)
+        console.log('[useMatchFlow] Options type:', typeof firstStep.options)
+        console.log('[useMatchFlow] Is array:', Array.isArray(firstStep.options))
+        console.log('[useMatchFlow] Options length:', firstStep.options?.length)
+      }
+      setState(prev => ({
+        ...prev,
+        currentRound: {
+          id: message.roundId,
+          roundNumber: message.roundNumber,
+          status: 'active'
+        },
+        currentQuestion: question,
+        roundResult: null, // Clear round result when new round starts
+        playerAnswers: new Map(),
+        responseTimes: new Map(),
+        hasSubmitted: false, // IMPORTANT: Clear hasSubmitted on new round
+        // Reset step state - start with thinking phase
+        currentStepIndex: -1,
+        stepTimeLeft: null,
+        hasAnsweredCurrentStep: false,
+        thinkingTimeLeft: null,
+        isThinkingPhase: false,
+        isShowingRoundTransition: false // Clear transition state
+      }))
+      
+      // Start thinking phase after state update
+      setTimeout(() => {
+        if (startThinkingPhaseRef.current) {
+          startThinkingPhaseRef.current(60) // 60 seconds for thinking
+        }
+      }, 100)
+    } catch (error) {
+      console.error('[useMatchFlow] Error mapping question:', error)
+      console.error('[useMatchFlow] Error stack:', error instanceof Error ? error.stack : 'No stack')
+      toast.error('Failed to load question')
+    }
+  }, [])
+
+  // Finish round transition - clears transition state and processes queued ROUND_START
+  const finishRoundTransition = useCallback(() => {
+    console.log('[useMatchFlow] Finishing round transition')
+    isTransitioningRef.current = false
+    
+    if (roundTransitionTimeoutRef.current) {
+      clearTimeout(roundTransitionTimeoutRef.current)
+      roundTransitionTimeoutRef.current = null
+    }
+
+    setState(prev => ({
+      ...prev,
+      isShowingRoundTransition: false,
+      // If match is over, keep roundResult for the final screen.
+      // If there is another round, clear roundResult so the next round is clean.
+      roundResult: prev.isMatchFinished ? prev.roundResult : null,
+    }))
+
+    // If we already received the next ROUND_START while transitioning, process it now:
+    if (queuedRoundStartRef.current) {
+      const msg = queuedRoundStartRef.current
+      queuedRoundStartRef.current = null
+      console.log('[useMatchFlow] Processing queued ROUND_START')
+      handleRoundStart(msg)
+    }
+  }, [handleRoundStart])
+
   // Connect to WebSocket
   const connect = useCallback((matchId: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -321,71 +426,15 @@ export function useMatchFlow(matchId: string | null) {
             }
 
             if (message.type === 'ROUND_START') {
-              console.log('[useMatchFlow] ROUND_START received')
-              console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
-              
-              // Clear any existing timeout for round result
-              if (roundResultTimeoutRef.current) {
-                clearTimeout(roundResultTimeoutRef.current)
-                roundResultTimeoutRef.current = null
+              // If we're in transition, queue this message and return
+              if (isTransitioningRef.current) {
+                console.log('[useMatchFlow] ROUND_START received during transition, queuing...')
+                queuedRoundStartRef.current = message
+                return
               }
               
-              // Clear step timer
-              if (stepTimerIntervalRef.current) {
-                clearInterval(stepTimerIntervalRef.current)
-                stepTimerIntervalRef.current = null
-              }
-              
-              // Clear timer start times
-              thinkingPhaseStartTimeRef.current = null
-              stepStartTimeRef.current = null
-              
-              // Clear step answers
-              stepAnswersRef.current.clear()
-              
-              try {
-                const question = mapRawToQuestion(message.question)
-                console.log('[useMatchFlow] Mapped question:', question)
-                console.log('[useMatchFlow] Steps count:', question.steps.length)
-                if (question.steps.length > 0) {
-                  const firstStep = question.steps[0]
-                  console.log('[useMatchFlow] First step:', firstStep)
-                  console.log('[useMatchFlow] First step options:', firstStep.options)
-                  console.log('[useMatchFlow] Options type:', typeof firstStep.options)
-                  console.log('[useMatchFlow] Is array:', Array.isArray(firstStep.options))
-                  console.log('[useMatchFlow] Options length:', firstStep.options?.length)
-                }
-                setState(prev => ({
-                  ...prev,
-                  currentRound: {
-                    id: message.roundId,
-                    roundNumber: message.roundNumber,
-                    status: 'active'
-                  },
-                  currentQuestion: question,
-                  roundResult: null, // Clear round result when new round starts
-                  playerAnswers: new Map(),
-                  responseTimes: new Map(),
-                  hasSubmitted: false, // IMPORTANT: Clear hasSubmitted on new round
-                  // Reset step state - start with thinking phase
-                  currentStepIndex: -1,
-                  stepTimeLeft: null,
-                  hasAnsweredCurrentStep: false,
-                  thinkingTimeLeft: null,
-                  isThinkingPhase: false
-                }))
-                
-                // Start thinking phase after state update
-                setTimeout(() => {
-                  if (startThinkingPhaseRef.current) {
-                    startThinkingPhaseRef.current(60) // 60 seconds for thinking
-                  }
-                }, 100)
-              } catch (error) {
-                console.error('[useMatchFlow] Error mapping question:', error)
-                console.error('[useMatchFlow] Error stack:', error instanceof Error ? error.stack : 'No stack')
-                toast.error('Failed to load question')
-              }
+              // Otherwise, process normally
+              handleRoundStart(message)
             }
 
             if (message.type === 'ROUND_RESULT') {
@@ -401,7 +450,13 @@ export function useMatchFlow(matchId: string | null) {
               // If match doesn't continue, mark as finished immediately (don't wait for MATCH_FINISHED)
               const isFinished = !message.matchContinues || message.matchWinnerId !== null
               
-              // Clear timeout since we got the result
+              // Clear any existing transition timeout
+              if (roundTransitionTimeoutRef.current) {
+                clearTimeout(roundTransitionTimeoutRef.current)
+                roundTransitionTimeoutRef.current = null
+              }
+              
+              // Clear old round result timeout (we use transition timeout now)
               if (roundResultTimeoutRef.current) {
                 clearTimeout(roundResultTimeoutRef.current)
                 roundResultTimeoutRef.current = null
@@ -413,6 +468,7 @@ export function useMatchFlow(matchId: string | null) {
                 roundResult,
                 hasSubmitted: false, // Clear hasSubmitted when result arrives
                 isMatchFinished: isFinished, // Set immediately if match ended
+                isShowingRoundTransition: true, // Show transition overlay
                 match: prev.match ? {
                   ...prev.match,
                   player1_score: ((prev.match as any).player1_score || 0) + message.player1RoundScore,
@@ -423,20 +479,11 @@ export function useMatchFlow(matchId: string | null) {
                 } : null
               }))
               
-              // If match continues, set timeout to auto-clear round result after 5 seconds
-              // This prevents getting stuck on the result screen if ROUND_START is delayed
-              if (message.matchContinues && !isFinished) {
-                roundResultTimeoutRef.current = setTimeout(() => {
-                  setState(prev => {
-                    // Only clear if still showing result (next round hasn't started yet)
-                    if (prev.roundResult && prev.roundResult.matchContinues) {
-                      console.log('[useMatchFlow] Auto-clearing round result after timeout')
-                      return { ...prev, roundResult: null }
-                    }
-                    return prev
-                  })
-                }, 5000)
-              }
+              // Set transition flag and start 5-second timeout
+              isTransitioningRef.current = true
+              roundTransitionTimeoutRef.current = setTimeout(() => {
+                finishRoundTransition()
+              }, 5000)
             }
 
             if (message.type === 'MATCH_FINISHED') {
@@ -496,6 +543,11 @@ export function useMatchFlow(matchId: string | null) {
       if (roundResultTimeoutRef.current) {
         clearTimeout(roundResultTimeoutRef.current)
         roundResultTimeoutRef.current = null
+      }
+      // Clear transition timeout
+      if (roundTransitionTimeoutRef.current) {
+        clearTimeout(roundTransitionTimeoutRef.current)
+        roundTransitionTimeoutRef.current = null
       }
       // Clear step timer
       if (stepTimerIntervalRef.current) {
@@ -911,7 +963,9 @@ export function useMatchFlow(matchId: string | null) {
     // Step-by-step helpers
     startThinkingPhase,
     startStep,
-    submitStepAnswer
+    submitStepAnswer,
+    // Round transition helper (optional, for manual skip)
+    finishRoundTransition
   }
 }
 

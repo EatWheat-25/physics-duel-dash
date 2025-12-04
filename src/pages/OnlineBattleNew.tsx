@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useMatchFlow } from '@/hooks/useMatchFlow';
 import { CircularTimer } from '@/components/CircularTimer';
 import { GameLoader } from '@/components/GameLoader';
+import { RoundTransition } from '@/components/RoundTransition';
 import '@/styles/match-battle.css';
 
 /**
@@ -41,7 +42,9 @@ export default function OnlineBattleNew() {
     submitStepAnswer,
     // Thinking phase state
     isThinkingPhase,
-    thinkingTimeLeft
+    thinkingTimeLeft,
+    // Round transition state
+    isShowingRoundTransition
   } = useMatchFlow(matchId || null);
 
   // Get current user
@@ -201,8 +204,24 @@ export default function OnlineBattleNew() {
     );
   }
 
-  // 4. Round result banner (show as banner, not full screen)
-  const roundResultBanner = roundResult && currentRound && !isMatchFinished ? (() => {
+  // 4. Round transition overlay (priority - shows before active round)
+  if (roundResult && isShowingRoundTransition && match && currentUser) {
+    const totalPossiblePoints = 
+      currentQuestion?.steps?.reduce((sum, step) => sum + (step.marks ?? 1), 0) ?? 4
+
+    return (
+      <RoundTransition
+        roundResult={roundResult}
+        currentUserId={currentUser}
+        player1Id={match.player1_id}
+        player2Id={match.player2_id}
+        totalPossiblePoints={totalPossiblePoints}
+      />
+    )
+  }
+
+  // 5. Round result banner (show as banner, not full screen - only when not in transition)
+  const roundResultBanner = roundResult && currentRound && !isMatchFinished && !isShowingRoundTransition ? (() => {
     const roundWon = roundResult.roundWinnerId === currentUser;
     const isDraw = !roundResult.roundWinnerId;
     
@@ -224,7 +243,7 @@ export default function OnlineBattleNew() {
     );
   })() : null;
 
-  // 5. Waiting for opponent state
+  // 6. Waiting for opponent state
   if (hasSubmitted && !roundResult && currentRound) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-8">
@@ -239,7 +258,7 @@ export default function OnlineBattleNew() {
     );
   }
 
-  // 6. Active round with question
+  // 7. Active round with question
   if (currentQuestion && currentRound) {
     // Check if in thinking phase
     const isInThinkingPhase = isThinkingPhase || currentStepIndex === -1
@@ -399,7 +418,7 @@ export default function OnlineBattleNew() {
     );
   }
 
-  // 7. Default: Waiting for battle to start
+  // 8. Default: Waiting for battle to start
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
       <div className="text-center space-y-4">
