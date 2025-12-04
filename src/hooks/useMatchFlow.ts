@@ -73,6 +73,8 @@ export function useMatchFlow(matchId: string | null) {
   const stepAnswersRef = useRef<Map<number, number>>(new Map()) // Track which steps we've answered
   const startStepRef = useRef<((stepIndex: number, durationSeconds: number) => void) | null>(null)
   const startThinkingPhaseRef = useRef<((durationSeconds: number) => void) | null>(null)
+  const thinkingPhaseStartTimeRef = useRef<number | null>(null) // Start time for thinking phase
+  const stepStartTimeRef = useRef<number | null>(null) // Start time for current step
 
   // Fetch match data (normal polling)
   useEffect(() => {
@@ -334,6 +336,10 @@ export function useMatchFlow(matchId: string | null) {
                 stepTimerIntervalRef.current = null
               }
               
+              // Clear timer start times
+              thinkingPhaseStartTimeRef.current = null
+              stepStartTimeRef.current = null
+              
               // Clear step answers
               stepAnswersRef.current.clear()
               
@@ -416,6 +422,21 @@ export function useMatchFlow(matchId: string | null) {
                   winner_id: message.matchWinnerId || prev.match.winner_id
                 } : null
               }))
+              
+              // If match continues, set timeout to auto-clear round result after 5 seconds
+              // This prevents getting stuck on the result screen if ROUND_START is delayed
+              if (message.matchContinues && !isFinished) {
+                roundResultTimeoutRef.current = setTimeout(() => {
+                  setState(prev => {
+                    // Only clear if still showing result (next round hasn't started yet)
+                    if (prev.roundResult && prev.roundResult.matchContinues) {
+                      console.log('[useMatchFlow] Auto-clearing round result after timeout')
+                      return { ...prev, roundResult: null }
+                    }
+                    return prev
+                  })
+                }, 5000)
+              }
             }
 
             if (message.type === 'MATCH_FINISHED') {
@@ -529,6 +550,10 @@ export function useMatchFlow(matchId: string | null) {
       stepTimerIntervalRef.current = null
     }
 
+    // Store start time for time-based calculation
+    const startTime = Date.now()
+    thinkingPhaseStartTimeRef.current = startTime
+
     setState(prev => ({
       ...prev,
       currentStepIndex: -1,
@@ -538,17 +563,20 @@ export function useMatchFlow(matchId: string | null) {
       hasAnsweredCurrentStep: false
     }))
 
-    // Start countdown timer
-    let timeLeft = durationSeconds
+    // Start countdown timer using time-based calculation (works even when tab is in background)
     stepTimerIntervalRef.current = setInterval(() => {
-      timeLeft -= 1
+      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      const remaining = Math.max(0, durationSeconds - elapsed)
+      
       setState(prev => {
-        if (timeLeft <= 0) {
+        if (remaining <= 0) {
           // Thinking phase over - start step 0
           if (stepTimerIntervalRef.current) {
             clearInterval(stepTimerIntervalRef.current)
             stepTimerIntervalRef.current = null
           }
+          
+          thinkingPhaseStartTimeRef.current = null
           
           // Start first step
           if (startStepRef.current) {
@@ -561,9 +589,9 @@ export function useMatchFlow(matchId: string | null) {
             isThinkingPhase: false
           }
         }
-        return { ...prev, thinkingTimeLeft: timeLeft }
+        return { ...prev, thinkingTimeLeft: remaining }
       })
-    }, 1000)
+    }, 100) // Update every 100ms for smoother display
   }, [])
 
   // Start a step with timer
@@ -574,6 +602,10 @@ export function useMatchFlow(matchId: string | null) {
       stepTimerIntervalRef.current = null
     }
 
+    // Store start time for time-based calculation
+    const startTime = Date.now()
+    stepStartTimeRef.current = startTime
+
     setState(prev => ({
       ...prev,
       currentStepIndex: stepIndex,
@@ -581,17 +613,20 @@ export function useMatchFlow(matchId: string | null) {
       hasAnsweredCurrentStep: false
     }))
 
-    // Start countdown timer
-    let timeLeft = durationSeconds
+    // Start countdown timer using time-based calculation (works even when tab is in background)
     stepTimerIntervalRef.current = setInterval(() => {
-      timeLeft -= 1
+      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      const remaining = Math.max(0, durationSeconds - elapsed)
+      
       setState(prev => {
-        if (timeLeft <= 0) {
+        if (remaining <= 0) {
           // Timer expired - submit no answer (wrong)
           if (stepTimerIntervalRef.current) {
             clearInterval(stepTimerIntervalRef.current)
             stepTimerIntervalRef.current = null
           }
+          
+          stepStartTimeRef.current = null
           
           // Auto-submit with null answer (will be treated as wrong)
           const currentStepIndex = prev.currentStepIndex
@@ -642,9 +677,9 @@ export function useMatchFlow(matchId: string | null) {
           
           return { ...prev, stepTimeLeft: 0 }
         }
-        return { ...prev, stepTimeLeft: timeLeft }
+        return { ...prev, stepTimeLeft: remaining }
       })
-    }, 1000)
+    }, 100) // Update every 100ms for smoother display
   }, [matchId])
 
   // Store startStep in ref so it can be called from anywhere
@@ -677,6 +712,9 @@ export function useMatchFlow(matchId: string | null) {
         clearInterval(stepTimerIntervalRef.current)
         stepTimerIntervalRef.current = null
       }
+      
+      // Clear step start time
+      stepStartTimeRef.current = null
 
       // Build payload with just this step
       const payload = {
