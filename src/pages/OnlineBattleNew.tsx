@@ -43,6 +43,7 @@ export default function OnlineBattleNew() {
     // Thinking phase state
     isThinkingPhase,
     thinkingTimeLeft,
+    skipThinkingPhase,
     // Round transition state
     isShowingRoundTransition
   } = useMatchFlow(matchId || null);
@@ -355,6 +356,12 @@ export default function OnlineBattleNew() {
                     <p className="text-slate-300 text-center max-w-md">
                       Think about your approach. The steps will appear once the timer runs out.
                     </p>
+                    <button
+                      onClick={skipThinkingPhase}
+                      className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 active:scale-95"
+                    >
+                      Start Answering Early
+                    </button>
                   </div>
                 ) : allStepsDone ? (
                   // All steps done - waiting for opponent

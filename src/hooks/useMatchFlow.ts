@@ -646,6 +646,32 @@ export function useMatchFlow(matchId: string | null) {
     }, 100) // Update every 100ms for smoother display
   }, [])
 
+  // Skip thinking phase and start answering immediately
+  const skipThinkingPhase = useCallback(() => {
+    if (!state.isThinkingPhase) {
+      return // Not in thinking phase, do nothing
+    }
+
+    // Clear thinking phase timer
+    if (stepTimerIntervalRef.current) {
+      clearInterval(stepTimerIntervalRef.current)
+      stepTimerIntervalRef.current = null
+    }
+
+    thinkingPhaseStartTimeRef.current = null
+
+    // Start first step immediately
+    if (startStepRef.current && state.currentQuestion && state.currentQuestion.steps.length > 0) {
+      startStepRef.current(0, 15)
+    }
+
+    setState(prev => ({
+      ...prev,
+      thinkingTimeLeft: 0,
+      isThinkingPhase: false
+    }))
+  }, [state.isThinkingPhase, state.currentQuestion])
+
   // Start a step with timer
   const startStep = useCallback((stepIndex: number, durationSeconds: number) => {
     // Clear any existing timer
@@ -962,6 +988,7 @@ export function useMatchFlow(matchId: string | null) {
     submitRoundAnswer,
     // Step-by-step helpers
     startThinkingPhase,
+    skipThinkingPhase,
     startStep,
     submitStepAnswer,
     // Round transition helper (optional, for manual skip)
