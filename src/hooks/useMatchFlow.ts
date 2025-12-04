@@ -741,29 +741,56 @@ export function useMatchFlow(matchId: string | null) {
           
           // Auto-submit with null answer (will be treated as wrong)
           const currentStepIndex = prev.currentStepIndex
-          if (!stepAnswersRef.current.has(currentStepIndex)) {
-            // Submit step answer with null (wrong)
-            stepAnswersRef.current.set(currentStepIndex, -1)
-            
-            const payload = {
-              version: 1,
-              steps: [{
-                step_index: currentStepIndex,
-                answer_index: -1,
-                response_time_ms: prev.responseTimes.get(currentStepIndex) || 0
-              }]
-            }
+          
+          // Hard guards: check state directly (not refs, since we're in setState callback)
+          if (prev.roundResult || prev.isShowingRoundTransition || prev.isMatchFinished) {
+            console.log('[useMatchFlow] Guard blocked auto-submit on timer expiry:', {
+              hasRoundResult: !!prev.roundResult,
+              isTransition: prev.isShowingRoundTransition,
+              isMatchFinished: prev.isMatchFinished
+            })
+            return { ...prev, stepTimeLeft: 0 }
+          }
+          
+          if (!prev.currentRound || !prev.currentQuestion) {
+            console.log('[useMatchFlow] Guard blocked auto-submit: missing round or question')
+            return { ...prev, stepTimeLeft: 0 }
+          }
+          
+          // Use composite key: roundId:stepIndex
+          const stepKey = `${prev.currentRound.id}:${currentStepIndex}`
+          if (stepAnswersRef.current.has(stepKey)) {
+            console.log('[useMatchFlow] Guard blocked auto-submit: already answered', stepKey)
+            return { ...prev, stepTimeLeft: 0 }
+          }
+          
+          // Submit step answer with null (wrong)
+          stepAnswersRef.current.set(stepKey, -1)
+          
+          const payload = {
+            version: 1,
+            steps: [{
+              step_index: currentStepIndex,
+              answer_index: -1,
+              response_time_ms: prev.responseTimes.get(currentStepIndex) || 0
+            }]
+          }
 
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
-              const message = {
-                type: 'SUBMIT_ROUND_ANSWER',
-                matchId,
-                roundId: prev.currentRound.id,
-                payload
-              }
-              console.log('[useMatchFlow] Auto-submitting step answer (timer expired):', message)
-              wsRef.current.send(JSON.stringify(message))
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
+            const message = {
+              type: 'SUBMIT_ROUND_ANSWER',
+              matchId,
+              roundId: prev.currentRound.id,
+              payload
             }
+            console.log('[useMatchFlow] Auto-submitting step answer (timer expired):', {
+              roundId: prev.currentRound.id,
+              stepIndex: currentStepIndex,
+              stepKey,
+              message
+            })
+            wsRef.current.send(JSON.stringify(message))
+          }
             
             // Advance to next step after delay
             setTimeout(() => {
@@ -805,25 +832,53 @@ export function useMatchFlow(matchId: string | null) {
 
   // Submit answer for current step
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number | null) => {
-    // Do NOT allow any answers once round is resolved or during transition
-    // Use refs to avoid stale closures
+    // Hard guards: use refs to avoid stale closures
     if (roundResultRef.current || isShowingRoundTransitionRef.current || isMatchFinishedRef.current) {
-      console.log('[useMatchFlow] Ignoring submitStepAnswer: round already resolved')
+      console.log('[useMatchFlow] Guard blocked submitStepAnswer: round already resolved', {
+        hasRoundResult: !!roundResultRef.current,
+        isTransition: isShowingRoundTransitionRef.current,
+        isMatchFinished: isMatchFinishedRef.current
+      })
       return
     }
 
     if (!matchId || !state.currentRound || !state.currentQuestion) {
+      console.log('[useMatchFlow] Guard blocked submitStepAnswer: missing matchId, round, or question', {
+        hasMatchId: !!matchId,
+        hasRound: !!state.currentRound,
+        hasQuestion: !!state.currentQuestion
+      })
       return
     }
 
-    // Guard: if already answered this step, return
-    if (stepAnswersRef.current.has(stepIndex)) {
+    // Use composite key: roundId:stepIndex
+    const stepKey = `${state.currentRound.id}:${stepIndex}`
+    if (stepAnswersRef.current.has(stepKey)) {
+      console.log('[useMatchFlow] Guard blocked submitStepAnswer: already answered', {
+        stepKey,
+        roundId: state.currentRound.id,
+        stepIndex
+      })
       return
     }
 
     setState(prev => {
+      // Use composite key: roundId:stepIndex
+      const stepKey = `${prev.currentRound!.id}:${stepIndex}`
+      
+      // Double-check guard inside setState (defensive)
+      if (prev.roundResult || prev.isShowingRoundTransition || prev.isMatchFinished) {
+        console.log('[useMatchFlow] Guard blocked submitStepAnswer inside setState: round already resolved')
+        return prev
+      }
+      
+      if (stepAnswersRef.current.has(stepKey)) {
+        console.log('[useMatchFlow] Guard blocked submitStepAnswer inside setState: already answered', stepKey)
+        return prev
+      }
+      
       // Mark as answered
-      stepAnswersRef.current.set(stepIndex, answerIndex ?? -1)
+      stepAnswersRef.current.set(stepKey, answerIndex ?? -1)
       
       // Stop timer
       if (stepTimerIntervalRef.current) {
@@ -852,7 +907,13 @@ export function useMatchFlow(matchId: string | null) {
           roundId: prev.currentRound!.id,
           payload
         }
-        console.log('[useMatchFlow] Submitting step answer:', message)
+        console.log('[useMatchFlow] Submitting step answer:', {
+          roundId: prev.currentRound!.id,
+          stepIndex,
+          answerIndex,
+          stepKey,
+          message
+        })
         wsRef.current.send(JSON.stringify(message))
       }
 

@@ -542,7 +542,14 @@ async function handleSubmitRoundAnswer(
     return
   }
 
-  console.log(`[${matchId}] ✅ Answer submitted successfully, result:`, result)
+  // Handle idempotent duplicate gracefully
+  if (result?.already_answered) {
+    console.log(`[${matchId}] Player ${playerId} already answered round ${roundId}, returning existing result (idempotent)`)
+    // Don't send GAME_ERROR, just continue to checkAndEvaluateRound
+    // This allows the round evaluation to proceed normally
+  } else {
+    console.log(`[${matchId}] ✅ Answer submitted successfully, result:`, result)
+  }
 
   // Check if both players answered and evaluate if ready
   await checkAndEvaluateRound(matchId, roundId, supabase)

@@ -15,3 +15,4 @@ WHERE status IN ('pending', 'in_progress');
 COMMENT ON COLUMN public.matches.max_rounds IS 'Maximum rounds before forced end (set to 3 for testing)';
 
 
+
