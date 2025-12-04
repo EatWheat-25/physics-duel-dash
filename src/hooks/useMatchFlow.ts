@@ -792,26 +792,25 @@ export function useMatchFlow(matchId: string | null) {
             wsRef.current.send(JSON.stringify(message))
           }
             
-            // Advance to next step after delay
-            setTimeout(() => {
-              setState(prev => {
-                if (!prev.currentQuestion) return prev
-                
-                const nextStepIndex = prev.currentStepIndex + 1
-                if (nextStepIndex < prev.currentQuestion.steps.length) {
-                  // Start next step (recursive call)
-                  startStep(nextStepIndex, 15)
-                  return prev
-                } else {
-                  // All steps done - wait for opponent
-                  return {
-                    ...prev,
-                    hasSubmitted: true
-                  }
+          // Advance to next step after delay
+          setTimeout(() => {
+            setState(prev => {
+              if (!prev.currentQuestion) return prev
+              
+              const nextStepIndex = prev.currentStepIndex + 1
+              if (nextStepIndex < prev.currentQuestion.steps.length) {
+                // Start next step (recursive call)
+                startStep(nextStepIndex, 15)
+                return prev
+              } else {
+                // All steps done - wait for opponent
+                return {
+                  ...prev,
+                  hasSubmitted: true
                 }
-              })
-            }, 500)
-          }
+              }
+            })
+          }, 500)
           
           return { ...prev, stepTimeLeft: 0 }
         }
