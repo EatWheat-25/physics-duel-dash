@@ -383,7 +383,8 @@ async function computeRoundState(
   } : null
 
   // Map question to StepBasedQuestion format
-  const mappedQuestion = phase !== 'results' ? mapDbQuestionToStepBased(question) : null
+  // Always include question (even in results phase) so clients can display transition overlay
+  const mappedQuestion = mapDbQuestionToStepBased(question)
 
   return {
     type: 'ROUND_STATE',

@@ -557,9 +557,8 @@ export function useMatchFlow(matchId: string | null) {
           roundNumber: message.roundNumber,
           status: message.phase === 'results' ? 'finished' : 'active'
         },
-        // Preserve question if null (e.g., during results phase)
-        // This ensures UI doesn't break when ROUND_STATE arrives with question: null
-        currentQuestion: message.question || prev.currentQuestion,
+        // Question is always included in ROUND_STATE (even during results phase)
+        currentQuestion: message.question,
 
         // Phase state (from server)
         currentStepIndex: message.currentStepIndex,
