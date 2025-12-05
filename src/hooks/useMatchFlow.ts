@@ -774,28 +774,12 @@ export function useMatchFlow(matchId: string | null) {
             return { ...prev, stepTimeLeft: 0 }
           }
           
-          // Submit step answer with null (wrong)
+          // Submit step answer with null (wrong) - but don't send yet, accumulate
           stepAnswersRef.current.set(stepKey, -1)
           
-          const payload = {
-            version: 1,
-            steps: [{
-              step_index: currentStepIndex,
-              answer_index: -1,
-              response_time_ms: prev.responseTimes.get(currentStepIndex) || 0
-            }]
-          }
-
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
-            const message = {
-              type: 'SUBMIT_ROUND_ANSWER',
-              matchId,
-              roundId: prev.currentRound.id,
-              payload
-            }
-            console.log('[WS OUT]', clientDebugId.current, 'SUBMIT_ROUND_ANSWER (auto)', message)
-            wsRef.current.send(JSON.stringify(message))
-          }
+          // Update state to mark this step as answered (wrong)
+          const newAnswers = new Map(prev.playerAnswers)
+          newAnswers.set(currentStepIndex, -1)
             
           // Advance to next step after delay
           setTimeout(() => {
@@ -806,9 +790,47 @@ export function useMatchFlow(matchId: string | null) {
               if (nextStepIndex < prev.currentQuestion.steps.length) {
                 // Start next step (recursive call)
                 startStep(nextStepIndex, 15)
-                return prev
+                return {
+                  ...prev,
+                  playerAnswers: newAnswers
+                }
               } else {
-                // All steps done - wait for opponent
+                // All steps done - submit ALL answers at once
+                const allSteps = Array.from(prev.playerAnswers.entries()).map(([stepIdx, answerIdx]) => ({
+                  step_index: stepIdx,
+                  answer_index: answerIdx,
+                  response_time_ms: prev.responseTimes.get(stepIdx) || 0
+                }))
+                
+                // Include the current step that timed out
+                allSteps.push({
+                  step_index: currentStepIndex,
+                  answer_index: -1,
+                  response_time_ms: 0
+                })
+                
+                // If no answers, submit empty (all wrong)
+                const payload = {
+                  version: 1,
+                  steps: allSteps.length > 0 ? allSteps : prev.currentQuestion.steps.map((_, idx) => ({
+                    step_index: idx,
+                    answer_index: -1,
+                    response_time_ms: 0
+                  }))
+                }
+                
+                // Send complete answer via WebSocket
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
+                  const message = {
+                    type: 'SUBMIT_ROUND_ANSWER',
+                    matchId,
+                    roundId: prev.currentRound.id,
+                    payload
+                  }
+                  console.log('[WS OUT]', clientDebugId.current, 'SUBMIT_ROUND_ANSWER (auto, all steps)', message)
+                  wsRef.current.send(JSON.stringify(message))
+                }
+                
                 return {
                   ...prev,
                   hasSubmitted: true
@@ -905,27 +927,8 @@ export function useMatchFlow(matchId: string | null) {
       // Clear step start time
       stepStartTimeRef.current = null
 
-      // Build payload with just this step
-      const payload = {
-        version: 1,
-        steps: [{
-          step_index: stepIndex,
-          answer_index: answerIndex ?? -1, // -1 means no answer / wrong
-          response_time_ms: prev.responseTimes.get(stepIndex) || 0
-        }]
-      }
-
-          // Send via existing WebSocket flow
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        const message = {
-          type: 'SUBMIT_ROUND_ANSWER',
-          matchId,
-          roundId: prev.currentRound!.id,
-          payload
-        }
-        console.log('[WS OUT]', clientDebugId.current, 'SUBMIT_ROUND_ANSWER', message)
-        wsRef.current.send(JSON.stringify(message))
-      }
+      // Don't send yet - accumulate steps and send all at once when all steps are done
+      // This prevents the RPC from treating each step as a separate submission
 
       // Update state
       const newAnswers = new Map(prev.playerAnswers)
@@ -952,7 +955,35 @@ export function useMatchFlow(matchId: string | null) {
           startStep(nextStepIndex, 15)
           return prev
         } else {
-          // All steps done - wait for opponent
+          // All steps done - submit ALL answers at once
+          const allSteps = Array.from(prev.playerAnswers.entries()).map(([stepIdx, answerIdx]) => ({
+            step_index: stepIdx,
+            answer_index: answerIdx,
+            response_time_ms: prev.responseTimes.get(stepIdx) || 0
+          }))
+          
+          // If no answers, submit empty (all wrong)
+          const payload = {
+            version: 1,
+            steps: allSteps.length > 0 ? allSteps : prev.currentQuestion.steps.map((_, idx) => ({
+              step_index: idx,
+              answer_index: -1,
+              response_time_ms: 0
+            }))
+          }
+          
+          // Send complete answer via WebSocket
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
+            const message = {
+              type: 'SUBMIT_ROUND_ANSWER',
+              matchId,
+              roundId: prev.currentRound.id,
+              payload
+            }
+            console.log('[WS OUT]', clientDebugId.current, 'SUBMIT_ROUND_ANSWER (all steps)', message)
+            wsRef.current.send(JSON.stringify(message))
+          }
+          
           return {
             ...prev,
             hasSubmitted: true // Use existing flag to show "waiting for opponent"
