@@ -147,6 +147,9 @@ function broadcastToMatch(matchId: string, msg: any): void {
     return
   }
   
+  // Log before broadcast
+  console.log('[WS BROADCAST]', msg.type, { matchId, roundId: msg.roundId, playerId: msg.playerId })
+  
   const msgStr = JSON.stringify(msg)
   let sent = 0
   for (const socket of matchSockets) {
@@ -297,6 +300,7 @@ async function checkAndEvaluateRound(
   
   if (evalError) {
     console.error(`[${matchId}] Error evaluating round:`, evalError)
+    console.log('[GAME_ERROR]', { matchId, playerId: null, message: 'Failed to evaluate round', code: 'EVAL_ERROR' })
     broadcastToMatch(matchId, {
       type: 'GAME_ERROR',
       message: 'Failed to evaluate round',
@@ -386,14 +390,18 @@ async function checkAndEvaluateRound(
     if (updatedMatch && updatedMatch.status === 'in_progress') {
       const nextRound = await createRound(updatedMatch, round.round_number, supabase)
       if (nextRound) {
-        const roundStartMsg: RoundStartMsg = {
-          type: 'ROUND_START',
-          matchId,
-          roundId: nextRound.roundId,
-          roundNumber: nextRound.roundNumber,
-          question: nextRound.question
-        }
-        broadcastToMatch(matchId, roundStartMsg)
+        console.log(`[${matchId}] 📊 Broadcasting ROUND_START for round ${nextRound.roundNumber}`)
+        // Add small delay to ensure ROUND_RESULT is processed first
+        setTimeout(() => {
+          const roundStartMsg: RoundStartMsg = {
+            type: 'ROUND_START',
+            matchId,
+            roundId: nextRound.roundId,
+            roundNumber: nextRound.roundNumber,
+            question: nextRound.question
+          }
+          broadcastToMatch(matchId, roundStartMsg)
+        }, 100) // 100ms delay after ROUND_RESULT
       }
     } else {
       console.warn(`[${matchId}] Match is not in_progress (status: ${updatedMatch?.status}), not creating next round`)
@@ -512,6 +520,7 @@ async function handleJoinMatch(
       roundNumber: activeRound.round_number,
       question: mapped
     }
+    console.log(`[${matchId}] 📊 Sending ROUND_START to joining player for round ${activeRound.round_number}`)
     socket.send(JSON.stringify(roundStartMsg))
     return
   }
@@ -570,6 +579,7 @@ async function handleSubmitRoundAnswer(
 
   if (error) {
     console.error(`[${matchId}] Error submitting answer:`, error)
+    console.log('[GAME_ERROR]', { matchId, playerId, message: error.message || 'Failed to submit answer', code: 'SUBMIT_ERROR' })
     broadcastToMatch(matchId, {
       type: 'GAME_ERROR',
       message: error.message || 'Failed to submit answer',
