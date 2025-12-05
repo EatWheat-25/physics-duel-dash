@@ -50,13 +50,13 @@ export default function OnlineBattleNew() {
 
   // Get current user
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUser(user.id);
-      }
-    };
-    getUser();
+      const getUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setCurrentUser(user.id);
+        }
+      };
+      getUser();
   }, []);
 
   // Verify user is part of match
@@ -192,13 +192,13 @@ export default function OnlineBattleNew() {
               </div>
             </div>
 
-            <Button
-              onClick={() => navigate('/matchmaking-new')}
+          <Button
+            onClick={() => navigate('/matchmaking-new')}
               className="mt-6"
               size="lg"
-            >
+          >
               Back to Lobby
-            </Button>
+          </Button>
           </div>
         </div>
       </div>
@@ -377,7 +377,7 @@ export default function OnlineBattleNew() {
                   <>
                     <div className="step-prompt">
                       {currentStep.prompt}
-                    </div>
+            </div>
 
                     {/* Answer Options */}
                     {currentStep.options && Array.isArray(currentStep.options) && currentStep.options.length > 0 ? (
@@ -390,24 +390,24 @@ export default function OnlineBattleNew() {
                           const roundLocked = !!roundResult || isMatchFinished || isShowingRoundTransition
                           const isSelected = playerAnswers.get(currentStep.index) === optIndex
                           return (
-                            <button
+                    <button
                               key={optIndex}
-                              onClick={() => {
+                      onClick={() => {
                                 if (!roundLocked) submitStepAnswer(currentStep.index, optIndex)
-                              }}
+                      }}
                               disabled={hasAnsweredCurrentStep || roundLocked}
                               className={`answer-option ${isSelected ? 'selected' : ''} ${hasAnsweredCurrentStep || roundLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
+                    >
                               {optText}
-                            </button>
+                    </button>
                           )
                         })}
-                      </div>
+                </div>
                     ) : (
                       <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
                         <p className="text-red-400 text-sm">No options available for this step.</p>
-                      </div>
-                    )}
+              </div>
+            )}
 
                     {/* Step progress indicator */}
                     <div className="text-center text-sm text-slate-400 mt-4">
