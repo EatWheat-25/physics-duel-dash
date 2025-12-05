@@ -129,103 +129,64 @@ export function PlayerCard() {
 
   const colors = rankColor(stats.rank_tier as RankTier);
   const rank = getRankByPoints(stats.mmr || 1000);
+  const rankDisplay = `${rank.tier.toUpperCase()} ${rank.subRank || ''}`.trim();
+  const playerInitial = profile?.username?.[0]?.toUpperCase() || '?';
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-      className="w-full max-w-[48rem] mx-auto"
+      className="glass-card"
+      style={{ maxWidth: '320px', textAlign: 'center' }}
     >
-      <div
-        className="relative rounded-2xl overflow-hidden backdrop-blur-xl"
-        style={{
-          background: 'rgba(0, 20, 40, 0.15)',
-          border: `1px solid ${colors.outline}`,
-          boxShadow: `0 0 40px ${colors.glow}, inset 0 1px 0 ${colors.innerBorder}`,
-        }}
-      >
-        {/* Top Stats Row */}
-        <div className="p-6 flex items-center gap-4 border-b border-white/10">
-          <RankBadge rank={rank} size="sm" />
-          
-          {stats.accuracy !== null && (
-            <div className="flex flex-col">
-              <span className="text-2xl font-bold text-foreground">{stats.accuracy}%</span>
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">Accuracy</span>
-            </div>
-          )}
+      {/* Rank Badge */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--spacing-md)' }}>
+        <span style={{ color: 'var(--color-neon-coral)', fontWeight: 600 }}>⬥ {rankDisplay}</span>
+        <span style={{ color: 'var(--color-text-muted)' }}>{stats.mmr || 1000} <small>MMR</small></span>
+      </div>
 
-          {stats.winrate !== null && (
-            <div className="flex flex-col ml-4">
-              <span className="text-2xl font-bold text-foreground">{stats.winrate}%</span>
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">Winrate</span>
-            </div>
-          )}
+      {/* Avatar */}
+      <div className="player-avatar" style={{ margin: '0 auto var(--spacing-md)' }}>
+        {playerInitial}
+      </div>
 
-          {stats.mmr !== null && stats.winrate === null && (
-            <div className="flex flex-col ml-4">
-              <span className="text-2xl font-bold text-foreground">{stats.mmr}</span>
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">MMR</span>
-            </div>
-          )}
-        </div>
+      {/* Player Name */}
+      <h2 style={{ marginBottom: 'var(--spacing-xs)' }}>{profile?.username || 'Player'}</h2>
+      <p style={{ color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>{rankDisplay}</p>
 
-        {/* Main Character/Cover Canvas */}
-        <div className="relative h-[20rem] w-full overflow-hidden">
-          {stats.avatar_url ? (
-            <img
-              src={stats.avatar_url}
-              alt="Player card"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div
-              className="w-full h-full"
-              style={{
-                background: `
-                  repeating-linear-gradient(
-                    0deg,
-                    rgba(255, 255, 255, 0.03) 0px,
-                    transparent 1px,
-                    transparent 40px,
-                    rgba(255, 255, 255, 0.03) 41px
-                  ),
-                  repeating-linear-gradient(
-                    90deg,
-                    rgba(255, 255, 255, 0.03) 0px,
-                    transparent 1px,
-                    transparent 40px,
-                    rgba(255, 255, 255, 0.03) 41px
-                  ),
-                  linear-gradient(135deg, rgba(${parseInt(colors.outline.slice(1, 3), 16)}, ${parseInt(colors.outline.slice(3, 5), 16)}, ${parseInt(colors.outline.slice(5, 7), 16)}, 0.05), transparent)
-                `,
-              }}
-            >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-6xl opacity-20">{profile?.username?.[0]?.toUpperCase() || '?'}</span>
-              </div>
-            </div>
-          )}
-        </div>
+      {/* Card Actions */}
+      <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'center', marginBottom: 'var(--spacing-lg)' }}>
+        <a 
+          href="#" 
+          onClick={(e) => { e.preventDefault(); navigate('/profile'); }}
+          style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', textDecoration: 'none', cursor: 'pointer' }}
+        >
+          Customize Card
+        </a>
+        <a 
+          href="#" 
+          onClick={(e) => { e.preventDefault(); navigate('/progression'); }}
+          style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', textDecoration: 'none', cursor: 'pointer' }}
+        >
+          View Progression
+        </a>
+      </div>
 
-        {/* Bottom Action Row */}
-        <div className="p-6 flex justify-end gap-3">
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/profile')}
-            className="text-sm font-medium text-foreground hover:bg-white/5 border border-white/10"
-          >
-            Customize Card
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/progression')}
-            className="text-sm font-medium text-foreground hover:bg-white/5 border border-white/10"
-          >
-            View Progression
-          </Button>
-        </div>
+      {/* Buttons */}
+      <div style={{ display: 'flex', gap: 'var(--spacing-md)', justifyContent: 'center', flexDirection: 'column' }}>
+        <button 
+          className="btn btn-primary"
+          onClick={() => navigate('/matchmaking-new')}
+        >
+          START
+        </button>
+        <button 
+          className="btn btn-secondary"
+          onClick={() => navigate('/dev/db-test')}
+        >
+          WINNER DEMO
+        </button>
       </div>
     </motion.div>
   );
