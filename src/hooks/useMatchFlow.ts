@@ -774,9 +774,7 @@ export function useMatchFlow(matchId: string | null) {
             return { ...prev, stepTimeLeft: 0 }
           }
           
-          // Submit step answer with null (wrong) - but don't send yet, accumulate
-          stepAnswersRef.current.set(stepKey, -1)
-          
+          // Don't mark in stepAnswersRef yet - accumulate for later submission
           // Update state to mark this step as answered (wrong)
           const newAnswers = new Map(prev.playerAnswers)
           newAnswers.set(currentStepIndex, -1)
@@ -796,27 +794,25 @@ export function useMatchFlow(matchId: string | null) {
                 }
               } else {
                 // All steps done - submit ALL answers at once
-                const allSteps = Array.from(prev.playerAnswers.entries()).map(([stepIdx, answerIdx]) => ({
-                  step_index: stepIdx,
-                  answer_index: answerIdx,
-                  response_time_ms: prev.responseTimes.get(stepIdx) || 0
-                }))
-                
-                // Include the current step that timed out
-                allSteps.push({
-                  step_index: currentStepIndex,
-                  answer_index: -1,
-                  response_time_ms: 0
+                // Build complete payload with all steps (answered or not)
+                const allSteps = prev.currentQuestion.steps.map((_, idx) => {
+                  const answerIdx = prev.playerAnswers.get(idx)
+                  return {
+                    step_index: idx,
+                    answer_index: answerIdx !== undefined ? answerIdx : -1, // -1 if not answered
+                    response_time_ms: prev.responseTimes.get(idx) || 0
+                  }
                 })
                 
-                // If no answers, submit empty (all wrong)
+                // Mark all steps as answered in stepAnswersRef now (after building payload)
+                allSteps.forEach(step => {
+                  const stepKey = `${prev.currentRound!.id}:${step.step_index}`
+                  stepAnswersRef.current.set(stepKey, step.answer_index)
+                })
+                
                 const payload = {
                   version: 1,
-                  steps: allSteps.length > 0 ? allSteps : prev.currentQuestion.steps.map((_, idx) => ({
-                    step_index: idx,
-                    answer_index: -1,
-                    response_time_ms: 0
-                  }))
+                  steps: allSteps
                 }
                 
                 // Send complete answer via WebSocket
@@ -915,8 +911,8 @@ export function useMatchFlow(matchId: string | null) {
         return prev
       }
       
-      // Mark as answered
-      stepAnswersRef.current.set(stepKey, answerIndex ?? -1)
+      // Don't mark in stepAnswersRef yet - we'll mark when we submit all steps
+      // This prevents guards from blocking step advancement
       
       // Stop timer
       if (stepTimerIntervalRef.current) {
@@ -927,10 +923,7 @@ export function useMatchFlow(matchId: string | null) {
       // Clear step start time
       stepStartTimeRef.current = null
 
-      // Don't send yet - accumulate steps and send all at once when all steps are done
-      // This prevents the RPC from treating each step as a separate submission
-
-      // Update state
+      // Update state with answer (accumulate for later submission)
       const newAnswers = new Map(prev.playerAnswers)
       if (answerIndex !== null) {
         newAnswers.set(stepIndex, answerIndex)
@@ -956,20 +949,25 @@ export function useMatchFlow(matchId: string | null) {
           return prev
         } else {
           // All steps done - submit ALL answers at once
-          const allSteps = Array.from(prev.playerAnswers.entries()).map(([stepIdx, answerIdx]) => ({
-            step_index: stepIdx,
-            answer_index: answerIdx,
-            response_time_ms: prev.responseTimes.get(stepIdx) || 0
-          }))
+          // Build complete payload with all steps (answered or not)
+          const allSteps = prev.currentQuestion.steps.map((_, idx) => {
+            const answerIdx = prev.playerAnswers.get(idx)
+            return {
+              step_index: idx,
+              answer_index: answerIdx !== undefined ? answerIdx : -1, // -1 if not answered
+              response_time_ms: prev.responseTimes.get(idx) || 0
+            }
+          })
           
-          // If no answers, submit empty (all wrong)
+          // Mark all steps as answered in stepAnswersRef now (after building payload)
+          allSteps.forEach(step => {
+            const stepKey = `${prev.currentRound!.id}:${step.step_index}`
+            stepAnswersRef.current.set(stepKey, step.answer_index)
+          })
+          
           const payload = {
             version: 1,
-            steps: allSteps.length > 0 ? allSteps : prev.currentQuestion.steps.map((_, idx) => ({
-              step_index: idx,
-              answer_index: -1,
-              response_time_ms: 0
-            }))
+            steps: allSteps
           }
           
           // Send complete answer via WebSocket
