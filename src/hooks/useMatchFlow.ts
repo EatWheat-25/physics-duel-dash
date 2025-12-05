@@ -4,17 +4,10 @@ import { toast } from 'sonner'
 import { mapRawToQuestion } from '@/utils/questionMapper'
 import type { MatchRow } from '@/types/schema'
 import type { StepBasedQuestion } from '@/types/questions'
+import type { RoundResult, RoundPhase } from '@/types/roundState'
 
-/**
- * Round result from ROUND_RESULT message
- */
-export type RoundResult = {
-  roundWinnerId: string | null
-  player1RoundScore: number
-  player2RoundScore: number
-  matchContinues: boolean
-  matchWinnerId: string | null
-}
+// Re-export for backward compatibility
+export type { RoundResult }
 
 /**
  * Match flow state
@@ -38,7 +31,7 @@ export type UseMatchFlowState = {
   // Round transition state
   isShowingRoundTransition: boolean
   // Server-driven phase (from ROUND_STATE)
-  phase: 'thinking' | 'step' | 'waiting' | 'results' | null
+  phase: RoundPhase | null
 }
 
 /**
@@ -215,16 +208,6 @@ export function useMatchFlow(matchId: string | null) {
     isShowingRoundTransitionRef.current = state.isShowingRoundTransition
     isMatchFinishedRef.current = state.isMatchFinished
   }, [state.roundResult, state.isShowingRoundTransition, state.isMatchFinished])
-
-  // Apply queued ROUND_STATE when match becomes available
-  useEffect(() => {
-    if (state.match && pendingRoundStateRef.current) {
-      const queued = pendingRoundStateRef.current
-      pendingRoundStateRef.current = null
-      console.log('[useMatchFlow] Match now available, applying queued ROUND_STATE')
-      handleRoundState(queued)
-    }
-  }, [state.match, handleRoundState])
 
   // ========================================
   // applyRoundResult - SINGLE SOURCE OF TRUTH
@@ -511,6 +494,7 @@ export function useMatchFlow(matchId: string | null) {
   }, [finishRoundTransition])
 
   // Handle ROUND_STATE - authoritative server state
+  // Defined early to avoid TDZ issues with useEffect below
   const handleRoundState = useCallback((message: any) => {
     console.log('[useMatchFlow] ROUND_STATE received (authoritative):', message)
 
@@ -626,6 +610,17 @@ export function useMatchFlow(matchId: string | null) {
       }
     }
   }, [state.match])
+
+  // Apply queued ROUND_STATE when match becomes available
+  // This must come AFTER handleRoundState is defined (above)
+  useEffect(() => {
+    if (state.match && pendingRoundStateRef.current) {
+      const queued = pendingRoundStateRef.current
+      pendingRoundStateRef.current = null
+      console.log('[useMatchFlow] Match now available, applying queued ROUND_STATE')
+      handleRoundState(queued)
+    }
+  }, [state.match, handleRoundState])
 
   // Connect to WebSocket
   const connect = useCallback((matchId: string) => {

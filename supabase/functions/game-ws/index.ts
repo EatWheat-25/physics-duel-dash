@@ -134,6 +134,7 @@ interface SubmitRoundAnswerMsg {
   }
 }
 
+// RoundStateMsg interface - matches client type in src/types/roundState.ts
 interface RoundStateMsg {
   type: 'ROUND_STATE'
   matchId: string

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { RoundResult } from '@/hooks/useMatchFlow';
+import type { RoundResult } from '@/types/roundState';
 import './RoundTransition.css';
 
 interface RoundTransitionProps {
