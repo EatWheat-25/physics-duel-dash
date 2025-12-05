@@ -37,6 +37,8 @@ export type UseMatchFlowState = {
   isThinkingPhase: boolean // Whether we're in thinking phase
   // Round transition state
   isShowingRoundTransition: boolean
+  // Refresh state
+  isRefreshing: boolean
 }
 
 /**
@@ -66,7 +68,9 @@ export function useMatchFlow(matchId: string | null) {
     thinkingTimeLeft: null,
     isThinkingPhase: false,
     // Round transition state
-    isShowingRoundTransition: false
+    isShowingRoundTransition: false,
+    // Refresh state
+    isRefreshing: false
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -276,9 +280,157 @@ export function useMatchFlow(matchId: string | null) {
     return () => clearInterval(interval)
   }, [matchId, state.hasSubmitted, state.currentRound])
 
+  // Refresh game state from database (authoritative source)
+  const refreshGameStateFromDB = useCallback(async (): Promise<void> => {
+    if (!matchId) return
+
+    console.log('[useMatchFlow] Refreshing game state from DB...')
+    
+    setState(prev => ({ ...prev, isRefreshing: true }))
+
+    try {
+      // 1. Fetch current match
+      const { data: matchData, error: matchError } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('id', matchId)
+        .single()
+
+      if (matchError || !matchData) {
+        console.error('[useMatchFlow] Error fetching match:', matchError)
+        setState(prev => ({ ...prev, isRefreshing: false }))
+        return
+      }
+
+      // 2. Fetch active round (if exists)
+      const { data: roundData, error: roundError } = await supabase
+        .from('match_rounds')
+        .select('id, round_number, status, question_id, player1_answered_at, player2_answered_at')
+        .eq('match_id', matchId)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setState(prev => ({ ...prev, isRefreshing: false }))
+        return
+      }
+
+      const isPlayer1 = (matchData as any).player1_id === user.id
+      const hasAnswered = roundData 
+        ? (isPlayer1 ? !!roundData.player1_answered_at : !!roundData.player2_answered_at)
+        : false
+
+      // Edge case: If match is finished, don't refresh (use existing state)
+      if ((matchData as any).status === 'finished') {
+        console.log('[useMatchFlow] Match is finished, skipping refresh')
+        setState(prev => ({ ...prev, isRefreshing: false }))
+        return
+      }
+
+      // 3. Fetch question if round exists
+      let question: StepBasedQuestion | null = null
+      if (roundData?.question_id) {
+        const { data: questionData, error: questionError } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('id', roundData.question_id)
+          .single()
+
+        if (!questionError && questionData) {
+          try {
+            question = mapRawToQuestion(questionData)
+          } catch (error) {
+            console.error('[useMatchFlow] Error mapping question:', error)
+            // Continue without question if mapping fails
+          }
+        } else if (questionError) {
+          console.error('[useMatchFlow] Error fetching question:', questionError)
+          // Continue without question if fetch fails
+        }
+      }
+
+      // Edge case: If no active round found, wait for ROUND_START
+      if (!roundData) {
+        console.log('[useMatchFlow] No active round found, waiting for ROUND_START')
+        setState(prev => ({
+          ...prev,
+          match: matchData as MatchRow,
+          currentRound: null,
+          currentQuestion: null,
+          isRefreshing: false
+        }))
+        return
+      }
+
+      // 4. Reset all local state based on database state
+      setState(prev => ({
+        ...prev,
+        match: matchData as MatchRow,
+        currentRound: roundData ? {
+          id: roundData.id,
+          roundNumber: roundData.round_number,
+          status: roundData.status
+        } : null,
+        currentQuestion: question,
+        hasSubmitted: hasAnswered,
+        // Clear all answer state
+        playerAnswers: new Map(),
+        responseTimes: new Map(),
+        // Reset step state
+        currentStepIndex: hasAnswered && question ? (question.steps?.length || 0) : -1,
+        stepTimeLeft: null,
+        hasAnsweredCurrentStep: false,
+        thinkingTimeLeft: null,
+        isThinkingPhase: false,
+        isRefreshing: false
+      }))
+
+      // Clear step answers ref
+      stepAnswersRef.current.clear()
+
+      console.log('[useMatchFlow] ✅ Game state refreshed from DB')
+    } catch (error) {
+      console.error('[useMatchFlow] Error refreshing game state:', error)
+      setState(prev => ({ ...prev, isRefreshing: false }))
+    }
+  }, [matchId])
+
+  // Update finishRoundTransition to use async handleRoundStart
+  const finishRoundTransition = useCallback(async () => {
+    console.log('[useMatchFlow] Finishing round transition')
+    isTransitioningRef.current = false
+    
+    if (roundTransitionTimeoutRef.current) {
+      clearTimeout(roundTransitionTimeoutRef.current)
+      roundTransitionTimeoutRef.current = null
+    }
+
+    setState(prev => ({
+      ...prev,
+      isShowingRoundTransition: false,
+      // If match is over, keep roundResult for the final screen.
+      // If there is another round, clear roundResult so the next round is clean.
+      roundResult: prev.isMatchFinished ? prev.roundResult : null,
+    }))
+
+    // If we already received the next ROUND_START while transitioning, process it now:
+    if (queuedRoundStartRef.current) {
+      const msg = queuedRoundStartRef.current
+      queuedRoundStartRef.current = null
+      console.log('[useMatchFlow] Processing queued ROUND_START')
+      await handleRoundStart(msg)
+    }
+  }, [handleRoundStart])
+
   // Handle ROUND_START message - factored out for reuse
-  const handleRoundStart = useCallback((message: any) => {
+  const handleRoundStart = useCallback(async (message: any) => {
     console.log('[useMatchFlow] ROUND_START received')
+    
+    // Refresh state from DB before processing ROUND_START
+    await refreshGameStateFromDB()
+    
     console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
     
     // Clear any existing timeout for round result
@@ -344,34 +496,8 @@ export function useMatchFlow(matchId: string | null) {
       console.error('[useMatchFlow] Error stack:', error instanceof Error ? error.stack : 'No stack')
       toast.error('Failed to load question')
     }
-  }, [])
+  }, [refreshGameStateFromDB])
 
-  // Finish round transition - clears transition state and processes queued ROUND_START
-  const finishRoundTransition = useCallback(() => {
-    console.log('[useMatchFlow] Finishing round transition')
-    isTransitioningRef.current = false
-    
-    if (roundTransitionTimeoutRef.current) {
-      clearTimeout(roundTransitionTimeoutRef.current)
-      roundTransitionTimeoutRef.current = null
-    }
-
-    setState(prev => ({
-      ...prev,
-      isShowingRoundTransition: false,
-      // If match is over, keep roundResult for the final screen.
-      // If there is another round, clear roundResult so the next round is clean.
-      roundResult: prev.isMatchFinished ? prev.roundResult : null,
-    }))
-
-    // If we already received the next ROUND_START while transitioning, process it now:
-    if (queuedRoundStartRef.current) {
-      const msg = queuedRoundStartRef.current
-      queuedRoundStartRef.current = null
-      console.log('[useMatchFlow] Processing queued ROUND_START')
-      handleRoundStart(msg)
-    }
-  }, [handleRoundStart])
 
   // Connect to WebSocket
   const connect = useCallback((matchId: string) => {
@@ -421,7 +547,7 @@ export function useMatchFlow(matchId: string | null) {
           }))
         }
 
-        ws.onmessage = (event) => {
+        ws.onmessage = async (event) => {
           try {
             const message = JSON.parse(event.data)
             console.log('[useMatchFlow] Message received:', message.type)
@@ -459,6 +585,10 @@ export function useMatchFlow(matchId: string | null) {
                 currentRoundId: state.currentRound?.id,
                 hasRoundResult: !!state.roundResult
               })
+              
+              // Refresh state from DB before showing transition (ensures authoritative state)
+              await refreshGameStateFromDB()
+              
               const roundResult: RoundResult = {
                 roundWinnerId: message.roundWinnerId,
                 player1RoundScore: message.player1RoundScore,
@@ -516,8 +646,8 @@ export function useMatchFlow(matchId: string | null) {
               
               // Set transition flag and start 5-second timeout
               isTransitioningRef.current = true
-              roundTransitionTimeoutRef.current = setTimeout(() => {
-                finishRoundTransition()
+              roundTransitionTimeoutRef.current = setTimeout(async () => {
+                await finishRoundTransition()
               }, 5000)
             }
 
