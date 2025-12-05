@@ -681,11 +681,20 @@ async function handleJoinMatch(
     .maybeSingle()
 
   if (activeRound) {
-    // Round already exists - send authoritative ROUND_STATE
+    // Round already exists - send MATCH_START first, then ROUND_STATE
+    const matchStartMsg: MatchStartMsg = {
+      type: 'MATCH_START',
+      matchId,
+      roundId: activeRound.id,
+      roundNumber: activeRound.round_number
+    }
+    socket.send(JSON.stringify(matchStartMsg))
+    
+    // Then send authoritative ROUND_STATE
     const roundState = await computeRoundState(matchId, activeRound.id, supabase)
     if (roundState) {
       socket.send(JSON.stringify(roundState))
-      console.log(`[${matchId}] Sent ROUND_STATE to reconnecting player ${playerId}`)
+      console.log(`[${matchId}] Sent MATCH_START + ROUND_STATE to reconnecting player ${playerId}`)
     } else {
       // Fallback: send ROUND_START if computeRoundState fails
       const { data: questionRow, error: qError } = await supabase

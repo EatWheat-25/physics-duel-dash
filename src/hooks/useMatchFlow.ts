@@ -92,6 +92,8 @@ export function useMatchFlow(matchId: string | null) {
   const isShowingRoundTransitionRef = useRef(false)
   const isMatchFinishedRef = useRef(false)
   const finishRoundTransitionRef = useRef<(() => void) | null>(null)
+  // Queue ROUND_STATE if it arrives before match is ready
+  const pendingRoundStateRef = useRef<any | null>(null)
 
   // Fetch match data (normal polling)
   useEffect(() => {
@@ -213,6 +215,16 @@ export function useMatchFlow(matchId: string | null) {
     isShowingRoundTransitionRef.current = state.isShowingRoundTransition
     isMatchFinishedRef.current = state.isMatchFinished
   }, [state.roundResult, state.isShowingRoundTransition, state.isMatchFinished])
+
+  // Apply queued ROUND_STATE when match becomes available
+  useEffect(() => {
+    if (state.match && pendingRoundStateRef.current) {
+      const queued = pendingRoundStateRef.current
+      pendingRoundStateRef.current = null
+      console.log('[useMatchFlow] Match now available, applying queued ROUND_STATE')
+      handleRoundState(queued)
+    }
+  }, [state.match, handleRoundState])
 
   // ========================================
   // applyRoundResult - SINGLE SOURCE OF TRUTH
@@ -681,7 +693,25 @@ export function useMatchFlow(matchId: string | null) {
 
             if (message.type === 'MATCH_START') {
               console.log('[useMatchFlow] MATCH_START received')
-              // Match started, round will come next
+              // Fetch match data if not already loaded
+              // The useEffect will apply queued ROUND_STATE when match becomes available
+              if (!state.match && matchId) {
+                const fetchMatchData = async () => {
+                  const { data: matchData } = await supabase
+                    .from('matches')
+                    .select('*')
+                    .eq('id', matchId)
+                    .single()
+                  
+                  if (matchData) {
+                    setState(prev => ({
+                      ...prev,
+                      match: matchData as MatchRow
+                    }))
+                  }
+                }
+                fetchMatchData()
+              }
             }
 
             if (message.type === 'ROUND_START') {
