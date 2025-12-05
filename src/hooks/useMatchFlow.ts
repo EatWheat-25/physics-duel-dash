@@ -49,9 +49,6 @@ export type UseMatchFlowState = {
  * - Answer tracking and response time measurement
  */
 export function useMatchFlow(matchId: string | null) {
-  // Client debug ID for tracing WebSocket flow
-  const clientDebugId = useRef(`client_${Math.random().toString(36).slice(2, 8)}`)
-  
   const [state, setState] = useState<UseMatchFlowState>({
     match: null,
     currentRound: null,
@@ -84,7 +81,8 @@ export function useMatchFlow(matchId: string | null) {
   const stepStartTimeRef = useRef<number | null>(null) // Start time for current step
   // Round transition refs
   const roundTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  // Note: Removed isTransitioningRef and queuedRoundStartRef - ROUND_START always processes immediately
+  const isTransitioningRef = useRef(false)
+  const queuedRoundStartRef = useRef<any | null>(null) // Queued ROUND_START message
   // Guard condition refs (to avoid stale closures in callbacks)
   const roundResultRef = useRef<RoundResult | null>(null)
   const isShowingRoundTransitionRef = useRef(false)
@@ -278,20 +276,18 @@ export function useMatchFlow(matchId: string | null) {
     return () => clearInterval(interval)
   }, [matchId, state.hasSubmitted, state.currentRound])
 
-  // Handle ROUND_START message - single source of truth for round state
+  // Handle ROUND_START message - factored out for reuse
   const handleRoundStart = useCallback((message: any) => {
-    console.log('[ROUND_START]', clientDebugId.current, 'processing', { roundId: message.roundId, roundNumber: message.roundNumber })
+    console.log('[useMatchFlow] ROUND_START received')
     console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
     
-    // Clear ALL timers aggressively
+    // Clear any existing timeout for round result
     if (roundResultTimeoutRef.current) {
       clearTimeout(roundResultTimeoutRef.current)
       roundResultTimeoutRef.current = null
     }
-    if (roundTransitionTimeoutRef.current) {
-      clearTimeout(roundTransitionTimeoutRef.current)
-      roundTransitionTimeoutRef.current = null
-    }
+    
+    // Clear step timer
     if (stepTimerIntervalRef.current) {
       clearInterval(stepTimerIntervalRef.current)
       stepTimerIntervalRef.current = null
@@ -301,7 +297,7 @@ export function useMatchFlow(matchId: string | null) {
     thinkingPhaseStartTimeRef.current = null
     stepStartTimeRef.current = null
     
-    // Clear step answers ref (using composite keys)
+    // Clear step answers
     stepAnswersRef.current.clear()
     
     try {
@@ -316,7 +312,6 @@ export function useMatchFlow(matchId: string | null) {
         console.log('[useMatchFlow] Is array:', Array.isArray(firstStep.options))
         console.log('[useMatchFlow] Options length:', firstStep.options?.length)
       }
-      // Hard reset all round state - ROUND_START is single source of truth
       setState(prev => ({
         ...prev,
         currentRound: {
@@ -325,26 +320,18 @@ export function useMatchFlow(matchId: string | null) {
           status: 'active'
         },
         currentQuestion: question,
-        roundResult: null, // Clear round result
-        isShowingRoundTransition: false, // Clear transition state
-        hasSubmitted: false, // Clear hasSubmitted
-        playerAnswers: new Map(), // Clear player answers
-        responseTimes: new Map(), // Clear response times
+        roundResult: null, // Clear round result when new round starts
+        playerAnswers: new Map(),
+        responseTimes: new Map(),
+        hasSubmitted: false, // IMPORTANT: Clear hasSubmitted on new round
         // Reset step state - start with thinking phase
         currentStepIndex: -1,
         stepTimeLeft: null,
         hasAnsweredCurrentStep: false,
         thinkingTimeLeft: null,
-        isThinkingPhase: false
+        isThinkingPhase: false,
+        isShowingRoundTransition: false // Clear transition state
       }))
-      
-      // Log state reset completion
-      console.log('[handleRoundStart]', clientDebugId.current, 'State reset complete', {
-        roundId: message.roundId,
-        hasRoundResult: false,
-        hasSubmitted: false,
-        isTransitioning: false
-      })
       
       // Start thinking phase after state update
       setTimeout(() => {
@@ -359,7 +346,32 @@ export function useMatchFlow(matchId: string | null) {
     }
   }, [])
 
-  // Note: Removed finishRoundTransition - ROUND_START always processes immediately and clears transition
+  // Finish round transition - clears transition state and processes queued ROUND_START
+  const finishRoundTransition = useCallback(() => {
+    console.log('[useMatchFlow] Finishing round transition')
+    isTransitioningRef.current = false
+    
+    if (roundTransitionTimeoutRef.current) {
+      clearTimeout(roundTransitionTimeoutRef.current)
+      roundTransitionTimeoutRef.current = null
+    }
+
+    setState(prev => ({
+      ...prev,
+      isShowingRoundTransition: false,
+      // If match is over, keep roundResult for the final screen.
+      // If there is another round, clear roundResult so the next round is clean.
+      roundResult: prev.isMatchFinished ? prev.roundResult : null,
+    }))
+
+    // If we already received the next ROUND_START while transitioning, process it now:
+    if (queuedRoundStartRef.current) {
+      const msg = queuedRoundStartRef.current
+      queuedRoundStartRef.current = null
+      console.log('[useMatchFlow] Processing queued ROUND_START')
+      handleRoundStart(msg)
+    }
+  }, [handleRoundStart])
 
   // Connect to WebSocket
   const connect = useCallback((matchId: string) => {
@@ -403,18 +415,16 @@ export function useMatchFlow(matchId: string | null) {
           setState(prev => ({ ...prev, isConnected: true }))
           
           // Send JOIN_MATCH
-          const joinMsg = {
+          ws.send(JSON.stringify({
             type: 'JOIN_MATCH',
             matchId
-          }
-          console.log('[WS OUT]', clientDebugId.current, 'JOIN_MATCH', joinMsg)
-          ws.send(JSON.stringify(joinMsg))
+          }))
         }
 
         ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data)
-            console.log('[WS IN]', clientDebugId.current, message.type, message)
+            console.log('[useMatchFlow] Message received:', message.type)
 
             if (message.type === 'connected') {
               // Connection confirmed, already sent JOIN_MATCH
@@ -427,28 +437,19 @@ export function useMatchFlow(matchId: string | null) {
             }
 
             if (message.type === 'ROUND_START') {
-              // Guard: Don't process if we already have this round (prevent duplicate processing)
-              if (state.currentRound?.id === message.roundId) {
-                console.log('[ROUND_START] Ignoring duplicate for round', message.roundId, clientDebugId.current)
+              // If we're in transition, queue this message and return
+              if (isTransitioningRef.current) {
+                console.log('[useMatchFlow] ROUND_START received during transition, queuing...')
+                queuedRoundStartRef.current = message
                 return
               }
               
-              // Safety check: round number should not go backwards
-              if (state.currentRound && message.roundNumber < state.currentRound.roundNumber) {
-                console.warn('[ROUND_START] Received round number less than current, ignoring', {
-                  current: state.currentRound.roundNumber,
-                  received: message.roundNumber,
-                  clientId: clientDebugId.current
-                })
-                return
-              }
-              
-              // ROUND_START is single source of truth - always process immediately
+              // Otherwise, process normally
               handleRoundStart(message)
             }
 
             if (message.type === 'ROUND_RESULT') {
-              console.log('[ROUND_RESULT]', clientDebugId.current, {
+              console.log('[useMatchFlow] ROUND_RESULT received', {
                 roundId: message.roundId,
                 roundNumber: message.roundNumber,
                 roundWinnerId: message.roundWinnerId,
@@ -456,8 +457,7 @@ export function useMatchFlow(matchId: string | null) {
                 player2RoundScore: message.player2RoundScore,
                 matchContinues: message.matchContinues,
                 currentRoundId: state.currentRound?.id,
-                hasRoundResult: !!state.roundResult,
-                isShowingTransition: state.isShowingRoundTransition
+                hasRoundResult: !!state.roundResult
               })
               const roundResult: RoundResult = {
                 roundWinnerId: message.roundWinnerId,
@@ -497,7 +497,7 @@ export function useMatchFlow(matchId: string | null) {
                 roundResult,
                 hasSubmitted: false, // Clear hasSubmitted when result arrives
                 isMatchFinished: isFinished, // Set immediately if match ended
-                isShowingRoundTransition: true, // Show transition overlay (ROUND_START will clear it)
+                isShowingRoundTransition: true, // Show transition overlay
                 // Clear all answer state
                 playerAnswers: new Map(),
                 responseTimes: new Map(),
@@ -514,7 +514,11 @@ export function useMatchFlow(matchId: string | null) {
                 } : null
               }))
               
-              // Note: No transition timeout needed - ROUND_START will clear transition when it arrives
+              // Set transition flag and start 5-second timeout
+              isTransitioningRef.current = true
+              roundTransitionTimeoutRef.current = setTimeout(() => {
+                finishRoundTransition()
+              }, 5000)
             }
 
             if (message.type === 'MATCH_FINISHED') {
@@ -533,11 +537,6 @@ export function useMatchFlow(matchId: string | null) {
             }
 
             if (message.type === 'GAME_ERROR') {
-              // Make "already answered" errors non-fatal
-              if (message.message?.includes('already answered') || message.code === 'ALREADY_ANSWERED') {
-                console.warn('[useMatchFlow] Non-fatal GAME_ERROR (duplicate answer):', message.message)
-                return // Don't show toast, don't break flow
-              }
               console.error('[useMatchFlow] GAME_ERROR:', message.message)
               toast.error(message.message || 'Game error occurred')
             }
@@ -580,7 +579,7 @@ export function useMatchFlow(matchId: string | null) {
         clearTimeout(roundResultTimeoutRef.current)
         roundResultTimeoutRef.current = null
       }
-      // Clear transition timeout (if any)
+      // Clear transition timeout
       if (roundTransitionTimeoutRef.current) {
         clearTimeout(roundTransitionTimeoutRef.current)
         roundTransitionTimeoutRef.current = null
@@ -774,10 +773,33 @@ export function useMatchFlow(matchId: string | null) {
             return { ...prev, stepTimeLeft: 0 }
           }
           
-          // Don't mark in stepAnswersRef yet - accumulate for later submission
-          // Update state to mark this step as answered (wrong)
-          const newAnswers = new Map(prev.playerAnswers)
-          newAnswers.set(currentStepIndex, -1)
+          // Submit step answer with null (wrong)
+          stepAnswersRef.current.set(stepKey, -1)
+          
+          const payload = {
+            version: 1,
+            steps: [{
+              step_index: currentStepIndex,
+              answer_index: -1,
+              response_time_ms: prev.responseTimes.get(currentStepIndex) || 0
+            }]
+          }
+
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
+            const message = {
+              type: 'SUBMIT_ROUND_ANSWER',
+              matchId,
+              roundId: prev.currentRound.id,
+              payload
+            }
+            console.log('[useMatchFlow] Auto-submitting step answer (timer expired):', {
+              roundId: prev.currentRound.id,
+              stepIndex: currentStepIndex,
+              stepKey,
+              message
+            })
+            wsRef.current.send(JSON.stringify(message))
+          }
             
           // Advance to next step after delay
           setTimeout(() => {
@@ -788,45 +810,9 @@ export function useMatchFlow(matchId: string | null) {
               if (nextStepIndex < prev.currentQuestion.steps.length) {
                 // Start next step (recursive call)
                 startStep(nextStepIndex, 15)
-                return {
-                  ...prev,
-                  playerAnswers: newAnswers
-                }
+                return prev
               } else {
-                // All steps done - submit ALL answers at once
-                // Build complete payload with all steps (answered or not)
-                const allSteps = prev.currentQuestion.steps.map((_, idx) => {
-                  const answerIdx = prev.playerAnswers.get(idx)
-                  return {
-                    step_index: idx,
-                    answer_index: answerIdx !== undefined ? answerIdx : -1, // -1 if not answered
-                    response_time_ms: prev.responseTimes.get(idx) || 0
-                  }
-                })
-                
-                // Mark all steps as answered in stepAnswersRef now (after building payload)
-                allSteps.forEach(step => {
-                  const stepKey = `${prev.currentRound!.id}:${step.step_index}`
-                  stepAnswersRef.current.set(stepKey, step.answer_index)
-                })
-                
-                const payload = {
-                  version: 1,
-                  steps: allSteps
-                }
-                
-                // Send complete answer via WebSocket
-                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
-                  const message = {
-                    type: 'SUBMIT_ROUND_ANSWER',
-                    matchId,
-                    roundId: prev.currentRound.id,
-                    payload
-                  }
-                  console.log('[WS OUT]', clientDebugId.current, 'SUBMIT_ROUND_ANSWER (auto, all steps)', message)
-                  wsRef.current.send(JSON.stringify(message))
-                }
-                
+                // All steps done - wait for opponent
                 return {
                   ...prev,
                   hasSubmitted: true
@@ -854,22 +840,6 @@ export function useMatchFlow(matchId: string | null) {
 
   // Submit answer for current step
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number | null) => {
-    const roundId = state.currentRound?.id
-    const key = `${roundId}:${stepIndex}`
-    const already = stepAnswersRef.current.has(key)
-    
-    // Log detailed info
-    console.log('[submitStepAnswer]', clientDebugId.current, {
-      roundId,
-      stepIndex,
-      answerIndex,
-      key,
-      already,
-      hasRoundResult: !!state.roundResult,
-      isTransition: state.isShowingRoundTransition,
-      isMatchFinished: state.isMatchFinished
-    })
-    
     // Hard guards: use refs to avoid stale closures
     if (roundResultRef.current || isShowingRoundTransitionRef.current || isMatchFinishedRef.current) {
       console.log('[useMatchFlow] Guard blocked submitStepAnswer: round already resolved', {
@@ -892,7 +862,11 @@ export function useMatchFlow(matchId: string | null) {
     // Use composite key: roundId:stepIndex
     const stepKey = `${state.currentRound.id}:${stepIndex}`
     if (stepAnswersRef.current.has(stepKey)) {
-      console.log('[submitStepAnswer] already answered, ignoring', stepKey)
+      console.log('[useMatchFlow] Guard blocked submitStepAnswer: already answered', {
+        stepKey,
+        roundId: state.currentRound.id,
+        stepIndex
+      })
       return
     }
 
@@ -911,8 +885,8 @@ export function useMatchFlow(matchId: string | null) {
         return prev
       }
       
-      // Don't mark in stepAnswersRef yet - we'll mark when we submit all steps
-      // This prevents guards from blocking step advancement
+      // Mark as answered
+      stepAnswersRef.current.set(stepKey, answerIndex ?? -1)
       
       // Stop timer
       if (stepTimerIntervalRef.current) {
@@ -923,7 +897,35 @@ export function useMatchFlow(matchId: string | null) {
       // Clear step start time
       stepStartTimeRef.current = null
 
-      // Update state with answer (accumulate for later submission)
+      // Build payload with just this step
+      const payload = {
+        version: 1,
+        steps: [{
+          step_index: stepIndex,
+          answer_index: answerIndex ?? -1, // -1 means no answer / wrong
+          response_time_ms: prev.responseTimes.get(stepIndex) || 0
+        }]
+      }
+
+      // Send via existing WebSocket flow
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const message = {
+          type: 'SUBMIT_ROUND_ANSWER',
+          matchId,
+          roundId: prev.currentRound!.id,
+          payload
+        }
+        console.log('[useMatchFlow] Submitting step answer:', {
+          roundId: prev.currentRound!.id,
+          stepIndex,
+          answerIndex,
+          stepKey,
+          message
+        })
+        wsRef.current.send(JSON.stringify(message))
+      }
+
+      // Update state
       const newAnswers = new Map(prev.playerAnswers)
       if (answerIndex !== null) {
         newAnswers.set(stepIndex, answerIndex)
@@ -948,40 +950,7 @@ export function useMatchFlow(matchId: string | null) {
           startStep(nextStepIndex, 15)
           return prev
         } else {
-          // All steps done - submit ALL answers at once
-          // Build complete payload with all steps (answered or not)
-          const allSteps = prev.currentQuestion.steps.map((_, idx) => {
-            const answerIdx = prev.playerAnswers.get(idx)
-            return {
-              step_index: idx,
-              answer_index: answerIdx !== undefined ? answerIdx : -1, // -1 if not answered
-              response_time_ms: prev.responseTimes.get(idx) || 0
-            }
-          })
-          
-          // Mark all steps as answered in stepAnswersRef now (after building payload)
-          allSteps.forEach(step => {
-            const stepKey = `${prev.currentRound!.id}:${step.step_index}`
-            stepAnswersRef.current.set(stepKey, step.answer_index)
-          })
-          
-          const payload = {
-            version: 1,
-            steps: allSteps
-          }
-          
-          // Send complete answer via WebSocket
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && prev.currentRound) {
-            const message = {
-              type: 'SUBMIT_ROUND_ANSWER',
-              matchId,
-              roundId: prev.currentRound.id,
-              payload
-            }
-            console.log('[WS OUT]', clientDebugId.current, 'SUBMIT_ROUND_ANSWER (all steps)', message)
-            wsRef.current.send(JSON.stringify(message))
-          }
-          
+          // All steps done - wait for opponent
           return {
             ...prev,
             hasSubmitted: true // Use existing flag to show "waiting for opponent"
@@ -1054,7 +1023,7 @@ export function useMatchFlow(matchId: string | null) {
       payload
     }
 
-    console.log('[WS OUT]', clientDebugId.current, 'SUBMIT_ROUND_ANSWER', message)
+    console.log('[useMatchFlow] Submitting answer:', message)
     wsRef.current.send(JSON.stringify(message))
     
     setState(prev => ({ ...prev, hasSubmitted: true }))
@@ -1147,8 +1116,9 @@ export function useMatchFlow(matchId: string | null) {
     startThinkingPhase,
     skipThinkingPhase,
     startStep,
-    submitStepAnswer
-    // Note: Removed finishRoundTransition - ROUND_START always processes immediately
+    submitStepAnswer,
+    // Round transition helper (optional, for manual skip)
+    finishRoundTransition
   }
 }
 

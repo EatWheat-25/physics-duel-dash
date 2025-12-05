@@ -74,4 +74,3 @@ COMMENT ON COLUMN public.match_rounds.player2_answer_payload IS 'Full answer pay
 
 
 
-

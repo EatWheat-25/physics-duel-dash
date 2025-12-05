@@ -7,6 +7,8 @@ interface RoundTransitionProps {
   currentUserId: string;
   player1Id: string;
   player2Id: string;
+  player1Name: string;
+  player2Name: string;
   totalPossiblePoints: number;
 }
 
@@ -15,11 +17,15 @@ export function RoundTransition({
   currentUserId,
   player1Id,
   player2Id,
+  player1Name,
+  player2Name,
   totalPossiblePoints,
 }: RoundTransitionProps) {
   const youIsP1 = currentUserId === player1Id;
   const yourScore = youIsP1 ? roundResult.player1RoundScore : roundResult.player2RoundScore;
   const oppScore = youIsP1 ? roundResult.player2RoundScore : roundResult.player1RoundScore;
+  const yourName = youIsP1 ? player1Name : player2Name;
+  const oppName = youIsP1 ? player2Name : player1Name;
 
   const isYouWinner = yourScore > oppScore;
   const isOpponentWinner = oppScore > yourScore;
@@ -73,7 +79,7 @@ export function RoundTransition({
           <div className={`score-card ${isYouWinner ? 'winner-card' : ''} ${isDraw ? 'draw-card' : ''}`}>
             <div className="score-card-header">
               <div className="score-card-avatar">👤</div>
-              <h3 className="score-card-name">You</h3>
+              <h3 className="score-card-name">{yourName}</h3>
             </div>
             <div className="score-card-value">
               <span className="score-number">{displayYourScore}</span>
@@ -89,7 +95,7 @@ export function RoundTransition({
           <div className={`score-card ${isOpponentWinner ? 'winner-card' : ''} ${isDraw ? 'draw-card' : ''}`}>
             <div className="score-card-header">
               <div className="score-card-avatar">🤖</div>
-              <h3 className="score-card-name">Opponent</h3>
+              <h3 className="score-card-name">{oppName}</h3>
             </div>
             <div className="score-card-value">
               <span className="score-number">{displayOppScore}</span>
@@ -110,6 +116,5 @@ export function RoundTransition({
     </div>
   );
 }
-
 
 

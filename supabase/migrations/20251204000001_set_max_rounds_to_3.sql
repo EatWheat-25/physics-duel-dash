@@ -16,4 +16,3 @@ COMMENT ON COLUMN public.matches.max_rounds IS 'Maximum rounds before forced end
 
 
 
-

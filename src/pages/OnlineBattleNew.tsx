@@ -8,7 +8,6 @@ import { useMatchFlow } from '@/hooks/useMatchFlow';
 import { CircularTimer } from '@/components/CircularTimer';
 import { GameLoader } from '@/components/GameLoader';
 import { RoundTransition } from '@/components/RoundTransition';
-import { useAuth } from '@/contexts/AuthContext';
 import '@/styles/match-battle.css';
 
 /**
@@ -23,7 +22,6 @@ export default function OnlineBattleNew() {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const { profile: currentUserProfile } = useAuth();
   const [player1Name, setPlayer1Name] = useState<string>('Player 1');
   const [player2Name, setPlayer2Name] = useState<string>('Player 2');
 
@@ -63,35 +61,34 @@ export default function OnlineBattleNew() {
     getUser();
   }, []);
 
-  // Fetch player names
+  // Fetch player names when match loads
   useEffect(() => {
-    if (!match) return;
-
     const fetchPlayerNames = async () => {
-      // Fetch player1 profile
-      if (match.player1_id) {
-        const { data: p1Profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', match.player1_id)
-          .maybeSingle();
-        
-        if (p1Profile?.username) {
-          setPlayer1Name(p1Profile.username);
-        }
-      }
+      if (!match) return;
 
-      // Fetch player2 profile
-      if (match.player2_id) {
-        const { data: p2Profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', match.player2_id)
-          .maybeSingle();
-        
-        if (p2Profile?.username) {
-          setPlayer2Name(p2Profile.username);
+      try {
+        // Fetch both player profiles
+        const [player1Profile, player2Profile] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', match.player1_id)
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', match.player2_id)
+            .maybeSingle()
+        ]);
+
+        if (player1Profile.data?.username) {
+          setPlayer1Name(player1Profile.data.username);
         }
+        if (player2Profile.data?.username) {
+          setPlayer2Name(player2Profile.data.username);
+        }
+      } catch (error) {
+        console.error('Error fetching player names:', error);
       }
     };
 
@@ -117,18 +114,12 @@ export default function OnlineBattleNew() {
   const opponentScore = isPlayer1
     ? ((match as any)?.player2_score || 0)
     : ((match as any)?.player1_score || 0);
-  
-  // Get player names
-  const playerName = isPlayer1 ? player1Name : player2Name;
-  const opponentName = isPlayer1 ? player2Name : player1Name;
 
   // Tug-of-war progress bar component
-  const TugOfWarBar = ({ playerScore, opponentScore, targetPoints, playerName, opponentName }: { 
+  const TugOfWarBar = ({ playerScore, opponentScore, targetPoints }: { 
     playerScore: number; 
     opponentScore: number; 
-    targetPoints: number;
-    playerName: string;
-    opponentName: string;
+    targetPoints: number 
   }) => {
     const totalScore = playerScore + opponentScore
     const playerPercentage = totalScore > 0 ? (playerScore / totalScore) * 100 : 50
@@ -141,9 +132,13 @@ export default function OnlineBattleNew() {
     return (
       <div className="tug-of-war mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold" style={{ color: '#06b6d4' }}>{playerName}: {playerScore}</span>
+          <span className="text-sm font-semibold" style={{ color: '#06b6d4' }}>
+            {isPlayer1 ? player1Name : player2Name}: {playerScore}
+          </span>
           <span className="text-xs text-slate-400">Target: {targetPoints}</span>
-          <span className="text-sm font-semibold text-white">{opponentName}: {opponentScore}</span>
+          <span className="text-sm font-semibold text-white">
+            {isPlayer1 ? player2Name : player1Name}: {opponentScore}
+          </span>
         </div>
         <div className="tug-bar">
           <div 
@@ -224,11 +219,11 @@ export default function OnlineBattleNew() {
 
             <div className="space-y-4">
               <div className="flex justify-between items-center p-4 bg-slate-700/50 rounded-lg">
-                <span className="text-white font-semibold">{playerName} Score:</span>
+                <span className="text-white font-semibold">Your Score:</span>
                 <span className="text-2xl font-bold text-blue-400">{playerScore}</span>
               </div>
               <div className="flex justify-between items-center p-4 bg-slate-700/50 rounded-lg">
-                <span className="text-white font-semibold">{opponentName} Score:</span>
+                <span className="text-white font-semibold">Opponent Score:</span>
                 <span className="text-2xl font-bold text-white">{opponentScore}</span>
               </div>
               <div className="flex justify-between items-center p-4 bg-slate-700/50 rounded-lg">
@@ -237,13 +232,13 @@ export default function OnlineBattleNew() {
               </div>
             </div>
 
-          <Button
-            onClick={() => navigate('/matchmaking-new')}
+            <Button
+              onClick={() => navigate('/matchmaking-new')}
               className="mt-6"
               size="lg"
-          >
+            >
               Back to Lobby
-          </Button>
+            </Button>
           </div>
         </div>
       </div>
@@ -261,6 +256,8 @@ export default function OnlineBattleNew() {
         currentUserId={currentUser}
         player1Id={match.player1_id}
         player2Id={match.player2_id}
+        player1Name={player1Name}
+        player2Name={player2Name}
         totalPossiblePoints={totalPossiblePoints}
       />
     )
@@ -275,9 +272,9 @@ export default function OnlineBattleNew() {
     if (isDraw) {
       bannerText = 'Round Draw';
     } else if (roundWon) {
-      bannerText = `${playerName} won this round! +${roundResult.player1RoundScore}`;
+      bannerText = `You won this round! +${roundResult.player1RoundScore}`;
     } else {
-      bannerText = `${opponentName} won this round +${roundResult.player2RoundScore}`;
+      bannerText = `Opponent won this round +${roundResult.player2RoundScore}`;
     }
     
     return (
@@ -336,7 +333,7 @@ export default function OnlineBattleNew() {
             <div className="player-card you">
               <div className="player-avatar">👤</div>
               <div className="player-info">
-                <h3>{playerName}</h3>
+                <h3>{isPlayer1 ? player1Name : player2Name}</h3>
                 <div className="player-score">{playerScore}</div>
               </div>
             </div>
@@ -344,7 +341,7 @@ export default function OnlineBattleNew() {
             <div className="player-card opponent">
               <div className="player-avatar">🤖</div>
               <div className="player-info">
-                <h3>{opponentName}</h3>
+                <h3>{isPlayer1 ? player2Name : player1Name}</h3>
                 <div className="player-score">{opponentScore}</div>
               </div>
             </div>
@@ -354,9 +351,7 @@ export default function OnlineBattleNew() {
           <TugOfWarBar 
             playerScore={playerScore} 
             opponentScore={opponentScore} 
-            targetPoints={(match as any)?.target_points || 5}
-            playerName={playerName}
-            opponentName={opponentName}
+            targetPoints={(match as any)?.target_points || 5} 
           />
 
           {/* Round result banner */}
@@ -424,7 +419,7 @@ export default function OnlineBattleNew() {
                   <>
                     <div className="step-prompt">
                       {currentStep.prompt}
-            </div>
+                    </div>
 
                     {/* Answer Options */}
                     {currentStep.options && Array.isArray(currentStep.options) && currentStep.options.length > 0 ? (
@@ -437,24 +432,24 @@ export default function OnlineBattleNew() {
                           const roundLocked = !!roundResult || isMatchFinished || isShowingRoundTransition
                           const isSelected = playerAnswers.get(currentStep.index) === optIndex
                           return (
-                    <button
+                            <button
                               key={optIndex}
-                      onClick={() => {
+                              onClick={() => {
                                 if (!roundLocked) submitStepAnswer(currentStep.index, optIndex)
-                      }}
+                              }}
                               disabled={hasAnsweredCurrentStep || roundLocked}
                               className={`answer-option ${isSelected ? 'selected' : ''} ${hasAnsweredCurrentStep || roundLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
+                            >
                               {optText}
-                    </button>
+                            </button>
                           )
                         })}
-                </div>
+                      </div>
                     ) : (
                       <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
                         <p className="text-red-400 text-sm">No options available for this step.</p>
-              </div>
-            )}
+                      </div>
+                    )}
 
                     {/* Step progress indicator */}
                     <div className="text-center text-sm text-slate-400 mt-4">

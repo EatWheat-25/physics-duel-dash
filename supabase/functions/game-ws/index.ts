@@ -147,9 +147,6 @@ function broadcastToMatch(matchId: string, msg: any): void {
     return
   }
   
-  // Log before broadcast
-  console.log('[WS BROADCAST]', msg.type, { matchId, roundId: msg.roundId, playerId: msg.playerId })
-  
   const msgStr = JSON.stringify(msg)
   let sent = 0
   for (const socket of matchSockets) {
@@ -300,7 +297,6 @@ async function checkAndEvaluateRound(
   
   if (evalError) {
     console.error(`[${matchId}] Error evaluating round:`, evalError)
-    console.log('[GAME_ERROR]', { matchId, playerId: null, message: 'Failed to evaluate round', code: 'EVAL_ERROR' })
     broadcastToMatch(matchId, {
       type: 'GAME_ERROR',
       message: 'Failed to evaluate round',
@@ -328,7 +324,6 @@ async function checkAndEvaluateRound(
     const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED']
     return states[s.readyState] || s.readyState
   }) : []
-  const openSockets = matchSockets ? Array.from(matchSockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
   
   console.log(`[${matchId}] 📊 Broadcasting ROUND_RESULT for round ${round.round_number}:`, {
     roundWinnerId: evalResult.round_winner_id,
@@ -337,27 +332,21 @@ async function checkAndEvaluateRound(
     matchContinues: evalResult.match_continues,
     socketsInMatch: matchSockets?.size || 0,
     socketStates: socketStates.join(', '),
-    openSockets
+    openSockets: matchSockets ? Array.from(matchSockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
   })
   
-  // Broadcast to all open sockets
+  // Broadcast immediately - ensure all sockets receive the message
   broadcastToMatch(matchId, roundResultMsg)
   
-  // If we have fewer than 2 open sockets, retry broadcast after a short delay
-  // This handles the case where the second player's socket might not be ready yet
-  if (openSockets < 2) {
-    console.warn(`[${matchId}] ⚠️ Only ${openSockets} open socket(s), retrying broadcast after 200ms...`)
-    setTimeout(() => {
-      const retrySockets = sockets.get(matchId)
-      const retryOpen = retrySockets ? Array.from(retrySockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
-      console.log(`[${matchId}] 🔄 Retry broadcast: ${retryOpen} open socket(s)`)
-      if (retryOpen > 0) {
-        broadcastToMatch(matchId, roundResultMsg)
-      }
-    }, 200)
-  }
-  
+  // Also log after broadcast to verify
   console.log(`[${matchId}] ✅ ROUND_RESULT broadcast completed`)
+  
+  // Fallback: If we have fewer than 2 open sockets, the second player might not have received it
+  // In that case, we rely on the frontend polling mechanism to catch the result from the database
+  const openSockets = matchSockets ? Array.from(matchSockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
+  if (openSockets < 2) {
+    console.warn(`[${matchId}] ⚠️ Only ${openSockets} open socket(s) for ROUND_RESULT broadcast. Frontend polling should catch this.`)
+  }
   
   if (!evalResult.match_continues) {
     // Match finished
@@ -390,18 +379,14 @@ async function checkAndEvaluateRound(
     if (updatedMatch && updatedMatch.status === 'in_progress') {
       const nextRound = await createRound(updatedMatch, round.round_number, supabase)
       if (nextRound) {
-        console.log(`[${matchId}] 📊 Broadcasting ROUND_START for round ${nextRound.roundNumber}`)
-        // Add small delay to ensure ROUND_RESULT is processed first
-        setTimeout(() => {
-          const roundStartMsg: RoundStartMsg = {
-            type: 'ROUND_START',
-            matchId,
-            roundId: nextRound.roundId,
-            roundNumber: nextRound.roundNumber,
-            question: nextRound.question
-          }
-          broadcastToMatch(matchId, roundStartMsg)
-        }, 100) // 100ms delay after ROUND_RESULT
+        const roundStartMsg: RoundStartMsg = {
+          type: 'ROUND_START',
+          matchId,
+          roundId: nextRound.roundId,
+          roundNumber: nextRound.roundNumber,
+          question: nextRound.question
+        }
+        broadcastToMatch(matchId, roundStartMsg)
       }
     } else {
       console.warn(`[${matchId}] Match is not in_progress (status: ${updatedMatch?.status}), not creating next round`)
@@ -520,7 +505,6 @@ async function handleJoinMatch(
       roundNumber: activeRound.round_number,
       question: mapped
     }
-    console.log(`[${matchId}] 📊 Sending ROUND_START to joining player for round ${activeRound.round_number}`)
     socket.send(JSON.stringify(roundStartMsg))
     return
   }
@@ -579,7 +563,6 @@ async function handleSubmitRoundAnswer(
 
   if (error) {
     console.error(`[${matchId}] Error submitting answer:`, error)
-    console.log('[GAME_ERROR]', { matchId, playerId, message: error.message || 'Failed to submit answer', code: 'SUBMIT_ERROR' })
     broadcastToMatch(matchId, {
       type: 'GAME_ERROR',
       message: error.message || 'Failed to submit answer',
@@ -598,11 +581,7 @@ async function handleSubmitRoundAnswer(
   }
 
   // Check if both players answered and evaluate if ready
-  // Use setTimeout to ensure this happens after the current message handler completes
-  // This gives time for socket state to stabilize, especially for the second player
-  setTimeout(async () => {
-    await checkAndEvaluateRound(matchId, roundId, supabase)
-  }, 50) // Small delay to ensure socket registration is complete
+  await checkAndEvaluateRound(matchId, roundId, supabase)
 }
 
 Deno.serve(async (req) => {
