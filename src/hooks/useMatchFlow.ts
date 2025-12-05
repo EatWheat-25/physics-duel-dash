@@ -558,14 +558,9 @@ export function useMatchFlow(matchId: string | null) {
             }
 
             if (message.type === 'ROUND_START') {
-              // If we're in transition, queue this message and return
-              if (isTransitioningRef.current) {
-                console.log('[useMatchFlow] ROUND_START received during transition, queuing...')
-                queuedRoundStartRef.current = message
-                return
-              }
-
-              // Otherwise, process normally
+              // ROUND_START always wins - process immediately regardless of transition state
+              // This ensures the early-answer client never gets stuck
+              console.log('[useMatchFlow] ROUND_START received - nuclear reset')
               handleRoundStart(message)
             }
 
