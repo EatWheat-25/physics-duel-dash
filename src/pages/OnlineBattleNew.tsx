@@ -8,6 +8,7 @@ import { useMatchFlow } from '@/hooks/useMatchFlow';
 import { CircularTimer } from '@/components/CircularTimer';
 import { GameLoader } from '@/components/GameLoader';
 import { RoundTransition } from '@/components/RoundTransition';
+import { useAuth } from '@/contexts/AuthContext';
 import '@/styles/match-battle.css';
 
 /**
@@ -22,6 +23,9 @@ export default function OnlineBattleNew() {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const { profile: currentUserProfile } = useAuth();
+  const [player1Name, setPlayer1Name] = useState<string>('Player 1');
+  const [player2Name, setPlayer2Name] = useState<string>('Player 2');
 
   // Use match flow hook
   const {
@@ -50,14 +54,49 @@ export default function OnlineBattleNew() {
 
   // Get current user
   useEffect(() => {
-      const getUser = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setCurrentUser(user.id);
-        }
-      };
-      getUser();
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUser(user.id);
+      }
+    };
+    getUser();
   }, []);
+
+  // Fetch player names
+  useEffect(() => {
+    if (!match) return;
+
+    const fetchPlayerNames = async () => {
+      // Fetch player1 profile
+      if (match.player1_id) {
+        const { data: p1Profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', match.player1_id)
+          .maybeSingle();
+        
+        if (p1Profile?.username) {
+          setPlayer1Name(p1Profile.username);
+        }
+      }
+
+      // Fetch player2 profile
+      if (match.player2_id) {
+        const { data: p2Profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', match.player2_id)
+          .maybeSingle();
+        
+        if (p2Profile?.username) {
+          setPlayer2Name(p2Profile.username);
+        }
+      }
+    };
+
+    fetchPlayerNames();
+  }, [match]);
 
   // Verify user is part of match
   useEffect(() => {
@@ -78,12 +117,18 @@ export default function OnlineBattleNew() {
   const opponentScore = isPlayer1
     ? ((match as any)?.player2_score || 0)
     : ((match as any)?.player1_score || 0);
+  
+  // Get player names
+  const playerName = isPlayer1 ? player1Name : player2Name;
+  const opponentName = isPlayer1 ? player2Name : player1Name;
 
   // Tug-of-war progress bar component
-  const TugOfWarBar = ({ playerScore, opponentScore, targetPoints }: { 
+  const TugOfWarBar = ({ playerScore, opponentScore, targetPoints, playerName, opponentName }: { 
     playerScore: number; 
     opponentScore: number; 
-    targetPoints: number 
+    targetPoints: number;
+    playerName: string;
+    opponentName: string;
   }) => {
     const totalScore = playerScore + opponentScore
     const playerPercentage = totalScore > 0 ? (playerScore / totalScore) * 100 : 50
@@ -96,9 +141,9 @@ export default function OnlineBattleNew() {
     return (
       <div className="tug-of-war mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold" style={{ color: '#06b6d4' }}>You: {playerScore}</span>
+          <span className="text-sm font-semibold" style={{ color: '#06b6d4' }}>{playerName}: {playerScore}</span>
           <span className="text-xs text-slate-400">Target: {targetPoints}</span>
-          <span className="text-sm font-semibold text-white">Opponent: {opponentScore}</span>
+          <span className="text-sm font-semibold text-white">{opponentName}: {opponentScore}</span>
         </div>
         <div className="tug-bar">
           <div 
@@ -179,11 +224,11 @@ export default function OnlineBattleNew() {
 
             <div className="space-y-4">
               <div className="flex justify-between items-center p-4 bg-slate-700/50 rounded-lg">
-                <span className="text-white font-semibold">Your Score:</span>
+                <span className="text-white font-semibold">{playerName} Score:</span>
                 <span className="text-2xl font-bold text-blue-400">{playerScore}</span>
               </div>
               <div className="flex justify-between items-center p-4 bg-slate-700/50 rounded-lg">
-                <span className="text-white font-semibold">Opponent Score:</span>
+                <span className="text-white font-semibold">{opponentName} Score:</span>
                 <span className="text-2xl font-bold text-white">{opponentScore}</span>
               </div>
               <div className="flex justify-between items-center p-4 bg-slate-700/50 rounded-lg">
@@ -230,9 +275,9 @@ export default function OnlineBattleNew() {
     if (isDraw) {
       bannerText = 'Round Draw';
     } else if (roundWon) {
-      bannerText = `You won this round! +${roundResult.player1RoundScore}`;
+      bannerText = `${playerName} won this round! +${roundResult.player1RoundScore}`;
     } else {
-      bannerText = `Opponent won this round +${roundResult.player2RoundScore}`;
+      bannerText = `${opponentName} won this round +${roundResult.player2RoundScore}`;
     }
     
     return (
@@ -291,7 +336,7 @@ export default function OnlineBattleNew() {
             <div className="player-card you">
               <div className="player-avatar">👤</div>
               <div className="player-info">
-                <h3>You</h3>
+                <h3>{playerName}</h3>
                 <div className="player-score">{playerScore}</div>
               </div>
             </div>
@@ -299,7 +344,7 @@ export default function OnlineBattleNew() {
             <div className="player-card opponent">
               <div className="player-avatar">🤖</div>
               <div className="player-info">
-                <h3>Opponent</h3>
+                <h3>{opponentName}</h3>
                 <div className="player-score">{opponentScore}</div>
               </div>
             </div>
@@ -309,7 +354,9 @@ export default function OnlineBattleNew() {
           <TugOfWarBar 
             playerScore={playerScore} 
             opponentScore={opponentScore} 
-            targetPoints={(match as any)?.target_points || 5} 
+            targetPoints={(match as any)?.target_points || 5}
+            playerName={playerName}
+            opponentName={opponentName}
           />
 
           {/* Round result banner */}
