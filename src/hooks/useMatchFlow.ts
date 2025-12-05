@@ -508,7 +508,8 @@ export function useMatchFlow(matchId: string | null) {
     // Determine if current player is player1
     const match = state.match
     if (!match) {
-      console.warn('[useMatchFlow] No match in state, cannot reconcile')
+      console.warn('[useMatchFlow] ROUND_STATE before match, queueing for later')
+      pendingRoundStateRef.current = message
       return
     }
     const isPlayer1 = currentUserId === (match as any).player1_id
