@@ -546,7 +546,9 @@ export function useMatchFlow(matchId: string | null) {
     isTransitioningRef.current = message.phase === 'results'
     roundResultRef.current = message.roundResult
 
-    const isFinished = !message.roundResult?.matchContinues || !!message.roundResult?.matchWinnerId
+    // Only consider match finished if roundResult exists AND indicates match is finished
+    // If roundResult is null (game just started), match is not finished
+    const isFinished = !!message.roundResult && (!message.roundResult.matchContinues || !!message.roundResult.matchWinnerId)
 
     // Reconcile state
     setState(prev => {
