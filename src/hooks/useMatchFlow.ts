@@ -552,6 +552,19 @@ export function useMatchFlow(matchId: string | null) {
 
     // Reconcile state
     setState(prev => {
+      // Map question to ensure options are in the correct format (strings, not objects)
+      // This prevents .trim() errors when rendering options
+      let mappedQuestion = null
+      if (message.question) {
+        try {
+          mappedQuestion = mapRawToQuestion(message.question)
+        } catch (error) {
+          console.error('[useMatchFlow] Failed to map question from ROUND_STATE:', error)
+          // Keep previous question if mapping fails
+          mappedQuestion = prev.currentQuestion
+        }
+      }
+
       return {
         ...prev,
         // Round state
@@ -561,7 +574,8 @@ export function useMatchFlow(matchId: string | null) {
           status: message.phase === 'results' ? 'finished' : 'active'
         },
         // Question is always included in ROUND_STATE (even during results phase)
-        currentQuestion: message.question,
+        // Map it to ensure options are in the correct format (strings, not objects)
+        currentQuestion: mappedQuestion,
 
         // Phase state (from server)
         currentStepIndex: message.currentStepIndex,
