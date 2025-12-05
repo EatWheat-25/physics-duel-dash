@@ -47,7 +47,9 @@ export default function OnlineBattleNew() {
     thinkingTimeLeft,
     skipThinkingPhase,
     // Round transition state
-    isShowingRoundTransition
+    isShowingRoundTransition,
+    // Server-driven phase
+    phase
   } = useMatchFlow(matchId || null);
 
   // Get current user
@@ -286,8 +288,8 @@ export default function OnlineBattleNew() {
     );
   })() : null;
 
-  // 6. Waiting for opponent state
-  if (hasSubmitted && !roundResult && currentRound) {
+  // 6. Waiting for opponent state (server-driven)
+  if (phase === 'waiting' && currentRound) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-8">
         <div className="max-w-2xl w-full bg-slate-800/90 backdrop-blur-lg rounded-xl p-8 border-2 border-slate-600 text-center space-y-6">
@@ -324,7 +326,7 @@ export default function OnlineBattleNew() {
             </div>
             <div className="match-timer">
               <span>⏱️</span>
-              <span>{isInThinkingPhase ? 'THINKING' : allStepsDone ? 'WAITING' : 'ANSWERING'}</span>
+              <span>{phase === 'thinking' ? 'THINKING' : phase === 'waiting' ? 'WAITING' : phase === 'step' ? 'ANSWERING' : isInThinkingPhase ? 'THINKING' : allStepsDone ? 'WAITING' : 'ANSWERING'}</span>
             </div>
           </div>
 
@@ -405,8 +407,8 @@ export default function OnlineBattleNew() {
                       Start Answering Early
                     </button>
                   </div>
-                ) : allStepsDone ? (
-                  // All steps done - waiting for opponent
+                ) : (allStepsDone || phase === 'waiting') ? (
+                  // All steps done - waiting for opponent (server-driven)
                   <div className="flex flex-col items-center justify-center min-h-[300px] space-y-6">
                     <div className="flex justify-center">
                       <GameLoader text="waiting" />

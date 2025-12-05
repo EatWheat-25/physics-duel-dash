@@ -37,6 +37,8 @@ export type UseMatchFlowState = {
   isThinkingPhase: boolean // Whether we're in thinking phase
   // Round transition state
   isShowingRoundTransition: boolean
+  // Server-driven phase (from ROUND_STATE)
+  phase: 'thinking' | 'step' | 'waiting' | 'results' | null
 }
 
 /**
@@ -66,7 +68,9 @@ export function useMatchFlow(matchId: string | null) {
     thinkingTimeLeft: null,
     isThinkingPhase: false,
     // Round transition state
-    isShowingRoundTransition: false
+    isShowingRoundTransition: false,
+    // Server-driven phase
+    phase: null
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -310,9 +314,9 @@ export function useMatchFlow(matchId: string | null) {
     }, 5000)
   }, []) // No dependencies - refs handle all state
 
-  // Aggressive polling when waiting for opponent (checks round status)
+  // Polling fallback - only when WebSocket is disconnected
   useEffect(() => {
-    if (!matchId || !state.hasSubmitted || !state.currentRound) return
+    if (!matchId || state.isConnected || !state.currentRound) return
 
     const checkRoundStatus = async () => {
       const { data: roundData, error: roundError } = await supabase
@@ -494,6 +498,123 @@ export function useMatchFlow(matchId: string | null) {
     finishRoundTransitionRef.current = finishRoundTransition
   }, [finishRoundTransition])
 
+  // Handle ROUND_STATE - authoritative server state
+  const handleRoundState = useCallback((message: any) => {
+    console.log('[useMatchFlow] ROUND_STATE received (authoritative):', message)
+
+    // Get current user ID and match
+    const currentUserId = currentUserIdRef.current
+    if (!currentUserId) {
+      console.warn('[useMatchFlow] No currentUserId, cannot reconcile ROUND_STATE')
+      return
+    }
+
+    // Determine if current player is player1
+    const match = state.match
+    if (!match) {
+      console.warn('[useMatchFlow] No match in state, cannot reconcile')
+      return
+    }
+    const isPlayer1 = currentUserId === (match as any).player1_id
+
+    // Get current player's step progress
+    const currentPlayerStep = isPlayer1 ? message.player1CurrentStep : message.player2CurrentStep
+    const currentPlayerHasAnswered = isPlayer1 ? message.player1HasAnswered : message.player2HasAnswered
+
+    // Determine if current player has answered the step they should be on
+    const hasAnsweredCurrentStep = message.currentStepIndex >= 0 &&
+      currentPlayerStep > message.currentStepIndex
+
+    // === NUCLEAR RECONCILIATION ===
+    // Clear all local timers/flags
+    if (stepTimerIntervalRef.current) {
+      clearInterval(stepTimerIntervalRef.current)
+      stepTimerIntervalRef.current = null
+    }
+    if (roundTransitionTimeoutRef.current) {
+      clearTimeout(roundTransitionTimeoutRef.current)
+      roundTransitionTimeoutRef.current = null
+    }
+    if (roundResultTimeoutRef.current) {
+      clearTimeout(roundResultTimeoutRef.current)
+      roundResultTimeoutRef.current = null
+    }
+
+    // Clear step tracking
+    stepAnswersRef.current.clear()
+    thinkingPhaseStartTimeRef.current = null
+    stepStartTimeRef.current = null
+
+    // Update refs
+    isTransitioningRef.current = message.phase === 'results'
+    roundResultRef.current = message.roundResult
+
+    const isFinished = !message.roundResult?.matchContinues || !!message.roundResult?.matchWinnerId
+
+    // Reconcile state
+    setState(prev => {
+      return {
+        ...prev,
+        // Round state
+        currentRound: {
+          id: message.roundId,
+          roundNumber: message.roundNumber,
+          status: message.phase === 'results' ? 'finished' : 'active'
+        },
+        currentQuestion: message.question,
+
+        // Phase state (from server)
+        currentStepIndex: message.currentStepIndex,
+        isThinkingPhase: message.phase === 'thinking',
+        stepTimeLeft: message.deadlineTs ? Math.max(0, (message.deadlineTs - Date.now()) / 1000) : null,
+        thinkingTimeLeft: message.phase === 'thinking' && message.deadlineTs
+          ? Math.max(0, (message.deadlineTs - Date.now()) / 1000)
+          : null,
+
+        // Answer state (from server)
+        hasSubmitted: message.phase === 'waiting' || message.phase === 'results',
+        hasAnsweredCurrentStep: hasAnsweredCurrentStep,
+
+        // Match state
+        match: prev.match ? {
+          ...prev.match,
+          player1_score: message.player1Score,
+          player2_score: message.player2Score,
+          status: isFinished ? 'finished' : 'in_progress',
+          winner_id: message.roundResult?.matchWinnerId || prev.match.winner_id
+        } : null,
+
+        // Round result
+        roundResult: message.roundResult,
+        isMatchFinished: isFinished,
+        isShowingRoundTransition: message.phase === 'results' && !!message.roundResult,
+        // Server-driven phase
+        phase: message.phase,
+
+        // Clear answer maps (server doesn't send these, so reset)
+        playerAnswers: new Map(),
+        responseTimes: new Map()
+      }
+    })
+
+    // Restart timers based on server deadline
+    if (message.deadlineTs && message.phase !== 'results') {
+      const secondsLeft = Math.max(0, (message.deadlineTs - Date.now()) / 1000)
+
+      if (message.phase === 'thinking') {
+        // Start thinking phase timer
+        if (startThinkingPhaseRef.current) {
+          startThinkingPhaseRef.current(Math.ceil(secondsLeft))
+        }
+      } else if (message.phase === 'step' && message.currentStepIndex >= 0) {
+        // Start step timer
+        if (startStepRef.current) {
+          startStepRef.current(message.currentStepIndex, Math.ceil(secondsLeft))
+        }
+      }
+    }
+  }, [state.match])
+
   // Connect to WebSocket
   const connect = useCallback((matchId: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -549,6 +670,12 @@ export function useMatchFlow(matchId: string | null) {
 
             if (message.type === 'connected') {
               // Connection confirmed, already sent JOIN_MATCH
+              return
+            }
+
+            // ROUND_STATE is authoritative - handle it first and return
+            if (message.type === 'ROUND_STATE') {
+              handleRoundState(message)
               return
             }
 
@@ -1028,7 +1155,8 @@ export function useMatchFlow(matchId: string | null) {
           // All steps done - wait for opponent
           return {
             ...prev,
-            hasSubmitted: true // Use existing flag to show "waiting for opponent"
+            hasSubmitted: true, // Keep for backward compatibility
+            phase: 'waiting' // Server will send ROUND_STATE with phase: 'waiting'
           }
         }
       })

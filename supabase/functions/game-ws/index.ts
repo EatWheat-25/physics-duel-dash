@@ -134,6 +134,31 @@ interface SubmitRoundAnswerMsg {
   }
 }
 
+interface RoundStateMsg {
+  type: 'ROUND_STATE'
+  matchId: string
+  roundId: string
+  roundNumber: number
+  phase: 'thinking' | 'step' | 'waiting' | 'results'
+  currentStepIndex: number // -1 for thinking, 0+ for step index
+  deadlineTs: number | null // Unix timestamp (ms) - authoritative deadline
+  // Per-player step tracking
+  player1CurrentStep: number // Which step player1 is on (-1 = thinking, 0+ = step)
+  player2CurrentStep: number // Which step player2 is on
+  player1HasAnswered: boolean // Has player1 answered current step/round?
+  player2HasAnswered: boolean // Has player2 answered current step/round?
+  player1Score: number // Current match score
+  player2Score: number // Current match score
+  question: StepBasedQuestion | null // Full question (null if phase === 'results')
+  roundResult: {
+    roundWinnerId: string | null
+    player1RoundScore: number
+    player2RoundScore: number
+    matchContinues: boolean
+    matchWinnerId: string | null
+  } | null // Only set when phase === 'results'
+}
+
 // Simple in-memory socket tracking
 const sockets = new Map<string, Set<WebSocket>>()
 
@@ -211,6 +236,171 @@ async function pickQuestionForMatch(
   const mapped = mapDbQuestionToStepBased(question)
   
   return { raw: question, mapped }
+}
+
+/**
+ * Compute authoritative round state from database
+ * This is the single source of truth for round phase, step progress, and deadlines
+ */
+async function computeRoundState(
+  matchId: string,
+  roundId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<RoundStateMsg | null> {
+  // Fetch round with match and question
+  const { data: round, error: roundError } = await supabase
+    .from('match_rounds')
+    .select(`
+      *,
+      question:questions(*)
+    `)
+    .eq('id', roundId)
+    .single()
+
+  if (roundError || !round) {
+    console.error(`[${matchId}] Failed to fetch round ${roundId}:`, roundError)
+    return null
+  }
+
+  // Fetch match
+  const { data: match, error: matchError } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('id', matchId)
+    .single()
+
+  if (matchError || !match) {
+    console.error(`[${matchId}] Failed to fetch match:`, matchError)
+    return null
+  }
+
+  const question = round.question as DbQuestion | null
+  if (!question) {
+    console.error(`[${matchId}] Question not found for round ${roundId}`)
+    return null
+  }
+
+  // Parse answer payloads to determine per-player step progress
+  const p1Payload = round.player1_answer_payload as any
+  const p2Payload = round.player2_answer_payload as any
+  
+  // Get highest step_index each player has answered
+  const p1MaxStep = p1Payload?.steps?.reduce((max: number, s: any) => 
+    Math.max(max, (s.step_index ?? -1) + 1), -1) ?? -1
+  const p2MaxStep = p2Payload?.steps?.reduce((max: number, s: any) => 
+    Math.max(max, (s.step_index ?? -1) + 1), -1) ?? -1
+
+  // Determine current step for each player
+  const totalSteps = question.steps ? (question.steps as any[]).length : 0
+  let player1CurrentStep = -1
+  let player2CurrentStep = -1
+
+  const p1Answered = !!round.player1_answered_at
+  const p2Answered = !!round.player2_answered_at
+  const bothAnswered = p1Answered && p2Answered
+  const roundFinished = round.status === 'finished'
+
+  if (p1Answered) {
+    player1CurrentStep = p1MaxStep < totalSteps ? p1MaxStep : totalSteps
+  }
+  if (p2Answered) {
+    player2CurrentStep = p2MaxStep < totalSteps ? p2MaxStep : totalSteps
+  }
+
+  // Determine phase and currentStepIndex
+  let phase: 'thinking' | 'step' | 'waiting' | 'results' = 'thinking'
+  let currentStepIndex = -1
+
+  if (roundFinished) {
+    phase = 'results'
+    currentStepIndex = totalSteps
+  } else if (bothAnswered) {
+    // Both answered - check if all steps done
+    const bothOnLastStep = p1MaxStep >= totalSteps - 1 && p2MaxStep >= totalSteps - 1
+    if (bothOnLastStep) {
+      phase = 'waiting' // Waiting for evaluation
+      currentStepIndex = totalSteps
+    } else {
+      // More steps to go - current step is min of where both players are
+      // (both must complete a step before moving to next)
+      const minStep = Math.min(p1MaxStep, p2MaxStep)
+      phase = 'step'
+      currentStepIndex = minStep < totalSteps ? minStep : totalSteps
+    }
+  } else if (p1Answered || p2Answered) {
+    // One player answered - determine which step they're on
+    const answeredStep = p1Answered ? p1MaxStep : p2MaxStep
+    phase = 'step'
+    currentStepIndex = answeredStep < totalSteps ? answeredStep : totalSteps
+  } else {
+    // Neither answered - check if in thinking phase
+    const roundAge = Date.now() - new Date(round.created_at).getTime()
+    if (roundAge < 60000) { // Less than 60s old = thinking phase
+      phase = 'thinking'
+      currentStepIndex = -1
+    } else {
+      phase = 'step'
+      currentStepIndex = 0 // First step
+    }
+  }
+
+  // Compute deadline - use phase_started_at if available, otherwise calculate
+  let deadlineTs: number | null = null
+  const phaseStartedAt = (round as any).phase_started_at
+  const createdAt = new Date(round.created_at).getTime()
+
+  if (phase === 'thinking') {
+    if (phaseStartedAt) {
+      deadlineTs = new Date(phaseStartedAt).getTime() + 60000 // 60s thinking
+    } else {
+      deadlineTs = createdAt + 60000
+    }
+  } else if (phase === 'step' && currentStepIndex >= 0 && question.steps) {
+    const steps = question.steps as any[]
+    const currentStep = steps[currentStepIndex]
+    const stepTimeLimit = (currentStep?.timeLimitSeconds ?? 15) * 1000
+    
+    if (phaseStartedAt) {
+      deadlineTs = new Date(phaseStartedAt).getTime() + stepTimeLimit
+    } else {
+      // Estimate from when round was created (fallback)
+      deadlineTs = Date.now() + stepTimeLimit
+    }
+  }
+
+  // Build round result if in results phase
+  const roundResult = phase === 'results' ? {
+    roundWinnerId: round.player1_round_score > round.player2_round_score
+      ? match.player1_id
+      : round.player2_round_score > round.player1_round_score
+        ? match.player2_id
+        : null,
+    player1RoundScore: round.player1_round_score || 0,
+    player2RoundScore: round.player2_round_score || 0,
+    matchContinues: match.status === 'in_progress',
+    matchWinnerId: match.status === 'finished' ? match.winner_id : null
+  } : null
+
+  // Map question to StepBasedQuestion format
+  const mappedQuestion = phase !== 'results' ? mapDbQuestionToStepBased(question) : null
+
+  return {
+    type: 'ROUND_STATE',
+    matchId,
+    roundId,
+    roundNumber: round.round_number,
+    phase,
+    currentStepIndex,
+    deadlineTs,
+    player1CurrentStep,
+    player2CurrentStep,
+    player1HasAnswered: p1Answered,
+    player2HasAnswered: p2Answered,
+    player1Score: match.player1_score || 0,
+    player2Score: match.player2_score || 0,
+    question: mappedQuestion,
+    roundResult
+  }
 }
 
 /**
@@ -341,6 +531,12 @@ async function checkAndEvaluateRound(
   // Also log after broadcast to verify
   console.log(`[${matchId}] ✅ ROUND_RESULT broadcast completed`)
   
+  // Broadcast ROUND_STATE after ROUND_RESULT (phase will be 'results')
+  const roundState = await computeRoundState(matchId, roundId, supabase)
+  if (roundState) {
+    broadcastToMatch(matchId, roundState)
+  }
+  
   // Fallback: If we have fewer than 2 open sockets, the second player might not have received it
   // In that case, we rely on the frontend polling mechanism to catch the result from the database
   const openSockets = matchSockets ? Array.from(matchSockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
@@ -387,6 +583,12 @@ async function checkAndEvaluateRound(
           question: nextRound.question
         }
         broadcastToMatch(matchId, roundStartMsg)
+        
+        // Also send ROUND_STATE for authoritative state
+        const nextRoundState = await computeRoundState(matchId, nextRound.roundId, supabase)
+        if (nextRoundState) {
+          broadcastToMatch(matchId, nextRoundState)
+        }
       }
     } else {
       console.warn(`[${matchId}] Match is not in_progress (status: ${updatedMatch?.status}), not creating next round`)
@@ -479,33 +681,38 @@ async function handleJoinMatch(
     .maybeSingle()
 
   if (activeRound) {
-    // Round already exists, fetch the question for this round
-    const { data: questionRow, error: qError } = await supabase
-      .from('questions')
-      .select('*')
-      .eq('id', activeRound.question_id)
-      .single<DbQuestion>()
-    
-    if (qError || !questionRow) {
-      console.error(`[${matchId}] Failed to fetch question for round:`, qError)
-      socket.send(JSON.stringify({
-        type: 'GAME_ERROR',
-        message: 'Failed to load question'
-      } as GameErrorEvent))
-      return
+    // Round already exists - send authoritative ROUND_STATE
+    const roundState = await computeRoundState(matchId, activeRound.id, supabase)
+    if (roundState) {
+      socket.send(JSON.stringify(roundState))
+      console.log(`[${matchId}] Sent ROUND_STATE to reconnecting player ${playerId}`)
+    } else {
+      // Fallback: send ROUND_START if computeRoundState fails
+      const { data: questionRow, error: qError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('id', activeRound.question_id)
+        .single<DbQuestion>()
+      
+      if (qError || !questionRow) {
+        console.error(`[${matchId}] Failed to fetch question for round:`, qError)
+        socket.send(JSON.stringify({
+          type: 'GAME_ERROR',
+          message: 'Failed to load question'
+        } as GameErrorEvent))
+        return
+      }
+      
+      const mapped = mapDbQuestionToStepBased(questionRow)
+      const roundStartMsg: RoundStartMsg = {
+        type: 'ROUND_START',
+        matchId,
+        roundId: activeRound.id,
+        roundNumber: activeRound.round_number,
+        question: mapped
+      }
+      socket.send(JSON.stringify(roundStartMsg))
     }
-    
-    // Map to StepBasedQuestion format using helper
-    const mapped = mapDbQuestionToStepBased(questionRow)
-    
-    const roundStartMsg: RoundStartMsg = {
-      type: 'ROUND_START',
-      matchId,
-      roundId: activeRound.id,
-      roundNumber: activeRound.round_number,
-      question: mapped
-    }
-    socket.send(JSON.stringify(roundStartMsg))
     return
   }
 
@@ -536,6 +743,12 @@ async function handleJoinMatch(
     question: firstRound.question
   }
   broadcastToMatch(matchId, roundStartMsg)
+
+  // Also send ROUND_STATE for authoritative state
+  const roundState = await computeRoundState(matchId, firstRound.roundId, supabase)
+  if (roundState) {
+    broadcastToMatch(matchId, roundState)
+  }
 }
 
 /**
@@ -578,6 +791,12 @@ async function handleSubmitRoundAnswer(
     // This allows the round evaluation to proceed normally
   } else {
     console.log(`[${matchId}] ✅ Answer submitted successfully, result:`, result)
+  }
+
+  // Broadcast ROUND_STATE after answer submission
+  const roundState = await computeRoundState(matchId, roundId, supabase)
+  if (roundState) {
+    broadcastToMatch(matchId, roundState)
   }
 
   // Check if both players answered and evaluate if ready
