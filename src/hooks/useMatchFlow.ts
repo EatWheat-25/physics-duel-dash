@@ -557,7 +557,9 @@ export function useMatchFlow(matchId: string | null) {
           roundNumber: message.roundNumber,
           status: message.phase === 'results' ? 'finished' : 'active'
         },
-        currentQuestion: message.question,
+        // Preserve question if null (e.g., during results phase)
+        // This ensures UI doesn't break when ROUND_STATE arrives with question: null
+        currentQuestion: message.question || prev.currentQuestion,
 
         // Phase state (from server)
         currentStepIndex: message.currentStepIndex,
@@ -621,6 +623,20 @@ export function useMatchFlow(matchId: string | null) {
       handleRoundState(queued)
     }
   }, [state.match, handleRoundState])
+
+  // Timeout warning: If connected with match but no question after 3 seconds, log warning
+  useEffect(() => {
+    if (state.isConnected && state.match && !state.currentQuestion && !state.currentRound) {
+      const timeout = setTimeout(() => {
+        console.warn('[useMatchFlow] Connected with match but no ROUND_STATE received after 3s', {
+          matchId: state.match?.id,
+          hasQueuedState: !!pendingRoundStateRef.current,
+          isConnected: state.isConnected
+        })
+      }, 3000)
+      return () => clearTimeout(timeout)
+    }
+  }, [state.isConnected, state.match, state.currentQuestion, state.currentRound])
 
   // Connect to WebSocket
   const connect = useCallback((matchId: string) => {
@@ -688,9 +704,15 @@ export function useMatchFlow(matchId: string | null) {
 
             if (message.type === 'MATCH_START') {
               console.log('[useMatchFlow] MATCH_START received')
-              // Fetch match data if not already loaded
-              // The useEffect will apply queued ROUND_STATE when match becomes available
-              if (!state.match && matchId) {
+              // Update match state from message
+              if (message.match) {
+                setState(prev => ({
+                  ...prev,
+                  match: message.match as MatchRow
+                }))
+              } else if (!state.match && matchId) {
+                // Fallback: Fetch match data if not in message and not already loaded
+                // The useEffect will apply queued ROUND_STATE when match becomes available
                 const fetchMatchData = async () => {
                   const { data: matchData } = await supabase
                     .from('matches')

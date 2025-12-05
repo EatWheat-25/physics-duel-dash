@@ -473,6 +473,21 @@ export default function OnlineBattleNew() {
   }
 
   // 8. Default: Waiting for battle to start
+  // This should only appear if we're connected with a match but haven't received ROUND_STATE yet
+  // Show a more specific message to help debug
+  if (isConnected && match && !currentQuestion && !currentRound) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <GameLoader text="connecting" />
+          <h2 className="text-2xl font-bold text-white">Synchronizing round state...</h2>
+          <p className="text-slate-300 text-sm">Waiting for server to send round information.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback: Should rarely reach here
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
       <div className="text-center space-y-4">
