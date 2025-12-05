@@ -659,20 +659,23 @@ async function handleJoinMatch(
     
     if (startError) {
       console.error(`[${matchId}] Error starting match:`, startError)
-      socket.send(JSON.stringify({
-        type: 'GAME_ERROR',
-        message: 'Failed to start match'
-      } as GameErrorEvent))
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'GAME_ERROR',
+          message: 'Failed to start match'
+        } as GameErrorEvent))
+      }
       return
     }
     
     // Update match reference (start_match returns SETOF matches)
     if (startedMatchRows && startedMatchRows.length > 0) {
       Object.assign(match, startedMatchRows[0])
+      console.log(`[${matchId}] Match started, new status: ${match.status}`)
     }
   }
 
-  // Check for existing active round
+  // Check for existing active round (re-check after start_match in case it created one)
   const { data: activeRound } = await supabase
     .from('match_rounds')
     .select('*')
@@ -690,15 +693,41 @@ async function handleJoinMatch(
       roundId: activeRound.id,
       roundNumber: activeRound.round_number
     }
-    socket.send(JSON.stringify(matchStartMsg))
+    
+    // Check socket state before sending
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(matchStartMsg))
+      console.log(`[${matchId}] Sent MATCH_START to player ${playerId}`)
+    } else {
+      console.warn(`[${matchId}] Socket not OPEN for player ${playerId}, state: ${socket.readyState}`)
+    }
     
     // Then send authoritative ROUND_STATE
-    const roundState = await computeRoundState(matchId, activeRound.id, supabase)
+    // Retry logic: sometimes computeRoundState might fail due to timing, so retry once
+    let roundState = await computeRoundState(matchId, activeRound.id, supabase)
+    if (!roundState) {
+      console.warn(`[${matchId}] computeRoundState failed, retrying after 100ms...`)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      roundState = await computeRoundState(matchId, activeRound.id, supabase)
+    }
+    
     if (roundState) {
-      socket.send(JSON.stringify(roundState))
-      console.log(`[${matchId}] Sent MATCH_START + ROUND_STATE to reconnecting player ${playerId}`)
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(roundState))
+        console.log(`[${matchId}] ✅ Sent MATCH_START + ROUND_STATE to player ${playerId}`)
+      } else {
+        console.warn(`[${matchId}] Socket not OPEN when trying to send ROUND_STATE to player ${playerId}, state: ${socket.readyState}`)
+        // Queue the message to send when socket opens (if it's still connecting)
+        socket.addEventListener('open', () => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(roundState))
+            console.log(`[${matchId}] ✅ Sent queued ROUND_STATE to player ${playerId} after socket opened`)
+          }
+        }, { once: true })
+      }
     } else {
       // Fallback: send ROUND_START if computeRoundState fails
+      console.error(`[${matchId}] computeRoundState returned null, falling back to ROUND_START`)
       const { data: questionRow, error: qError } = await supabase
         .from('questions')
         .select('*')
@@ -707,10 +736,12 @@ async function handleJoinMatch(
       
       if (qError || !questionRow) {
         console.error(`[${matchId}] Failed to fetch question for round:`, qError)
-        socket.send(JSON.stringify({
-          type: 'GAME_ERROR',
-          message: 'Failed to load question'
-        } as GameErrorEvent))
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({
+            type: 'GAME_ERROR',
+            message: 'Failed to load question'
+          } as GameErrorEvent))
+        }
         return
       }
       
@@ -722,7 +753,10 @@ async function handleJoinMatch(
         roundNumber: activeRound.round_number,
         question: mapped
       }
-      socket.send(JSON.stringify(roundStartMsg))
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(roundStartMsg))
+        console.log(`[${matchId}] Sent fallback ROUND_START to player ${playerId}`)
+      }
     }
     return
   }
