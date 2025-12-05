@@ -1066,25 +1066,9 @@ export function useMatchFlow(matchId: string | null) {
             wsRef.current.send(JSON.stringify(message))
           }
 
-          // Advance to next step after delay
-          setTimeout(() => {
-            setState(prev => {
-              if (!prev.currentQuestion) return prev
-
-              const nextStepIndex = prev.currentStepIndex + 1
-              if (nextStepIndex < prev.currentQuestion.steps.length) {
-                // Start next step (recursive call)
-                startStep(nextStepIndex, 15)
-                return prev
-              } else {
-                // All steps done - wait for opponent
-                return {
-                  ...prev,
-                  hasSubmitted: true
-                }
-              }
-            })
-          }, 500)
+          // DO NOT auto-advance - wait for ROUND_STATE from server
+          // The server will send ROUND_STATE with updated currentStepIndex after processing the answer
+          console.log('[useMatchFlow] Auto-submitted step answer (timer expired), waiting for ROUND_STATE from server')
 
           return { ...prev, stepTimeLeft: 0 }
         }
@@ -1204,26 +1188,9 @@ export function useMatchFlow(matchId: string | null) {
       }
     })
 
-    // After short delay, advance to next step if exists
-    setTimeout(() => {
-      setState(prev => {
-        if (!prev.currentQuestion) return prev
-
-        const nextStepIndex = prev.currentStepIndex + 1
-        if (nextStepIndex < prev.currentQuestion.steps.length) {
-          // Start next step
-          startStep(nextStepIndex, 15)
-          return prev
-        } else {
-          // All steps done - wait for opponent
-          return {
-            ...prev,
-            hasSubmitted: true, // Keep for backward compatibility
-            phase: 'waiting' // Server will send ROUND_STATE with phase: 'waiting'
-          }
-        }
-      })
-    }, 500) // 500ms delay before advancing
+    // DO NOT auto-advance - wait for ROUND_STATE from server
+    // The server will send ROUND_STATE with updated currentStepIndex after processing the answer
+    console.log('[useMatchFlow] Step answer submitted, waiting for ROUND_STATE from server')
   }, [matchId, state.currentRound, state.currentQuestion, startStep])
 
   // Submit round answer
