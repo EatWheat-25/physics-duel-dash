@@ -89,6 +89,97 @@ export function useMatchFlow(matchId: string | null) {
   // Queue ROUND_STATE if it arrives before match is ready
   const pendingRoundStateRef = useRef<any | null>(null)
 
+  // ========================================
+  // applyRoundResult - SINGLE SOURCE OF TRUTH
+  // ========================================
+  // Both WS ROUND_RESULT and polling MUST call this function.
+  // This ensures identical cleanup for early and late answerers.
+  // Phase 1 goal: Round transition correctness (not match score reconciliation)
+  // Defined early to avoid temporal dead zone issues with useEffect dependencies
+  const applyRoundResult = useCallback((
+    result: RoundResult,
+    source: 'ws' | 'polling',
+    roundId: string
+  ) => {
+    // === DOUBLE IDEMPOTENCY GUARD ===
+    
+    // Guard 1: roundId-based (prevents duplicate round processing)
+    if (lastAppliedRoundIdRef.current === roundId) {
+      console.log(`[useMatchFlow] applyRoundResult(${source}): already applied roundId=${roundId}, skipping`)
+      return
+    }
+    
+    // Guard 2: roundResultRef-based (prevents any duplicate result application)
+    if (roundResultRef.current) {
+      console.log(`[useMatchFlow] applyRoundResult(${source}): roundResult already exists, skipping`)
+      return
+    }
+    
+    // Set both guards immediately (atomic)
+    lastAppliedRoundIdRef.current = roundId
+    roundResultRef.current = result
+
+    console.log(`[useMatchFlow] applyRoundResult(${source}): roundId=${roundId}`, result)
+
+    // === FULL CLEANUP (identical for both paths) ===
+
+    // Clear all timeouts
+    if (roundTransitionTimeoutRef.current) {
+      clearTimeout(roundTransitionTimeoutRef.current)
+      roundTransitionTimeoutRef.current = null
+    }
+    if (roundResultTimeoutRef.current) {
+      clearTimeout(roundResultTimeoutRef.current)
+      roundResultTimeoutRef.current = null
+    }
+
+    // Clear step timer
+    if (stepTimerIntervalRef.current) {
+      clearInterval(stepTimerIntervalRef.current)
+      stepTimerIntervalRef.current = null
+    }
+
+    // Clear step tracking refs
+    stepAnswersRef.current.clear()
+    thinkingPhaseStartTimeRef.current = null
+    stepStartTimeRef.current = null
+
+    // Set transition ref
+    isTransitioningRef.current = true
+
+    const isFinished = !result.matchContinues || result.matchWinnerId !== null
+
+    // === SINGLE STATE UPDATE (no match score mutation - Phase 1 goal is transition correctness) ===
+    setState(prev => {
+      return {
+        ...prev,
+        roundResult: result,
+        hasSubmitted: false,
+        isMatchFinished: isFinished,
+        isShowingRoundTransition: true, // CRITICAL: always set this
+        // Clear all answer state
+        playerAnswers: new Map(),
+        responseTimes: new Map(),
+        currentStepIndex: -1,
+        stepTimeLeft: null,
+        hasAnsweredCurrentStep: false,
+        thinkingTimeLeft: null,
+        isThinkingPhase: false,
+        // Phase 1: Don't mutate match totals - just keep prev.match
+        // Phase 1 goal is round transition correctness, not match scoring reconciliation
+        match: prev.match
+      }
+    })
+
+    // Start 5-second transition timeout (visual lifecycle, not correctness-critical)
+    roundTransitionTimeoutRef.current = setTimeout(() => {
+      // Use ref to avoid circular dependency
+      if (finishRoundTransitionRef.current) {
+        finishRoundTransitionRef.current()
+      }
+    }, 5000)
+  }, []) // No dependencies - refs handle all state
+
   // Fetch match data (normal polling)
   useEffect(() => {
     if (!matchId) return
@@ -204,96 +295,6 @@ export function useMatchFlow(matchId: string | null) {
     isShowingRoundTransitionRef.current = state.isShowingRoundTransition
     isMatchFinishedRef.current = state.isMatchFinished
   }, [state.roundResult, state.isShowingRoundTransition, state.isMatchFinished])
-
-  // ========================================
-  // applyRoundResult - SINGLE SOURCE OF TRUTH
-  // ========================================
-  // Both WS ROUND_RESULT and polling MUST call this function.
-  // This ensures identical cleanup for early and late answerers.
-  // Phase 1 goal: Round transition correctness (not match score reconciliation)
-  const applyRoundResult = useCallback((
-    result: RoundResult,
-    source: 'ws' | 'polling',
-    roundId: string
-  ) => {
-    // === DOUBLE IDEMPOTENCY GUARD ===
-    
-    // Guard 1: roundId-based (prevents duplicate round processing)
-    if (lastAppliedRoundIdRef.current === roundId) {
-      console.log(`[useMatchFlow] applyRoundResult(${source}): already applied roundId=${roundId}, skipping`)
-      return
-    }
-    
-    // Guard 2: roundResultRef-based (prevents any duplicate result application)
-    if (roundResultRef.current) {
-      console.log(`[useMatchFlow] applyRoundResult(${source}): roundResult already exists, skipping`)
-      return
-    }
-    
-    // Set both guards immediately (atomic)
-    lastAppliedRoundIdRef.current = roundId
-    roundResultRef.current = result
-
-    console.log(`[useMatchFlow] applyRoundResult(${source}): roundId=${roundId}`, result)
-
-    // === FULL CLEANUP (identical for both paths) ===
-
-    // Clear all timeouts
-    if (roundTransitionTimeoutRef.current) {
-      clearTimeout(roundTransitionTimeoutRef.current)
-      roundTransitionTimeoutRef.current = null
-    }
-    if (roundResultTimeoutRef.current) {
-      clearTimeout(roundResultTimeoutRef.current)
-      roundResultTimeoutRef.current = null
-    }
-
-    // Clear step timer
-    if (stepTimerIntervalRef.current) {
-      clearInterval(stepTimerIntervalRef.current)
-      stepTimerIntervalRef.current = null
-    }
-
-    // Clear step tracking refs
-    stepAnswersRef.current.clear()
-    thinkingPhaseStartTimeRef.current = null
-    stepStartTimeRef.current = null
-
-    // Set transition ref
-    isTransitioningRef.current = true
-
-    const isFinished = !result.matchContinues || result.matchWinnerId !== null
-
-    // === SINGLE STATE UPDATE (no match score mutation - Phase 1 goal is transition correctness) ===
-    setState(prev => {
-      return {
-        ...prev,
-        roundResult: result,
-        hasSubmitted: false,
-        isMatchFinished: isFinished,
-        isShowingRoundTransition: true, // CRITICAL: always set this
-        // Clear all answer state
-        playerAnswers: new Map(),
-        responseTimes: new Map(),
-        currentStepIndex: -1,
-        stepTimeLeft: null,
-        hasAnsweredCurrentStep: false,
-        thinkingTimeLeft: null,
-        isThinkingPhase: false,
-        // Phase 1: Don't mutate match totals - just keep prev.match
-        // Phase 1 goal is round transition correctness, not match scoring reconciliation
-        match: prev.match
-      }
-    })
-
-    // Start 5-second transition timeout (visual lifecycle, not correctness-critical)
-    roundTransitionTimeoutRef.current = setTimeout(() => {
-      // Use ref to avoid circular dependency
-      if (finishRoundTransitionRef.current) {
-        finishRoundTransitionRef.current()
-      }
-    }, 5000)
-  }, []) // No dependencies - refs handle all state
 
   // Polling fallback - runs when hasSubmitted === true (safety net for early-answer desync)
   useEffect(() => {
