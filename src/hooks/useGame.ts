@@ -126,6 +126,9 @@ export function useGame(match: MatchRow | null) {
                 playerRole: message.player,
                 errorMessage: null
               }))
+            } else if (message.type === 'connected') {
+              // Handle lowercase 'connected' from initial socket.onopen (ignore it)
+              console.log('[useGame] Initial connection confirmation received (ignoring)')
             } else if (message.type === 'BOTH_CONNECTED') {
               console.log('[useGame] ✅ BOTH_CONNECTED message received, updating status to both_connected')
               setState(prev => ({
