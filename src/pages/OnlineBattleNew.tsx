@@ -1,227 +1,470 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Trophy, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useGame } from '@/hooks/useGame';
-import type { MatchRow } from '@/types/schema';
+import { useMatchFlow } from '@/hooks/useMatchFlow';
+import { CircularTimer } from '@/components/CircularTimer';
+import { GameLoader } from '@/components/GameLoader';
+import { RoundTransition } from '@/components/RoundTransition';
+import '@/styles/match-battle.css';
 
 /**
- * New OnlineBattle component - Clean, production-ready
+ * OnlineBattleNew - Stage 2.5 Runtime Flow
  * 
- * Flow:
- * 1. Get match from navigation state (fast) or fetch from DB
- * 2. Connect to game-ws via useGame hook
- * 3. Display question when received
+ * Uses useMatchFlow hook to manage full match lifecycle:
+ * - Match start and round progression
+ * - Answer submission
+ * - Round evaluation and match completion
  */
 export default function OnlineBattleNew() {
   const { matchId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [player1Name, setPlayer1Name] = useState<string>('Player 1');
+  const [player2Name, setPlayer2Name] = useState<string>('Player 2');
 
-  // Try to use match from navigation state first (fastest path)
+  // Use match flow hook
+  const {
+    match,
+    currentRound,
+    currentQuestion,
+    roundResult,
+    isMatchFinished,
+    playerAnswers,
+    isConnected,
+    hasSubmitted,
+    setAnswer,
+    submitRoundAnswer,
+    // Step-by-step state
+    currentStepIndex,
+    stepTimeLeft,
+    hasAnsweredCurrentStep,
+    submitStepAnswer,
+    // Thinking phase state
+    isThinkingPhase,
+    thinkingTimeLeft,
+    skipThinkingPhase,
+    // Round transition state
+    isShowingRoundTransition,
+    // Server-driven phase
+    phase
+  } = useMatchFlow(matchId || null);
+
+  // Get current user
   useEffect(() => {
-    const stateMatch = location.state?.match as MatchRow | undefined;
-    if (stateMatch && stateMatch.id === matchId) {
-      console.log('[BattleNew] ✅ Using match from navigation state:', stateMatch.id);
-      setMatch(stateMatch);
-      return;
-    }
-  }, [location.state, matchId]);
-
-  // Fetch match from database if not in state
-  useEffect(() => {
-    if (match) return; // Already have match from state
-
-    if (!matchId) {
-      toast.error('No match ID provided');
-      navigate('/matchmaking-new');
-      return;
-    }
-
-    const fetchMatch = async () => {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        console.error('[BattleNew] User not authenticated:', userError);
-        toast.error('Please log in to view match');
-        navigate('/matchmaking-new');
-        return;
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUser(user.id);
       }
+    };
+    getUser();
+  }, []);
 
-      setCurrentUser(user.id);
-      console.log('[BattleNew] Fetching match from DB:', matchId);
+  // Fetch player names when match loads
+  useEffect(() => {
+    const fetchPlayerNames = async () => {
+      if (!match) return;
 
-      // Simple retry logic
-      let retries = 3;
-      let delay = 1000;
+      try {
+        // Fetch both player profiles
+        const [player1Profile, player2Profile] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', match.player1_id)
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', match.player2_id)
+            .maybeSingle()
+        ]);
 
-      while (retries > 0) {
-        const { data, error } = await supabase
-          .from('matches')
-          .select('*')
-          .eq('id', matchId)
-          .maybeSingle();
-
-        if (error) {
-          console.error('[BattleNew] Error fetching match:', error);
-          retries--;
-          if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2;
-            continue;
-          }
-          toast.error(`Failed to load match: ${error.message}`);
-          navigate('/matchmaking-new');
-          return;
+        if (player1Profile.data?.username) {
+          setPlayer1Name(player1Profile.data.username);
         }
-
-        if (!data) {
-          retries--;
-          if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2;
-            continue;
-          }
-          toast.error('Match not found');
-          navigate('/matchmaking-new');
-          return;
+        if (player2Profile.data?.username) {
+          setPlayer2Name(player2Profile.data.username);
         }
-
-        // Verify user is part of match
-        if (data.player1_id !== user.id && data.player2_id !== user.id) {
-          toast.error('You are not part of this match');
-          navigate('/matchmaking-new');
-          return;
-        }
-
-        console.log('[BattleNew] ✅ Match loaded:', data.id);
-        setMatch(data as MatchRow);
-        return;
+      } catch (error) {
+        console.error('Error fetching player names:', error);
       }
     };
 
-    fetchMatch();
-  }, [matchId, navigate, match]);
+    fetchPlayerNames();
+  }, [match]);
 
-  // Get current user if not set
+  // Verify user is part of match
   useEffect(() => {
-    if (!currentUser) {
-      const getUser = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setCurrentUser(user.id);
-        }
-      };
-      getUser();
+    if (match && currentUser) {
+      if (match.player1_id !== currentUser && match.player2_id !== currentUser) {
+        toast.error('You are not part of this match');
+        navigate('/matchmaking-new');
+      }
     }
-  }, [currentUser]);
+  }, [match, currentUser, navigate]);
 
-  // Use game hook to connect and get question
-  const { question, gameStatus, errorMessage } = useGame(match);
 
-  // Render loading state
+  // Determine if current user is player1
+  const isPlayer1 = match && currentUser ? match.player1_id === currentUser : false;
+  const playerScore = isPlayer1 
+    ? ((match as any)?.player1_score || 0)
+    : ((match as any)?.player2_score || 0);
+  const opponentScore = isPlayer1
+    ? ((match as any)?.player2_score || 0)
+    : ((match as any)?.player1_score || 0);
+
+  // Tug-of-war progress bar component
+  const TugOfWarBar = ({ playerScore, opponentScore, targetPoints }: { 
+    playerScore: number; 
+    opponentScore: number; 
+    targetPoints: number 
+  }) => {
+    const totalScore = playerScore + opponentScore
+    const playerPercentage = totalScore > 0 ? (playerScore / totalScore) * 100 : 50
+    const isPlayerWinning = playerScore > opponentScore
+    const isDraw = playerScore === opponentScore
+    
+    // Clamp percentage to 0-100
+    const clampedPlayer = Math.min(100, Math.max(0, playerPercentage))
+    
+    return (
+      <div className="tug-of-war mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold" style={{ color: '#06b6d4' }}>
+            {isPlayer1 ? player1Name : player2Name}: {playerScore}
+          </span>
+          <span className="text-xs text-slate-400">Target: {targetPoints}</span>
+          <span className="text-sm font-semibold text-white">
+            {isPlayer1 ? player2Name : player1Name}: {opponentScore}
+          </span>
+        </div>
+        <div className="tug-bar">
+          <div 
+            className="tug-progress"
+            style={{ width: `${clampedPlayer}%` }}
+          />
+        </div>
+        {/* Score difference indicator */}
+        <div className="text-center mt-1">
+          {isDraw ? (
+            <span className="text-xs text-slate-400">Tied</span>
+          ) : isPlayerWinning ? (
+            <span className="text-xs" style={{ color: '#06b6d4' }}>+{playerScore - opponentScore} ahead</span>
+          ) : (
+            <span className="text-xs" style={{ color: '#ec4899' }}>-{opponentScore - playerScore} behind</span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // State priority order (explicit, non-overlapping):
+  // 1. Loading/connecting states
+  // 2. Match finished
+  // 3. Round result (banner)
+  // 4. Waiting for opponent
+  // 5. Active round with question
+  // 6. Default waiting state
+
+  // 1. Loading state
   if (!match || !currentUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-          <h2 className="text-2xl font-bold text-white">Loading match...</h2>
+          <GameLoader text="loading match" />
         </div>
       </div>
     );
   }
 
-  // Render error state
-  if (gameStatus === 'error') {
+  // 2. Connecting state
+  if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-center space-y-4 max-w-md">
-          <div className="text-red-500 text-xl">⚠️ Error</div>
-          <p className="text-white">{errorMessage || 'Unknown error'}</p>
-          <Button
-            onClick={() => navigate('/matchmaking-new')}
-            className="mt-4"
-          >
-            Go Back
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Render connecting/waiting state
-  if (gameStatus === 'connecting' || gameStatus === 'waiting_for_round') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-          <h2 className="text-2xl font-bold text-white">
-            {gameStatus === 'connecting' ? 'Connecting to battle...' : 'Waiting for question...'}
-          </h2>
+          <GameLoader text="connecting" />
         </div>
       </div>
     );
   }
 
-  // Render question when active
-  if (gameStatus === 'round_active' && question) {
-    const steps = question.steps;
-    const options = steps?.options || [];
-    const correctAnswer = steps?.answer ?? 0;
+  // 3. Match finished state
+  if (isMatchFinished) {
+    const winnerId = (match as any)?.winner_id;
+    const isWinner = winnerId === currentUser;
+    const isDraw = !winnerId;
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="mb-6">
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/matchmaking-new')}
-              className="text-white mb-4"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-            <h1 className="text-3xl font-bold text-white">Battle</h1>
-            <p className="text-gray-400">Match ID: {match.id}</p>
-          </div>
-
-          {/* Question Card */}
-          <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-8 border border-purple-500/20">
-            <div className="mb-8">
-              <p className="text-xl text-white mb-6">{question.text}</p>
-            </div>
-
-            {/* Multiple Choice Options */}
-            {steps?.type === 'mcq' && options.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-white mb-4">Select your answer:</h3>
-                <div className="grid gap-4">
-                  {options.map((option, index) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        // TODO: Implement answer submission
-                        toast.info(`Selected: ${option} (Answer ${index})`);
-                      }}
-                      className="p-4 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-left text-white transition-colors"
-                    >
-                      <span className="font-semibold mr-2">{String.fromCharCode(65 + index)}.</span>
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-8">
+        <div className="max-w-2xl w-full bg-slate-800/90 backdrop-blur-lg rounded-xl p-8 border-2 border-slate-600">
+          <div className="text-center space-y-6">
+            {isDraw ? (
+              <>
+                <Trophy className="w-16 h-16 text-yellow-500 mx-auto" />
+                <h1 className="text-4xl font-bold text-white">Draw!</h1>
+              </>
+            ) : isWinner ? (
+              <>
+                <Trophy className="w-16 h-16 text-yellow-500 mx-auto" />
+                <h1 className="text-4xl font-bold text-white">You Won! 🎉</h1>
+              </>
+            ) : (
+              <>
+                <Trophy className="w-16 h-16 text-gray-500 mx-auto" />
+                <h1 className="text-4xl font-bold text-white">You Lost</h1>
+              </>
             )}
 
-            {/* Debug Info */}
-            <div className="mt-8 text-sm text-slate-400">
-              <p>Question ID: {question.id}</p>
-              <p>Match ID: {match.id}</p>
-              <p>Status: {gameStatus}</p>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-4 bg-slate-700/50 rounded-lg">
+                <span className="text-white font-semibold">Your Score:</span>
+                <span className="text-2xl font-bold text-blue-400">{playerScore}</span>
+              </div>
+              <div className="flex justify-between items-center p-4 bg-slate-700/50 rounded-lg">
+                <span className="text-white font-semibold">Opponent Score:</span>
+                <span className="text-2xl font-bold text-white">{opponentScore}</span>
+              </div>
+              <div className="flex justify-between items-center p-4 bg-slate-700/50 rounded-lg">
+                <span className="text-white font-semibold">Total Rounds:</span>
+                <span className="text-2xl font-bold text-white">{(match as any)?.current_round_number || 0}</span>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => navigate('/matchmaking-new')}
+              className="mt-6"
+              size="lg"
+            >
+              Back to Lobby
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Round transition overlay (priority - shows before active round)
+  if (roundResult && isShowingRoundTransition && match && currentUser) {
+    const totalPossiblePoints = 
+      currentQuestion?.steps?.reduce((sum, step) => sum + (step.marks ?? 1), 0) ?? 4
+
+    return (
+      <RoundTransition
+        roundResult={roundResult}
+        currentUserId={currentUser}
+        player1Id={match.player1_id}
+        player2Id={match.player2_id}
+        player1Name={player1Name}
+        player2Name={player2Name}
+        totalPossiblePoints={totalPossiblePoints}
+      />
+    )
+  }
+
+  // 5. Round result banner (show as banner, not full screen - only when not in transition)
+  const roundResultBanner = roundResult && currentRound && !isMatchFinished && !isShowingRoundTransition ? (() => {
+    const roundWon = roundResult.roundWinnerId === currentUser;
+    const isDraw = !roundResult.roundWinnerId;
+    
+    let bannerText = '';
+    if (isDraw) {
+      bannerText = 'Round Draw';
+    } else if (roundWon) {
+      bannerText = `You won this round! +${roundResult.player1RoundScore}`;
+    } else {
+      bannerText = `Opponent won this round +${roundResult.player2RoundScore}`;
+    }
+    
+    return (
+      <div className="round-result mb-4">
+        <div className="result-icon">🎉</div>
+        <div className={`result-text ${roundWon ? 'win' : isDraw ? '' : 'lose'}`}>{bannerText}</div>
+        <p className="text-sm text-slate-300 mt-1">Next round starting soon...</p>
+      </div>
+    );
+  })() : null;
+
+  // 6. Waiting for opponent state (server-driven)
+  if (phase === 'waiting' && currentRound) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-8">
+        <div className="max-w-2xl w-full bg-slate-800/90 backdrop-blur-lg rounded-xl p-8 border-2 border-slate-600 text-center space-y-6">
+          <div className="flex justify-center">
+            <GameLoader text="waiting" />
+          </div>
+          <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
+          <p className="text-slate-300">Your answer has been submitted. Waiting for your opponent to answer.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 7. Active round with question
+  if (currentQuestion && currentRound) {
+    // Check if in thinking phase
+    const isInThinkingPhase = isThinkingPhase || currentStepIndex === -1
+    
+    // Check if all steps are done
+    const allStepsDone = !isInThinkingPhase && currentStepIndex >= (currentQuestion.steps?.length || 0)
+    
+    // Get current step
+    const currentStep = !isInThinkingPhase && !allStepsDone && currentQuestion.steps?.[currentStepIndex] 
+      ? currentQuestion.steps[currentStepIndex]
+      : null
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white px-4 py-8" style={{ background: 'linear-gradient(125deg, #0a0e27 0%, #0f1535 25%, #141b3d 50%, #1a2350 75%, #0d1229 100%)' }}>
+        <div className="max-w-4xl mx-auto">
+          {/* Match Header */}
+          <div className="match-header mb-6">
+            <div className="round-info">
+              <span className="round-badge">⚔️ ROUND {currentRound.roundNumber} / {(match as any)?.max_rounds || 3}</span>
+            </div>
+            <div className="match-timer">
+              <span>⏱️</span>
+              <span>{phase === 'thinking' ? 'THINKING' : phase === 'waiting' ? 'WAITING' : phase === 'step' ? 'ANSWERING' : isInThinkingPhase ? 'THINKING' : allStepsDone ? 'WAITING' : 'ANSWERING'}</span>
+            </div>
+          </div>
+
+          {/* Players Section */}
+          <div className="players-section mb-6">
+            <div className="player-card you">
+              <div className="player-avatar">👤</div>
+              <div className="player-info">
+                <h3>{isPlayer1 ? player1Name : player2Name}</h3>
+                <div className="player-score">{playerScore}</div>
+              </div>
+            </div>
+            <div className="vs-badge">VS</div>
+            <div className="player-card opponent">
+              <div className="player-avatar">🤖</div>
+              <div className="player-info">
+                <h3>{isPlayer1 ? player2Name : player1Name}</h3>
+                <div className="player-score">{opponentScore}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tug-of-war progress bar */}
+          <TugOfWarBar 
+            playerScore={playerScore} 
+            opponentScore={opponentScore} 
+            targetPoints={(match as any)?.target_points || 5} 
+          />
+
+          {/* Round result banner */}
+          {roundResultBanner}
+
+          {/* Question Card */}
+          <div className="question-section">
+            <div className="question-card">
+              <div className="question-header">
+                <span className="question-number">Question <span>{currentRound.roundNumber}</span></span>
+                {!isInThinkingPhase && !allStepsDone && stepTimeLeft !== null && (
+                  <CircularTimer timeLeft={stepTimeLeft} totalTime={15} />
+                )}
+                {isInThinkingPhase && thinkingTimeLeft !== null && (
+                  <CircularTimer timeLeft={thinkingTimeLeft} totalTime={60} />
+                )}
+              </div>
+
+              {/* Step Indicator */}
+              {!isInThinkingPhase && currentQuestion.steps && currentQuestion.steps.length > 0 && (
+                <div className="step-indicator">
+                  {currentQuestion.steps.map((_, index) => (
+                    <div
+                      key={index}
+                      className={`step-dot ${
+                        index < currentStepIndex ? 'completed' : 
+                        index === currentStepIndex ? 'active' : ''
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Question Content */}
+              <div className="question-content">
+                <div className="question-stem">
+                  {currentQuestion.stem || currentQuestion.text || 'Question'}
+                </div>
+
+                {isInThinkingPhase ? (
+                  // Thinking phase
+                  <div className="flex flex-col items-center justify-center min-h-[300px] space-y-6">
+                    <h2 className="text-2xl font-semibold text-white">Read the question carefully...</h2>
+                    <p className="text-slate-300 text-center max-w-md">
+                      Think about your approach. The steps will appear once the timer runs out.
+                    </p>
+                    <button
+                      onClick={skipThinkingPhase}
+                      className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 active:scale-95"
+                    >
+                      Start Answering Early
+                    </button>
+                  </div>
+                ) : (allStepsDone || phase === 'waiting') ? (
+                  // All steps done - waiting for opponent (server-driven)
+                  <div className="flex flex-col items-center justify-center min-h-[300px] space-y-6">
+                    <div className="flex justify-center">
+                      <GameLoader text="waiting" />
+                    </div>
+                    <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
+                    <p className="text-slate-300">You've completed all steps. Waiting for your opponent to finish.</p>
+                  </div>
+                ) : currentStep ? (
+                  // Current step with options
+                  <>
+                    <div className="step-prompt">
+                      {currentStep.prompt}
+                    </div>
+
+                    {/* Answer Options */}
+                    {currentStep.options && Array.isArray(currentStep.options) && currentStep.options.length > 0 ? (
+                      <div className="answer-options">
+                        {currentStep.options.map((optText: string, optIndex: number) => {
+                          if (!optText || optText.trim() === '') {
+                            return null
+                          }
+                          
+                          const roundLocked = !!roundResult || isMatchFinished || isShowingRoundTransition
+                          const isSelected = playerAnswers.get(currentStep.index) === optIndex
+                          return (
+                            <button
+                              key={optIndex}
+                              onClick={() => {
+                                if (!roundLocked) submitStepAnswer(currentStep.index, optIndex)
+                              }}
+                              disabled={hasAnsweredCurrentStep || roundLocked}
+                              className={`answer-option ${isSelected ? 'selected' : ''} ${hasAnsweredCurrentStep || roundLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {optText}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
+                        <p className="text-red-400 text-sm">No options available for this step.</p>
+                      </div>
+                    )}
+
+                    {/* Step progress indicator */}
+                    <div className="text-center text-sm text-slate-400 mt-4">
+                      Step {currentStepIndex + 1} of {currentQuestion.steps.length}
+                    </div>
+                  </>
+                ) : (
+                  // No step available
+                  <div className="flex items-center justify-center min-h-[300px]">
+                    <GameLoader text="loading" />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -229,14 +472,28 @@ export default function OnlineBattleNew() {
     );
   }
 
-  // Fallback
+  // 8. Default: Waiting for battle to start
+  // This should only appear if we're connected with a match but haven't received ROUND_STATE yet
+  // Show a more specific message to help debug
+  if (isConnected && match && !currentQuestion && !currentRound) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <GameLoader text="connecting" />
+          <h2 className="text-2xl font-bold text-white">Synchronizing round state...</h2>
+          <p className="text-slate-300 text-sm">Waiting for server to send round information.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback: Should rarely reach here
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
       <div className="text-center space-y-4">
-        <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-        <h2 className="text-2xl font-bold text-white">Loading...</h2>
+        <GameLoader text="starting" />
+        <h2 className="text-2xl font-bold text-white">Waiting for battle to start…</h2>
       </div>
     </div>
   );
 }
-

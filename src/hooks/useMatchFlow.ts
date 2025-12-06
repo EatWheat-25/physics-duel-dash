@@ -72,7 +72,6 @@ export function useMatchFlow(matchId: string | null) {
   const roundResultTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const stepTimerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const stepAnswersRef = useRef<Map<number, number>>(new Map()) // Track which steps we've answered
-  const isSubmittingRoundRef = useRef<boolean>(false) // Prevent duplicate round submissions
   const startStepRef = useRef<((stepIndex: number, durationSeconds: number) => void) | null>(null)
   const startThinkingPhaseRef = useRef<((durationSeconds: number) => void) | null>(null)
   const thinkingPhaseStartTimeRef = useRef<number | null>(null) // Start time for thinking phase
@@ -83,105 +82,11 @@ export function useMatchFlow(matchId: string | null) {
   const queuedRoundStartRef = useRef<any | null>(null) // Queued ROUND_START message
   // Guard condition refs (to avoid stale closures in callbacks)
   const roundResultRef = useRef<RoundResult | null>(null)
-  const lastAppliedRoundIdRef = useRef<string | null>(null) // Idempotency guard: prevents duplicate round processing
   const isShowingRoundTransitionRef = useRef(false)
   const isMatchFinishedRef = useRef(false)
   const finishRoundTransitionRef = useRef<(() => void) | null>(null)
-  const submitRoundAnswerRef = useRef<(() => void) | null>(null)
   // Queue ROUND_STATE if it arrives before match is ready
   const pendingRoundStateRef = useRef<any | null>(null)
-
-  // ========================================
-  // applyRoundResult - SINGLE SOURCE OF TRUTH
-  // ========================================
-  // Both WS ROUND_RESULT and polling MUST call this function.
-  // This ensures identical cleanup for early and late answerers.
-  // Phase 1 goal: Round transition correctness (not match score reconciliation)
-  // Defined early to avoid temporal dead zone issues with useEffect dependencies
-  const applyRoundResult = useCallback((
-    result: RoundResult,
-    source: 'ws' | 'polling',
-    roundId: string
-  ) => {
-    // === DOUBLE IDEMPOTENCY GUARD ===
-    
-    // Guard 1: roundId-based (prevents duplicate round processing)
-    if (lastAppliedRoundIdRef.current === roundId) {
-      console.log(`[useMatchFlow] applyRoundResult(${source}): already applied roundId=${roundId}, skipping`)
-      return
-    }
-    
-    // Guard 2: roundResultRef-based (prevents any duplicate result application)
-    if (roundResultRef.current) {
-      console.log(`[useMatchFlow] applyRoundResult(${source}): roundResult already exists, skipping`)
-      return
-    }
-    
-    // Set both guards immediately (atomic)
-    lastAppliedRoundIdRef.current = roundId
-    roundResultRef.current = result
-
-    console.log(`[useMatchFlow] applyRoundResult(${source}): roundId=${roundId}`, result)
-
-    // === FULL CLEANUP (identical for both paths) ===
-
-    // Clear all timeouts
-    if (roundTransitionTimeoutRef.current) {
-      clearTimeout(roundTransitionTimeoutRef.current)
-      roundTransitionTimeoutRef.current = null
-    }
-    if (roundResultTimeoutRef.current) {
-      clearTimeout(roundResultTimeoutRef.current)
-      roundResultTimeoutRef.current = null
-    }
-
-    // Clear step timer
-    if (stepTimerIntervalRef.current) {
-      clearInterval(stepTimerIntervalRef.current)
-      stepTimerIntervalRef.current = null
-    }
-
-    // Clear step tracking refs
-    stepAnswersRef.current.clear()
-    thinkingPhaseStartTimeRef.current = null
-    stepStartTimeRef.current = null
-    isSubmittingRoundRef.current = false // Reset submission flag
-
-    // Set transition ref
-    isTransitioningRef.current = true
-
-    const isFinished = !result.matchContinues || result.matchWinnerId !== null
-
-    // === SINGLE STATE UPDATE (no match score mutation - Phase 1 goal is transition correctness) ===
-    setState(prev => {
-      return {
-        ...prev,
-        roundResult: result,
-        hasSubmitted: false,
-        isMatchFinished: isFinished,
-        isShowingRoundTransition: true, // CRITICAL: always set this
-        // Clear all answer state
-        playerAnswers: new Map(),
-        responseTimes: new Map(),
-        currentStepIndex: -1,
-        stepTimeLeft: null,
-        hasAnsweredCurrentStep: false,
-        thinkingTimeLeft: null,
-        isThinkingPhase: false,
-        // Phase 1: Don't mutate match totals - just keep prev.match
-        // Phase 1 goal is round transition correctness, not match scoring reconciliation
-        match: prev.match
-      }
-    })
-
-    // Start 5-second transition timeout (visual lifecycle, not correctness-critical)
-    roundTransitionTimeoutRef.current = setTimeout(() => {
-      // Use ref to avoid circular dependency
-      if (finishRoundTransitionRef.current) {
-        finishRoundTransitionRef.current()
-      }
-    }, 5000)
-  }, []) // No dependencies - refs handle all state
 
   // Fetch match data (normal polling)
   useEffect(() => {
@@ -223,7 +128,7 @@ export function useMatchFlow(matchId: string | null) {
       // Check current round status
       const { data: roundData } = await supabase
         .from('match_rounds')
-        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number, question_id, id')
+        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number, question_id')
         .eq('id', state.currentRound!.id)
         .single()
 
@@ -262,8 +167,13 @@ export function useMatchFlow(matchId: string | null) {
             matchWinnerId: !matchContinues ? (matchData as any).winner_id : null
           }
 
-          // Use applyRoundResult for consistency (page reload recovery)
-          applyRoundResult(syntheticResult, 'polling', roundData.id)
+          setState(prev => ({
+            ...prev,
+            roundResult: syntheticResult,
+            hasSubmitted: false,
+            isMatchFinished: !matchContinues,
+            match: matchData as MatchRow
+          }))
           return // Don't restore step state if round is finished
         }
       }
@@ -290,7 +200,7 @@ export function useMatchFlow(matchId: string | null) {
     }
 
     restoreRoundState()
-  }, [matchId, state.currentRound?.id, state.match?.id, applyRoundResult]) // Only run when round changes
+  }, [matchId, state.currentRound?.id, state.match?.id]) // Only run when round changes
 
   // Keep refs in sync with state for guards (avoids stale closures)
   useEffect(() => {
@@ -299,14 +209,114 @@ export function useMatchFlow(matchId: string | null) {
     isMatchFinishedRef.current = state.isMatchFinished
   }, [state.roundResult, state.isShowingRoundTransition, state.isMatchFinished])
 
-  // Polling fallback - runs when hasSubmitted === true (safety net for early-answer desync)
+  // ========================================
+  // applyRoundResult - SINGLE SOURCE OF TRUTH
+  // ========================================
+  // Both WS ROUND_RESULT and polling MUST call this function.
+  // This ensures identical cleanup for early and late answerers.
+  const applyRoundResult = useCallback((
+    result: RoundResult,
+    source: 'ws' | 'polling',
+    matchUpdate?: {
+      player1RoundScore: number
+      player2RoundScore: number
+      roundNumber: number
+      matchWinnerId?: string | null
+    }
+  ) => {
+    // === IDEMPOTENCY GUARD ===
+    // Use ref to prevent double-application (WS + polling race)
+    if (roundResultRef.current) {
+      console.log(`[useMatchFlow] applyRoundResult(${source}): already have result, skipping`)
+      return
+    }
+    // Set ref immediately to block concurrent calls
+    roundResultRef.current = result
+
+    console.log(`[useMatchFlow] applyRoundResult(${source}):`, result)
+
+    // === FULL CLEANUP (identical for both paths) ===
+
+    // Clear all timeouts
+    if (roundTransitionTimeoutRef.current) {
+      clearTimeout(roundTransitionTimeoutRef.current)
+      roundTransitionTimeoutRef.current = null
+    }
+    if (roundResultTimeoutRef.current) {
+      clearTimeout(roundResultTimeoutRef.current)
+      roundResultTimeoutRef.current = null
+    }
+
+    // Clear step timer
+    if (stepTimerIntervalRef.current) {
+      clearInterval(stepTimerIntervalRef.current)
+      stepTimerIntervalRef.current = null
+    }
+
+    // Clear step tracking refs
+    stepAnswersRef.current.clear()
+    thinkingPhaseStartTimeRef.current = null
+    stepStartTimeRef.current = null
+
+    // Set transition ref
+    isTransitioningRef.current = true
+
+    const isFinished = !result.matchContinues || result.matchWinnerId !== null
+
+    setState(prev => {
+      // Build match update based on source
+      let updatedMatch = prev.match
+      if (prev.match) {
+        if (source === 'ws' && matchUpdate) {
+          // WS path: accumulate scores (server sends round scores, not totals)
+          updatedMatch = {
+            ...prev.match,
+            player1_score: ((prev.match as any).player1_score || 0) + matchUpdate.player1RoundScore,
+            player2_score: ((prev.match as any).player2_score || 0) + matchUpdate.player2RoundScore,
+            current_round_number: matchUpdate.roundNumber,
+            status: isFinished ? 'finished' : prev.match.status,
+            winner_id: matchUpdate.matchWinnerId || prev.match.winner_id
+          }
+        }
+        // Polling path: match scores already reflect DB truth (fetched fresh)
+        // so we don't modify them here
+      }
+
+      return {
+        ...prev,
+        roundResult: result,
+        hasSubmitted: false,
+        isMatchFinished: isFinished,
+        isShowingRoundTransition: true, // CRITICAL: always set this
+        // Clear all answer state
+        playerAnswers: new Map(),
+        responseTimes: new Map(),
+        currentStepIndex: -1,
+        stepTimeLeft: null,
+        hasAnsweredCurrentStep: false,
+        thinkingTimeLeft: null,
+        isThinkingPhase: false,
+        match: updatedMatch
+      }
+    })
+
+    // Start 5-second transition timeout (visual lifecycle, not correctness-critical)
+    roundTransitionTimeoutRef.current = setTimeout(() => {
+      // Use ref to avoid circular dependency
+      if (finishRoundTransitionRef.current) {
+        finishRoundTransitionRef.current()
+      }
+    }, 5000)
+  }, []) // No dependencies - refs handle all state
+
+  // Polling fallback - only when WebSocket is disconnected
   useEffect(() => {
-    if (!matchId || !state.currentRound || !state.hasSubmitted) return
+    if (!matchId || state.isConnected || !state.currentRound) return
 
     const checkRoundStatus = async () => {
       const { data: roundData, error: roundError } = await supabase
         .from('match_rounds')
-        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number, id')
+        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number')
         .eq('id', state.currentRound!.id)
         .single()
 
@@ -348,9 +358,13 @@ export function useMatchFlow(matchId: string | null) {
           }
 
           console.log('[useMatchFlow] Polling: Round finished, calling applyRoundResult')
-          // ✅ Use roundData.id (DB truth), not state.currentRound?.id (stale state)
-          // ✅ No setState before applyRoundResult - let it handle all state
-          applyRoundResult(syntheticResult, 'polling', roundData.id)
+          // Update match in state first (polling fetches fresh data)
+          setState(prev => ({
+            ...prev,
+            match: matchData as MatchRow
+          }))
+          // Then apply round result with full cleanup
+          applyRoundResult(syntheticResult, 'polling')
         }
       }
     }
@@ -360,7 +374,7 @@ export function useMatchFlow(matchId: string | null) {
     // Aggressive polling every 2 seconds when waiting
     const interval = setInterval(checkRoundStatus, 2000)
     return () => clearInterval(interval)
-  }, [matchId, state.hasSubmitted, state.currentRound, applyRoundResult])
+  }, [matchId, state.hasSubmitted, state.currentRound])
 
   // Handle ROUND_START message - factored out for reuse
   // This is the NUCLEAR RESET - clears ALL previous round state
@@ -368,17 +382,13 @@ export function useMatchFlow(matchId: string | null) {
     console.log('[useMatchFlow] ROUND_START received - NUCLEAR RESET')
     console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
 
-    // === NUCLEAR CLEANUP - CLEAR BOTH GUARDS ===
-    
-    // Clear roundId guard (allows next round to apply result)
-    lastAppliedRoundIdRef.current = null
-    
-    // Clear roundResult guard (allows next round to apply result)
-    roundResultRef.current = null
-    
-    // Clear transition state
+    // === NUCLEAR CLEANUP ===
+    // Clear transition state (ensures we're not stuck in transition)
     isTransitioningRef.current = false
     queuedRoundStartRef.current = null
+
+    // Clear roundResultRef so next round can apply its result
+    roundResultRef.current = null
 
     // Clear transition timeout
     if (roundTransitionTimeoutRef.current) {
@@ -404,7 +414,6 @@ export function useMatchFlow(matchId: string | null) {
 
     // Clear step answers
     stepAnswersRef.current.clear()
-    isSubmittingRoundRef.current = false // Reset submission flag for new round
 
     try {
       const question = mapRawToQuestion(message.question)
@@ -483,11 +492,6 @@ export function useMatchFlow(matchId: string | null) {
   useEffect(() => {
     finishRoundTransitionRef.current = finishRoundTransition
   }, [finishRoundTransition])
-
-  // Sync submitRoundAnswer to ref (allows submitStepAnswer to call it)
-  useEffect(() => {
-    submitRoundAnswerRef.current = submitRoundAnswer
-  }, [submitRoundAnswer])
 
   // Handle ROUND_STATE - authoritative server state
   // Defined early to avoid TDZ issues with useEffect below
@@ -773,8 +777,13 @@ export function useMatchFlow(matchId: string | null) {
                 matchWinnerId: message.matchWinnerId
               }
 
-              // Call unified function with roundId
-              applyRoundResult(result, 'ws', message.roundId)
+              // Use unified handler with match score update
+              applyRoundResult(result, 'ws', {
+                player1RoundScore: message.player1RoundScore,
+                player2RoundScore: message.player2RoundScore,
+                roundNumber: message.roundNumber,
+                matchWinnerId: message.matchWinnerId
+              })
             }
 
             if (message.type === 'MATCH_FINISHED') {
@@ -1079,9 +1088,6 @@ export function useMatchFlow(matchId: string | null) {
   }, [startThinkingPhase])
 
   // Submit answer for current step
-  // Collect step answer (Option B: batch submission)
-  // This function only collects answers in state - does NOT submit to server
-  // submitRoundAnswer() will be called automatically when all steps are complete
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number | null) => {
     // Hard guards: use refs to avoid stale closures
     if (roundResultRef.current || isShowingRoundTransitionRef.current || isMatchFinishedRef.current) {
@@ -1128,7 +1134,7 @@ export function useMatchFlow(matchId: string | null) {
         return prev
       }
 
-      // Mark as answered in ref (for idempotency)
+      // Mark as answered
       stepAnswersRef.current.set(stepKey, answerIndex ?? -1)
 
       // Stop timer
@@ -1140,38 +1146,38 @@ export function useMatchFlow(matchId: string | null) {
       // Clear step start time
       stepStartTimeRef.current = null
 
-      // Update state with answer (collect, don't submit yet)
+      // Build payload with just this step
+      const payload = {
+        version: 1,
+        steps: [{
+          step_index: stepIndex,
+          answer_index: answerIndex ?? -1, // -1 means no answer / wrong
+          response_time_ms: prev.responseTimes.get(stepIndex) || 0
+        }]
+      }
+
+      // Send via existing WebSocket flow
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const message = {
+          type: 'SUBMIT_ROUND_ANSWER',
+          matchId,
+          roundId: prev.currentRound!.id,
+          payload
+        }
+        console.log('[useMatchFlow] Submitting step answer:', {
+          roundId: prev.currentRound!.id,
+          stepIndex,
+          answerIndex,
+          stepKey,
+          message
+        })
+        wsRef.current.send(JSON.stringify(message))
+      }
+
+      // Update state
       const newAnswers = new Map(prev.playerAnswers)
       if (answerIndex !== null) {
         newAnswers.set(stepIndex, answerIndex)
-      }
-
-      const totalSteps = prev.currentQuestion?.steps?.length || 0
-      const answeredSteps = newAnswers.size
-      const allStepsAnswered = totalSteps > 0 && answeredSteps >= totalSteps
-
-      console.log('[useMatchFlow] Step answer collected:', {
-        stepIndex,
-        answerIndex,
-        answeredSteps,
-        totalSteps,
-        allStepsAnswered
-      })
-
-      // If all steps are answered, automatically submit the round
-      if (allStepsAnswered && !prev.hasSubmitted && !isSubmittingRoundRef.current) {
-        console.log('[useMatchFlow] All steps answered, will auto-submit round')
-        isSubmittingRoundRef.current = true // Prevent duplicate submissions
-        // Use setTimeout to avoid state update during render
-        setTimeout(() => {
-          if (submitRoundAnswerRef.current) {
-            submitRoundAnswerRef.current()
-          }
-          // Reset flag after a delay (in case submission fails)
-          setTimeout(() => {
-            isSubmittingRoundRef.current = false
-          }, 2000)
-        }, 0)
       }
 
       return {
@@ -1181,7 +1187,11 @@ export function useMatchFlow(matchId: string | null) {
         stepTimeLeft: null
       }
     })
-  }, [matchId, state.currentRound, state.currentQuestion])
+
+    // DO NOT auto-advance - wait for ROUND_STATE from server
+    // The server will send ROUND_STATE with updated currentStepIndex after processing the answer
+    console.log('[useMatchFlow] Step answer submitted, waiting for ROUND_STATE from server')
+  }, [matchId, state.currentRound, state.currentQuestion, startStep])
 
   // Submit round answer
   const submitRoundAnswer = useCallback(() => {
@@ -1266,7 +1276,7 @@ export function useMatchFlow(matchId: string | null) {
       // Check the specific current round
       const { data: round } = await supabase
         .from('match_rounds')
-        .select('status, player1_answered_at, player2_answered_at, round_number, player1_round_score, player2_round_score, id')
+        .select('status, player1_answered_at, player2_answered_at, round_number, player1_round_score, player2_round_score')
         .eq('id', state.currentRound.id)
         .single()
 
@@ -1304,9 +1314,14 @@ export function useMatchFlow(matchId: string | null) {
             matchWinnerId: !matchContinues ? (match as any).winner_id : null
           }
 
-          console.log('[useMatchFlow] Timeout: Round was evaluated, calling applyRoundResult')
-          // ✅ REPLACE direct setState with applyRoundResult
-          applyRoundResult(syntheticResult, 'polling', round.id)
+          console.log('[useMatchFlow] Timeout: Round was evaluated, updating state from DB')
+          setState(prev => ({
+            ...prev,
+            roundResult: syntheticResult,
+            hasSubmitted: false,
+            isMatchFinished: !matchContinues,
+            match: match as MatchRow
+          }))
         }
       }
     }, 5000) // 5 second timeout (reduced from 10)
@@ -1319,8 +1334,7 @@ export function useMatchFlow(matchId: string | null) {
     state.roundResult,
     state.isShowingRoundTransition,
     state.isMatchFinished,
-    matchId,
-    applyRoundResult
+    matchId
   ])
 
   return {

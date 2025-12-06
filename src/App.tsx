@@ -84,7 +84,8 @@ const App = () => {
                 <Route path="/matchmaking-test" element={<MatchmakingTest />} />
                 <Route path="/battle-simple/:matchId" element={<BattleSimple />} />
                 <Route path="/battle" element={<BattleLoader />} />
-                <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} />
+                {/* Old route - using useGame hook (deprecated, use /online-battle-new instead) */}
+                {/* <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} /> */}
                 <Route path="/online-battle-new/:matchId" element={<OnlineBattleNew />} />
                 <Route path="/physics-battle" element={<BattlePageNew questions={getRandomQuestions(5)} onBattleEnd={() => { }} onGoBack={() => window.location.href = '/'} />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

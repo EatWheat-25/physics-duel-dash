@@ -2,56 +2,620 @@ import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { corsHeaders } from '../_shared/cors.ts'
 
 /**
- * Simple Game WebSocket
+ * Game WebSocket - Stage 2.5 Runtime Flow
  * 
- * Idempotent question assignment: each match gets exactly one question.
- * Uses match_rounds table to track question assignment.
+ * Handles full match lifecycle:
+ * - Match start via start_match RPC
+ * - Round creation and question picking
+ * - Answer submission via submit_round_answer RPC
+ * - Round evaluation via evaluate_round RPC
+ * - Match completion via finish_match RPC
  */
 
-// Types matching schema.ts
-interface Question {
+// Database question type (matches public.questions table)
+type DbQuestion = {
   id: string
-  text: string
-  steps: {
-    type: 'mcq'
-    options: string[]
-    answer: number
-  }
-  created_at: string
+  subject: string
+  level: string
+  question_text: string | null
+  text: string | null
+  title: string | null
+  steps: any
 }
 
-interface RoundStartEvent {
+type StepOption = {
+  answer_index: number
+  text: string
+}
+
+type Step = {
+  step_index: number
+  prompt: string
+  options: StepOption[]
+  // keep extras for later scoring/explanations if you want
+  marks?: number
+  explanation?: string
+  correct_answer_index?: number | null
+}
+
+type StepBasedQuestion = {
+  id: string
+  subject: string
+  level: string
+  text: string
+  version: 1
+  steps: Step[]
+}
+
+/**
+ * Map database question row to StepBasedQuestion format
+ * This matches what the frontend expects
+ */
+function mapDbQuestionToStepBased(row: DbQuestion): StepBasedQuestion {
+  const rawSteps = (row.steps ?? []) as any[]
+
+  const steps: Step[] = rawSteps.map((step, index) => {
+    const opts = (step.options ?? []) as string[]
+
+    return {
+      step_index: index,
+      prompt: step.question ?? row.question_text ?? row.text ?? row.title ?? '',
+      options: opts.map((optText, i) => ({
+        answer_index: i,
+        text: optText,
+      })),
+      marks: step.marks ?? 1,
+      explanation: step.explanation ?? null,
+      correct_answer_index:
+        typeof step.correctAnswer === 'number' ? step.correctAnswer : null,
+    }
+  })
+
+  return {
+    id: row.id,
+    subject: row.subject,
+    level: row.level,
+    text: row.question_text ?? row.text ?? row.title ?? '',
+    version: 1,
+    steps,
+  }
+}
+
+// Message types
+interface MatchStartMsg {
+  type: 'MATCH_START'
+  matchId: string
+  roundId: string
+  roundNumber: number
+}
+
+interface RoundStartMsg {
   type: 'ROUND_START'
-  match_id: string
-  question: Question
+  matchId: string
+  roundId: string
+  roundNumber: number
+  question: any // StepBasedQuestion format (mapped via questionMapper)
+}
+
+interface RoundResultMsg {
+  type: 'ROUND_RESULT'
+  matchId: string
+  roundId: string
+  roundNumber: number
+  roundWinnerId: string | null
+  player1RoundScore: number
+  player2RoundScore: number
+  matchContinues: boolean
+  matchWinnerId: string | null
+}
+
+interface MatchFinishedMsg {
+  type: 'MATCH_FINISHED'
+  matchId: string
+  winnerId: string | null
+  player1FinalScore: number
+  player2FinalScore: number
+  totalRounds: number
 }
 
 interface GameErrorEvent {
   type: 'GAME_ERROR'
   message: string
+  code?: string
 }
 
-// Hardcoded fallback question
-const FALLBACK_QUESTION: Question = {
-  id: '00000000-0000-0000-0000-000000000000',
-  text: 'What is the formula for kinetic energy?',
-  steps: {
-    type: 'mcq',
-    options: ['E = mc²', 'E = ½mv²', 'E = mgh', 'E = Fd'],
-    answer: 1
-  },
-  created_at: new Date().toISOString()
+interface SubmitRoundAnswerMsg {
+  type: 'SUBMIT_ROUND_ANSWER'
+  matchId: string
+  roundId: string
+  payload: {
+    version: number
+    steps: Array<{ step_index: number; answer_index: number; response_time_ms: number }>
+  }
 }
 
-// Simple in-memory socket tracking (just for connection management)
+// RoundStateMsg interface - matches client type in src/types/roundState.ts
+interface RoundStateMsg {
+  type: 'ROUND_STATE'
+  matchId: string
+  roundId: string
+  roundNumber: number
+  phase: 'thinking' | 'step' | 'waiting' | 'results'
+  currentStepIndex: number // -1 for thinking, 0+ for step index
+  deadlineTs: number | null // Unix timestamp (ms) - authoritative deadline
+  // Per-player step tracking
+  player1CurrentStep: number // Which step player1 is on (-1 = thinking, 0+ = step)
+  player2CurrentStep: number // Which step player2 is on
+  player1HasAnswered: boolean // Has player1 answered current step/round?
+  player2HasAnswered: boolean // Has player2 answered current step/round?
+  player1Score: number // Current match score
+  player2Score: number // Current match score
+  question: StepBasedQuestion | null // Full question (null if phase === 'results')
+  roundResult: {
+    roundWinnerId: string | null
+    player1RoundScore: number
+    player2RoundScore: number
+    matchContinues: boolean
+    matchWinnerId: string | null
+  } | null // Only set when phase === 'results'
+}
+
+// Simple in-memory socket tracking
 const sockets = new Map<string, Set<WebSocket>>()
+
+/**
+ * Broadcast message to all sockets in a match room
+ */
+function broadcastToMatch(matchId: string, msg: any): void {
+  const matchSockets = sockets.get(matchId)
+  if (!matchSockets) {
+    console.warn(`[${matchId}] No sockets found for match`)
+    return
+  }
+  
+  const msgStr = JSON.stringify(msg)
+  let sent = 0
+  for (const socket of matchSockets) {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(msgStr)
+      sent++
+    }
+  }
+  console.log(`[${matchId}] 📤 Broadcast ${msg.type} to ${sent}/${matchSockets.size} sockets`)
+}
+
+/**
+ * Pick a question for a match, avoiding duplicates
+ * TODO: Implement real scoring logic in submit_round_answer RPC
+ * TODO: Add proper timeout handling (round_deadline enforcement)
+ * TODO: Add reconnection logic for dropped WebSocket connections
+ */
+async function pickQuestionForMatch(
+  matchId: string,
+  subject: string,
+  mode: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<{ raw: DbQuestion; mapped: StepBasedQuestion } | null> {
+  // Get already used question IDs for this match
+  const { data: usedRounds } = await supabase
+    .from('match_rounds')
+    .select('question_id')
+    .eq('match_id', matchId)
+  
+  const usedQuestionIds = new Set((usedRounds || []).map(r => r.question_id))
+  
+  // Try to find unused question matching subject and level
+  let { data: questions } = await supabase
+    .from('questions')
+    .select('*')
+    .eq('subject', subject)
+    .eq('level', mode)
+  
+  // Filter out used questions
+  const unusedQuestions = (questions || []).filter(q => !usedQuestionIds.has(q.id))
+  let question: DbQuestion | null = unusedQuestions.length > 0 ? unusedQuestions[0] as DbQuestion : null
+  
+  // Fallback: any question for that subject/level (allow reuse)
+  if (!question) {
+    const { data: fallbackQuestion } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('subject', subject)
+      .eq('level', mode)
+      .limit(1)
+      .maybeSingle()
+    
+    question = fallbackQuestion as DbQuestion | null
+  }
+  
+  if (!question) {
+    console.error(`[${matchId}] No question found for subject=${subject}, level=${mode}`)
+    return null
+  }
+  
+  // Map to StepBasedQuestion format using helper
+  const mapped = mapDbQuestionToStepBased(question)
+  
+  return { raw: question, mapped }
+}
+
+/**
+ * Compute authoritative round state from database
+ * This is the single source of truth for round phase, step progress, and deadlines
+ */
+async function computeRoundState(
+  matchId: string,
+  roundId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<RoundStateMsg | null> {
+  // Fetch round with match and question
+  const { data: round, error: roundError } = await supabase
+    .from('match_rounds')
+    .select(`
+      *,
+      question:questions(*)
+    `)
+    .eq('id', roundId)
+    .single()
+
+  if (roundError || !round) {
+    console.error(`[${matchId}] Failed to fetch round ${roundId}:`, roundError)
+    return null
+  }
+
+  // Fetch match
+  const { data: match, error: matchError } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('id', matchId)
+    .single()
+
+  if (matchError || !match) {
+    console.error(`[${matchId}] Failed to fetch match:`, matchError)
+    return null
+  }
+
+  const question = round.question as DbQuestion | null
+  if (!question) {
+    console.error(`[${matchId}] Question not found for round ${roundId}`)
+    return null
+  }
+
+  // Parse answer payloads to determine per-player step progress
+  const p1Payload = round.player1_answer_payload as any
+  const p2Payload = round.player2_answer_payload as any
+  
+  // Get highest step_index each player has answered
+  const p1MaxStep = p1Payload?.steps?.reduce((max: number, s: any) => 
+    Math.max(max, (s.step_index ?? -1) + 1), -1) ?? -1
+  const p2MaxStep = p2Payload?.steps?.reduce((max: number, s: any) => 
+    Math.max(max, (s.step_index ?? -1) + 1), -1) ?? -1
+
+  // Determine current step for each player
+  const totalSteps = question.steps ? (question.steps as any[]).length : 0
+  let player1CurrentStep = -1
+  let player2CurrentStep = -1
+
+  const p1Answered = !!round.player1_answered_at
+  const p2Answered = !!round.player2_answered_at
+  const bothAnswered = p1Answered && p2Answered
+  const roundFinished = round.status === 'finished'
+
+  if (p1Answered) {
+    player1CurrentStep = p1MaxStep < totalSteps ? p1MaxStep : totalSteps
+  }
+  if (p2Answered) {
+    player2CurrentStep = p2MaxStep < totalSteps ? p2MaxStep : totalSteps
+  }
+
+  // Determine phase and currentStepIndex
+  let phase: 'thinking' | 'step' | 'waiting' | 'results' = 'thinking'
+  let currentStepIndex = -1
+
+  if (roundFinished) {
+    phase = 'results'
+    currentStepIndex = totalSteps
+  } else if (bothAnswered) {
+    // Both answered - check if all steps done
+    const bothOnLastStep = p1MaxStep >= totalSteps - 1 && p2MaxStep >= totalSteps - 1
+    if (bothOnLastStep) {
+      phase = 'waiting' // Waiting for evaluation
+      currentStepIndex = totalSteps
+    } else {
+      // More steps to go - current step is min of where both players are
+      // (both must complete a step before moving to next)
+      const minStep = Math.min(p1MaxStep, p2MaxStep)
+      phase = 'step'
+      currentStepIndex = minStep < totalSteps ? minStep : totalSteps
+    }
+  } else if (p1Answered || p2Answered) {
+    // One player answered - determine which step they're on
+    const answeredStep = p1Answered ? p1MaxStep : p2MaxStep
+    phase = 'step'
+    currentStepIndex = answeredStep < totalSteps ? answeredStep : totalSteps
+  } else {
+    // Neither answered - check if in thinking phase
+    const roundAge = Date.now() - new Date(round.created_at).getTime()
+    if (roundAge < 60000) { // Less than 60s old = thinking phase
+      phase = 'thinking'
+      currentStepIndex = -1
+    } else {
+      phase = 'step'
+      currentStepIndex = 0 // First step
+    }
+  }
+
+  // Compute deadline - use phase_started_at if available, otherwise calculate
+  let deadlineTs: number | null = null
+  const phaseStartedAt = (round as any).phase_started_at
+  const createdAt = new Date(round.created_at).getTime()
+
+  if (phase === 'thinking') {
+    if (phaseStartedAt) {
+      deadlineTs = new Date(phaseStartedAt).getTime() + 60000 // 60s thinking
+    } else {
+      deadlineTs = createdAt + 60000
+    }
+  } else if (phase === 'step' && currentStepIndex >= 0 && question.steps) {
+    const steps = question.steps as any[]
+    const currentStep = steps[currentStepIndex]
+    const stepTimeLimit = (currentStep?.timeLimitSeconds ?? 15) * 1000
+    
+    if (phaseStartedAt) {
+      deadlineTs = new Date(phaseStartedAt).getTime() + stepTimeLimit
+    } else {
+      // Estimate from when round was created (fallback)
+      deadlineTs = Date.now() + stepTimeLimit
+    }
+  }
+
+  // Build round result if in results phase
+  const roundResult = phase === 'results' ? {
+    roundWinnerId: round.player1_round_score > round.player2_round_score
+      ? match.player1_id
+      : round.player2_round_score > round.player1_round_score
+        ? match.player2_id
+        : null,
+    player1RoundScore: round.player1_round_score || 0,
+    player2RoundScore: round.player2_round_score || 0,
+    matchContinues: match.status === 'in_progress',
+    matchWinnerId: match.status === 'finished' ? match.winner_id : null
+  } : null
+
+  // Map question to StepBasedQuestion format
+  // Always include question (even in results phase) so clients can display transition overlay
+  const mappedQuestion = mapDbQuestionToStepBased(question)
+
+  return {
+    type: 'ROUND_STATE',
+    matchId,
+    roundId,
+    roundNumber: round.round_number,
+    phase,
+    currentStepIndex,
+    deadlineTs,
+    player1CurrentStep,
+    player2CurrentStep,
+    player1HasAnswered: p1Answered,
+    player2HasAnswered: p2Answered,
+    player1Score: match.player1_score || 0,
+    player2Score: match.player2_score || 0,
+    question: mappedQuestion,
+    roundResult
+  }
+}
+
+/**
+ * Create a new round for a match
+ */
+async function createRound(
+  match: any,
+  previousRoundNumber: number,
+  supabase: ReturnType<typeof createClient>
+): Promise<{ roundId: string; roundNumber: number; question: any } | null> {
+  const questionData = await pickQuestionForMatch(
+    match.id,
+    match.subject || 'math',
+    match.mode || 'A2',
+    supabase
+  )
+  
+  if (!questionData) {
+    console.error(`[${match.id}] Failed to pick question for round ${previousRoundNumber + 1}`)
+    return null
+  }
+  
+  const roundNumber = previousRoundNumber + 1
+  
+  const { data: round, error } = await supabase
+    .from('match_rounds')
+    .insert({
+      match_id: match.id,
+      question_id: questionData.raw.id,
+      round_number: roundNumber,
+      status: 'active'
+    })
+    .select()
+    .single()
+  
+  if (error || !round) {
+    console.error(`[${match.id}] Failed to create round:`, error)
+    return null
+  }
+  
+  console.log(`[${match.id}] ✅ Created round ${roundNumber} with question ${questionData.raw.id}`)
+  
+  return {
+    roundId: round.id,
+    roundNumber,
+    question: questionData.mapped
+  }
+}
+
+/**
+ * Check if both players answered and evaluate round if ready
+ * TODO: Add round timeout auto-evaluation (currently only evaluates when both answered)
+ * TODO: Add proper timeout handling (round_deadline enforcement)
+ */
+async function checkAndEvaluateRound(
+  matchId: string,
+  roundId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  // Check if both players answered
+  const { data: round } = await supabase
+    .from('match_rounds')
+    .select('player1_answered_at, player2_answered_at, round_number')
+    .eq('id', roundId)
+    .single()
+  
+  if (!round) {
+    console.error(`[${matchId}] Round ${roundId} not found`)
+    return
+  }
+  
+  if (!round.player1_answered_at || !round.player2_answered_at) {
+    // Not ready yet
+    return
+  }
+  
+  console.log(`[${matchId}] Both players answered round ${round.round_number}, evaluating...`)
+  
+  // Call evaluate_round RPC
+  const { data: evalResult, error: evalError } = await supabase.rpc('evaluate_round', {
+    p_match_id: matchId,
+    p_round_id: roundId
+  })
+  
+  if (evalError) {
+    console.error(`[${matchId}] Error evaluating round:`, evalError)
+    broadcastToMatch(matchId, {
+      type: 'GAME_ERROR',
+      message: 'Failed to evaluate round',
+      code: 'EVAL_ERROR'
+    } as GameErrorEvent)
+    return
+  }
+  
+  // Broadcast ROUND_RESULT
+  const roundResultMsg: RoundResultMsg = {
+    type: 'ROUND_RESULT',
+    matchId,
+    roundId,
+    roundNumber: round.round_number,
+    roundWinnerId: evalResult.round_winner_id,
+    player1RoundScore: evalResult.player1_round_score,
+    player2RoundScore: evalResult.player2_round_score,
+    matchContinues: evalResult.match_continues,
+    matchWinnerId: evalResult.match_winner_id
+  }
+  
+  // Log before broadcast to debug
+  const matchSockets = sockets.get(matchId)
+  const socketStates = matchSockets ? Array.from(matchSockets).map(s => {
+    const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED']
+    return states[s.readyState] || s.readyState
+  }) : []
+  
+  console.log(`[${matchId}] 📊 Broadcasting ROUND_RESULT for round ${round.round_number}:`, {
+    roundWinnerId: evalResult.round_winner_id,
+    player1Score: evalResult.player1_round_score,
+    player2Score: evalResult.player2_round_score,
+    matchContinues: evalResult.match_continues,
+    socketsInMatch: matchSockets?.size || 0,
+    socketStates: socketStates.join(', '),
+    openSockets: matchSockets ? Array.from(matchSockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
+  })
+  
+  // Broadcast immediately - ensure all sockets receive the message
+  broadcastToMatch(matchId, roundResultMsg)
+  
+  // Also log after broadcast to verify
+  console.log(`[${matchId}] ✅ ROUND_RESULT broadcast completed`)
+  
+  // Broadcast ROUND_STATE after ROUND_RESULT (phase will be 'results')
+  const roundState = await computeRoundState(matchId, roundId, supabase)
+  if (roundState) {
+    broadcastToMatch(matchId, roundState)
+  }
+  
+  // Fallback: If we have fewer than 2 open sockets, the second player might not have received it
+  // In that case, we rely on the frontend polling mechanism to catch the result from the database
+  const openSockets = matchSockets ? Array.from(matchSockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
+  if (openSockets < 2) {
+    console.warn(`[${matchId}] ⚠️ Only ${openSockets} open socket(s) for ROUND_RESULT broadcast. Frontend polling should catch this.`)
+  }
+  
+  if (!evalResult.match_continues) {
+    // Match finished
+    const { data: finishResult, error: finishError } = await supabase.rpc('finish_match', {
+      p_match_id: matchId
+    })
+    
+    if (finishError) {
+      console.error(`[${matchId}] Error finishing match:`, finishError)
+    } else {
+      const matchFinishedMsg: MatchFinishedMsg = {
+        type: 'MATCH_FINISHED',
+        matchId,
+        winnerId: finishResult.winner_id,
+        player1FinalScore: finishResult.player1_final_score,
+        player2FinalScore: finishResult.player2_final_score,
+        totalRounds: finishResult.total_rounds
+      }
+      broadcastToMatch(matchId, matchFinishedMsg)
+    }
+  } else {
+    // Match continues - create next round
+    // Double-check match is still in_progress before creating next round
+    const { data: updatedMatch } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('id', matchId)
+      .single()
+    
+    if (updatedMatch && updatedMatch.status === 'in_progress') {
+      const nextRound = await createRound(updatedMatch, round.round_number, supabase)
+      if (nextRound) {
+        const roundStartMsg: RoundStartMsg = {
+          type: 'ROUND_START',
+          matchId,
+          roundId: nextRound.roundId,
+          roundNumber: nextRound.roundNumber,
+          question: nextRound.question
+        }
+        broadcastToMatch(matchId, roundStartMsg)
+        
+        // Also send ROUND_STATE for authoritative state
+        const nextRoundState = await computeRoundState(matchId, nextRound.roundId, supabase)
+        if (nextRoundState) {
+          broadcastToMatch(matchId, nextRoundState)
+        }
+      }
+    } else {
+      console.warn(`[${matchId}] Match is not in_progress (status: ${updatedMatch?.status}), not creating next round`)
+      // If match finished but MATCH_FINISHED wasn't sent, send it now
+      if (updatedMatch && updatedMatch.status === 'finished') {
+        const matchFinishedMsg: MatchFinishedMsg = {
+          type: 'MATCH_FINISHED',
+          matchId,
+          winnerId: updatedMatch.winner_id,
+          player1FinalScore: updatedMatch.player1_score,
+          player2FinalScore: updatedMatch.player2_score,
+          totalRounds: updatedMatch.current_round_number
+        }
+        broadcastToMatch(matchId, matchFinishedMsg)
+      }
+    }
+  }
+}
 
 /**
  * Handle JOIN_MATCH message
  * - Validates match and player
- * - Checks match_rounds for existing question
- * - If exists: sends ROUND_START with that question
- * - If not: picks random question, inserts into match_rounds, sends ROUND_START
+ * - Calls start_match if status is 'pending'
+ * - Creates first round if needed
+ * - Broadcasts MATCH_START and ROUND_START
  */
 async function handleJoinMatch(
   matchId: string,
@@ -61,7 +625,6 @@ async function handleJoinMatch(
 ): Promise<void> {
   console.log(`[${matchId}] JOIN_MATCH from player ${playerId}`)
 
-  // 1. Validate match exists and player is part of it
   const { data: match, error: matchError } = await supabase
     .from('matches')
     .select('*')
@@ -86,8 +649,34 @@ async function handleJoinMatch(
     return
   }
 
-  // 2. Check if match_round already exists
-  const { data: existingRound, error: roundError } = await supabase
+  // If match is pending, start it
+  if (match.status === 'pending') {
+    console.log(`[${matchId}] Match is pending, calling start_match...`)
+    const { data: startedMatchRows, error: startError } = await supabase.rpc('start_match', {
+      p_match_id: matchId,
+      p_player_id: playerId
+    })
+    
+    if (startError) {
+      console.error(`[${matchId}] Error starting match:`, startError)
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'GAME_ERROR',
+          message: 'Failed to start match'
+        } as GameErrorEvent))
+      }
+      return
+    }
+    
+    // Update match reference (start_match returns SETOF matches)
+    if (startedMatchRows && startedMatchRows.length > 0) {
+      Object.assign(match, startedMatchRows[0])
+      console.log(`[${matchId}] Match started, new status: ${match.status}`)
+    }
+  }
+
+  // Check for existing active round (re-check after start_match in case it created one)
+  const { data: activeRound } = await supabase
     .from('match_rounds')
     .select('*')
     .eq('match_id', matchId)
@@ -96,209 +685,167 @@ async function handleJoinMatch(
     .limit(1)
     .maybeSingle()
 
-  let question: Question
-
-  if (roundError) {
-    console.error(`[${matchId}] ❌ Error checking match_rounds:`, roundError)
-    // Fall through to create new round
-  }
-
-  if (existingRound) {
-    // 3a. Round exists - fetch the question
-    console.log(`[${matchId}] ✅ Found existing round with question_id: ${existingRound.question_id}`)
+  if (activeRound) {
+    // Round already exists - send MATCH_START first, then ROUND_STATE
+    const matchStartMsg: MatchStartMsg = {
+      type: 'MATCH_START',
+      matchId,
+      roundId: activeRound.id,
+      roundNumber: activeRound.round_number
+    }
     
-    const { data: questionData, error: questionError } = await supabase
-      .from('questions')
-      .select('*')
-      .eq('id', existingRound.question_id)
-      .single()
-
-    if (questionError || !questionData) {
-      console.error(`[${matchId}] ❌ Question not found:`, questionError)
-      // Use fallback
-      question = FALLBACK_QUESTION
+    // Check socket state before sending
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(matchStartMsg))
+      console.log(`[${matchId}] Sent MATCH_START to player ${playerId}`)
     } else {
-      question = {
-        id: questionData.id,
-        text: questionData.text,
-        steps: questionData.steps as Question['steps'],
-        created_at: questionData.created_at
+      console.warn(`[${matchId}] Socket not OPEN for player ${playerId}, state: ${socket.readyState}`)
+    }
+    
+    // Then send authoritative ROUND_STATE
+    // Retry logic: sometimes computeRoundState might fail due to timing, so retry once
+    let roundState = await computeRoundState(matchId, activeRound.id, supabase)
+    if (!roundState) {
+      console.warn(`[${matchId}] computeRoundState failed, retrying after 100ms...`)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      roundState = await computeRoundState(matchId, activeRound.id, supabase)
+    }
+    
+    if (roundState) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(roundState))
+        console.log(`[${matchId}] ✅ Sent MATCH_START + ROUND_STATE to player ${playerId}`)
+      } else {
+        console.warn(`[${matchId}] Socket not OPEN when trying to send ROUND_STATE to player ${playerId}, state: ${socket.readyState}`)
+        // Queue the message to send when socket opens (if it's still connecting)
+        socket.addEventListener('open', () => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(roundState))
+            console.log(`[${matchId}] ✅ Sent queued ROUND_STATE to player ${playerId} after socket opened`)
+          }
+        }, { once: true })
+      }
+    } else {
+      // Fallback: send ROUND_START if computeRoundState fails
+      console.error(`[${matchId}] computeRoundState returned null, falling back to ROUND_START`)
+      const { data: questionRow, error: qError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('id', activeRound.question_id)
+        .single<DbQuestion>()
+      
+      if (qError || !questionRow) {
+        console.error(`[${matchId}] Failed to fetch question for round:`, qError)
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({
+            type: 'GAME_ERROR',
+            message: 'Failed to load question'
+          } as GameErrorEvent))
+        }
+        return
+      }
+      
+      const mapped = mapDbQuestionToStepBased(questionRow)
+      const roundStartMsg: RoundStartMsg = {
+        type: 'ROUND_START',
+        matchId,
+        roundId: activeRound.id,
+        roundNumber: activeRound.round_number,
+        question: mapped
+      }
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(roundStartMsg))
+        console.log(`[${matchId}] Sent fallback ROUND_START to player ${playerId}`)
       }
     }
-  } else {
-    // 3b. No round exists - pick random question and create round
-    console.log(`[${matchId}] No existing round, picking new question`)
-
-    // Fetch questions and pick one randomly
-    const { data: questions, error: questionError } = await supabase
-      .from('questions')
-      .select('*')
-      .limit(50)
-
-    if (questionError || !questions || questions.length === 0) {
-      console.warn(`[${matchId}] ⚠️ No questions in DB, using fallback`)
-      question = FALLBACK_QUESTION
-    } else {
-      const randomIndex = Math.floor(Math.random() * questions.length)
-      const selectedQuestion = questions[randomIndex]
-      question = {
-        id: selectedQuestion.id,
-        text: selectedQuestion.text,
-        steps: selectedQuestion.steps as Question['steps'],
-        created_at: selectedQuestion.created_at
-      }
-      console.log(`[${matchId}] Selected question ${randomIndex + 1}/${questions.length}: ${question.id}`)
-    }
-
-    // Insert into match_rounds
-    const { error: insertError } = await supabase
-      .from('match_rounds')
-      .insert({
-        match_id: matchId,
-        question_id: question.id,
-        status: 'active'
-      })
-
-    if (insertError) {
-      console.error(`[${matchId}] ❌ Error inserting match_round:`, insertError)
-      // Still send the question, but log the error
-    } else {
-      console.log(`[${matchId}] ✅ Created match_round for question ${question.id}`)
-    }
+    return
   }
 
-  // 4. Send ROUND_START event
-  const roundStartEvent: RoundStartEvent = {
-    type: 'ROUND_START',
-    match_id: matchId,
-    question
-  }
-
-  console.log(`[${matchId}] 📤 Sending ROUND_START with question: ${question.id}`)
-  socket.send(JSON.stringify(roundStartEvent))
-}
-
-/**
- * Handle SUBMIT_ROUND_ANSWER message
- * - Validates player and round
- * - Calls submit_round_answer RPC
- * - Checks if both players answered
- * - If both answered, evaluates round and sends ROUND_RESULT
- */
-async function handleSubmitRoundAnswer(
-  matchId: string,
-  playerId: string,
-  message: any,
-  socket: WebSocket,
-  supabase: ReturnType<typeof createClient>
-): Promise<void> {
-  console.log(`[${matchId}] SUBMIT_ROUND_ANSWER from player ${playerId}`)
-
-  const { roundId, payload } = message
-
-  if (!roundId || !payload || !payload.steps || !Array.isArray(payload.steps)) {
-    console.error(`[${matchId}] ❌ Invalid SUBMIT_ROUND_ANSWER message:`, message)
+  // No active round - create first round
+  const firstRound = await createRound(match, 0, supabase)
+  if (!firstRound) {
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
-      message: 'Invalid answer format'
+      message: 'Failed to create first round'
     } as GameErrorEvent))
     return
   }
 
-  try {
-    // Call submit_round_answer RPC
-    const { data: result, error: rpcError } = await supabase.rpc('submit_round_answer', {
-      p_match_id: matchId,
-      p_round_id: roundId,
-      p_player_id: playerId,
-      p_payload: payload
-    })
-
-    if (rpcError) {
-      console.error(`[${matchId}] ❌ submit_round_answer RPC error:`, rpcError)
-      socket.send(JSON.stringify({
-        type: 'GAME_ERROR',
-        message: rpcError.message || 'Failed to submit answer'
-      } as GameErrorEvent))
-      return
-    }
-
-    console.log(`[${matchId}] ✅ Answer submitted successfully, round_score:`, result?.round_score)
-
-    // Check if both players have answered
-    const { data: round, error: roundError } = await supabase
-      .from('match_rounds')
-      .select('player1_answered_at, player2_answered_at, status')
-      .eq('id', roundId)
-      .single()
-
-    if (roundError || !round) {
-      console.error(`[${matchId}] ❌ Error checking round status:`, roundError)
-      return
-    }
-
-    const bothAnswered = round.player1_answered_at && round.player2_answered_at
-
-    if (bothAnswered && round.status === 'active') {
-      console.log(`[${matchId}] ✅ Both players answered, evaluating round...`)
-
-      // Get match to determine player1_id
-      const { data: match } = await supabase
-        .from('matches')
-        .select('player1_id')
-        .eq('id', matchId)
-        .single()
-
-      if (!match) {
-        console.error(`[${matchId}] ❌ Match not found`)
-        return
-      }
-
-      // Evaluate round
-      const { data: evalResult, error: evalError } = await supabase.rpc('evaluate_round', {
-        p_match_id: matchId,
-        p_round_id: roundId
-      })
-
-      if (evalError) {
-        console.error(`[${matchId}] ❌ evaluate_round RPC error:`, evalError)
-        return
-      }
-
-      console.log(`[${matchId}] ✅ Round evaluated:`, evalResult)
-
-      // Broadcast ROUND_RESULT to all sockets for this match
-      const matchSockets = sockets.get(matchId)
-      if (matchSockets) {
-        const roundResultEvent = {
-          type: 'ROUND_RESULT',
-          roundId,
-          roundNumber: evalResult?.round_number || 1,
-          player1Score: evalResult?.player1_round_score || 0,
-          player2Score: evalResult?.player2_round_score || 0,
-          player1TotalScore: evalResult?.player1_total_score || 0,
-          player2TotalScore: evalResult?.player2_total_score || 0,
-          matchWinnerId: evalResult?.match_winner_id || null,
-          matchContinues: evalResult?.match_continues !== false
-        }
-
-        console.log(`[${matchId}] 📤 Broadcasting ROUND_RESULT to ${matchSockets.size} sockets`)
-        matchSockets.forEach(s => {
-          if (s.readyState === WebSocket.OPEN) {
-            s.send(JSON.stringify(roundResultEvent))
-          }
-        })
-      }
-    } else {
-      console.log(`[${matchId}] ⏳ Waiting for other player to answer...`)
-    }
-  } catch (error) {
-    console.error(`[${matchId}] ❌ Error in handleSubmitRoundAnswer:`, error)
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'Failed to process answer'
-    } as GameErrorEvent))
+  // Broadcast MATCH_START then ROUND_START
+  const matchStartMsg: MatchStartMsg = {
+    type: 'MATCH_START',
+    matchId,
+    roundId: firstRound.roundId,
+    roundNumber: firstRound.roundNumber
   }
+  broadcastToMatch(matchId, matchStartMsg)
+
+  const roundStartMsg: RoundStartMsg = {
+    type: 'ROUND_START',
+    matchId,
+    roundId: firstRound.roundId,
+    roundNumber: firstRound.roundNumber,
+    question: firstRound.question
+  }
+  broadcastToMatch(matchId, roundStartMsg)
+
+  // Also send ROUND_STATE for authoritative state
+  const roundState = await computeRoundState(matchId, firstRound.roundId, supabase)
+  if (roundState) {
+    broadcastToMatch(matchId, roundState)
+  }
+}
+
+/**
+ * Handle SUBMIT_ROUND_ANSWER message
+ * TODO: Add proper timeout handling (round_deadline enforcement)
+ * TODO: Add reconnection logic for dropped WebSocket connections
+ */
+async function handleSubmitRoundAnswer(
+  matchId: string,
+  roundId: string,
+  playerId: string,
+  payload: any,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  console.log(`[${matchId}] SUBMIT_ROUND_ANSWER from player ${playerId} for round ${roundId}`)
+  console.log(`[${matchId}] Payload:`, JSON.stringify(payload, null, 2))
+
+  // Call submit_round_answer RPC
+  const { data: result, error } = await supabase.rpc('submit_round_answer', {
+    p_match_id: matchId,
+    p_round_id: roundId,
+    p_player_id: playerId,
+    p_payload: payload
+  })
+
+  if (error) {
+    console.error(`[${matchId}] Error submitting answer:`, error)
+    broadcastToMatch(matchId, {
+      type: 'GAME_ERROR',
+      message: error.message || 'Failed to submit answer',
+      code: 'SUBMIT_ERROR'
+    } as GameErrorEvent)
+    return
+  }
+
+  // Handle idempotent duplicate gracefully
+  if (result?.already_answered) {
+    console.log(`[${matchId}] Player ${playerId} already answered round ${roundId}, returning existing result (idempotent)`)
+    // Don't send GAME_ERROR, just continue to checkAndEvaluateRound
+    // This allows the round evaluation to proceed normally
+  } else {
+    console.log(`[${matchId}] ✅ Answer submitted successfully, result:`, result)
+  }
+
+  // Broadcast ROUND_STATE after answer submission
+  const roundState = await computeRoundState(matchId, roundId, supabase)
+  if (roundState) {
+    broadcastToMatch(matchId, roundState)
+  }
+
+  // Check if both players answered and evaluate if ready
+  await checkAndEvaluateRound(matchId, roundId, supabase)
 }
 
 Deno.serve(async (req) => {
@@ -372,7 +919,14 @@ Deno.serve(async (req) => {
       if (message.type === 'JOIN_MATCH') {
         await handleJoinMatch(matchId, user.id, socket, supabase)
       } else if (message.type === 'SUBMIT_ROUND_ANSWER') {
-        await handleSubmitRoundAnswer(matchId, user.id, message, socket, supabase)
+        const submitMsg = message as SubmitRoundAnswerMsg
+        await handleSubmitRoundAnswer(
+          matchId,
+          submitMsg.roundId,
+          user.id,
+          submitMsg.payload,
+          supabase
+        )
       } else {
         console.warn(`[${matchId}] Unknown message type: ${message.type}`)
         socket.send(JSON.stringify({

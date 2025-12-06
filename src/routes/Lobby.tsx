@@ -39,7 +39,7 @@ export default function Lobby() {
   // Navigate to battle when matched
   useEffect(() => {
     if (status === 'matched' && match) {
-      navigate(`/online-battle/${match.id}`, {
+      navigate(`/online-battle-new/${match.id}`, {
         state: { match }
       });
     }
