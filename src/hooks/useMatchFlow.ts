@@ -82,6 +82,7 @@ export function useMatchFlow(matchId: string | null) {
   const queuedRoundStartRef = useRef<any | null>(null) // Queued ROUND_START message
   // Guard condition refs (to avoid stale closures in callbacks)
   const roundResultRef = useRef<RoundResult | null>(null)
+  const lastAppliedRoundIdRef = useRef<string | null>(null) // Idempotency guard: prevents duplicate round processing
   const isShowingRoundTransitionRef = useRef(false)
   const isMatchFinishedRef = useRef(false)
   const finishRoundTransitionRef = useRef<(() => void) | null>(null)
@@ -128,7 +129,7 @@ export function useMatchFlow(matchId: string | null) {
       // Check current round status
       const { data: roundData } = await supabase
         .from('match_rounds')
-        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number, question_id')
+        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number, question_id, id')
         .eq('id', state.currentRound!.id)
         .single()
 
@@ -167,13 +168,8 @@ export function useMatchFlow(matchId: string | null) {
             matchWinnerId: !matchContinues ? (matchData as any).winner_id : null
           }
 
-          setState(prev => ({
-            ...prev,
-            roundResult: syntheticResult,
-            hasSubmitted: false,
-            isMatchFinished: !matchContinues,
-            match: matchData as MatchRow
-          }))
+          // Use applyRoundResult for consistency (page reload recovery)
+          applyRoundResult(syntheticResult, 'polling', roundData.id)
           return // Don't restore step state if round is finished
         }
       }
@@ -200,7 +196,7 @@ export function useMatchFlow(matchId: string | null) {
     }
 
     restoreRoundState()
-  }, [matchId, state.currentRound?.id, state.match?.id]) // Only run when round changes
+  }, [matchId, state.currentRound?.id, state.match?.id, applyRoundResult]) // Only run when round changes
 
   // Keep refs in sync with state for guards (avoids stale closures)
   useEffect(() => {
@@ -214,26 +210,31 @@ export function useMatchFlow(matchId: string | null) {
   // ========================================
   // Both WS ROUND_RESULT and polling MUST call this function.
   // This ensures identical cleanup for early and late answerers.
+  // Phase 1 goal: Round transition correctness (not match score reconciliation)
   const applyRoundResult = useCallback((
     result: RoundResult,
     source: 'ws' | 'polling',
-    matchUpdate?: {
-      player1RoundScore: number
-      player2RoundScore: number
-      roundNumber: number
-      matchWinnerId?: string | null
-    }
+    roundId: string
   ) => {
-    // === IDEMPOTENCY GUARD ===
-    // Use ref to prevent double-application (WS + polling race)
-    if (roundResultRef.current) {
-      console.log(`[useMatchFlow] applyRoundResult(${source}): already have result, skipping`)
+    // === DOUBLE IDEMPOTENCY GUARD ===
+    
+    // Guard 1: roundId-based (prevents duplicate round processing)
+    if (lastAppliedRoundIdRef.current === roundId) {
+      console.log(`[useMatchFlow] applyRoundResult(${source}): already applied roundId=${roundId}, skipping`)
       return
     }
-    // Set ref immediately to block concurrent calls
+    
+    // Guard 2: roundResultRef-based (prevents any duplicate result application)
+    if (roundResultRef.current) {
+      console.log(`[useMatchFlow] applyRoundResult(${source}): roundResult already exists, skipping`)
+      return
+    }
+    
+    // Set both guards immediately (atomic)
+    lastAppliedRoundIdRef.current = roundId
     roundResultRef.current = result
 
-    console.log(`[useMatchFlow] applyRoundResult(${source}):`, result)
+    console.log(`[useMatchFlow] applyRoundResult(${source}): roundId=${roundId}`, result)
 
     // === FULL CLEANUP (identical for both paths) ===
 
@@ -263,25 +264,8 @@ export function useMatchFlow(matchId: string | null) {
 
     const isFinished = !result.matchContinues || result.matchWinnerId !== null
 
+    // === SINGLE STATE UPDATE (no match score mutation - Phase 1 goal is transition correctness) ===
     setState(prev => {
-      // Build match update based on source
-      let updatedMatch = prev.match
-      if (prev.match) {
-        if (source === 'ws' && matchUpdate) {
-          // WS path: accumulate scores (server sends round scores, not totals)
-          updatedMatch = {
-            ...prev.match,
-            player1_score: ((prev.match as any).player1_score || 0) + matchUpdate.player1RoundScore,
-            player2_score: ((prev.match as any).player2_score || 0) + matchUpdate.player2RoundScore,
-            current_round_number: matchUpdate.roundNumber,
-            status: isFinished ? 'finished' : prev.match.status,
-            winner_id: matchUpdate.matchWinnerId || prev.match.winner_id
-          }
-        }
-        // Polling path: match scores already reflect DB truth (fetched fresh)
-        // so we don't modify them here
-      }
-
       return {
         ...prev,
         roundResult: result,
@@ -296,7 +280,9 @@ export function useMatchFlow(matchId: string | null) {
         hasAnsweredCurrentStep: false,
         thinkingTimeLeft: null,
         isThinkingPhase: false,
-        match: updatedMatch
+        // Phase 1: Don't mutate match totals - just keep prev.match
+        // Phase 1 goal is round transition correctness, not match scoring reconciliation
+        match: prev.match
       }
     })
 
@@ -309,14 +295,14 @@ export function useMatchFlow(matchId: string | null) {
     }, 5000)
   }, []) // No dependencies - refs handle all state
 
-  // Polling fallback - only when WebSocket is disconnected
+  // Polling fallback - runs when hasSubmitted === true (safety net for early-answer desync)
   useEffect(() => {
-    if (!matchId || state.isConnected || !state.currentRound) return
+    if (!matchId || !state.currentRound || !state.hasSubmitted) return
 
     const checkRoundStatus = async () => {
       const { data: roundData, error: roundError } = await supabase
         .from('match_rounds')
-        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number')
+        .select('status, player1_answered_at, player2_answered_at, player1_round_score, player2_round_score, round_number, id')
         .eq('id', state.currentRound!.id)
         .single()
 
@@ -358,13 +344,9 @@ export function useMatchFlow(matchId: string | null) {
           }
 
           console.log('[useMatchFlow] Polling: Round finished, calling applyRoundResult')
-          // Update match in state first (polling fetches fresh data)
-          setState(prev => ({
-            ...prev,
-            match: matchData as MatchRow
-          }))
-          // Then apply round result with full cleanup
-          applyRoundResult(syntheticResult, 'polling')
+          // ✅ Use roundData.id (DB truth), not state.currentRound?.id (stale state)
+          // ✅ No setState before applyRoundResult - let it handle all state
+          applyRoundResult(syntheticResult, 'polling', roundData.id)
         }
       }
     }
@@ -374,7 +356,7 @@ export function useMatchFlow(matchId: string | null) {
     // Aggressive polling every 2 seconds when waiting
     const interval = setInterval(checkRoundStatus, 2000)
     return () => clearInterval(interval)
-  }, [matchId, state.hasSubmitted, state.currentRound])
+  }, [matchId, state.hasSubmitted, state.currentRound, applyRoundResult])
 
   // Handle ROUND_START message - factored out for reuse
   // This is the NUCLEAR RESET - clears ALL previous round state
@@ -382,13 +364,17 @@ export function useMatchFlow(matchId: string | null) {
     console.log('[useMatchFlow] ROUND_START received - NUCLEAR RESET')
     console.log('[useMatchFlow] Raw question from WS:', JSON.stringify(message.question, null, 2))
 
-    // === NUCLEAR CLEANUP ===
-    // Clear transition state (ensures we're not stuck in transition)
+    // === NUCLEAR CLEANUP - CLEAR BOTH GUARDS ===
+    
+    // Clear roundId guard (allows next round to apply result)
+    lastAppliedRoundIdRef.current = null
+    
+    // Clear roundResult guard (allows next round to apply result)
+    roundResultRef.current = null
+    
+    // Clear transition state
     isTransitioningRef.current = false
     queuedRoundStartRef.current = null
-
-    // Clear roundResultRef so next round can apply its result
-    roundResultRef.current = null
 
     // Clear transition timeout
     if (roundTransitionTimeoutRef.current) {
@@ -777,13 +763,8 @@ export function useMatchFlow(matchId: string | null) {
                 matchWinnerId: message.matchWinnerId
               }
 
-              // Use unified handler with match score update
-              applyRoundResult(result, 'ws', {
-                player1RoundScore: message.player1RoundScore,
-                player2RoundScore: message.player2RoundScore,
-                roundNumber: message.roundNumber,
-                matchWinnerId: message.matchWinnerId
-              })
+              // Call unified function with roundId
+              applyRoundResult(result, 'ws', message.roundId)
             }
 
             if (message.type === 'MATCH_FINISHED') {
@@ -1276,7 +1257,7 @@ export function useMatchFlow(matchId: string | null) {
       // Check the specific current round
       const { data: round } = await supabase
         .from('match_rounds')
-        .select('status, player1_answered_at, player2_answered_at, round_number, player1_round_score, player2_round_score')
+        .select('status, player1_answered_at, player2_answered_at, round_number, player1_round_score, player2_round_score, id')
         .eq('id', state.currentRound.id)
         .single()
 
@@ -1314,14 +1295,9 @@ export function useMatchFlow(matchId: string | null) {
             matchWinnerId: !matchContinues ? (match as any).winner_id : null
           }
 
-          console.log('[useMatchFlow] Timeout: Round was evaluated, updating state from DB')
-          setState(prev => ({
-            ...prev,
-            roundResult: syntheticResult,
-            hasSubmitted: false,
-            isMatchFinished: !matchContinues,
-            match: match as MatchRow
-          }))
+          console.log('[useMatchFlow] Timeout: Round was evaluated, calling applyRoundResult')
+          // ✅ REPLACE direct setState with applyRoundResult
+          applyRoundResult(syntheticResult, 'polling', round.id)
         }
       }
     }, 5000) // 5 second timeout (reduced from 10)
@@ -1334,7 +1310,8 @@ export function useMatchFlow(matchId: string | null) {
     state.roundResult,
     state.isShowingRoundTransition,
     state.isMatchFinished,
-    matchId
+    matchId,
+    applyRoundResult
   ])
 
   return {
