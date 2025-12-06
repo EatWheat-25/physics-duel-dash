@@ -1,34 +1,38 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
-import type { MatchRow, Question, RoundStartEvent, GameErrorEvent } from '@/types/schema'
+import type { MatchRow } from '@/types/schema'
 
-interface GameState {
-  question: Question | null
-  gameStatus: 'connecting' | 'waiting_for_round' | 'round_active' | 'error'
+interface ConnectionState {
+  status: 'connecting' | 'connected' | 'both_connected' | 'error'
+  playerRole: 'player1' | 'player2' | null
   errorMessage: string | null
 }
 
 /**
- * Simple game hook that connects to game-ws and handles JOIN_MATCH
+ * Minimal game connection hook
  * 
- * @param match - The match row from matchmaking (must have id, player1_id, player2_id)
- * @returns Game state with question, status, and error
+ * Only handles:
+ * - WebSocket connection to game-ws
+ * - JOIN_MATCH message
+ * - Connection status tracking
+ * 
+ * @param match - The match row from matchmaking
+ * @returns Connection state with status and player role
  */
 export function useGame(match: MatchRow | null) {
-  const [state, setState] = useState<GameState>({
-    question: null,
-    gameStatus: 'connecting',
+  const [state, setState] = useState<ConnectionState>({
+    status: 'connecting',
+    playerRole: null,
     errorMessage: null
   })
 
   const wsRef = useRef<WebSocket | null>(null)
-  const currentUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!match) {
       setState({
-        question: null,
-        gameStatus: 'connecting',
+        status: 'connecting',
+        playerRole: null,
         errorMessage: null
       })
       return
@@ -39,51 +43,47 @@ export function useGame(match: MatchRow | null) {
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError || !user) {
-          setState(prev => ({
-            ...prev,
-            gameStatus: 'error',
+          setState({
+            status: 'error',
+            playerRole: null,
             errorMessage: 'Not authenticated'
-          }))
+          })
           return
         }
 
-        currentUserIdRef.current = user.id
-
         // Verify user is part of match
         if (match.player1_id !== user.id && match.player2_id !== user.id) {
-          setState(prev => ({
-            ...prev,
-            gameStatus: 'error',
+          setState({
+            status: 'error',
+            playerRole: null,
             errorMessage: 'You are not part of this match'
-          }))
+          })
           return
         }
 
         // Get session token
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         if (sessionError || !session?.access_token) {
-          setState(prev => ({
-            ...prev,
-            gameStatus: 'error',
+          setState({
+            status: 'error',
+            playerRole: null,
             errorMessage: 'No session token'
-          }))
+          })
           return
         }
 
-        // Build WebSocket URL - use the exported SUPABASE_URL constant
+        // Build WebSocket URL
         if (!SUPABASE_URL) {
-          console.error('[useGame] ❌ SUPABASE_URL is not defined. Check src/integrations/supabase/client.ts');
-          setState(prev => ({
-            ...prev,
-            gameStatus: 'error',
+          console.error('[useGame] ❌ SUPABASE_URL is not defined')
+          setState({
+            status: 'error',
+            playerRole: null,
             errorMessage: 'Missing SUPABASE_URL'
-          }))
+          })
           return
         }
 
-        const supabaseUrl = SUPABASE_URL
-
-        const wsUrl = `${supabaseUrl.replace('http', 'ws')}/functions/v1/game-ws?token=${session.access_token}&match_id=${match.id}`
+        const wsUrl = `${SUPABASE_URL.replace('http', 'ws')}/functions/v1/game-ws?token=${session.access_token}&match_id=${match.id}`
         console.log('[useGame] Connecting to:', wsUrl)
 
         const ws = new WebSocket(wsUrl)
@@ -93,7 +93,7 @@ export function useGame(match: MatchRow | null) {
           console.log('[useGame] WebSocket connected')
           setState(prev => ({
             ...prev,
-            gameStatus: 'waiting_for_round',
+            status: 'connecting',
             errorMessage: null
           }))
 
@@ -110,26 +110,26 @@ export function useGame(match: MatchRow | null) {
             const message = JSON.parse(event.data)
             console.log('[useGame] Message received:', message.type)
 
-            if (message.type === 'ROUND_START') {
-              const roundStart = message as RoundStartEvent
-              console.log('[useGame] ROUND_START received, question:', roundStart.question.id)
+            if (message.type === 'CONNECTED') {
               setState(prev => ({
                 ...prev,
-                question: roundStart.question,
-                gameStatus: 'round_active',
+                status: 'connected',
+                playerRole: message.player,
+                errorMessage: null
+              }))
+            } else if (message.type === 'BOTH_CONNECTED') {
+              setState(prev => ({
+                ...prev,
+                status: 'both_connected',
                 errorMessage: null
               }))
             } else if (message.type === 'GAME_ERROR') {
-              const error = message as GameErrorEvent
-              console.error('[useGame] GAME_ERROR:', error.message)
+              console.error('[useGame] GAME_ERROR:', message.message)
               setState(prev => ({
                 ...prev,
-                gameStatus: 'error',
-                errorMessage: error.message
+                status: 'error',
+                errorMessage: message.message
               }))
-            } else if (message.type === 'connected') {
-              console.log('[useGame] Connection confirmed')
-              // Already sent JOIN_MATCH in onopen, so just wait
             } else {
               console.warn('[useGame] Unknown message type:', message.type)
             }
@@ -137,7 +137,7 @@ export function useGame(match: MatchRow | null) {
             console.error('[useGame] Error parsing message:', error)
             setState(prev => ({
               ...prev,
-              gameStatus: 'error',
+              status: 'error',
               errorMessage: 'Error parsing server message'
             }))
           }
@@ -147,19 +147,18 @@ export function useGame(match: MatchRow | null) {
           console.error('[useGame] WebSocket error:', error)
           setState(prev => ({
             ...prev,
-            gameStatus: 'error',
+            status: 'error',
             errorMessage: 'WebSocket connection error'
           }))
         }
 
         ws.onclose = () => {
           console.log('[useGame] WebSocket closed')
-          // Don't set error on close - might be intentional
           setState(prev => {
-            if (prev.gameStatus !== 'error') {
+            if (prev.status !== 'error') {
               return {
                 ...prev,
-                gameStatus: 'connecting'
+                status: 'connecting'
               }
             }
             return prev
@@ -167,11 +166,11 @@ export function useGame(match: MatchRow | null) {
         }
       } catch (error: any) {
         console.error('[useGame] Connection error:', error)
-        setState(prev => ({
-          ...prev,
-          gameStatus: 'error',
+        setState({
+          status: 'error',
+          playerRole: null,
           errorMessage: error.message || 'Failed to connect'
-        }))
+        })
       }
     }
 
@@ -183,12 +182,11 @@ export function useGame(match: MatchRow | null) {
         wsRef.current = null
       }
     }
-  }, [match?.id]) // Only reconnect if match ID changes
+  }, [match?.id])
 
   return {
-    question: state.question,
-    gameStatus: state.gameStatus,
+    status: state.status,
+    playerRole: state.playerRole,
     errorMessage: state.errorMessage
   }
 }
-

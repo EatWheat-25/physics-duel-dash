@@ -2,205 +2,41 @@ import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { corsHeaders } from '../_shared/cors.ts'
 
 /**
- * Simple Game WebSocket
+ * Minimal Game WebSocket
  * 
- * Idempotent question assignment: each match gets exactly one question.
- * Uses match_rounds table to track question assignment.
+ * Only handles:
+ * - WebSocket connections
+ * - JOIN_MATCH message validation
+ * - Connection status tracking
+ * - Broadcasting when both players connected
  */
-
-// Types matching schema.ts
-interface Question {
-  id: string
-  text: string
-  steps: {
-    type: 'mcq'
-    options: string[]
-    answer: number
-  }
-  created_at: string
-}
-
-interface RoundStartEvent {
-  type: 'ROUND_START'
-  match_id: string
-  question: Question
-}
 
 interface GameErrorEvent {
   type: 'GAME_ERROR'
   message: string
 }
 
-// Hardcoded fallback question
-const FALLBACK_QUESTION: Question = {
-  id: '00000000-0000-0000-0000-000000000000',
-  text: 'What is the formula for kinetic energy?',
-  steps: {
-    type: 'mcq',
-    options: ['E = mc²', 'E = ½mv²', 'E = mgh', 'E = Fd'],
-    answer: 1
-  },
-  created_at: new Date().toISOString()
+interface ConnectedEvent {
+  type: 'CONNECTED'
+  player: 'player1' | 'player2'
+  matchId: string
 }
 
-// Simple in-memory socket tracking (just for connection management)
-const sockets = new Map<string, Set<WebSocket>>()
-
-/**
- * Handle SUBMIT_ROUND_ANSWER message
- * - Validates match, round, and player
- * - Calls submit_round_answer RPC
- * - If both players answered, calls evaluate_round
- * - Broadcasts ROUND_RESULT to all connected sockets
- */
-async function handleSubmitRoundAnswer(
-  matchId: string,
-  playerId: string,
-  message: any,
-  socket: WebSocket,
-  supabase: ReturnType<typeof createClient>
-): Promise<void> {
-  console.log(`[${matchId}] SUBMIT_ROUND_ANSWER from player ${playerId}`)
-
-  const { roundId, payload } = message
-
-  if (!roundId || !payload) {
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'Missing roundId or payload'
-    } as GameErrorEvent))
-    return
-  }
-
-  // 1. Validate match exists and player is part of it
-  const { data: match, error: matchError } = await supabase
-    .from('matches')
-    .select('*')
-    .eq('id', matchId)
-    .single()
-
-  if (matchError || !match) {
-    console.error(`[${matchId}] ❌ Match not found:`, matchError)
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'Match not found'
-    } as GameErrorEvent))
-    return
-  }
-
-  if (match.player1_id !== playerId && match.player2_id !== playerId) {
-    console.error(`[${matchId}] ❌ Player ${playerId} not in match`)
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'You are not part of this match'
-    } as GameErrorEvent))
-    return
-  }
-
-  // 2. Call submit_round_answer RPC
-  try {
-    const { data: submitResult, error: submitError } = await supabase.rpc(
-      'submit_round_answer',
-      {
-        p_match_id: matchId,
-        p_round_id: roundId,
-        p_player_id: playerId,
-        p_payload: payload
-      }
-    )
-
-    if (submitError) {
-      console.error(`[${matchId}] ❌ Error submitting answer:`, submitError)
-      socket.send(JSON.stringify({
-        type: 'GAME_ERROR',
-        message: submitError.message || 'Failed to submit answer'
-      } as GameErrorEvent))
-      return
-    }
-
-    console.log(`[${matchId}] ✅ Answer submitted successfully for player ${playerId}`)
-
-    // 3. Check if both players have answered
-    const { data: round, error: roundError } = await supabase
-      .from('match_rounds')
-      .select('player1_answered_at, player2_answered_at, status')
-      .eq('id', roundId)
-      .single()
-
-    if (roundError || !round) {
-      console.error(`[${matchId}] ❌ Error checking round status:`, roundError)
-      return
-    }
-
-    const bothAnswered = round.player1_answered_at && round.player2_answered_at
-
-    if (bothAnswered && round.status === 'active') {
-      console.log(`[${matchId}] ✅ Both players answered, evaluating round...`)
-
-      // 4. Call evaluate_round RPC
-      const { data: evaluateResult, error: evaluateError } = await supabase.rpc(
-        'evaluate_round',
-        {
-          p_match_id: matchId,
-          p_round_id: roundId
-        }
-      )
-
-      if (evaluateError) {
-        console.error(`[${matchId}] ❌ Error evaluating round:`, evaluateError)
-        return
-      }
-
-      console.log(`[${matchId}] ✅ Round evaluated:`, evaluateResult)
-
-      // 5. Broadcast ROUND_RESULT to all connected sockets
-      const roundResultMessage = {
-        type: 'ROUND_RESULT',
-        roundId: roundId,
-        roundNumber: evaluateResult?.round_number || 1,
-        roundWinnerId: evaluateResult?.round_winner_id || null,
-        player1RoundScore: evaluateResult?.player1_round_score || 0,
-        player2RoundScore: evaluateResult?.player2_round_score || 0,
-        matchContinues: evaluateResult?.match_continues || false,
-        matchWinnerId: evaluateResult?.match_winner_id || null
-      }
-
-      // Broadcast to all sockets for this match
-      const matchSockets = sockets.get(matchId)
-      if (matchSockets) {
-        matchSockets.forEach(s => {
-          if (s.readyState === WebSocket.OPEN) {
-            s.send(JSON.stringify(roundResultMessage))
-          }
-        })
-        console.log(`[${matchId}] 📤 Broadcasted ROUND_RESULT to ${matchSockets.size} socket(s)`)
-      } else {
-        // Fallback: send to current socket
-        socket.send(JSON.stringify(roundResultMessage))
-      }
-    } else {
-      console.log(`[${matchId}] ⏳ Waiting for opponent to answer...`)
-      // Send confirmation to submitting player
-      socket.send(JSON.stringify({
-        type: 'ANSWER_RECEIVED',
-        message: 'Your answer has been received. Waiting for opponent...'
-      }))
-    }
-  } catch (error) {
-    console.error(`[${matchId}] ❌ Unexpected error:`, error)
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'Unexpected error processing answer'
-    } as GameErrorEvent))
-  }
+interface BothConnectedEvent {
+  type: 'BOTH_CONNECTED'
+  matchId: string
 }
+
+// Track connected players per match
+const connectedPlayers = new Map<string, Set<string>>() // matchId -> Set<playerId>
+const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 
 /**
  * Handle JOIN_MATCH message
  * - Validates match and player
- * - Checks match_rounds for existing question
- * - If exists: sends ROUND_START with that question
- * - If not: picks random question, inserts into match_rounds, sends ROUND_START
+ * - Tracks connection
+ * - Sends connection confirmation
+ * - Broadcasts when both players connected
  */
 async function handleJoinMatch(
   matchId: string,
@@ -235,96 +71,47 @@ async function handleJoinMatch(
     return
   }
 
-  // 2. Check if match_round already exists
-  const { data: existingRound, error: roundError } = await supabase
-    .from('match_rounds')
-    .select('*')
-    .eq('match_id', matchId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  let question: Question
-
-  if (roundError) {
-    console.error(`[${matchId}] ❌ Error checking match_rounds:`, roundError)
-    // Fall through to create new round
+  // 2. Track connected player
+  if (!connectedPlayers.has(matchId)) {
+    connectedPlayers.set(matchId, new Set())
   }
+  connectedPlayers.get(matchId)!.add(playerId)
 
-  if (existingRound) {
-    // 3a. Round exists - fetch the question
-    console.log(`[${matchId}] ✅ Found existing round with question_id: ${existingRound.question_id}`)
+  // 3. Determine if player is player1 or player2
+  const isPlayer1 = match.player1_id === playerId
+  const playerRole = isPlayer1 ? 'player1' : 'player2'
+
+  // 4. Send connection confirmation
+  socket.send(JSON.stringify({
+    type: 'CONNECTED',
+    player: playerRole,
+    matchId: matchId
+  } as ConnectedEvent))
+
+  console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected`)
+
+  // 5. Check if both players are connected
+  const connectedSet = connectedPlayers.get(matchId)!
+  const bothConnected = connectedSet.has(match.player1_id) && connectedSet.has(match.player2_id)
+
+  if (bothConnected) {
+    console.log(`[${matchId}] ✅ Both players connected!`)
     
-    const { data: questionData, error: questionError } = await supabase
-      .from('questions')
-      .select('*')
-      .eq('id', existingRound.question_id)
-      .single()
-
-    if (questionError || !questionData) {
-      console.error(`[${matchId}] ❌ Question not found:`, questionError)
-      // Use fallback
-      question = FALLBACK_QUESTION
-    } else {
-      question = {
-        id: questionData.id,
-        text: questionData.text,
-        steps: questionData.steps as Question['steps'],
-        created_at: questionData.created_at
+    // Broadcast to all sockets for this match
+    const matchSockets = sockets.get(matchId)
+    if (matchSockets) {
+      const bothConnectedMessage: BothConnectedEvent = {
+        type: 'BOTH_CONNECTED',
+        matchId: matchId
       }
-    }
-  } else {
-    // 3b. No round exists - pick random question and create round
-    console.log(`[${matchId}] No existing round, picking new question`)
-
-    // Fetch questions and pick one randomly
-    const { data: questions, error: questionError } = await supabase
-      .from('questions')
-      .select('*')
-      .limit(50)
-
-    if (questionError || !questions || questions.length === 0) {
-      console.warn(`[${matchId}] ⚠️ No questions in DB, using fallback`)
-      question = FALLBACK_QUESTION
-    } else {
-      const randomIndex = Math.floor(Math.random() * questions.length)
-      const selectedQuestion = questions[randomIndex]
-      question = {
-        id: selectedQuestion.id,
-        text: selectedQuestion.text,
-        steps: selectedQuestion.steps as Question['steps'],
-        created_at: selectedQuestion.created_at
-      }
-      console.log(`[${matchId}] Selected question ${randomIndex + 1}/${questions.length}: ${question.id}`)
-    }
-
-    // Insert into match_rounds
-    const { error: insertError } = await supabase
-      .from('match_rounds')
-      .insert({
-        match_id: matchId,
-        question_id: question.id,
-        status: 'active'
+      matchSockets.forEach(s => {
+        if (s.readyState === WebSocket.OPEN) {
+          s.send(JSON.stringify(bothConnectedMessage))
+        }
       })
-
-    if (insertError) {
-      console.error(`[${matchId}] ❌ Error inserting match_round:`, insertError)
-      // Still send the question, but log the error
-    } else {
-      console.log(`[${matchId}] ✅ Created match_round for question ${question.id}`)
+      console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED to ${matchSockets.size} socket(s)`)
     }
   }
-
-  // 4. Send ROUND_START event
-  const roundStartEvent: RoundStartEvent = {
-    type: 'ROUND_START',
-    match_id: matchId,
-    question
-  }
-
-  console.log(`[${matchId}] 📤 Sending ROUND_START with question: ${question.id}`)
-  socket.send(JSON.stringify(roundStartEvent))
 }
 
 Deno.serve(async (req) => {
@@ -386,8 +173,6 @@ Deno.serve(async (req) => {
 
   socket.onopen = () => {
     console.log(`[${matchId}] WebSocket opened for user ${user.id}`)
-    // Send connection confirmation
-    socket.send(JSON.stringify({ type: 'connected', player: 'p1' }))
   }
 
   socket.onmessage = async (event) => {
@@ -397,8 +182,6 @@ Deno.serve(async (req) => {
 
       if (message.type === 'JOIN_MATCH') {
         await handleJoinMatch(matchId, user.id, socket, supabase)
-      } else if (message.type === 'SUBMIT_ROUND_ANSWER') {
-        await handleSubmitRoundAnswer(matchId, user.id, message, socket, supabase)
       } else {
         console.warn(`[${matchId}] Unknown message type: ${message.type}`)
         socket.send(JSON.stringify({
@@ -417,6 +200,17 @@ Deno.serve(async (req) => {
 
   socket.onclose = () => {
     console.log(`[${matchId}] WebSocket closed for user ${user.id}`)
+    
+    // Remove from connected players
+    const connectedSet = connectedPlayers.get(matchId)
+    if (connectedSet) {
+      connectedSet.delete(user.id)
+      if (connectedSet.size === 0) {
+        connectedPlayers.delete(matchId)
+      }
+    }
+    
+    // Remove from sockets
     const matchSockets = sockets.get(matchId)
     if (matchSockets) {
       matchSockets.delete(socket)
@@ -432,3 +226,4 @@ Deno.serve(async (req) => {
 
   return response
 })
+

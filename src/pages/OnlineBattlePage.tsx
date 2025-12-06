@@ -1,7 +1,7 @@
-import { OnlineBattle } from '@/components/OnlineBattle';
+import BattleConnected from './BattleConnected';
 
 const OnlineBattlePage = () => {
-  return <OnlineBattle />;
+  return <BattleConnected />;
 };
 
 export default OnlineBattlePage;
