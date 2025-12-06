@@ -127,7 +127,7 @@ export function useGame(match: MatchRow | null) {
                 errorMessage: null
               }))
             } else if (message.type === 'BOTH_CONNECTED') {
-              console.log('[useGame] BOTH_CONNECTED message received')
+              console.log('[useGame] ✅ BOTH_CONNECTED message received, updating status to both_connected')
               setState(prev => ({
                 ...prev,
                 status: 'both_connected',

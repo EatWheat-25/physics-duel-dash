@@ -145,8 +145,10 @@ async function handleJoinMatch(
   const connectedSet = connectedPlayers.get(matchId)!
   const bothConnected = connectedSet.has(match.player1_id) && connectedSet.has(match.player2_id)
 
+  console.log(`[${matchId}] Connection check: player1=${connectedSet.has(match.player1_id)}, player2=${connectedSet.has(match.player2_id)}, bothConnected=${bothConnected}`)
+
   if (bothConnected) {
-    console.log(`[${matchId}] ✅ Both players connected!`)
+    console.log(`[${matchId}] ✅ Both players connected! Sending BOTH_CONNECTED to all sockets...`)
     
     // 0. Early return check: if question already sent, bail immediately
     // This saves pointless fetch + logs
@@ -162,8 +164,10 @@ async function handleJoinMatch(
         matchSockets.forEach(s => {
           if (s.readyState === WebSocket.OPEN) {
             s.send(JSON.stringify(bothConnectedMessage))
+            console.log(`[${matchId}] 📤 Sent BOTH_CONNECTED to socket (question already sent)`)
           }
         })
+        console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED to ${matchSockets.size} socket(s) (question already sent)`)
       }
       return
     }
@@ -184,6 +188,19 @@ async function handleJoinMatch(
             s.send(JSON.stringify(errorMessage))
           }
         })
+      }
+      // Still send BOTH_CONNECTED even if no question
+      const bothConnectedMessage: BothConnectedEvent = {
+        type: 'BOTH_CONNECTED',
+        matchId: matchId
+      }
+      if (matchSockets) {
+        matchSockets.forEach(s => {
+          if (s.readyState === WebSocket.OPEN) {
+            s.send(JSON.stringify(bothConnectedMessage))
+          }
+        })
+        console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED (no question available)`)
       }
       return
     }
@@ -213,8 +230,10 @@ async function handleJoinMatch(
         matchSockets.forEach(s => {
           if (s.readyState === WebSocket.OPEN) {
             s.send(JSON.stringify(bothConnectedMessage))
+            console.log(`[${matchId}] 📤 Sent BOTH_CONNECTED to socket (lock failed)`)
           }
         })
+        console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED to ${matchSockets.size} socket(s) (lock failed)`)
       }
       return
     }
@@ -244,8 +263,10 @@ async function handleJoinMatch(
       matchSockets.forEach(s => {
         if (s.readyState === WebSocket.OPEN) {
           s.send(JSON.stringify(bothConnectedMessage))
+          console.log(`[${matchId}] 📤 Sent BOTH_CONNECTED to socket (question sent)`)
         }
       })
+      console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED to ${matchSockets.size} socket(s) (question sent)`)
     }
     
     console.log(`[${matchId}] ✅ Question ${question.id} sent to both players`)
