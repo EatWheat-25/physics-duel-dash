@@ -31,7 +31,6 @@ export function useGame(match: MatchRow | null) {
   })
 
   const wsRef = useRef<WebSocket | null>(null)
-  const bothConnectedCheckRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (!match) {
@@ -127,51 +126,11 @@ export function useGame(match: MatchRow | null) {
                 playerRole: message.player,
                 errorMessage: null
               }))
-              
-              // Fallback: If we don't receive BOTH_CONNECTED within 5 seconds,
-              // check if both players are connected by checking if question was sent
-              if (bothConnectedCheckRef.current) {
-                clearTimeout(bothConnectedCheckRef.current)
-              }
-              bothConnectedCheckRef.current = setTimeout(async () => {
-                console.log('[useGame] Fallback: Checking if both players connected (no BOTH_CONNECTED received)')
-                if (!match) return
-                
-                try {
-                  const { data: matchData, error } = await supabase
-                    .from('matches')
-                    .select('question_id')
-                    .eq('id', match.id)
-                    .single()
-                  
-                  // If question_id is set, it means both players connected and question was sent
-                  if (!error && matchData && matchData.question_id) {
-                    console.log('[useGame] Fallback: Question ID found, assuming both players connected')
-                    setState(prev => {
-                      if (prev.status !== 'both_connected') {
-                        return {
-                          ...prev,
-                          status: 'both_connected',
-                          errorMessage: null
-                        }
-                      }
-                      return prev
-                    })
-                  }
-                } catch (err) {
-                  console.error('[useGame] Fallback check error:', err)
-                }
-              }, 5000) // Check after 5 seconds
             } else if (message.type === 'connected') {
               // Handle lowercase 'connected' from initial socket.onopen (ignore it)
               console.log('[useGame] Initial connection confirmation received (ignoring)')
             } else if (message.type === 'BOTH_CONNECTED') {
               console.log('[useGame] ✅ BOTH_CONNECTED message received, updating status to both_connected')
-              // Clear any pending fallback check
-              if (bothConnectedCheckRef.current) {
-                clearTimeout(bothConnectedCheckRef.current)
-                bothConnectedCheckRef.current = null
-              }
               setState(prev => ({
                 ...prev,
                 status: 'both_connected',
@@ -253,10 +212,6 @@ export function useGame(match: MatchRow | null) {
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
-      }
-      if (bothConnectedCheckRef.current) {
-        clearTimeout(bothConnectedCheckRef.current)
-        bothConnectedCheckRef.current = null
       }
     }
   }, [match?.id])
