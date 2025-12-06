@@ -98,19 +98,23 @@ export function useGame(match: MatchRow | null) {
           }))
 
           // Send JOIN_MATCH message
-          ws.send(JSON.stringify({
+          const joinMessage = {
             type: 'JOIN_MATCH',
             match_id: match.id,
             player_id: user.id
-          }))
+          }
+          console.log('[useGame] Sending JOIN_MATCH:', joinMessage)
+          ws.send(JSON.stringify(joinMessage))
         }
 
         ws.onmessage = (event) => {
           try {
+            console.log('[useGame] Raw message received:', event.data)
             const message = JSON.parse(event.data)
-            console.log('[useGame] Message received:', message.type)
+            console.log('[useGame] Parsed message:', message)
 
             if (message.type === 'CONNECTED') {
+              console.log('[useGame] CONNECTED message received, updating state')
               setState(prev => ({
                 ...prev,
                 status: 'connected',
@@ -118,6 +122,7 @@ export function useGame(match: MatchRow | null) {
                 errorMessage: null
               }))
             } else if (message.type === 'BOTH_CONNECTED') {
+              console.log('[useGame] BOTH_CONNECTED message received')
               setState(prev => ({
                 ...prev,
                 status: 'both_connected',
@@ -131,10 +136,10 @@ export function useGame(match: MatchRow | null) {
                 errorMessage: message.message
               }))
             } else {
-              console.warn('[useGame] Unknown message type:', message.type)
+              console.warn('[useGame] Unknown message type:', message.type, message)
             }
           } catch (error) {
-            console.error('[useGame] Error parsing message:', error)
+            console.error('[useGame] Error parsing message:', error, event.data)
             setState(prev => ({
               ...prev,
               status: 'error',

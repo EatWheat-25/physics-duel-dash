@@ -177,10 +177,12 @@ Deno.serve(async (req) => {
 
   socket.onmessage = async (event) => {
     try {
+      console.log(`[${matchId}] 📨 Raw message received:`, event.data)
       const message = JSON.parse(event.data)
-      console.log(`[${matchId}] 📨 Received message:`, message.type)
+      console.log(`[${matchId}] 📨 Parsed message:`, message)
 
       if (message.type === 'JOIN_MATCH') {
+        console.log(`[${matchId}] Processing JOIN_MATCH from user ${user.id}`)
         await handleJoinMatch(matchId, user.id, socket, supabase)
       } else {
         console.warn(`[${matchId}] Unknown message type: ${message.type}`)
@@ -190,7 +192,7 @@ Deno.serve(async (req) => {
         } as GameErrorEvent))
       }
     } catch (error) {
-      console.error(`[${matchId}] Error handling message:`, error)
+      console.error(`[${matchId}] Error handling message:`, error, event.data)
       socket.send(JSON.stringify({
         type: 'GAME_ERROR',
         message: 'Error processing message'
