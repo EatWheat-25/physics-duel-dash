@@ -173,6 +173,11 @@ Deno.serve(async (req) => {
 
   socket.onopen = () => {
     console.log(`[${matchId}] WebSocket opened for user ${user.id}`)
+    // Send initial connection confirmation (client will send JOIN_MATCH after this)
+    socket.send(JSON.stringify({
+      type: 'connected',
+      message: 'WebSocket connection established'
+    }))
   }
 
   socket.onmessage = async (event) => {
