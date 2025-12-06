@@ -27,9 +27,60 @@ interface BothConnectedEvent {
   matchId: string
 }
 
+interface QuestionReceivedEvent {
+  type: 'QUESTION_RECEIVED'
+  question: any
+}
+
 // Track connected players per match
 const connectedPlayers = new Map<string, Set<string>>() // matchId -> Set<playerId>
 const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
+
+/**
+ * Fetch random True/False question from questions_v2
+ * Filters by step data (2 options = True/False pattern)
+ */
+async function fetchRandomQuestion(
+  supabase: ReturnType<typeof createClient>
+): Promise<any | null> {
+  // Query questions_v2 ONLY (hard-enforced)
+  const { data, error } = await supabase
+    .from('questions_v2')
+    .select('*')
+    .limit(50)
+  
+  if (error || !data) {
+    console.error('[fetchRandomQuestion] Error fetching questions:', error)
+    return null
+  }
+  
+  // Filter for True/False questions by step data
+  const isTF = (q: any) => {
+    const firstStep = q?.steps?.[0]
+    if (!firstStep) return false
+    
+    // Check if type is 'true_false'
+    if (firstStep.type === 'true_false') return true
+    
+    // OR check if exactly 2 options (True/False pattern)
+    if (Array.isArray(firstStep.options) && firstStep.options.length === 2) {
+      return true
+    }
+    
+    return false
+  }
+  
+  const pool = (data ?? []).filter(isTF)
+  
+  if (pool.length === 0) {
+    console.warn('[fetchRandomQuestion] No True/False questions found')
+    return null
+  }
+  
+  const randomIndex = Math.floor(Math.random() * pool.length)
+  console.log(`[fetchRandomQuestion] Selected question ${randomIndex + 1}/${pool.length}`)
+  return pool[randomIndex]
+}
 
 /**
  * Handle JOIN_MATCH message
@@ -97,20 +148,107 @@ async function handleJoinMatch(
   if (bothConnected) {
     console.log(`[${matchId}] ✅ Both players connected!`)
     
-    // Broadcast to all sockets for this match
+    // 0. Early return check: if question already sent, bail immediately
+    // This saves pointless fetch + logs
+    if (match.question_id) {
+      console.log(`[${matchId}] Question already sent (question_id: ${match.question_id}), skipping`)
+      // Still send BOTH_CONNECTED event
+      const matchSockets = sockets.get(matchId)
+      if (matchSockets) {
+        const bothConnectedMessage: BothConnectedEvent = {
+          type: 'BOTH_CONNECTED',
+          matchId: matchId
+        }
+        matchSockets.forEach(s => {
+          if (s.readyState === WebSocket.OPEN) {
+            s.send(JSON.stringify(bothConnectedMessage))
+          }
+        })
+      }
+      return
+    }
+    
+    // 1. Fetch question
+    const question = await fetchRandomQuestion(supabase)
+    
+    if (!question) {
+      // Send error to both players
+      const errorMessage: GameErrorEvent = {
+        type: 'GAME_ERROR',
+        message: 'No True/False questions available'
+      }
+      const matchSockets = sockets.get(matchId)
+      if (matchSockets) {
+        matchSockets.forEach(s => {
+          if (s.readyState === WebSocket.OPEN) {
+            s.send(JSON.stringify(errorMessage))
+          }
+        })
+      }
+      return
+    }
+    
+    // 2. Claim send-rights with atomic conditional update
+    const { data: lock, error: lockErr } = await supabase
+      .from('matches')
+      .update({
+        question_sent_at: new Date().toISOString(),
+        question_id: question.id,
+      })
+      .eq('id', matchId)
+      .is('question_id', null)   // ATOMIC GUARD: only update if NULL
+      .select('id')
+      .maybeSingle()
+    
+    // 3. Only broadcast if we won the lock
+    if (!lock || lockErr) {
+      console.log(`[${matchId}] Question already claimed by another worker, skipping send`)
+      // Still send BOTH_CONNECTED event
+      const matchSockets = sockets.get(matchId)
+      if (matchSockets) {
+        const bothConnectedMessage: BothConnectedEvent = {
+          type: 'BOTH_CONNECTED',
+          matchId: matchId
+        }
+        matchSockets.forEach(s => {
+          if (s.readyState === WebSocket.OPEN) {
+            s.send(JSON.stringify(bothConnectedMessage))
+          }
+        })
+      }
+      return
+    }
+    
+    // 4. ✅ Only now broadcast (we successfully claimed)
+    const questionMessage: QuestionReceivedEvent = {
+      type: 'QUESTION_RECEIVED',
+      question: question
+    }
+    
     const matchSockets = sockets.get(matchId)
     if (matchSockets) {
-      const bothConnectedMessage: BothConnectedEvent = {
-        type: 'BOTH_CONNECTED',
-        matchId: matchId
-      }
+      matchSockets.forEach(s => {
+        if (s.readyState === WebSocket.OPEN) {
+          s.send(JSON.stringify(questionMessage))
+        }
+      })
+      console.log(`[${matchId}] 📤 Broadcasted QUESTION_RECEIVED to ${matchSockets.size} socket(s)`)
+    }
+    
+    // Also send BOTH_CONNECTED event
+    const bothConnectedMessage: BothConnectedEvent = {
+      type: 'BOTH_CONNECTED',
+      matchId: matchId
+    }
+    if (matchSockets) {
       matchSockets.forEach(s => {
         if (s.readyState === WebSocket.OPEN) {
           s.send(JSON.stringify(bothConnectedMessage))
         }
       })
-      console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED to ${matchSockets.size} socket(s)`)
     }
+    
+    console.log(`[${matchId}] ✅ Question ${question.id} sent to both players`)
   }
 }
 

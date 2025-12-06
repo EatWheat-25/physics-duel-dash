@@ -26,7 +26,7 @@ export default function DebugQuestions() {
     const checkDatabase = async () => {
       try {
         const { count, error } = await supabase
-          .from('questions')
+          .from('questions_v2')
           .select('*', { count: 'exact', head: true });
 
         if (error) {
