@@ -5,7 +5,6 @@ import { Loader2, Zap, ArrowLeft, BookOpen, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
 import { Starfield } from '@/components/Starfield';
-import { GameLoader } from '@/components/GameLoader';
 import { toast } from 'sonner';
 
 type Subject = 'physics' | 'math' | 'chemistry';
@@ -583,11 +582,11 @@ export default function LobbyNew() {
                   </motion.h1>
 
                   <motion.div
-                    className="mb-8 flex justify-center"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                    className="mb-8"
                   >
-                    <GameLoader text="searching" />
+                    <Loader2 className="w-20 h-20 mx-auto text-blue-400 drop-shadow-[0_0_20px_rgba(96,165,250,0.8)]" />
                   </motion.div>
 
                   <motion.p 

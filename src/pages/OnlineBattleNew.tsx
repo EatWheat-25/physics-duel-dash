@@ -2,13 +2,9 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Trophy, Users } from 'lucide-react';
+import { Loader2, Trophy, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMatchFlow } from '@/hooks/useMatchFlow';
-import { CircularTimer } from '@/components/CircularTimer';
-import { GameLoader } from '@/components/GameLoader';
-import { RoundTransition } from '@/components/RoundTransition';
-import '@/styles/match-battle.css';
 
 /**
  * OnlineBattleNew - Stage 2.5 Runtime Flow
@@ -22,8 +18,6 @@ export default function OnlineBattleNew() {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [player1Name, setPlayer1Name] = useState<string>('Player 1');
-  const [player2Name, setPlayer2Name] = useState<string>('Player 2');
 
   // Use match flow hook
   const {
@@ -44,12 +38,7 @@ export default function OnlineBattleNew() {
     submitStepAnswer,
     // Thinking phase state
     isThinkingPhase,
-    thinkingTimeLeft,
-    skipThinkingPhase,
-    // Round transition state
-    isShowingRoundTransition,
-    // Server-driven phase
-    phase
+    thinkingTimeLeft
   } = useMatchFlow(matchId || null);
 
   // Get current user
@@ -62,40 +51,6 @@ export default function OnlineBattleNew() {
     };
     getUser();
   }, []);
-
-  // Fetch player names when match loads
-  useEffect(() => {
-    const fetchPlayerNames = async () => {
-      if (!match) return;
-
-      try {
-        // Fetch both player profiles
-        const [player1Profile, player2Profile] = await Promise.all([
-          supabase
-            .from('profiles')
-            .select('username')
-            .eq('id', match.player1_id)
-            .maybeSingle(),
-          supabase
-            .from('profiles')
-            .select('username')
-            .eq('id', match.player2_id)
-            .maybeSingle()
-        ]);
-
-        if (player1Profile.data?.username) {
-          setPlayer1Name(player1Profile.data.username);
-        }
-        if (player2Profile.data?.username) {
-          setPlayer2Name(player2Profile.data.username);
-        }
-      } catch (error) {
-        console.error('Error fetching player names:', error);
-      }
-    };
-
-    fetchPlayerNames();
-  }, [match]);
 
   // Verify user is part of match
   useEffect(() => {
@@ -123,39 +78,51 @@ export default function OnlineBattleNew() {
     opponentScore: number; 
     targetPoints: number 
   }) => {
-    const totalScore = playerScore + opponentScore
-    const playerPercentage = totalScore > 0 ? (playerScore / totalScore) * 100 : 50
+    const playerPercentage = (playerScore / targetPoints) * 100
+    const opponentPercentage = (opponentScore / targetPoints) * 100
     const isPlayerWinning = playerScore > opponentScore
     const isDraw = playerScore === opponentScore
     
-    // Clamp percentage to 0-100
+    // Clamp percentages to 0-100
     const clampedPlayer = Math.min(100, Math.max(0, playerPercentage))
+    const clampedOpponent = Math.min(100, Math.max(0, opponentPercentage))
     
     return (
-      <div className="tug-of-war mb-6">
+      <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold" style={{ color: '#06b6d4' }}>
-            {isPlayer1 ? player1Name : player2Name}: {playerScore}
-          </span>
+          <span className="text-sm font-semibold text-blue-400">You: {playerScore}</span>
           <span className="text-xs text-slate-400">Target: {targetPoints}</span>
-          <span className="text-sm font-semibold text-white">
-            {isPlayer1 ? player2Name : player1Name}: {opponentScore}
-          </span>
+          <span className="text-sm font-semibold text-white">Opponent: {opponentScore}</span>
         </div>
-        <div className="tug-bar">
+        <div className="relative h-6 bg-slate-700 rounded-full overflow-hidden border-2 border-slate-600">
+          {/* Player side (left, blue) */}
           <div 
-            className="tug-progress"
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 ease-out"
             style={{ width: `${clampedPlayer}%` }}
           />
+          {/* Center divider */}
+          <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/50 transform -translate-x-1/2 z-10" />
+          {/* Opponent side (right, grey/red) */}
+          <div 
+            className="absolute right-0 top-0 h-full bg-gradient-to-l from-slate-500 to-slate-600 transition-all duration-500 ease-out"
+            style={{ width: `${clampedOpponent}%` }}
+          />
+          {/* Winning indicator */}
+          {isPlayerWinning && clampedPlayer >= 50 && (
+            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-blue-400 transform -translate-x-1/2 z-20 animate-pulse" />
+          )}
+          {!isPlayerWinning && !isDraw && clampedOpponent >= 50 && (
+            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-red-400 transform -translate-x-1/2 z-20 animate-pulse" />
+          )}
         </div>
         {/* Score difference indicator */}
         <div className="text-center mt-1">
           {isDraw ? (
             <span className="text-xs text-slate-400">Tied</span>
           ) : isPlayerWinning ? (
-            <span className="text-xs" style={{ color: '#06b6d4' }}>+{playerScore - opponentScore} ahead</span>
+            <span className="text-xs text-blue-400">+{playerScore - opponentScore} ahead</span>
           ) : (
-            <span className="text-xs" style={{ color: '#ec4899' }}>-{opponentScore - playerScore} behind</span>
+            <span className="text-xs text-red-400">-{opponentScore - playerScore} behind</span>
           )}
         </div>
       </div>
@@ -175,7 +142,8 @@ export default function OnlineBattleNew() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <GameLoader text="loading match" />
+          <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto" />
+          <h2 className="text-2xl font-bold text-white">Loading match...</h2>
         </div>
       </div>
     );
@@ -186,7 +154,8 @@ export default function OnlineBattleNew() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <GameLoader text="connecting" />
+          <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto" />
+          <h2 className="text-2xl font-bold text-white">Connecting to battle...</h2>
         </div>
       </div>
     );
@@ -247,26 +216,8 @@ export default function OnlineBattleNew() {
     );
   }
 
-  // 4. Round transition overlay (priority - shows before active round)
-  if (roundResult && isShowingRoundTransition && match && currentUser) {
-    const totalPossiblePoints = 
-      currentQuestion?.steps?.reduce((sum, step) => sum + (step.marks ?? 1), 0) ?? 4
-
-    return (
-      <RoundTransition
-        roundResult={roundResult}
-        currentUserId={currentUser}
-        player1Id={match.player1_id}
-        player2Id={match.player2_id}
-        player1Name={player1Name}
-        player2Name={player2Name}
-        totalPossiblePoints={totalPossiblePoints}
-      />
-    )
-  }
-
-  // 5. Round result banner (show as banner, not full screen - only when not in transition)
-  const roundResultBanner = roundResult && currentRound && !isMatchFinished && !isShowingRoundTransition ? (() => {
+  // 4. Round result banner (show as banner, not full screen)
+  const roundResultBanner = roundResult && currentRound && !isMatchFinished ? (() => {
     const roundWon = roundResult.roundWinnerId === currentUser;
     const isDraw = !roundResult.roundWinnerId;
     
@@ -280,22 +231,19 @@ export default function OnlineBattleNew() {
     }
     
     return (
-      <div className="round-result mb-4">
-        <div className="result-icon">🎉</div>
-        <div className={`result-text ${roundWon ? 'win' : isDraw ? '' : 'lose'}`}>{bannerText}</div>
+      <div className="mb-4 p-4 bg-blue-500/20 border-2 border-blue-400 rounded-lg text-center">
+        <p className="text-lg font-bold text-white">{bannerText}</p>
         <p className="text-sm text-slate-300 mt-1">Next round starting soon...</p>
       </div>
     );
   })() : null;
 
-  // 6. Waiting for opponent state (server-driven)
-  if (phase === 'waiting' && currentRound) {
+  // 5. Waiting for opponent state
+  if (hasSubmitted && !roundResult && currentRound) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-8">
         <div className="max-w-2xl w-full bg-slate-800/90 backdrop-blur-lg rounded-xl p-8 border-2 border-slate-600 text-center space-y-6">
-          <div className="flex justify-center">
-            <GameLoader text="waiting" />
-          </div>
+          <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto" />
           <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
           <p className="text-slate-300">Your answer has been submitted. Waiting for your opponent to answer.</p>
         </div>
@@ -303,7 +251,7 @@ export default function OnlineBattleNew() {
     );
   }
 
-  // 7. Active round with question
+  // 6. Active round with question
   if (currentQuestion && currentRound) {
     // Check if in thinking phase
     const isInThinkingPhase = isThinkingPhase || currentStepIndex === -1
@@ -317,34 +265,22 @@ export default function OnlineBattleNew() {
       : null
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white px-4 py-8" style={{ background: 'linear-gradient(125deg, #0a0e27 0%, #0f1535 25%, #141b3d 50%, #1a2350 75%, #0d1229 100%)' }}>
-        <div className="max-w-4xl mx-auto">
-          {/* Match Header */}
-          <div className="match-header mb-6">
-            <div className="round-info">
-              <span className="round-badge">⚔️ ROUND {currentRound.roundNumber} / {(match as any)?.max_rounds || 3}</span>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white px-4 py-8">
+        {/* Top: Match info + scores */}
+        <div className="max-w-4xl mx-auto mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <p className="text-sm text-slate-400">Round {currentRound.roundNumber} / {(match as any)?.max_rounds || 3}</p>
             </div>
-            <div className="match-timer">
-              <span>⏱️</span>
-              <span>{phase === 'thinking' ? 'THINKING' : phase === 'waiting' ? 'WAITING' : phase === 'step' ? 'ANSWERING' : isInThinkingPhase ? 'THINKING' : allStepsDone ? 'WAITING' : 'ANSWERING'}</span>
-            </div>
-          </div>
-
-          {/* Players Section */}
-          <div className="players-section mb-6">
-            <div className="player-card you">
-              <div className="player-avatar">👤</div>
-              <div className="player-info">
-                <h3>{isPlayer1 ? player1Name : player2Name}</h3>
-                <div className="player-score">{playerScore}</div>
+            <div className="flex items-center gap-4">
+              <div className="text-center">
+                <p className="text-xs text-slate-400">You</p>
+                <p className="text-2xl font-bold text-blue-400">{playerScore}</p>
               </div>
-            </div>
-            <div className="vs-badge">VS</div>
-            <div className="player-card opponent">
-              <div className="player-avatar">🤖</div>
-              <div className="player-info">
-                <h3>{isPlayer1 ? player2Name : player1Name}</h3>
-                <div className="player-score">{opponentScore}</div>
+              <Users className="w-5 h-5 text-slate-400" />
+              <div className="text-center">
+                <p className="text-xs text-slate-400">Opponent</p>
+                <p className="text-2xl font-bold text-white">{opponentScore}</p>
               </div>
             </div>
           </div>
@@ -358,140 +294,113 @@ export default function OnlineBattleNew() {
 
           {/* Round result banner */}
           {roundResultBanner}
+        </div>
 
-          {/* Question Card */}
-          <div className="question-section">
-            <div className="question-card">
-              <div className="question-header">
-                <span className="question-number">Question <span>{currentRound.roundNumber}</span></span>
-                {!isInThinkingPhase && !allStepsDone && stepTimeLeft !== null && (
-                  <CircularTimer timeLeft={stepTimeLeft} totalTime={15} />
-                )}
-                {isInThinkingPhase && thinkingTimeLeft !== null && (
-                  <CircularTimer timeLeft={thinkingTimeLeft} totalTime={60} />
-                )}
+        {/* Main question stem - ALWAYS VISIBLE, directly on background */}
+        <div className="max-w-4xl mx-auto mb-8">
+          <h1 className="text-3xl font-bold text-white text-center">
+            {currentQuestion.stem || currentQuestion.text || 'Question'}
+          </h1>
+        </div>
+
+        {/* Step content - directly on background */}
+        <div className="max-w-4xl mx-auto">
+          {isInThinkingPhase ? (
+            // Thinking phase - only show timer
+            <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
+              <div className={`px-8 py-4 rounded-full font-bold text-4xl ${
+                (thinkingTimeLeft || 0) <= 10 
+                  ? 'bg-red-500/20 text-red-400 border-4 border-red-400' 
+                  : 'bg-blue-500/20 text-blue-400 border-4 border-blue-400'
+              }`}>
+                {thinkingTimeLeft || 0}s
+              </div>
+              <h2 className="text-2xl font-semibold text-white">Read the question carefully...</h2>
+              <p className="text-slate-300 text-center max-w-md">
+                Think about your approach. The steps will appear once the timer runs out.
+              </p>
+            </div>
+          ) : allStepsDone ? (
+            // All steps done - waiting for opponent
+            <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
+              <Loader2 className="w-16 h-16 animate-spin text-blue-400" />
+              <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
+              <p className="text-slate-300">You've completed all steps. Waiting for your opponent to finish.</p>
+            </div>
+          ) : currentStep ? (
+            // Current step with options
+            <div>
+              {/* Step header with timer */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-white">
+                    {currentStep.title || `Step ${currentStepIndex + 1}`}
+                  </h2>
+                  {stepTimeLeft !== null && (
+                    <div className={`px-4 py-2 rounded-full font-bold text-lg ${
+                      stepTimeLeft <= 5 
+                        ? 'bg-red-500/20 text-red-400 border-2 border-red-400' 
+                        : 'bg-blue-500/20 text-blue-400 border-2 border-blue-400'
+                    }`}>
+                      {stepTimeLeft}s
+                    </div>
+                  )}
+                </div>
+                <p className="text-lg text-slate-200">{currentStep.prompt}</p>
               </div>
 
-              {/* Step Indicator */}
-              {!isInThinkingPhase && currentQuestion.steps && currentQuestion.steps.length > 0 && (
-                <div className="step-indicator">
-                  {currentQuestion.steps.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`step-dot ${
-                        index < currentStepIndex ? 'completed' : 
-                        index === currentStepIndex ? 'active' : ''
-                      }`}
-                    />
-                  ))}
+              {/* Step options */}
+              {currentStep.options && Array.isArray(currentStep.options) && currentStep.options.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  {currentStep.options.map((optText: string, optIndex: number) => {
+                    if (!optText || optText.trim() === '') {
+                      return null
+                    }
+                    
+                    const isSelected = playerAnswers.get(currentStep.index) === optIndex
+                    return (
+                      <button
+                        key={optIndex}
+                        onClick={() => submitStepAnswer(currentStep.index, optIndex)}
+                        disabled={hasAnsweredCurrentStep}
+                        className={`rounded-lg border-2 px-4 py-3 text-left text-sm transition-all ${
+                          isSelected
+                            ? 'border-blue-400 bg-blue-500/20 text-white'
+                            : 'border-slate-600 bg-slate-700/50 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                        } ${hasAnsweredCurrentStep ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        {optText}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
+                  <p className="text-red-400 text-sm">No options available for this step.</p>
                 </div>
               )}
 
-              {/* Question Content */}
-              <div className="question-content">
-                <div className="question-stem">
-                  {currentQuestion.stem || currentQuestion.text || 'Question'}
-                </div>
-
-                {isInThinkingPhase ? (
-                  // Thinking phase
-                  <div className="flex flex-col items-center justify-center min-h-[300px] space-y-6">
-                    <h2 className="text-2xl font-semibold text-white">Read the question carefully...</h2>
-                    <p className="text-slate-300 text-center max-w-md">
-                      Think about your approach. The steps will appear once the timer runs out.
-                    </p>
-                    <button
-                      onClick={skipThinkingPhase}
-                      className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 active:scale-95"
-                    >
-                      Start Answering Early
-                    </button>
-                  </div>
-                ) : (allStepsDone || phase === 'waiting') ? (
-                  // All steps done - waiting for opponent (server-driven)
-                  <div className="flex flex-col items-center justify-center min-h-[300px] space-y-6">
-                    <div className="flex justify-center">
-                      <GameLoader text="waiting" />
-                    </div>
-                    <h2 className="text-3xl font-bold text-white">Waiting for opponent...</h2>
-                    <p className="text-slate-300">You've completed all steps. Waiting for your opponent to finish.</p>
-                  </div>
-                ) : currentStep ? (
-                  // Current step with options
-                  <>
-                    <div className="step-prompt">
-                      {currentStep.prompt}
-                    </div>
-
-                    {/* Answer Options */}
-                    {currentStep.options && Array.isArray(currentStep.options) && currentStep.options.length > 0 ? (
-                      <div className="answer-options">
-                        {currentStep.options.map((optText: string, optIndex: number) => {
-                          if (!optText || optText.trim() === '') {
-                            return null
-                          }
-                          
-                          const roundLocked = !!roundResult || isMatchFinished || isShowingRoundTransition
-                          const isSelected = playerAnswers.get(currentStep.index) === optIndex
-                          return (
-                            <button
-                              key={optIndex}
-                              onClick={() => {
-                                if (!roundLocked) submitStepAnswer(currentStep.index, optIndex)
-                              }}
-                              disabled={hasAnsweredCurrentStep || roundLocked}
-                              className={`answer-option ${isSelected ? 'selected' : ''} ${hasAnsweredCurrentStep || roundLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                              {optText}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg">
-                        <p className="text-red-400 text-sm">No options available for this step.</p>
-                      </div>
-                    )}
-
-                    {/* Step progress indicator */}
-                    <div className="text-center text-sm text-slate-400 mt-4">
-                      Step {currentStepIndex + 1} of {currentQuestion.steps.length}
-                    </div>
-                  </>
-                ) : (
-                  // No step available
-                  <div className="flex items-center justify-center min-h-[300px]">
-                    <GameLoader text="loading" />
-                  </div>
-                )}
+              {/* Step progress indicator */}
+              <div className="text-center text-sm text-slate-400">
+                Step {currentStepIndex + 1} of {currentQuestion.steps.length}
               </div>
             </div>
-          </div>
+          ) : (
+            // No step available
+            <div className="flex items-center justify-center min-h-[400px]">
+              <Loader2 className="w-12 h-12 animate-spin text-blue-400" />
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-  // 8. Default: Waiting for battle to start
-  // This should only appear if we're connected with a match but haven't received ROUND_STATE yet
-  // Show a more specific message to help debug
-  if (isConnected && match && !currentQuestion && !currentRound) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <GameLoader text="connecting" />
-          <h2 className="text-2xl font-bold text-white">Synchronizing round state...</h2>
-          <p className="text-slate-300 text-sm">Waiting for server to send round information.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Fallback: Should rarely reach here
+  // 7. Default: Waiting for battle to start
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
       <div className="text-center space-y-4">
-        <GameLoader text="starting" />
+        <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto" />
         <h2 className="text-2xl font-bold text-white">Waiting for battle to start…</h2>
       </div>
     </div>
