@@ -1,12 +1,12 @@
 -- ========================================
--- Evaluate Round RPC
--- 
--- Evaluates a round, updates match scores, and checks win conditions.
--- Uses concurrency guard to prevent double-evaluation.
--- Called by the service role WebSocket function (no p_player_id).
--- 
--- TODO: Detailed scoring / round winner logic will be implemented later.
--- Currently uses placeholder rule: higher score wins, or draw if equal.
+-- Stage 2: Fix Scoring Logic - Update evaluate_round
+-- ========================================
+-- This migration updates evaluate_round to include total match scores in the response
+-- Stage 2: Adds player1_total_score and player2_total_score to the return value
+-- Run this SQL directly in Supabase SQL Editor or apply as migration
+
+-- ========================================
+-- Update evaluate_round to include total scores
 -- ========================================
 
 CREATE OR REPLACE FUNCTION public.evaluate_round(
@@ -48,6 +48,8 @@ BEGIN
       'round_winner_id', NULL,
       'player1_round_score', COALESCE(v_round.player1_round_score, 0),
       'player2_round_score', COALESCE(v_round.player2_round_score, 0),
+      'player1_total_score', COALESCE(v_match.player1_score, 0),
+      'player2_total_score', COALESCE(v_match.player2_score, 0),
       'match_continues', (v_match.status = 'in_progress'),
       'match_winner_id', v_match.winner_id
     );
@@ -63,9 +65,8 @@ BEGIN
     RAISE EXCEPTION 'Match not found: %', p_match_id;
   END IF;
   
-  -- Read player1_round_score, player2_round_score (assume already computed by submit_round_answer)
-  -- TODO: Implement detailed round winner logic here
-  -- For now, placeholder rule: higher score wins, or draw if equal
+  -- Read player1_round_score, player2_round_score (should be calculated by submit_round_answer)
+  -- Determine round winner (nullable, because draw possible)
   IF COALESCE(v_round.player1_round_score, 0) > COALESCE(v_round.player2_round_score, 0) THEN
     v_round_winner_id := v_match.player1_id;
   ELSIF COALESCE(v_round.player2_round_score, 0) > COALESCE(v_round.player1_round_score, 0) THEN
@@ -102,17 +103,19 @@ BEGIN
   SET status = 'finished'
   WHERE id = p_round_id;
   
-  -- Return result
+  -- Return result with round scores and updated total match scores
   RETURN jsonb_build_object(
     'round_winner_id', v_round_winner_id,
     'player1_round_score', COALESCE(v_round.player1_round_score, 0),
     'player2_round_score', COALESCE(v_round.player2_round_score, 0),
+    'player1_total_score', v_match.player1_score,
+    'player2_total_score', v_match.player2_score,
     'match_continues', v_match_continues,
     'match_winner_id', v_match_winner_id
   );
 END;
 $$;
 
--- Grant execute permission to authenticated users (called via service role in practice)
+-- Grant execute permissions
 GRANT EXECUTE ON FUNCTION public.evaluate_round(UUID, UUID) TO authenticated;
 

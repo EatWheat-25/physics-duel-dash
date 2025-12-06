@@ -72,6 +72,7 @@ export function useMatchFlow(matchId: string | null) {
   const roundResultTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const stepTimerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const stepAnswersRef = useRef<Map<number, number>>(new Map()) // Track which steps we've answered
+  const isSubmittingRoundRef = useRef<boolean>(false) // Prevent duplicate round submissions
   const startStepRef = useRef<((stepIndex: number, durationSeconds: number) => void) | null>(null)
   const startThinkingPhaseRef = useRef<((durationSeconds: number) => void) | null>(null)
   const thinkingPhaseStartTimeRef = useRef<number | null>(null) // Start time for thinking phase
@@ -86,6 +87,7 @@ export function useMatchFlow(matchId: string | null) {
   const isShowingRoundTransitionRef = useRef(false)
   const isMatchFinishedRef = useRef(false)
   const finishRoundTransitionRef = useRef<(() => void) | null>(null)
+  const submitRoundAnswerRef = useRef<(() => void) | null>(null)
   // Queue ROUND_STATE if it arrives before match is ready
   const pendingRoundStateRef = useRef<any | null>(null)
 
@@ -143,6 +145,7 @@ export function useMatchFlow(matchId: string | null) {
     stepAnswersRef.current.clear()
     thinkingPhaseStartTimeRef.current = null
     stepStartTimeRef.current = null
+    isSubmittingRoundRef.current = false // Reset submission flag
 
     // Set transition ref
     isTransitioningRef.current = true
@@ -401,6 +404,7 @@ export function useMatchFlow(matchId: string | null) {
 
     // Clear step answers
     stepAnswersRef.current.clear()
+    isSubmittingRoundRef.current = false // Reset submission flag for new round
 
     try {
       const question = mapRawToQuestion(message.question)
@@ -479,6 +483,11 @@ export function useMatchFlow(matchId: string | null) {
   useEffect(() => {
     finishRoundTransitionRef.current = finishRoundTransition
   }, [finishRoundTransition])
+
+  // Sync submitRoundAnswer to ref (allows submitStepAnswer to call it)
+  useEffect(() => {
+    submitRoundAnswerRef.current = submitRoundAnswer
+  }, [submitRoundAnswer])
 
   // Handle ROUND_STATE - authoritative server state
   // Defined early to avoid TDZ issues with useEffect below
@@ -1070,6 +1079,9 @@ export function useMatchFlow(matchId: string | null) {
   }, [startThinkingPhase])
 
   // Submit answer for current step
+  // Collect step answer (Option B: batch submission)
+  // This function only collects answers in state - does NOT submit to server
+  // submitRoundAnswer() will be called automatically when all steps are complete
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number | null) => {
     // Hard guards: use refs to avoid stale closures
     if (roundResultRef.current || isShowingRoundTransitionRef.current || isMatchFinishedRef.current) {
@@ -1116,7 +1128,7 @@ export function useMatchFlow(matchId: string | null) {
         return prev
       }
 
-      // Mark as answered
+      // Mark as answered in ref (for idempotency)
       stepAnswersRef.current.set(stepKey, answerIndex ?? -1)
 
       // Stop timer
@@ -1128,38 +1140,38 @@ export function useMatchFlow(matchId: string | null) {
       // Clear step start time
       stepStartTimeRef.current = null
 
-      // Build payload with just this step
-      const payload = {
-        version: 1,
-        steps: [{
-          step_index: stepIndex,
-          answer_index: answerIndex ?? -1, // -1 means no answer / wrong
-          response_time_ms: prev.responseTimes.get(stepIndex) || 0
-        }]
-      }
-
-      // Send via existing WebSocket flow
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        const message = {
-          type: 'SUBMIT_ROUND_ANSWER',
-          matchId,
-          roundId: prev.currentRound!.id,
-          payload
-        }
-        console.log('[useMatchFlow] Submitting step answer:', {
-          roundId: prev.currentRound!.id,
-          stepIndex,
-          answerIndex,
-          stepKey,
-          message
-        })
-        wsRef.current.send(JSON.stringify(message))
-      }
-
-      // Update state
+      // Update state with answer (collect, don't submit yet)
       const newAnswers = new Map(prev.playerAnswers)
       if (answerIndex !== null) {
         newAnswers.set(stepIndex, answerIndex)
+      }
+
+      const totalSteps = prev.currentQuestion?.steps?.length || 0
+      const answeredSteps = newAnswers.size
+      const allStepsAnswered = totalSteps > 0 && answeredSteps >= totalSteps
+
+      console.log('[useMatchFlow] Step answer collected:', {
+        stepIndex,
+        answerIndex,
+        answeredSteps,
+        totalSteps,
+        allStepsAnswered
+      })
+
+      // If all steps are answered, automatically submit the round
+      if (allStepsAnswered && !prev.hasSubmitted && !isSubmittingRoundRef.current) {
+        console.log('[useMatchFlow] All steps answered, will auto-submit round')
+        isSubmittingRoundRef.current = true // Prevent duplicate submissions
+        // Use setTimeout to avoid state update during render
+        setTimeout(() => {
+          if (submitRoundAnswerRef.current) {
+            submitRoundAnswerRef.current()
+          }
+          // Reset flag after a delay (in case submission fails)
+          setTimeout(() => {
+            isSubmittingRoundRef.current = false
+          }, 2000)
+        }, 0)
       }
 
       return {
@@ -1169,11 +1181,7 @@ export function useMatchFlow(matchId: string | null) {
         stepTimeLeft: null
       }
     })
-
-    // DO NOT auto-advance - wait for ROUND_STATE from server
-    // The server will send ROUND_STATE with updated currentStepIndex after processing the answer
-    console.log('[useMatchFlow] Step answer submitted, waiting for ROUND_STATE from server')
-  }, [matchId, state.currentRound, state.currentQuestion, startStep])
+  }, [matchId, state.currentRound, state.currentQuestion])
 
   // Submit round answer
   const submitRoundAnswer = useCallback(() => {

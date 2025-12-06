@@ -1,9 +1,12 @@
 -- ========================================
--- Make submit_round_answer RPC Idempotent
--- 
--- Instead of raising an exception when a player has already answered,
--- return the existing result with already_answered: true flag.
--- This makes duplicate submissions safe and prevents GAME_ERROR messages.
+-- Stage 1: Fix Scoring Logic - Update submit_round_answer
+-- ========================================
+-- This migration fixes the scoring bug where scores were always 0-0
+-- Stage 1: Updates submit_round_answer to calculate actual scores based on step correctness
+-- Run this SQL directly in Supabase SQL Editor or apply as migration
+
+-- ========================================
+-- Update submit_round_answer to calculate actual scores
 -- ========================================
 
 CREATE OR REPLACE FUNCTION public.submit_round_answer(
@@ -71,24 +74,14 @@ BEGIN
   -- Determine if player is player1
   v_is_player1 := (p_player_id = v_match.player1_id);
   
-  -- IDEMPOTENT: If player already answered, return existing result instead of raising exception
+  -- Verify player has not already answered this round
   IF v_is_player1 THEN
     IF v_round.player1_answered_at IS NOT NULL THEN
-      -- Return existing result idempotently
-      RETURN jsonb_build_object(
-        'round_score', COALESCE(v_round.player1_round_score, 0),
-        'step_results', COALESCE(v_round.player1_answer_payload->'steps', '[]'::jsonb),
-        'already_answered', true
-      );
+      RAISE EXCEPTION 'Player1 has already answered this round';
     END IF;
   ELSE
     IF v_round.player2_answered_at IS NOT NULL THEN
-      -- Return existing result idempotently
-      RETURN jsonb_build_object(
-        'round_score', COALESCE(v_round.player2_round_score, 0),
-        'step_results', COALESCE(v_round.player2_answer_payload->'steps', '[]'::jsonb),
-        'already_answered', true
-      );
+      RAISE EXCEPTION 'Player2 has already answered this round';
     END IF;
   END IF;
   
@@ -120,7 +113,6 @@ BEGIN
     WHERE qs.question_id = v_question.id;
   ELSE
     -- Normalize steps JSONB to ensure consistent field names
-    -- Map existing steps to have both 'index' and 'step_index', and 'correctAnswer'
     SELECT jsonb_agg(
       jsonb_build_object(
         'index', COALESCE((step->>'index')::int, (step->>'step_index')::int, ordinality - 1),
@@ -159,7 +151,11 @@ BEGIN
       COALESCE(
         (step->>'correctAnswer')::int,
         (step->>'correct_answer')::int,
-        ((step->'correct_answer')->>'correctIndex')::int
+        CASE 
+          WHEN jsonb_typeof(step->'correct_answer') = 'object' 
+          THEN ((step->'correct_answer')->>'correctIndex')::int
+          ELSE NULL
+        END
       ),
       COALESCE((step->>'marks')::int, 1)
     INTO v_correct_answer, v_step_marks
@@ -214,9 +210,11 @@ BEGIN
   -- Return response with round_score and step_results
   RETURN jsonb_build_object(
     'round_score', v_round_score,
-    'step_results', v_step_results,
-    'already_answered', false
+    'step_results', v_step_results
   );
 END;
 $$;
+
+-- Grant execute permissions
+GRANT EXECUTE ON FUNCTION public.submit_round_answer(UUID, UUID, UUID, JSONB) TO authenticated;
 

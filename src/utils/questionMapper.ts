@@ -43,49 +43,16 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
   }
 
   const steps: QuestionStep[] = rawSteps.map((s: any, fallbackIndex: number) => {
-    // Map step index: prefer step_index, then index, then fallbackIndex
-    const stepIndex = typeof s.step_index === 'number' 
-      ? s.step_index 
-      : (typeof s.index === 'number' ? s.index : fallbackIndex);
-    
-    // Handle options: can be string[] or { answer_index, text }[]
-    let optionsArray: string[] = [];
-    if (Array.isArray(s.options) && s.options.length > 0) {
-      const firstOpt = s.options[0];
-      // Check if first element is an object with 'text' property (not null, not array)
-      if (typeof firstOpt === 'object' && firstOpt !== null && !Array.isArray(firstOpt) && ('text' in firstOpt || 'answer_text' in firstOpt)) {
-        // New format: [{ answer_index, text }] or [{ answer_index, answer_text }]
-        optionsArray = s.options
-          .map((opt: any) => {
-            if (typeof opt === 'object' && opt !== null) {
-              return String(opt.text || opt.answer_text || '');
-            }
-            return String(opt || '');
-          })
-          .filter((opt: string) => opt.trim() !== ''); // Remove empty strings
-      } else {
-        // Old format: [string, string, string, string] or mixed
-        optionsArray = s.options
-          .map((opt: any) => String(opt || ''))
-          .filter((opt: string) => opt.trim() !== ''); // Remove empty strings
-      }
-    }
-    
-    // Pad to exactly 4 options (fill with empty strings if needed)
-    while (optionsArray.length < 4) {
-      optionsArray.push('');
-    }
-    // Trim to 4 if more
-    optionsArray = optionsArray.slice(0, 4);
-    
     // Map all possible field name variations
     const step: QuestionStep = {
       id: String(s.id || s.step_id || `${id}-step-${fallbackIndex}`),
-      index: stepIndex,
+      index: typeof s.index === 'number' ? s.index : (typeof s.step_index === 'number' ? s.step_index : fallbackIndex),
       type: 'mcq' as const,
       title: String(s.title || ''),
       prompt: String(s.prompt || s.question || ''),
-      options: optionsArray as [string, string, string, string],
+      options: Array.isArray(s.options) && s.options.length === 4
+        ? (s.options as [string, string, string, string])
+        : ['', '', '', ''] as [string, string, string, string],
       correctAnswer: extractCorrectAnswer(s),
       timeLimitSeconds: s.timeLimitSeconds ?? s.time_limit_seconds ?? null,
       marks: Number(s.marks || 1),
@@ -114,7 +81,7 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
     level: (q.level as any) || 'A1',
     difficulty: (q.difficulty as any) || 'medium',
     rankTier: q.rankTier || q.rank_tier || undefined,
-    stem: String(q.stem || q.question_text || q.text || ''),
+    stem: String(q.stem || q.question_text || ''),
     totalMarks: Number(q.totalMarks || q.total_marks || steps.reduce((sum, s) => sum + s.marks, 0)),
     topicTags: Array.isArray(q.topicTags) ? q.topicTags : (Array.isArray(q.topic_tags) ? q.topic_tags : []),
     steps,
