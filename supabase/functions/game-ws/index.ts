@@ -27,75 +27,99 @@ interface BothConnectedEvent {
   matchId: string
 }
 
-// Track connected players per match
-const connectedPlayers = new Map<string, Set<string>>() // matchId -> Set<playerId>
+// Track sockets locally (for broadcasting) - each instance only tracks its own sockets
 const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 
 /**
+ * Check if both players are connected using DATABASE (works across instances)
+ * and broadcast BOTH_CONNECTED to all local sockets if so
+ */
+/**
  * Check if both players are connected and broadcast BOTH_CONNECTED if so
+ * @returns true if broadcast was successful, false otherwise
  */
 async function checkAndBroadcastBothConnected(
   matchId: string,
   match: any,
   supabase: ReturnType<typeof createClient>
-): Promise<void> {
-  const connectedSet = connectedPlayers.get(matchId)
-  if (!connectedSet) {
-    return
+): Promise<boolean> {
+  // Query database to check connection status (works across all instances!)
+  // IMPORTANT: We check RIGHT BEFORE broadcasting to catch disconnects
+  const { data: matchStatus, error: statusError } = await supabase
+    .from('matches')
+    .select('player1_connected_at, player2_connected_at')
+    .eq('id', matchId)
+    .single()
+
+  if (statusError || !matchStatus) {
+    console.error(`[${matchId}] ❌ Failed to query connection status:`, statusError)
+    return false
   }
 
-  const bothConnected = connectedSet.has(match.player1_id) && connectedSet.has(match.player2_id)
+  const player1Connected = matchStatus.player1_connected_at !== null
+  const player2Connected = matchStatus.player2_connected_at !== null
+  const bothConnected = player1Connected && player2Connected
   
-  console.log(`[${matchId}] Checking both connected status:`)
-  console.log(`  - Player1 (${match.player1_id}): ${connectedSet.has(match.player1_id) ? '✅' : '❌'}`)
-  console.log(`  - Player2 (${match.player2_id}): ${connectedSet.has(match.player2_id) ? '✅' : '❌'}`)
+  console.log(`[${matchId}] Checking both connected status (from database):`)
+  console.log(`  - Player1 (${match.player1_id}): ${player1Connected ? '✅ Connected' : '❌ Not connected'}`)
+  console.log(`  - Player2 (${match.player2_id}): ${player2Connected ? '✅ Connected' : '❌ Not connected'}`)
   console.log(`  - Both connected: ${bothConnected ? '✅ YES' : '❌ NO'}`)
 
-  if (bothConnected) {
-    console.log(`[${matchId}] ✅ Both players connected! Broadcasting BOTH_CONNECTED...`)
+  // If not both connected, return false immediately (don't broadcast)
+  if (!bothConnected) {
+    const connectedCount = (player1Connected ? 1 : 0) + (player2Connected ? 1 : 0)
+    console.log(`[${matchId}] ⏳ Waiting for both players - currently ${connectedCount}/2 connected`)
+    return false
+  }
+
+  // Both are connected - proceed with broadcast
+  console.log(`[${matchId}] ✅ Both players connected! Broadcasting BOTH_CONNECTED to local sockets...`)
+  
+  const matchSockets = sockets.get(matchId)
+  console.log(`[${matchId}] Local socket map has ${matchSockets?.size || 0} socket(s) for this match`)
+  
+  if (!matchSockets || matchSockets.size === 0) {
+    console.warn(`[${matchId}] ⚠️  No local sockets found for match (other instance may have the sockets)`)
+    // This is not a failure - the other instance will handle it
+    // Return true to prevent infinite retries
+    return true
+  }
+
+  const bothConnectedMessage: BothConnectedEvent = {
+    type: 'BOTH_CONNECTED',
+    matchId: matchId
+  }
+  let sentCount = 0
+  let skippedCount = 0
+  
+  matchSockets.forEach((s, index) => {
+    console.log(`[${matchId}] Socket ${index + 1}/${matchSockets.size} readyState: ${s.readyState} (OPEN=1, CONNECTING=0, CLOSING=2, CLOSED=3)`)
     
-    const matchSockets = sockets.get(matchId)
-    console.log(`[${matchId}] Socket map has ${matchSockets?.size || 0} socket(s) for this match`)
-    
-    if (matchSockets && matchSockets.size > 0) {
-      const bothConnectedMessage: BothConnectedEvent = {
-        type: 'BOTH_CONNECTED',
-        matchId: matchId
-      }
-      let sentCount = 0
-      let skippedCount = 0
-      
-      matchSockets.forEach((s, index) => {
-        console.log(`[${matchId}] Socket ${index + 1}/${matchSockets.size} readyState: ${s.readyState} (OPEN=1, CONNECTING=0, CLOSING=2, CLOSED=3)`)
-        
-        if (s.readyState === WebSocket.OPEN) {
-          try {
-            s.send(JSON.stringify(bothConnectedMessage))
-            sentCount++
-            console.log(`[${matchId}] ✅ Sent BOTH_CONNECTED to socket ${index + 1}`)
-          } catch (error) {
-            console.error(`[${matchId}] ❌ Error sending BOTH_CONNECTED to socket ${index + 1}:`, error)
-            skippedCount++
-          }
-        } else {
-          console.warn(`[${matchId}] ⚠️  Socket ${index + 1} not ready (readyState: ${s.readyState}), skipping`)
-          skippedCount++
-        }
-      })
-      
-      console.log(`[${matchId}] 📊 Broadcast summary: ${sentCount} sent, ${skippedCount} skipped, ${matchSockets.size} total`)
-      
-      if (sentCount === 0) {
-        console.error(`[${matchId}] ❌ WARNING: Failed to send BOTH_CONNECTED to any socket!`)
+    if (s.readyState === WebSocket.OPEN) {
+      try {
+        s.send(JSON.stringify(bothConnectedMessage))
+        sentCount++
+        console.log(`[${matchId}] ✅ Sent BOTH_CONNECTED to socket ${index + 1}`)
+      } catch (error) {
+        console.error(`[${matchId}] ❌ Error sending BOTH_CONNECTED to socket ${index + 1}:`, error)
+        skippedCount++
       }
     } else {
-      console.error(`[${matchId}] ❌ No sockets found for match!`)
-      console.error(`[${matchId}] Sockets map keys:`, Array.from(sockets.keys()))
-      console.error(`[${matchId}] Expected matchId: ${matchId}`)
+      console.warn(`[${matchId}] ⚠️  Socket ${index + 1} not ready (readyState: ${s.readyState}), skipping`)
+      skippedCount++
     }
-  } else {
-    console.log(`[${matchId}] ⏳ Waiting for both players - currently ${connectedSet.size} connected`)
+  })
+  
+  console.log(`[${matchId}] 📊 Broadcast summary: ${sentCount} sent, ${skippedCount} skipped, ${matchSockets.size} total`)
+  
+  // Return true only if we successfully sent to at least one socket
+  // This allows retries if broadcast completely failed
+  const success = sentCount > 0
+  if (!success) {
+    console.error(`[${matchId}] ❌ WARNING: Failed to send BOTH_CONNECTED to any socket! Will retry...`)
   }
+  
+  return success
 }
 
 /**
@@ -138,15 +162,29 @@ async function handleJoinMatch(
     return
   }
 
-  // 2. Track connected player
-  if (!connectedPlayers.has(matchId)) {
-    connectedPlayers.set(matchId, new Set())
-  }
-  connectedPlayers.get(matchId)!.add(playerId)
-
-  // 3. Determine if player is player1 or player2
+  // 2. Determine if player is player1 or player2
   const isPlayer1 = match.player1_id === playerId
   const playerRole = isPlayer1 ? 'player1' : 'player2'
+  const connectionColumn = isPlayer1 ? 'player1_connected_at' : 'player2_connected_at'
+
+  // 3. Update database to mark this player as connected (works across instances!)
+  const { error: updateError } = await supabase
+    .from('matches')
+    .update({
+      [connectionColumn]: new Date().toISOString()
+    })
+    .eq('id', matchId)
+
+  if (updateError) {
+    console.error(`[${matchId}] ❌ Failed to update connection status:`, updateError)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'Failed to register connection'
+    } as GameErrorEvent))
+    return
+  }
+
+  console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connection recorded in database`)
 
   // 4. Send connection confirmation
   socket.send(JSON.stringify({
@@ -155,19 +193,99 @@ async function handleJoinMatch(
     matchId: matchId
   } as ConnectedEvent))
 
-  console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected`)
-  
-  // Log current connection state for debugging
-  const currentConnectedSet = connectedPlayers.get(matchId)
-  console.log(`[${matchId}] Current connected players count: ${currentConnectedSet?.size || 0}`)
-  if (currentConnectedSet) {
-    console.log(`[${matchId}] Connected player IDs:`, Array.from(currentConnectedSet))
-  }
+  console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected and confirmed`)
 
-  // 5. Check if both players are connected and broadcast if so
-  // Add a small delay to ensure socket is fully ready
-  await new Promise(resolve => setTimeout(resolve, 100))
-  await checkAndBroadcastBothConnected(matchId, match, supabase)
+  // 5. Check if both players are connected (query database) and broadcast if so
+  // Add a small delay to ensure database update is committed
+  await new Promise(resolve => setTimeout(resolve, 200))
+  
+  // Track if we've already sent BOTH_CONNECTED
+  let bothConnectedSent = false
+  let checkInterval: number | null = null
+  
+  const checkConnection = async (): Promise<boolean> => {
+    if (bothConnectedSent) return true // Already sent
+    
+    // Query database for current connection status
+    const { data: matchStatus, error: statusError } = await supabase
+      .from('matches')
+      .select('player1_connected_at, player2_connected_at')
+      .eq('id', matchId)
+      .single()
+    
+    if (statusError || !matchStatus) {
+      return false
+    }
+    
+    if (matchStatus.player1_connected_at && matchStatus.player2_connected_at) {
+      // Both connected! Attempt to broadcast
+      // NOTE: checkAndBroadcastBothConnected will re-check the database
+      // right before broadcasting to catch any disconnects
+      const broadcastSuccess = await checkAndBroadcastBothConnected(matchId, match, supabase)
+      
+      // Only mark as sent and clear interval if broadcast was successful
+      if (broadcastSuccess) {
+        bothConnectedSent = true
+        
+        // Clear the interval since we've successfully broadcasted
+        if (checkInterval !== null) {
+          clearInterval(checkInterval)
+          checkInterval = null
+          console.log(`[${matchId}] Stopped periodic connection check - BOTH_CONNECTED successfully sent`)
+        }
+        return true
+      } else {
+        // Broadcast failed - keep flag false so we can retry
+        console.log(`[${matchId}] Broadcast failed, will retry on next check`)
+        return false
+      }
+    }
+    
+    return false
+  }
+  
+  // Initial check
+  const alreadyBothConnected = await checkConnection()
+  
+  // Set up periodic check only if not already both connected
+  // This handles the case where the other player connects to a different instance
+  if (!alreadyBothConnected) {
+    let checkCount = 0
+    const maxChecks = 20 // 20 checks × 500ms = 10 seconds max
+    
+    checkInterval = setInterval(async () => {
+      checkCount++
+      
+      // Stop if socket closed
+      if (socket.readyState !== WebSocket.OPEN) {
+        if (checkInterval !== null) {
+          clearInterval(checkInterval)
+          checkInterval = null
+        }
+        return
+      }
+      
+      // Stop after max checks
+      if (checkCount >= maxChecks) {
+        if (checkInterval !== null) {
+          clearInterval(checkInterval)
+          checkInterval = null
+        }
+        console.log(`[${matchId}] Stopped periodic connection check after ${maxChecks} attempts`)
+        return
+      }
+      
+      // Check connection - will stop interval if both connected
+      const connected = await checkConnection()
+      if (connected && checkInterval !== null) {
+        clearInterval(checkInterval)
+        checkInterval = null
+      }
+    }, 500) as unknown as number // Deno uses number for intervals
+
+    // Store interval ID on socket for cleanup
+    ;(socket as any)._checkInterval = checkInterval
+  }
 }
 
 Deno.serve(async (req) => {
@@ -235,12 +353,7 @@ Deno.serve(async (req) => {
       message: 'WebSocket connection established'
     }))
     
-    // Check if both players might already be connected (edge case)
-    // This will be handled properly in handleJoinMatch, but we log it here
-    const connectedSet = connectedPlayers.get(matchId)
-    if (connectedSet) {
-      console.log(`[${matchId}] Currently connected players: ${connectedSet.size}`)
-    }
+    // Connection tracking is now done via database, no need to check local state here
   }
 
   socket.onmessage = async (event) => {
@@ -268,19 +381,38 @@ Deno.serve(async (req) => {
     }
   }
 
-  socket.onclose = () => {
+  socket.onclose = async () => {
     console.log(`[${matchId}] WebSocket closed for user ${user.id}`)
     
-    // Remove from connected players
-    const connectedSet = connectedPlayers.get(matchId)
-    if (connectedSet) {
-      connectedSet.delete(user.id)
-      if (connectedSet.size === 0) {
-        connectedPlayers.delete(matchId)
-      }
+    // Clear periodic check interval
+    if ((socket as any)._checkInterval) {
+      clearInterval((socket as any)._checkInterval)
+      delete (socket as any)._checkInterval
     }
     
-    // Remove from sockets
+    // Get match to determine which player disconnected
+    const { data: match } = await supabase
+      .from('matches')
+      .select('player1_id, player2_id')
+      .eq('id', matchId)
+      .single()
+
+    if (match) {
+      const isPlayer1 = match.player1_id === user.id
+      const connectionColumn = isPlayer1 ? 'player1_connected_at' : 'player2_connected_at'
+      
+      // Clear connection status in database
+      await supabase
+        .from('matches')
+        .update({
+          [connectionColumn]: null
+        })
+        .eq('id', matchId)
+      
+      console.log(`[${matchId}] ✅ Cleared ${isPlayer1 ? 'player1' : 'player2'} connection status in database`)
+    }
+    
+    // Remove from local sockets
     const matchSockets = sockets.get(matchId)
     if (matchSockets) {
       matchSockets.delete(socket)

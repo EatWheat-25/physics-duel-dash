@@ -8,6 +8,9 @@
 -- Structure is ready - currently sets playerX_round_score = 0 as placeholder.
 -- ========================================
 
+-- Drop existing function if it exists (to handle return type changes)
+DROP FUNCTION IF EXISTS public.submit_round_answer(UUID, UUID, UUID, JSONB);
+
 CREATE OR REPLACE FUNCTION public.submit_round_answer(
   p_match_id UUID,
   p_round_id UUID,

@@ -5,6 +5,9 @@
 -- Called by the WebSocket edge function with explicit p_player_id.
 -- ========================================
 
+-- Drop existing function if it exists (to handle return type changes)
+DROP FUNCTION IF EXISTS public.start_match(UUID, UUID);
+
 CREATE OR REPLACE FUNCTION public.start_match(
   p_match_id UUID,
   p_player_id UUID

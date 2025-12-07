@@ -9,6 +9,9 @@
 -- Currently uses placeholder rule: higher score wins, or draw if equal.
 -- ========================================
 
+-- Drop existing function if it exists (to handle return type changes)
+DROP FUNCTION IF EXISTS public.evaluate_round(UUID, UUID);
+
 CREATE OR REPLACE FUNCTION public.evaluate_round(
   p_match_id UUID,
   p_round_id UUID

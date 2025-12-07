@@ -8,6 +8,9 @@
 -- TODO: MMR / stats update will go here (clear spot reserved).
 -- ========================================
 
+-- Drop existing function if it exists (to handle return type changes)
+DROP FUNCTION IF EXISTS public.finish_match(UUID);
+
 CREATE OR REPLACE FUNCTION public.finish_match(
   p_match_id UUID
 )
