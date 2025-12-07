@@ -10,9 +10,14 @@ interface ConnectionState {
   question: any | null
 }
 
-interface QuestionReceivedEvent {
-  type: 'QUESTION_RECEIVED'
-  question: any // Raw DB format from questions_v2
+interface RoundStartEvent {
+  type: 'ROUND_START'
+  matchId: string
+  roundId: string
+  roundIndex: number
+  phase: 'thinking'
+  question: any
+  thinkingEndsAt: string
 }
 
 /**
@@ -144,16 +149,12 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'QUESTION_RECEIVED') {
               console.log('[useGame] QUESTION_RECEIVED message received')
-              
-              // Server sends raw DB format from questions_v2
-              // Must map through questionMapper to convert to client format
               try {
                 const mappedQuestion = mapRawToQuestion(message.question)
-                
                 setState(prev => ({
                   ...prev,
                   status: 'playing',
-                  question: mappedQuestion,  // Mapped to StepBasedQuestion format
+                  question: mappedQuestion,
                   errorMessage: null
                 }))
               } catch (error) {
@@ -164,6 +165,15 @@ export function useGame(match: MatchRow | null) {
                   errorMessage: 'Failed to process question'
                 }))
               }
+            } else if (message.type === 'ROUND_START') {
+              console.log('[useGame] ROUND_START message received - game starting!', message)
+              const roundStartEvent = message as RoundStartEvent
+              setState(prev => ({
+                ...prev,
+                status: 'playing',
+                question: roundStartEvent.question,
+                errorMessage: null
+              }))
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
               setState(prev => ({

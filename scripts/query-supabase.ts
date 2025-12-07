@@ -57,7 +57,7 @@ async function queryQueue() {
 async function queryQuestions() {
   console.log('\n📊 Fetching questions...\n');
   const { data, error } = await supabase
-    .from('questions_v2')
+    .from('questions')
     .select('*')
     .limit(10);
 

@@ -11,7 +11,6 @@
     "preview": "vite preview",
     "seed:questions": "tsx scripts/seed-questions.ts",
     "seed:test-v2": "tsx scripts/seed-test-question-v2.ts",
-    "seed:true-false": "tsx scripts/seed-true-false-questions.ts",
     "db:matches": "tsx scripts/query-supabase.ts matches",
     "db:queue": "tsx scripts/query-supabase.ts queue",
     "db:questions": "tsx scripts/query-supabase.ts questions",

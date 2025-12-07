@@ -132,7 +132,7 @@ async function seed() {
 
         // 1. Upsert Question
         const { error: qError } = await supabase
-            .from('questions_v2')
+            .from('questions')
             .upsert({
                 id: q.id,
                 title: q.title,

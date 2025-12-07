@@ -49,8 +49,6 @@ export interface MatchRow {
   completed_at?: string
   current_round_number?: number
   rules_version?: number
-  question_sent_at?: string | null
-  question_id?: string | null
   created_at: string
 }
 

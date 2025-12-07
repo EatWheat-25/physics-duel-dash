@@ -95,9 +95,6 @@ export default function BattleConnected() {
 
   // Use game hook for connection
   const { status, playerRole, errorMessage, question } = useGame(match);
-  
-  // Local state for selected answer (no submission in Stage 1)
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
 
   // Render loading state
   if (!match || !currentUser) {
@@ -175,63 +172,45 @@ export default function BattleConnected() {
                   <p className="text-slate-300">Starting game...</p>
                 </>
               )}
-              {status === 'playing' && question && (
-                <>
-                  <h2 className="text-2xl font-bold text-white mb-4">Question</h2>
-                  <div className="mt-4 p-6 bg-slate-700/50 rounded-lg text-left space-y-4">
-                    <div>
-                      <h3 className="text-xl font-semibold mb-2 text-white">{question.title}</h3>
-                      <p className="text-slate-300 text-lg">{question.stem}</p>
-                    </div>
-                    
-                    {/* UI Guard: Check for valid True/False structure */}
-                    {!question.steps || question.steps.length === 0 || !question.steps[0] ? (
-                      <div className="text-red-500 p-4 border border-red-500 rounded bg-red-500/10">
-                        <p className="font-semibold">No True/False questions found. Add one in admin panel.</p>
-                        <p className="text-sm mt-1">Question has no steps or step[0] is missing.</p>
-                      </div>
-                    ) : question.steps[0].options?.length !== 2 ? (
-                      <div className="text-red-500 p-4 border border-red-500 rounded bg-red-500/10">
-                        <p className="font-semibold">No True/False questions found. Add one in admin panel.</p>
-                        <p className="text-sm mt-1">
-                          Step[0] has {question.steps[0].options?.length || 0} options (need exactly 2).
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <p className="text-slate-400 text-sm font-semibold">Select your answer:</p>
-                        <div className="space-y-2">
-                          <button
-                            onClick={() => setSelectedAnswer(0)}
-                            className={`w-full p-4 border-2 rounded-lg text-left transition-all ${
-                              selectedAnswer === 0
-                                ? 'border-purple-500 bg-purple-500/20 text-white'
-                                : 'border-slate-600 bg-slate-800/50 text-slate-300 hover:border-purple-400 hover:bg-purple-500/10'
-                            }`}
-                          >
-                            {question.steps[0].options[0]}
-                          </button>
-                          <button
-                            onClick={() => setSelectedAnswer(1)}
-                            className={`w-full p-4 border-2 rounded-lg text-left transition-all ${
-                              selectedAnswer === 1
-                                ? 'border-purple-500 bg-purple-500/20 text-white'
-                                : 'border-slate-600 bg-slate-800/50 text-slate-300 hover:border-purple-400 hover:bg-purple-500/10'
-                            }`}
-                          >
-                            {question.steps[0].options[1]}
-                          </button>
+              {status === 'playing' && question && (() => {
+                const firstStep = question.steps?.[0];
+                const nonEmptyOptions = (firstStep?.options ?? []).filter((o: string) => String(o).trim() !== '');
+                
+                return (
+                  <>
+                    <h2 className="text-2xl font-bold text-white mb-2">Question Ready!</h2>
+                    <div className="mt-4 p-4 bg-slate-700/50 rounded-lg text-left">
+                      <h3 className="text-xl font-semibold mb-2">{question.title}</h3>
+                      <p className="text-slate-300 mb-4">{question.stem || question.questionText}</p>
+
+                      {/* UI Guard: Check for valid True/False structure */}
+                      {!question.steps || question.steps.length === 0 || !firstStep ? (
+                        <div className="text-red-500 p-4 border border-red-500 rounded">
+                          <p>No True/False questions found. Add one in admin panel.</p>
+                          <p className="text-sm">Question has no steps or step[0] is missing.</p>
                         </div>
-                        {selectedAnswer !== null && (
-                          <p className="text-sm text-slate-400 mt-2">
-                            Selected: {question.steps[0].options[selectedAnswer]}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+                      ) : nonEmptyOptions.length !== 2 ? (
+                        <div className="text-red-500 p-4 border border-red-500 rounded">
+                          <p>No True/False questions found. Add one in admin panel.</p>
+                          <p className="text-sm">Step[0] has {nonEmptyOptions.length} options (need exactly 2).</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {nonEmptyOptions.map((option: string, index: number) => (
+                            <Button
+                              key={index}
+                              className="w-full justify-start"
+                              variant="outline"
+                            >
+                              {String.fromCharCode(65 + index)}. {option}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Player Status */}

@@ -42,20 +42,18 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
     throw new Error(`[questionMapper] Question ${id} has no steps`);
   }
 
-  const steps: QuestionStep[] = rawSteps.map((s: any, fallbackIndex: number) => {
-    // Map step index: prefer step_index, then index, then fallbackIndex
-    const stepIndex = typeof s.step_index === 'number' 
-      ? s.step_index 
-      : (typeof s.index === 'number' ? s.index : fallbackIndex);
+  /**
+   * Normalize options array - handles TF vs MCQ differently
+   */
+  const normalizeOptions = (step: any): string[] => {
+    let opts: string[] = [];
     
-    // Handle options: can be string[] or { answer_index, text }[]
-    let optionsArray: string[] = [];
-    if (Array.isArray(s.options) && s.options.length > 0) {
-      const firstOpt = s.options[0];
-      // Check if first element is an object with 'text' property (not null, not array)
+    if (Array.isArray(step.options) && step.options.length > 0) {
+      const firstOpt = step.options[0];
+      // Check if first element is an object with 'text' property
       if (typeof firstOpt === 'object' && firstOpt !== null && !Array.isArray(firstOpt) && ('text' in firstOpt || 'answer_text' in firstOpt)) {
         // New format: [{ answer_index, text }] or [{ answer_index, answer_text }]
-        optionsArray = s.options
+        opts = step.options
           .map((opt: any) => {
             if (typeof opt === 'object' && opt !== null) {
               return String(opt.text || opt.answer_text || '');
@@ -64,28 +62,57 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
           })
           .filter((opt: string) => opt.trim() !== ''); // Remove empty strings
       } else {
-        // Old format: [string, string, string, string] or mixed
-        optionsArray = s.options
+        // Old format: [string, string, ...]
+        opts = step.options
           .map((opt: any) => String(opt || ''))
           .filter((opt: string) => opt.trim() !== ''); // Remove empty strings
       }
     }
     
-    // Pad to exactly 4 options (fill with empty strings if needed)
-    while (optionsArray.length < 4) {
-      optionsArray.push('');
+    // ✅ If TF type, NEVER pad
+    if (step.type === 'true_false') {
+      return opts.slice(0, 2);
     }
-    // Trim to 4 if more
-    optionsArray = optionsArray.slice(0, 4);
+    
+    // ✅ If it *looks* TF (exactly 2 options that are "True"/"False"), don't pad
+    if (opts.length === 2) {
+      const norm = opts.map(o => String(o).trim().toLowerCase()).sort();
+      if (norm[0] === 'false' && norm[1] === 'true') {
+        return opts;
+      }
+    }
+    
+    // 🟦 Otherwise MCQ rules: pad to 4
+    const padded = [...opts];
+    while (padded.length < 4) {
+      padded.push('');
+    }
+    return padded.slice(0, 4);
+  };
+
+  const steps: QuestionStep[] = rawSteps.map((s: any, fallbackIndex: number) => {
+    // Map step index: prefer step_index, then index, then fallbackIndex
+    const stepIndex = typeof s.step_index === 'number' 
+      ? s.step_index 
+      : (typeof s.index === 'number' ? s.index : fallbackIndex);
+    
+    // Normalize options (handles TF vs MCQ)
+    const optionsArray = normalizeOptions(s);
     
     // Map all possible field name variations
+    // Note: For TF questions, normalizeOptions returns exactly 2 options (no padding)
+    // We pad to 4 only for type compatibility, but the actual meaningful options are only 2
+    // The UI will filter out empty options to get the real count
     const step: QuestionStep = {
       id: String(s.id || s.step_id || `${id}-step-${fallbackIndex}`),
       index: stepIndex,
       type: 'mcq' as const,
       title: String(s.title || ''),
       prompt: String(s.prompt || s.question || ''),
-      options: optionsArray as [string, string, string, string],
+      // Pad to 4 only for type safety - UI will filter empty strings
+      options: (optionsArray.length === 2 
+        ? [...optionsArray, '', ''] as [string, string, string, string]
+        : optionsArray as [string, string, string, string]),
       correctAnswer: extractCorrectAnswer(s),
       timeLimitSeconds: s.timeLimitSeconds ?? s.time_limit_seconds ?? null,
       marks: Number(s.marks || 1),
