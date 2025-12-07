@@ -32,6 +32,52 @@ const connectedPlayers = new Map<string, Set<string>>() // matchId -> Set<player
 const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 
 /**
+ * Check if both players are connected and broadcast BOTH_CONNECTED if so
+ */
+async function checkAndBroadcastBothConnected(
+  matchId: string,
+  match: any,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const connectedSet = connectedPlayers.get(matchId)
+  if (!connectedSet) {
+    return
+  }
+
+  const bothConnected = connectedSet.has(match.player1_id) && connectedSet.has(match.player2_id)
+  
+  console.log(`[${matchId}] Checking both connected status:`)
+  console.log(`  - Player1 (${match.player1_id}): ${connectedSet.has(match.player1_id) ? '✅' : '❌'}`)
+  console.log(`  - Player2 (${match.player2_id}): ${connectedSet.has(match.player2_id) ? '✅' : '❌'}`)
+  console.log(`  - Both connected: ${bothConnected ? '✅ YES' : '❌ NO'}`)
+
+  if (bothConnected) {
+    console.log(`[${matchId}] ✅ Both players connected! Broadcasting BOTH_CONNECTED...`)
+    
+    const matchSockets = sockets.get(matchId)
+    if (matchSockets && matchSockets.size > 0) {
+      const bothConnectedMessage: BothConnectedEvent = {
+        type: 'BOTH_CONNECTED',
+        matchId: matchId
+      }
+      let sentCount = 0
+      matchSockets.forEach(s => {
+        if (s.readyState === WebSocket.OPEN) {
+          s.send(JSON.stringify(bothConnectedMessage))
+          sentCount++
+          console.log(`[${matchId}] 📤 Sent BOTH_CONNECTED to socket (readyState: ${s.readyState})`)
+        } else {
+          console.warn(`[${matchId}] ⚠️  Socket not ready (readyState: ${s.readyState}), skipping`)
+        }
+      })
+      console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED to ${sentCount}/${matchSockets.size} socket(s)`)
+    } else {
+      console.error(`[${matchId}] ❌ No sockets found for match! sockets map:`, matchSockets)
+    }
+  }
+}
+
+/**
  * Handle JOIN_MATCH message
  * - Validates match and player
  * - Tracks connection
@@ -90,28 +136,8 @@ async function handleJoinMatch(
 
   console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected`)
 
-  // 5. Check if both players are connected
-  const connectedSet = connectedPlayers.get(matchId)!
-  const bothConnected = connectedSet.has(match.player1_id) && connectedSet.has(match.player2_id)
-
-  if (bothConnected) {
-    console.log(`[${matchId}] ✅ Both players connected!`)
-    
-    // Broadcast to all sockets for this match
-    const matchSockets = sockets.get(matchId)
-    if (matchSockets) {
-      const bothConnectedMessage: BothConnectedEvent = {
-        type: 'BOTH_CONNECTED',
-        matchId: matchId
-      }
-      matchSockets.forEach(s => {
-        if (s.readyState === WebSocket.OPEN) {
-          s.send(JSON.stringify(bothConnectedMessage))
-        }
-      })
-      console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED to ${matchSockets.size} socket(s)`)
-    }
-  }
+  // 5. Check if both players are connected and broadcast if so
+  await checkAndBroadcastBothConnected(matchId, match, supabase)
 }
 
 Deno.serve(async (req) => {
@@ -171,13 +197,20 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
 
-  socket.onopen = () => {
+  socket.onopen = async () => {
     console.log(`[${matchId}] WebSocket opened for user ${user.id}`)
     // Send initial connection confirmation (client will send JOIN_MATCH after this)
     socket.send(JSON.stringify({
       type: 'connected',
       message: 'WebSocket connection established'
     }))
+    
+    // Check if both players might already be connected (edge case)
+    // This will be handled properly in handleJoinMatch, but we log it here
+    const connectedSet = connectedPlayers.get(matchId)
+    if (connectedSet) {
+      console.log(`[${matchId}] Currently connected players: ${connectedSet.size}`)
+    }
   }
 
   socket.onmessage = async (event) => {

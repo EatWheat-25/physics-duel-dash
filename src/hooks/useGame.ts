@@ -113,6 +113,12 @@ export function useGame(match: MatchRow | null) {
             const message = JSON.parse(event.data)
             console.log('[useGame] Parsed message:', message)
 
+            // Handle lowercase "connected" - just ignore it (it's initial connection confirmation)
+            if (message.type === 'connected') {
+              console.log('[useGame] Initial connection confirmation received (ignoring)')
+              return
+            }
+
             if (message.type === 'CONNECTED') {
               console.log('[useGame] CONNECTED message received, updating state')
               setState(prev => ({
@@ -122,7 +128,7 @@ export function useGame(match: MatchRow | null) {
                 errorMessage: null
               }))
             } else if (message.type === 'BOTH_CONNECTED') {
-              console.log('[useGame] BOTH_CONNECTED message received')
+              console.log('[useGame] BOTH_CONNECTED message received - both players ready!')
               setState(prev => ({
                 ...prev,
                 status: 'both_connected',
