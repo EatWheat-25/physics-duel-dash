@@ -27,6 +27,35 @@ interface BothConnectedEvent {
   matchId: string
 }
 
+interface RoundStartEvent {
+  type: 'ROUND_START'
+  matchId: string
+  roundId: string
+  roundIndex: number
+  phase: 'thinking'
+  question: {
+    id: string
+    title: string
+    subject: string
+    chapter: string
+    level: string
+    difficulty: string
+    questionText: string
+    totalMarks: number
+    steps: Array<{
+      id: string
+      question: string
+      options: string[]
+      correctAnswer: number
+      marks: number
+      explanation?: string
+    }>
+    topicTags?: string[]
+    rankTier?: string
+  }
+  thinkingEndsAt: string
+}
+
 // Track sockets locally (for broadcasting) - each instance only tracks its own sockets
 const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 
@@ -34,6 +63,127 @@ const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
  * Check if both players are connected using DATABASE (works across instances)
  * and broadcast BOTH_CONNECTED to all local sockets if so
  */
+/**
+ * Fetch a question from questions_v2 and start the round
+ */
+async function startGameRound(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  console.log(`[${matchId}] 🎮 Starting game round...`)
+  
+  try {
+    // 1. Fetch a random question from questions_v2
+    const { data: questions, error: questionError } = await supabase
+      .from('questions_v2')
+      .select('*')
+      .limit(10)
+    
+    if (questionError) {
+      console.error(`[${matchId}] ❌ Error fetching questions:`, questionError)
+      throw questionError
+    }
+    
+    if (!questions || questions.length === 0) {
+      console.error(`[${matchId}] ❌ No questions found in questions_v2`)
+      throw new Error('No questions available')
+    }
+    
+    // Pick random question
+    const randomIndex = Math.floor(Math.random() * questions.length)
+    const questionDb = questions[randomIndex]
+    console.log(`[${matchId}] ✅ Selected question: ${questionDb.id} - "${questionDb.title}"`)
+    
+    // 2. Transform question from DB format to QuestionDTO format
+    const questionDTO = {
+      id: questionDb.id,
+      title: questionDb.title,
+      subject: questionDb.subject,
+      chapter: questionDb.chapter,
+      level: questionDb.level,
+      difficulty: questionDb.difficulty,
+      questionText: questionDb.stem, // Map stem to questionText
+      totalMarks: questionDb.total_marks,
+      steps: (questionDb.steps as any[]).map((step: any) => ({
+        id: step.id || `step-${step.index}`,
+        question: step.prompt || step.title || '', // Map prompt to question field
+        options: step.options || [],
+        correctAnswer: step.correctAnswer ?? step.correct_answer ?? 0,
+        marks: step.marks || 0,
+        explanation: step.explanation || undefined
+      })),
+      topicTags: questionDb.topic_tags || [],
+      rankTier: questionDb.rank_tier || undefined
+    }
+    
+    // 3. Create ROUND_START event
+    const roundId = `${matchId}-round-1`
+    const thinkingDuration = 3000 // 3 seconds thinking time
+    const thinkingEndsAt = new Date(Date.now() + thinkingDuration).toISOString()
+    
+    const roundStartEvent: RoundStartEvent = {
+      type: 'ROUND_START',
+      matchId: matchId,
+      roundId: roundId,
+      roundIndex: 1,
+      phase: 'thinking',
+      question: questionDTO,
+      thinkingEndsAt: thinkingEndsAt
+    }
+    
+    // 4. Send to all sockets for this match
+    const matchSockets = sockets.get(matchId)
+    if (!matchSockets || matchSockets.size === 0) {
+      console.warn(`[${matchId}] ⚠️  No sockets found for match - cannot send ROUND_START`)
+      return
+    }
+    
+    let sentCount = 0
+    matchSockets.forEach((socket, index) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        try {
+          socket.send(JSON.stringify(roundStartEvent))
+          sentCount++
+          console.log(`[${matchId}] ✅ Sent ROUND_START to socket ${index + 1}`)
+        } catch (error) {
+          console.error(`[${matchId}] ❌ Error sending ROUND_START to socket ${index + 1}:`, error)
+        }
+      }
+    })
+    
+    console.log(`[${matchId}] 📊 ROUND_START sent to ${sentCount}/${matchSockets.size} sockets`)
+    
+    // 5. Update match status to 'in_progress' (optional - depends on your schema)
+    await supabase
+      .from('matches')
+      .update({ status: 'in_progress' })
+      .eq('id', matchId)
+      .neq('status', 'in_progress') // Only update if not already in_progress
+    
+    console.log(`[${matchId}] ✅ Game round started successfully!`)
+  } catch (error) {
+    console.error(`[${matchId}] ❌ Error starting game round:`, error)
+    
+    // Send error to all sockets
+    const matchSockets = sockets.get(matchId)
+    if (matchSockets) {
+      const errorEvent: GameErrorEvent = {
+        type: 'GAME_ERROR',
+        message: 'Failed to start game round'
+      }
+      matchSockets.forEach(socket => {
+        if (socket.readyState === WebSocket.OPEN) {
+          try {
+            socket.send(JSON.stringify(errorEvent))
+          } catch (err) {
+            console.error(`[${matchId}] Failed to send error event:`, err)
+          }
+        }
+      })
+    }
+  }
+}
+
 /**
  * Check if both players are connected and broadcast BOTH_CONNECTED if so
  * @returns true if broadcast was successful, false otherwise
@@ -233,6 +383,11 @@ async function handleJoinMatch(
           checkInterval = null
           console.log(`[${matchId}] Stopped periodic connection check - BOTH_CONNECTED successfully sent`)
         }
+        
+        // Start the game round after both players are connected
+        console.log(`[${matchId}] 🎮 Both players connected - starting game round...`)
+        await startGameRound(matchId, supabase)
+        
         return true
       } else {
         // Broadcast failed - keep flag false so we can retry

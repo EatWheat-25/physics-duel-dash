@@ -3,9 +3,20 @@ import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
 import type { MatchRow } from '@/types/schema'
 
 interface ConnectionState {
-  status: 'connecting' | 'connected' | 'both_connected' | 'error'
+  status: 'connecting' | 'connected' | 'both_connected' | 'playing' | 'error'
   playerRole: 'player1' | 'player2' | null
   errorMessage: string | null
+  question: any | null
+}
+
+interface RoundStartEvent {
+  type: 'ROUND_START'
+  matchId: string
+  roundId: string
+  roundIndex: number
+  phase: 'thinking'
+  question: any
+  thinkingEndsAt: string
 }
 
 /**
@@ -23,7 +34,8 @@ export function useGame(match: MatchRow | null) {
   const [state, setState] = useState<ConnectionState>({
     status: 'connecting',
     playerRole: null,
-    errorMessage: null
+    errorMessage: null,
+    question: null
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -134,6 +146,15 @@ export function useGame(match: MatchRow | null) {
                 status: 'both_connected',
                 errorMessage: null
               }))
+            } else if (message.type === 'ROUND_START') {
+              console.log('[useGame] ROUND_START message received - game starting!', message)
+              const roundStartEvent = message as RoundStartEvent
+              setState(prev => ({
+                ...prev,
+                status: 'playing',
+                question: roundStartEvent.question,
+                errorMessage: null
+              }))
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
               setState(prev => ({
@@ -198,6 +219,7 @@ export function useGame(match: MatchRow | null) {
   return {
     status: state.status,
     playerRole: state.playerRole,
-    errorMessage: state.errorMessage
+    errorMessage: state.errorMessage,
+    question: state.question
   }
 }

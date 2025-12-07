@@ -94,7 +94,7 @@ export default function BattleConnected() {
   }, [currentUser]);
 
   // Use game hook for connection
-  const { status, playerRole, errorMessage } = useGame(match);
+  const { status, playerRole, errorMessage, question } = useGame(match);
 
   // Render loading state
   if (!match || !currentUser) {
@@ -169,7 +169,20 @@ export default function BattleConnected() {
                 <>
                   <Users className="w-16 h-16 text-green-400 mx-auto mb-4" />
                   <h2 className="text-2xl font-bold text-white mb-2">Both Players Connected!</h2>
-                  <p className="text-slate-300">Ready to start (game logic coming soon)</p>
+                  <p className="text-slate-300">Starting game...</p>
+                </>
+              )}
+              {status === 'playing' && question && (
+                <>
+                  <h2 className="text-2xl font-bold text-white mb-2">Question Ready!</h2>
+                  <div className="mt-4 p-4 bg-slate-700/50 rounded-lg text-left">
+                    <h3 className="text-xl font-semibold mb-2">{question.title}</h3>
+                    <p className="text-slate-300 mb-4">{question.questionText}</p>
+                    <div className="space-y-2">
+                      <p className="text-sm text-slate-400">Steps: {question.steps?.length || 0}</p>
+                      <p className="text-sm text-slate-400">Total Marks: {question.totalMarks}</p>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
