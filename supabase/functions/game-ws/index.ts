@@ -73,11 +73,11 @@ async function startGameRound(
   console.log(`[${matchId}] 🎮 Starting game round...`)
   
   try {
-    // 1. Fetch a random question from questions_v2
+    // 1. Fetch questions from questions_v2
     const { data: questions, error: questionError } = await supabase
       .from('questions_v2')
       .select('*')
-      .limit(10)
+      .limit(50) // Fetch more to filter for TF questions
     
     if (questionError) {
       console.error(`[${matchId}] ❌ Error fetching questions:`, questionError)
@@ -89,12 +89,35 @@ async function startGameRound(
       throw new Error('No questions available')
     }
     
-    // Pick random question
-    const randomIndex = Math.floor(Math.random() * questions.length)
-    const questionDb = questions[randomIndex]
-    console.log(`[${matchId}] ✅ Selected question: ${questionDb.id} - "${questionDb.title}"`)
+    // 2. Filter for True/False questions only (Stage 1 requirement)
+    // True/False = step[0] has exactly 2 options
+    const tfQuestions = questions.filter((q: any) => {
+      const steps = q.steps as any[]
+      if (!steps || steps.length === 0) return false
+      const firstStep = steps[0]
+      const options = firstStep?.options || []
+      return Array.isArray(options) && options.length === 2
+    })
     
-    // 2. Transform question from DB format to QuestionDTO format
+    if (tfQuestions.length === 0) {
+      console.error(`[${matchId}] ❌ No True/False questions found (step[0] must have exactly 2 options)`)
+      throw new Error('No True/False questions available')
+    }
+    
+    // Pick random True/False question
+    const randomIndex = Math.floor(Math.random() * tfQuestions.length)
+    const questionDb = tfQuestions[randomIndex]
+    console.log(`[${matchId}] ✅ Selected True/False question: ${questionDb.id} - "${questionDb.title}" (${questionDb.steps[0]?.options?.length || 0} options)`)
+    
+    // 3. Transform question from DB format to QuestionDTO format
+    // Stage 1: Only include step[0] (True/False step)
+    const steps = questionDb.steps as any[]
+    const firstStep = steps[0]
+    
+    if (!firstStep) {
+      throw new Error('Question has no steps')
+    }
+    
     const questionDTO = {
       id: questionDb.id,
       title: questionDb.title,
@@ -104,14 +127,15 @@ async function startGameRound(
       difficulty: questionDb.difficulty,
       questionText: questionDb.stem, // Map stem to questionText
       totalMarks: questionDb.total_marks,
-      steps: (questionDb.steps as any[]).map((step: any) => ({
-        id: step.id || `step-${step.index}`,
-        question: step.prompt || step.title || '', // Map prompt to question field
-        options: step.options || [],
-        correctAnswer: step.correctAnswer ?? step.correct_answer ?? 0,
-        marks: step.marks || 0,
-        explanation: step.explanation || undefined
-      })),
+      // Stage 1: Only send step[0] (True/False step)
+      steps: [{
+        id: firstStep.id || `step-0`,
+        question: firstStep.prompt || firstStep.title || '', // Map prompt to question field
+        options: firstStep.options || [],
+        correctAnswer: firstStep.correctAnswer ?? firstStep.correct_answer ?? 0,
+        marks: firstStep.marks || 0,
+        explanation: firstStep.explanation || undefined
+      }],
       topicTags: questionDb.topic_tags || [],
       rankTier: questionDb.rank_tier || undefined
     }
