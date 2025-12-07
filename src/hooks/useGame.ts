@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
 import type { MatchRow } from '@/types/schema'
-import type { StepBasedQuestion } from '@/types/questions'
-import { mapRawToQuestion } from '@/utils/questionMapper'
 
 interface ConnectionState {
   status: 'connecting' | 'connected' | 'both_connected' | 'error'
   playerRole: 'player1' | 'player2' | null
   errorMessage: string | null
-  question: StepBasedQuestion | null
 }
 
 /**
@@ -26,8 +23,7 @@ export function useGame(match: MatchRow | null) {
   const [state, setState] = useState<ConnectionState>({
     status: 'connecting',
     playerRole: null,
-    errorMessage: null,
-    question: null
+    errorMessage: null
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -37,8 +33,7 @@ export function useGame(match: MatchRow | null) {
       setState({
         status: 'connecting',
         playerRole: null,
-        errorMessage: null,
-        question: null
+        errorMessage: null
       })
       return
     }
@@ -126,35 +121,13 @@ export function useGame(match: MatchRow | null) {
                 playerRole: message.player,
                 errorMessage: null
               }))
-            } else if (message.type === 'connected') {
-              // Handle lowercase 'connected' from initial socket.onopen (ignore it)
-              console.log('[useGame] Initial connection confirmation received (ignoring)')
             } else if (message.type === 'BOTH_CONNECTED') {
-              console.log('[useGame] ✅ BOTH_CONNECTED message received, updating status to both_connected')
+              console.log('[useGame] BOTH_CONNECTED message received')
               setState(prev => ({
                 ...prev,
                 status: 'both_connected',
                 errorMessage: null
               }))
-            } else if (message.type === 'QUESTION_RECEIVED') {
-              console.log('[useGame] QUESTION_RECEIVED message received')
-              try {
-                // Convert DB format to client format using questionMapper
-                const mappedQuestion = mapRawToQuestion(message.question)
-                setState(prev => ({
-                  ...prev,
-                  question: mappedQuestion,
-                  errorMessage: null
-                }))
-                console.log('[useGame] Question mapped and stored:', mappedQuestion.id)
-              } catch (error) {
-                console.error('[useGame] Error mapping question:', error)
-                setState(prev => ({
-                  ...prev,
-                  status: 'error',
-                  errorMessage: 'Invalid question format received'
-                }))
-              }
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
               setState(prev => ({
@@ -219,7 +192,6 @@ export function useGame(match: MatchRow | null) {
   return {
     status: state.status,
     playerRole: state.playerRole,
-    errorMessage: state.errorMessage,
-    question: state.question
+    errorMessage: state.errorMessage
   }
 }

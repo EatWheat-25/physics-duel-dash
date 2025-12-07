@@ -89,13 +89,67 @@ const testQuestion = {
     image_url: null
 };
 
+// Validate question structure before inserting
+function validateQuestion(q: typeof testQuestion): string[] {
+    const errors: string[] = [];
+
+    if (!q.title?.trim()) errors.push('Title is required');
+    if (!['math', 'physics', 'chemistry'].includes(q.subject)) {
+        errors.push('Subject must be math, physics, or chemistry');
+    }
+    if (!q.chapter?.trim()) errors.push('Chapter is required');
+    if (!['A1', 'A2'].includes(q.level)) errors.push('Level must be A1 or A2');
+    if (!['easy', 'medium', 'hard'].includes(q.difficulty)) {
+        errors.push('Difficulty must be easy, medium, or hard');
+    }
+    if (!q.stem?.trim()) errors.push('Stem is required');
+    if (!Array.isArray(q.steps) || q.steps.length === 0) {
+        errors.push('At least one step is required');
+    }
+    if (q.total_marks <= 0) errors.push('Total marks must be positive');
+
+    // Validate steps
+    q.steps.forEach((step, i) => {
+        if (step.index !== i) {
+            errors.push(`Step ${i}: index should be ${i}, got ${step.index}`);
+        }
+        if (!Array.isArray(step.options) || step.options.length !== 4) {
+            errors.push(`Step ${i}: must have exactly 4 options`);
+        }
+        if (![0, 1, 2, 3].includes(step.correctAnswer)) {
+            errors.push(`Step ${i}: correctAnswer must be 0, 1, 2, or 3`);
+        }
+        if (step.marks <= 0) {
+            errors.push(`Step ${i}: marks must be positive`);
+        }
+    });
+
+    // Validate total marks equals sum of step marks
+    const sumOfStepMarks = q.steps.reduce((sum, s) => sum + s.marks, 0);
+    if (q.total_marks !== sumOfStepMarks) {
+        errors.push(`Total marks (${q.total_marks}) must equal sum of step marks (${sumOfStepMarks})`);
+    }
+
+    return errors;
+}
+
 async function seed() {
-    console.log('🌱 Seeding test question to questions_v2...');
+    console.log('🌱 Seeding test question to questions_v2...\n');
+
+    // Validate question structure
+    console.log('🔍 Validating question structure...');
+    const validationErrors = validateQuestion(testQuestion);
+    if (validationErrors.length > 0) {
+        console.error('❌ Validation failed:');
+        validationErrors.forEach(err => console.error(`   - ${err}`));
+        process.exit(1);
+    }
+    console.log('✅ Validation passed\n');
 
     // First, check if table exists
     const { data: existingQuestion, error: selectError } = await supabase
         .from('questions_v2')
-        .select('id')
+        .select('id, title')
         .limit(1);
 
     if (selectError) {
@@ -105,29 +159,72 @@ async function seed() {
         process.exit(1);
     }
 
-    // Delete existing test questions
-    console.log('🧹 Cleaning existing questions...');
-    await supabase.from('questions_v2').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-
-    // Insert test question
-    console.log('📝 Inserting test question...');
-    const { data, error } = await supabase
+    // Check if question with same title already exists
+    const { data: existing, error: checkError } = await supabase
         .from('questions_v2')
-        .insert([testQuestion])
-        .select();
+        .select('id, title')
+        .eq('title', testQuestion.title)
+        .maybeSingle();
 
-    if (error) {
-        console.error('❌ Failed to insert question');
-        console.error('Error:', error);
+    if (checkError) {
+        console.error('❌ Error checking for existing question:', checkError);
         process.exit(1);
     }
 
-    console.log('✅ Success! Seeded question:');
-    console.log(`   ID: ${data[0].id}`);
-    console.log(`   Title: ${data[0].title}`);
-    console.log(`   Steps: ${data[0].steps.length}`);
+    if (existing) {
+        console.log(`⚠️  Question with title "${testQuestion.title}" already exists`);
+        console.log(`   Existing ID: ${existing.id}`);
+        console.log('   Updating existing question...\n');
+        
+        const { data, error } = await supabase
+            .from('questions_v2')
+            .update(testQuestion)
+            .eq('id', existing.id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Failed to update question');
+            console.error('Error:', error);
+            process.exit(1);
+        }
+
+        console.log('✅ Success! Updated question:');
+        console.log(`   ID: ${data.id}`);
+        console.log(`   Title: ${data.title}`);
+        console.log(`   Steps: ${(data.steps as any[]).length}`);
+    } else {
+        // Insert new question
+        console.log('📝 Inserting new test question...');
+        const { data, error } = await supabase
+            .from('questions_v2')
+            .insert([testQuestion])
+            .select();
+
+        if (error) {
+            console.error('❌ Failed to insert question');
+            console.error('Error:', error);
+            console.error('\n💡 Tip: Make sure your .env has:');
+            console.error('   - VITE_SUPABASE_URL');
+            console.error('   - SUPABASE_SERVICE_ROLE_KEY');
+            process.exit(1);
+        }
+
+        console.log('✅ Success! Seeded question:');
+        console.log(`   ID: ${data[0].id}`);
+        console.log(`   Title: ${data[0].title}`);
+        console.log(`   Steps: ${(data[0].steps as any[]).length}`);
+    }
+
     console.log('');
-    console.log('🔍 Verify at: http://localhost:8080/dev/db-test');
+    console.log('📊 Question Summary:');
+    console.log(`   Subject: ${testQuestion.subject}`);
+    console.log(`   Chapter: ${testQuestion.chapter}`);
+    console.log(`   Level: ${testQuestion.level}`);
+    console.log(`   Difficulty: ${testQuestion.difficulty}`);
+    console.log(`   Total Marks: ${testQuestion.total_marks}`);
+    console.log('');
+    console.log('🔍 Verify at: /admin/questions or http://localhost:8080/dev/db-test');
 }
 
 seed().catch(console.error);

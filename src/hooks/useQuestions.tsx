@@ -19,7 +19,7 @@ export const useQuestions = (filters?: QuestionFilters) => {
     queryFn: async () => {
       console.log('🔍 useQuestions: Starting fetch with filters:', filters);
 
-      let query = supabase.from('questions_v2').select('*');
+      let query = supabase.from('questions').select('*');
 
       if (filters?.subject) query = query.eq('subject', filters.subject);
       if (filters?.chapter) query = query.eq('chapter', filters.chapter);
@@ -67,7 +67,7 @@ export const useAddQuestion = () => {
       // Convert to DB format
       const dbRow = questionToDBRow(question) as any;
 
-      const { data, error } = await supabase.from('questions_v2').insert([dbRow]).select().single();
+      const { data, error } = await supabase.from('questions').insert([dbRow]).select().single();
 
       if (error) throw error;
       return data;
@@ -96,7 +96,7 @@ export const useUpdateQuestion = () => {
       const dbRow = questionToDBRow({ ...question, id }) as any;
 
       const { data, error } = await supabase
-        .from('questions_v2')
+        .from('questions')
         .update(dbRow)
         .eq('id', id)
         .select()
@@ -119,7 +119,7 @@ export const useDeleteQuestion = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('questions_v2').delete().eq('id', id);
+      const { error } = await supabase.from('questions').delete().eq('id', id);
 
       if (error) throw error;
     },

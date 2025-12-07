@@ -27,60 +27,9 @@ interface BothConnectedEvent {
   matchId: string
 }
 
-interface QuestionReceivedEvent {
-  type: 'QUESTION_RECEIVED'
-  question: any
-}
-
 // Track connected players per match
 const connectedPlayers = new Map<string, Set<string>>() // matchId -> Set<playerId>
 const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
-
-/**
- * Fetch random True/False question from questions_v2
- * Filters by step data (2 options = True/False pattern)
- */
-async function fetchRandomQuestion(
-  supabase: ReturnType<typeof createClient>
-): Promise<any | null> {
-  // Query questions_v2 ONLY (hard-enforced)
-  const { data, error } = await supabase
-    .from('questions_v2')
-    .select('*')
-    .limit(50)
-  
-  if (error || !data) {
-    console.error('[fetchRandomQuestion] Error fetching questions:', error)
-    return null
-  }
-  
-  // Filter for True/False questions by step data
-  const isTF = (q: any) => {
-    const firstStep = q?.steps?.[0]
-    if (!firstStep) return false
-    
-    // Check if type is 'true_false'
-    if (firstStep.type === 'true_false') return true
-    
-    // OR check if exactly 2 options (True/False pattern)
-    if (Array.isArray(firstStep.options) && firstStep.options.length === 2) {
-      return true
-    }
-    
-    return false
-  }
-  
-  const pool = (data ?? []).filter(isTF)
-  
-  if (pool.length === 0) {
-    console.warn('[fetchRandomQuestion] No True/False questions found')
-    return null
-  }
-  
-  const randomIndex = Math.floor(Math.random() * pool.length)
-  console.log(`[fetchRandomQuestion] Selected question ${randomIndex + 1}/${pool.length}`)
-  return pool[randomIndex]
-}
 
 /**
  * Handle JOIN_MATCH message
@@ -141,129 +90,28 @@ async function handleJoinMatch(
 
   console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected`)
 
-  // 5. Always notify BOTH_CONNECTED (per-instance) because instances don't share memory
-  const sendBothConnected = () => {
+  // 5. Check if both players are connected
+  const connectedSet = connectedPlayers.get(matchId)!
+  const bothConnected = connectedSet.has(match.player1_id) && connectedSet.has(match.player2_id)
+
+  if (bothConnected) {
+    console.log(`[${matchId}] ✅ Both players connected!`)
+    
+    // Broadcast to all sockets for this match
     const matchSockets = sockets.get(matchId)
-    const bothConnectedMessage: BothConnectedEvent = {
-      type: 'BOTH_CONNECTED',
-      matchId
-    }
-    let sentCount = 0
     if (matchSockets) {
+      const bothConnectedMessage: BothConnectedEvent = {
+        type: 'BOTH_CONNECTED',
+        matchId: matchId
+      }
       matchSockets.forEach(s => {
         if (s.readyState === WebSocket.OPEN) {
           s.send(JSON.stringify(bothConnectedMessage))
-          sentCount++
         }
       })
+      console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED to ${matchSockets.size} socket(s)`)
     }
-    // Always send to the current socket too (covers cross-instance case)
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(bothConnectedMessage))
-      sentCount++
-    }
-    console.log(`[${matchId}] 📤 BOTH_CONNECTED sent to ${sentCount} socket(s) (per-instance broadcast)`)
   }
-
-  // Send BOTH_CONNECTED regardless of whether the other player is on this instance
-  sendBothConnected()
-
-  // 6. If question already assigned, fetch and send it to this socket
-  if (match.question_id) {
-    console.log(`[${matchId}] Question already set (${match.question_id}), sending to this socket`)
-    const { data: existingQuestion, error: existingQuestionError } = await supabase
-      .from('questions_v2')
-      .select('*')
-      .eq('id', match.question_id)
-      .maybeSingle()
-
-    if (!existingQuestionError && existingQuestion) {
-      const questionMessage: QuestionReceivedEvent = {
-        type: 'QUESTION_RECEIVED',
-        question: existingQuestion
-      }
-      socket.send(JSON.stringify(questionMessage))
-      const matchSockets = sockets.get(matchId)
-      if (matchSockets) {
-        matchSockets.forEach(s => {
-          if (s !== socket && s.readyState === WebSocket.OPEN) {
-            s.send(JSON.stringify(questionMessage))
-          }
-        })
-      }
-      console.log(`[${matchId}] 📤 Re-sent existing question ${match.question_id} to socket(s)`)
-    } else {
-      console.warn(`[${matchId}] ⚠️ Question id set but fetch failed`, existingQuestionError)
-    }
-    return
-  }
-
-  // 7. If no question yet, fetch and attempt to claim/send
-  const question = await fetchRandomQuestion(supabase)
-
-  if (!question) {
-    const errorMessage: GameErrorEvent = {
-      type: 'GAME_ERROR',
-      message: 'No True/False questions available'
-    }
-    socket.send(JSON.stringify(errorMessage))
-    const matchSockets = sockets.get(matchId)
-    if (matchSockets) {
-      matchSockets.forEach(s => {
-        if (s !== socket && s.readyState === WebSocket.OPEN) {
-          s.send(JSON.stringify(errorMessage))
-        }
-      })
-    }
-    return
-  }
-
-  const { data: lock, error: lockErr } = await supabase
-    .from('matches')
-    .update({
-      question_sent_at: new Date().toISOString(),
-      question_id: question.id,
-    })
-    .eq('id', matchId)
-    .is('question_id', null)
-    .select('id')
-    .maybeSingle()
-
-  if (!lock || lockErr) {
-    console.log(`[${matchId}] Question already claimed by another worker, skipping send`)
-    // Another instance likely sent it; fetch and send to this socket
-    const { data: existingQuestion, error: existingQuestionError } = await supabase
-      .from('questions_v2')
-      .select('*')
-      .eq('id', match.question_id ?? question.id)
-      .maybeSingle()
-    if (!existingQuestionError && existingQuestion) {
-      const questionMessage: QuestionReceivedEvent = {
-        type: 'QUESTION_RECEIVED',
-        question: existingQuestion
-      }
-      socket.send(JSON.stringify(questionMessage))
-    }
-    return
-  }
-
-  // We own the lock, broadcast question to all sockets in this instance and the current socket
-  const questionMessage: QuestionReceivedEvent = {
-    type: 'QUESTION_RECEIVED',
-    question
-  }
-
-  socket.send(JSON.stringify(questionMessage))
-  const matchSockets = sockets.get(matchId)
-  if (matchSockets) {
-    matchSockets.forEach(s => {
-      if (s !== socket && s.readyState === WebSocket.OPEN) {
-        s.send(JSON.stringify(questionMessage))
-      }
-    })
-  }
-
-  console.log(`[${matchId}] ✅ Question ${question.id} sent to socket(s) (per-instance broadcast)`)
 }
 
 Deno.serve(async (req) => {

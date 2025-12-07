@@ -81,7 +81,7 @@ export default function SupabaseDebug() {
     setError(null);
     try {
       const { data, error: err } = await supabase
-        .from('questions_v2')
+        .from('questions')
         .select('*')
         .limit(10);
 
