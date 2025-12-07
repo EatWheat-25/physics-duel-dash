@@ -91,17 +91,60 @@ async function startGameRound(
     
     // 2. Filter for True/False questions only (Stage 1 requirement)
     // True/False = step[0] has exactly 2 options
+    console.log(`[${matchId}] 📊 Filtering ${questions.length} questions for True/False (2 options in step[0])...`)
+    
     const tfQuestions = questions.filter((q: any) => {
-      const steps = q.steps as any[]
-      if (!steps || steps.length === 0) return false
-      const firstStep = steps[0]
-      const options = firstStep?.options || []
-      return Array.isArray(options) && options.length === 2
+      try {
+        // Handle JSONB - might be string or already parsed
+        let steps = q.steps
+        if (typeof steps === 'string') {
+          try {
+            steps = JSON.parse(steps)
+          } catch (parseErr) {
+            console.error(`[${matchId}] ❌ Failed to parse steps JSON for question ${q.id}:`, parseErr)
+            return false
+          }
+        }
+        
+        if (!steps || !Array.isArray(steps) || steps.length === 0) {
+          console.log(`[${matchId}] ⚠️  Question ${q.id} has invalid steps:`, typeof steps, Array.isArray(steps) ? `array[${steps.length}]` : 'not array')
+          return false
+        }
+        const firstStep = steps[0]
+        if (!firstStep) {
+          console.log(`[${matchId}] ⚠️  Question ${q.id} has empty steps array`)
+          return false
+        }
+        const options = firstStep?.options || []
+        const isTF = Array.isArray(options) && options.length === 2
+        if (!isTF) {
+          console.log(`[${matchId}] ⚠️  Question ${q.id} has ${Array.isArray(options) ? options.length : 'non-array'} options (need 2)`)
+        }
+        return isTF
+      } catch (err) {
+        console.error(`[${matchId}] ❌ Error filtering question ${q.id}:`, err)
+        return false
+      }
     })
     
+    console.log(`[${matchId}] 📊 Found ${tfQuestions.length} True/False questions out of ${questions.length} total`)
+    
     if (tfQuestions.length === 0) {
+      // Log sample of available questions for debugging
+      const sampleQuestions = questions.slice(0, 3).map((q: any) => {
+        const steps = q.steps as any[]
+        const firstStep = steps?.[0]
+        const options = firstStep?.options || []
+        return {
+          id: q.id,
+          title: q.title,
+          stepsCount: steps?.length || 0,
+          firstStepOptionsCount: Array.isArray(options) ? options.length : 'not an array'
+        }
+      })
       console.error(`[${matchId}] ❌ No True/False questions found (step[0] must have exactly 2 options)`)
-      throw new Error('No True/False questions available')
+      console.error(`[${matchId}] 📋 Sample questions:`, JSON.stringify(sampleQuestions, null, 2))
+      throw new Error('No True/False questions available. Please seed questions with exactly 2 options in step[0]')
     }
     
     // Pick random True/False question
@@ -111,11 +154,24 @@ async function startGameRound(
     
     // 3. Transform question from DB format to QuestionDTO format
     // Stage 1: Only include step[0] (True/False step)
-    const steps = questionDb.steps as any[]
-    const firstStep = steps[0]
+    let steps = questionDb.steps as any[]
+    // Handle JSONB - might be string or already parsed
+    if (typeof steps === 'string') {
+      try {
+        steps = JSON.parse(steps)
+      } catch (parseErr) {
+        console.error(`[${matchId}] ❌ Failed to parse steps JSON:`, parseErr)
+        throw new Error('Invalid steps format in question')
+      }
+    }
     
+    if (!Array.isArray(steps) || steps.length === 0) {
+      throw new Error('Question has no valid steps array')
+    }
+    
+    const firstStep = steps[0]
     if (!firstStep) {
-      throw new Error('Question has no steps')
+      throw new Error('Question has no first step')
     }
     
     const questionDTO = {
