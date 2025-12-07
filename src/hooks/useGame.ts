@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
 import type { MatchRow } from '@/types/schema'
+import { mapRawToQuestion } from '@/utils/questionMapper'
 
 interface ConnectionState {
   status: 'connecting' | 'connected' | 'both_connected' | 'playing' | 'error'
@@ -9,14 +10,9 @@ interface ConnectionState {
   question: any | null
 }
 
-interface RoundStartEvent {
-  type: 'ROUND_START'
-  matchId: string
-  roundId: string
-  roundIndex: number
-  phase: 'thinking'
-  question: any
-  thinkingEndsAt: string
+interface QuestionReceivedEvent {
+  type: 'QUESTION_RECEIVED'
+  question: any // Raw DB format from questions_v2
 }
 
 /**
@@ -146,15 +142,28 @@ export function useGame(match: MatchRow | null) {
                 status: 'both_connected',
                 errorMessage: null
               }))
-            } else if (message.type === 'ROUND_START') {
-              console.log('[useGame] ROUND_START message received - game starting!', message)
-              const roundStartEvent = message as RoundStartEvent
-              setState(prev => ({
-                ...prev,
-                status: 'playing',
-                question: roundStartEvent.question,
-                errorMessage: null
-              }))
+            } else if (message.type === 'QUESTION_RECEIVED') {
+              console.log('[useGame] QUESTION_RECEIVED message received')
+              
+              // Server sends raw DB format from questions_v2
+              // Must map through questionMapper to convert to client format
+              try {
+                const mappedQuestion = mapRawToQuestion(message.question)
+                
+                setState(prev => ({
+                  ...prev,
+                  status: 'playing',
+                  question: mappedQuestion,  // Mapped to StepBasedQuestion format
+                  errorMessage: null
+                }))
+              } catch (error) {
+                console.error('[useGame] Error mapping question:', error)
+                setState(prev => ({
+                  ...prev,
+                  status: 'error',
+                  errorMessage: 'Failed to process question'
+                }))
+              }
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
               setState(prev => ({

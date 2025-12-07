@@ -85,7 +85,7 @@ async function updateQuestion() {
     console.log(`Updating question ${QUESTION_ID}...`);
 
     const { data, error } = await supabase
-        .from('questions')
+        .from('questions_v2')
         .update({ steps: NEW_STEPS })
         .eq('id', QUESTION_ID)
         .select();

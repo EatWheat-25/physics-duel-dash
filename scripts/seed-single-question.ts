@@ -133,7 +133,7 @@ async function main() {
     }
 
     // 2. Delete all questions
-    const { error: qError, count } = await supabase.from('questions').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+    const { error: qError, count } = await supabase.from('questions_v2').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
     if (qError) {
         console.error('❌ Error deleting questions:', qError.message);
         process.exit(1);
@@ -142,7 +142,7 @@ async function main() {
 
     // 3. Insert new question
     console.log('📥 Inserting new question...');
-    const { error: insertError } = await supabase.from('questions').insert(question);
+    const { error: insertError } = await supabase.from('questions_v2').insert(question);
 
     if (insertError) {
         console.error('❌ Error inserting question:', insertError.message);

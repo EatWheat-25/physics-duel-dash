@@ -27,33 +27,9 @@ interface BothConnectedEvent {
   matchId: string
 }
 
-interface RoundStartEvent {
-  type: 'ROUND_START'
-  matchId: string
-  roundId: string
-  roundIndex: number
-  phase: 'thinking'
-  question: {
-    id: string
-    title: string
-    subject: string
-    chapter: string
-    level: string
-    difficulty: string
-    questionText: string
-    totalMarks: number
-    steps: Array<{
-      id: string
-      question: string
-      options: string[]
-      correctAnswer: number
-      marks: number
-      explanation?: string
-    }>
-    topicTags?: string[]
-    rankTier?: string
-  }
-  thinkingEndsAt: string
+interface QuestionReceivedEvent {
+  type: 'QUESTION_RECEIVED'
+  question: any // Raw DB format from questions_v2 - client will map it
 }
 
 // Track sockets locally (for broadcasting) - each instance only tracks its own sockets
@@ -64,20 +40,94 @@ const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
  * and broadcast BOTH_CONNECTED to all local sockets if so
  */
 /**
- * Fetch a question from questions_v2 and start the round
+ * Broadcast question to all sockets for a match (uses matchSockets snapshot)
+ */
+function broadcastQuestion(
+  matchId: string,
+  question: any,
+  sockets: Map<string, Set<WebSocket>>
+): void {
+  // Get snapshot of sockets for this match (in-memory, no per-client fetch)
+  const matchSockets = sockets.get(matchId)
+  if (!matchSockets || matchSockets.size === 0) {
+    console.warn(`[${matchId}] ⚠️  No sockets found for match - cannot broadcast QUESTION_RECEIVED`)
+    return
+  }
+  
+  // Send raw DB format - client will map it
+  const message: QuestionReceivedEvent = {
+    type: 'QUESTION_RECEIVED',
+    question: question  // Raw DB format from questions_v2
+  }
+  
+  let sentCount = 0
+  matchSockets.forEach((socket, index) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      try {
+        socket.send(JSON.stringify(message))
+        sentCount++
+        console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
+      } catch (error) {
+        console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
+      }
+    }
+  })
+  
+  console.log(`[${matchId}] 📊 QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
+}
+
+/**
+ * Atomically claim and broadcast a True/False question for a match
+ * Ensures both players always see the same question
  */
 async function startGameRound(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  console.log(`[${matchId}] 🎮 Starting game round...`)
+  console.log(`[${matchId}] 🎮 Starting game round with atomic question claim...`)
   
   try {
-    // 1. Fetch questions from questions_v2
+    // Step 1: Check if question already assigned
+    const { data: match, error: matchError } = await supabase
+      .from('matches')
+      .select('question_id, question_sent_at')  // Include question_sent_at for logging/debugging
+      .eq('id', matchId)
+      .single()
+    
+    if (matchError) {
+      console.error(`[${matchId}] ❌ Error fetching match:`, matchError)
+      throw matchError
+    }
+    
+    if (match?.question_id) {
+      // Question already assigned - fetch and broadcast it
+      console.log(`[${matchId}] 📋 Question already assigned: ${match.question_id} (sent at: ${match.question_sent_at})`)
+      
+      const { data: question, error: questionError } = await supabase
+        .from('questions_v2')
+        .select('*')
+        .eq('id', match.question_id)
+        .single()
+      
+      if (questionError || !question) {
+        console.error(`[${matchId}] ❌ Error fetching existing question:`, questionError)
+        throw new Error(`Failed to fetch existing question ${match.question_id}`)
+      }
+      
+      // Broadcast existing question (raw DB format)
+      broadcastQuestion(matchId, question, sockets)
+      console.log(`[${matchId}] ✅ Broadcasted existing question`)
+      return
+    }
+    
+    // No question assigned - try to claim one
+    console.log(`[${matchId}] 🔍 No question assigned - attempting atomic claim...`)
+    
+    // Step 2: Fetch TF questions
     const { data: questions, error: questionError } = await supabase
       .from('questions_v2')
       .select('*')
-      .limit(50) // Fetch more to filter for TF questions
+      .limit(50)
     
     if (questionError) {
       console.error(`[${matchId}] ❌ Error fetching questions:`, questionError)
@@ -89,40 +139,30 @@ async function startGameRound(
       throw new Error('No questions available')
     }
     
-    // 2. Filter for True/False questions only (Stage 1 requirement)
-    // True/False = step[0] has exactly 2 options
-    console.log(`[${matchId}] 📊 Filtering ${questions.length} questions for True/False (2 options in step[0])...`)
-    
+    // Filter for True/False: steps[0].type === 'true_false' OR steps[0].options.length === 2
+    // Supabase JSONB usually returns object/array already - only parse if string
     const tfQuestions = questions.filter((q: any) => {
       try {
-        // Handle JSONB - might be string or already parsed
         let steps = q.steps
+        // Only parse if it's a string (rare case)
         if (typeof steps === 'string') {
-          try {
-            steps = JSON.parse(steps)
-          } catch (parseErr) {
-            console.error(`[${matchId}] ❌ Failed to parse steps JSON for question ${q.id}:`, parseErr)
-            return false
-          }
+          steps = JSON.parse(steps)
         }
-        
-        if (!steps || !Array.isArray(steps) || steps.length === 0) {
-          console.log(`[${matchId}] ⚠️  Question ${q.id} has invalid steps:`, typeof steps, Array.isArray(steps) ? `array[${steps.length}]` : 'not array')
+        // If still not an array, skip this question
+        if (!Array.isArray(steps) || steps.length === 0) {
           return false
         }
         const firstStep = steps[0]
         if (!firstStep) {
-          console.log(`[${matchId}] ⚠️  Question ${q.id} has empty steps array`)
           return false
         }
-        const options = firstStep?.options || []
-        const isTF = Array.isArray(options) && options.length === 2
-        if (!isTF) {
-          console.log(`[${matchId}] ⚠️  Question ${q.id} has ${Array.isArray(options) ? options.length : 'non-array'} options (need 2)`)
-        }
-        return isTF
+        return firstStep && (
+          firstStep.type === 'true_false' || 
+          (Array.isArray(firstStep.options) && firstStep.options.length === 2)
+        )
       } catch (err) {
-        console.error(`[${matchId}] ❌ Error filtering question ${q.id}:`, err)
+        // One bad row shouldn't nuke the whole send - skip this question
+        console.error(`[${matchId}] ❌ Error parsing steps for question ${q.id}:`, err)
         return false
       }
     })
@@ -130,115 +170,69 @@ async function startGameRound(
     console.log(`[${matchId}] 📊 Found ${tfQuestions.length} True/False questions out of ${questions.length} total`)
     
     if (tfQuestions.length === 0) {
-      // Log sample of available questions for debugging
-      const sampleQuestions = questions.slice(0, 3).map((q: any) => {
-        const steps = q.steps as any[]
-        const firstStep = steps?.[0]
-        const options = firstStep?.options || []
-        return {
-          id: q.id,
-          title: q.title,
-          stepsCount: steps?.length || 0,
-          firstStepOptionsCount: Array.isArray(options) ? options.length : 'not an array'
-        }
-      })
-      console.error(`[${matchId}] ❌ No True/False questions found (step[0] must have exactly 2 options)`)
-      console.error(`[${matchId}] 📋 Sample questions:`, JSON.stringify(sampleQuestions, null, 2))
-      throw new Error('No True/False questions available. Please seed questions with exactly 2 options in step[0]')
+      throw new Error('No True/False questions available')
     }
     
-    // Pick random True/False question
+    // Pick random
     const randomIndex = Math.floor(Math.random() * tfQuestions.length)
-    const questionDb = tfQuestions[randomIndex]
-    console.log(`[${matchId}] ✅ Selected True/False question: ${questionDb.id} - "${questionDb.title}" (${questionDb.steps[0]?.options?.length || 0} options)`)
+    const selectedQuestion = tfQuestions[randomIndex]
+    console.log(`[${matchId}] 🎲 Selected question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
     
-    // 3. Transform question from DB format to QuestionDTO format
-    // Stage 1: Only include step[0] (True/False step)
-    let steps = questionDb.steps as any[]
-    // Handle JSONB - might be string or already parsed
-    if (typeof steps === 'string') {
-      try {
-        steps = JSON.parse(steps)
-      } catch (parseErr) {
-        console.error(`[${matchId}] ❌ Failed to parse steps JSON:`, parseErr)
-        throw new Error('Invalid steps format in question')
-      }
-    }
-    
-    if (!Array.isArray(steps) || steps.length === 0) {
-      throw new Error('Question has no valid steps array')
-    }
-    
-    const firstStep = steps[0]
-    if (!firstStep) {
-      throw new Error('Question has no first step')
-    }
-    
-    const questionDTO = {
-      id: questionDb.id,
-      title: questionDb.title,
-      subject: questionDb.subject,
-      chapter: questionDb.chapter,
-      level: questionDb.level,
-      difficulty: questionDb.difficulty,
-      questionText: questionDb.stem, // Map stem to questionText
-      totalMarks: questionDb.total_marks,
-      // Stage 1: Only send step[0] (True/False step)
-      steps: [{
-        id: firstStep.id || `step-0`,
-        question: firstStep.prompt || firstStep.title || '', // Map prompt to question field
-        options: firstStep.options || [],
-        correctAnswer: firstStep.correctAnswer ?? firstStep.correct_answer ?? 0,
-        marks: firstStep.marks || 0,
-        explanation: firstStep.explanation || undefined
-      }],
-      topicTags: questionDb.topic_tags || [],
-      rankTier: questionDb.rank_tier || undefined
-    }
-    
-    // 3. Create ROUND_START event
-    const roundId = `${matchId}-round-1`
-    const thinkingDuration = 3000 // 3 seconds thinking time
-    const thinkingEndsAt = new Date(Date.now() + thinkingDuration).toISOString()
-    
-    const roundStartEvent: RoundStartEvent = {
-      type: 'ROUND_START',
-      matchId: matchId,
-      roundId: roundId,
-      roundIndex: 1,
-      phase: 'thinking',
-      question: questionDTO,
-      thinkingEndsAt: thinkingEndsAt
-    }
-    
-    // 4. Send to all sockets for this match
-    const matchSockets = sockets.get(matchId)
-    if (!matchSockets || matchSockets.size === 0) {
-      console.warn(`[${matchId}] ⚠️  No sockets found for match - cannot send ROUND_START`)
-      return
-    }
-    
-    let sentCount = 0
-    matchSockets.forEach((socket, index) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        try {
-          socket.send(JSON.stringify(roundStartEvent))
-          sentCount++
-          console.log(`[${matchId}] ✅ Sent ROUND_START to socket ${index + 1}`)
-        } catch (error) {
-          console.error(`[${matchId}] ❌ Error sending ROUND_START to socket ${index + 1}:`, error)
-        }
-      }
-    })
-    
-    console.log(`[${matchId}] 📊 ROUND_START sent to ${sentCount}/${matchSockets.size} sockets`)
-    
-    // 5. Update match status to 'in_progress' (optional - depends on your schema)
-    await supabase
+    // Step 3: Atomic claim (ONLY broadcast if we win the lock)
+    const { data: lock, error: lockError } = await supabase
       .from('matches')
-      .update({ status: 'in_progress' })
+      .update({
+        question_sent_at: new Date().toISOString(),
+        question_id: selectedQuestion.id
+      })
       .eq('id', matchId)
-      .neq('status', 'in_progress') // Only update if not already in_progress
+      .is('question_id', null)  // CRITICAL: Only update if null
+      .select('id, question_id')  // Minimal select
+      .maybeSingle()
+    
+    if (lockError) {
+      console.error(`[${matchId}] ❌ Error during atomic claim:`, lockError)
+      throw lockError
+    }
+    
+    if (!lock) {
+      // Lost race - MUST re-read match.question_id and use that question
+      console.log(`[${matchId}] ⚠️  Lost lock race - re-reading match.question_id`)
+      const { data: matchAfterRace, error: reReadError } = await supabase
+        .from('matches')
+        .select('question_id, question_sent_at')  // Include for logging
+        .eq('id', matchId)
+        .single()
+      
+      if (reReadError || !matchAfterRace) {
+        console.error(`[${matchId}] ❌ Error re-reading match after race:`, reReadError)
+        throw new Error('Failed to claim question and failed to re-read match')
+      }
+      
+      if (matchAfterRace.question_id) {
+        // Fetch the question that the winner selected
+        const { data: question, error: fetchError } = await supabase
+          .from('questions_v2')
+          .select('*')
+          .eq('id', matchAfterRace.question_id)
+          .single()
+        
+        if (fetchError || !question) {
+          console.error(`[${matchId}] ❌ Error fetching question after race:`, fetchError)
+          throw new Error(`Failed to fetch question ${matchAfterRace.question_id} after race`)
+        }
+        
+        // Broadcast the question that won the race
+        broadcastQuestion(matchId, question, sockets)
+        console.log(`[${matchId}] ✅ Broadcasted question from race winner`)
+      } else {
+        throw new Error('Failed to claim question and no question found after race')
+      }
+    } else {
+      // Won lock - broadcast the question we selected
+      console.log(`[${matchId}] ✅ Won lock - broadcasting selected question`)
+      broadcastQuestion(matchId, selectedQuestion, sockets)
+    }
     
     console.log(`[${matchId}] ✅ Game round started successfully!`)
   } catch (error) {

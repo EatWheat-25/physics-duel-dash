@@ -263,7 +263,7 @@ async function seedQuestions() {
 
       // Insert main question
       const { data: existingQuestion } = await supabase
-        .from('questions')
+        .from('questions_v2')
         .select('id')
         .eq('id', question.id)
         .single()
@@ -271,7 +271,7 @@ async function seedQuestions() {
       if (existingQuestion) {
         console.log(`   ⚠️  Question already exists, updating...`)
         const { error: updateError } = await supabase
-          .from('questions')
+          .from('questions_v2')
           .update({
             title: question.title,
             subject: question.subject,
@@ -288,7 +288,7 @@ async function seedQuestions() {
         if (updateError) throw updateError
       } else {
         const { error: insertError } = await supabase
-          .from('questions')
+          .from('questions_v2')
           .insert({
             id: question.id,
             title: question.title,

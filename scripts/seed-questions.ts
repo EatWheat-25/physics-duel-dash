@@ -500,7 +500,7 @@ async function main() {
   // Insert questions one by one for better error reporting
   for (const question of questions) {
     try {
-      const { error } = await supabase.from('questions').insert(question);
+      const { error } = await supabase.from('questions_v2').insert(question);
 
       if (error) {
         console.error(`   ❌ ${question.title}: ${error.message}`);

@@ -29,7 +29,7 @@ async function checkQuestion() {
     console.log('Checking for question: "Integration by Parts: ln x / x^3"');
 
     const { data, error } = await supabase
-        .from('questions')
+        .from('questions_v2')
         .select('*')
         .ilike('title', '%Integration by Parts: ln x / x^3%')
         .maybeSingle();
