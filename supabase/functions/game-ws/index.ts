@@ -55,25 +55,46 @@ async function checkAndBroadcastBothConnected(
     console.log(`[${matchId}] ✅ Both players connected! Broadcasting BOTH_CONNECTED...`)
     
     const matchSockets = sockets.get(matchId)
+    console.log(`[${matchId}] Socket map has ${matchSockets?.size || 0} socket(s) for this match`)
+    
     if (matchSockets && matchSockets.size > 0) {
       const bothConnectedMessage: BothConnectedEvent = {
         type: 'BOTH_CONNECTED',
         matchId: matchId
       }
       let sentCount = 0
-      matchSockets.forEach(s => {
+      let skippedCount = 0
+      
+      matchSockets.forEach((s, index) => {
+        console.log(`[${matchId}] Socket ${index + 1}/${matchSockets.size} readyState: ${s.readyState} (OPEN=1, CONNECTING=0, CLOSING=2, CLOSED=3)`)
+        
         if (s.readyState === WebSocket.OPEN) {
-          s.send(JSON.stringify(bothConnectedMessage))
-          sentCount++
-          console.log(`[${matchId}] 📤 Sent BOTH_CONNECTED to socket (readyState: ${s.readyState})`)
+          try {
+            s.send(JSON.stringify(bothConnectedMessage))
+            sentCount++
+            console.log(`[${matchId}] ✅ Sent BOTH_CONNECTED to socket ${index + 1}`)
+          } catch (error) {
+            console.error(`[${matchId}] ❌ Error sending BOTH_CONNECTED to socket ${index + 1}:`, error)
+            skippedCount++
+          }
         } else {
-          console.warn(`[${matchId}] ⚠️  Socket not ready (readyState: ${s.readyState}), skipping`)
+          console.warn(`[${matchId}] ⚠️  Socket ${index + 1} not ready (readyState: ${s.readyState}), skipping`)
+          skippedCount++
         }
       })
-      console.log(`[${matchId}] 📤 Broadcasted BOTH_CONNECTED to ${sentCount}/${matchSockets.size} socket(s)`)
+      
+      console.log(`[${matchId}] 📊 Broadcast summary: ${sentCount} sent, ${skippedCount} skipped, ${matchSockets.size} total`)
+      
+      if (sentCount === 0) {
+        console.error(`[${matchId}] ❌ WARNING: Failed to send BOTH_CONNECTED to any socket!`)
+      }
     } else {
-      console.error(`[${matchId}] ❌ No sockets found for match! sockets map:`, matchSockets)
+      console.error(`[${matchId}] ❌ No sockets found for match!`)
+      console.error(`[${matchId}] Sockets map keys:`, Array.from(sockets.keys()))
+      console.error(`[${matchId}] Expected matchId: ${matchId}`)
     }
+  } else {
+    console.log(`[${matchId}] ⏳ Waiting for both players - currently ${connectedSet.size} connected`)
   }
 }
 
@@ -135,8 +156,17 @@ async function handleJoinMatch(
   } as ConnectedEvent))
 
   console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected`)
+  
+  // Log current connection state for debugging
+  const currentConnectedSet = connectedPlayers.get(matchId)
+  console.log(`[${matchId}] Current connected players count: ${currentConnectedSet?.size || 0}`)
+  if (currentConnectedSet) {
+    console.log(`[${matchId}] Connected player IDs:`, Array.from(currentConnectedSet))
+  }
 
   // 5. Check if both players are connected and broadcast if so
+  // Add a small delay to ensure socket is fully ready
+  await new Promise(resolve => setTimeout(resolve, 100))
   await checkAndBroadcastBothConnected(matchId, match, supabase)
 }
 
