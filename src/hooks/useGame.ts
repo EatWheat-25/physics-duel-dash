@@ -306,7 +306,13 @@ export function useGame(match: MatchRow | null) {
       console.log('[useGame] Sending SUBMIT_ANSWER:', submitMessage)
       ws.send(JSON.stringify(submitMessage))
       
-      return prev
+      // Optimistically update UI - show "submitted" immediately
+      // Server will confirm and update waitingForOpponent status
+      return {
+        ...prev,
+        answerSubmitted: true,
+        waitingForOpponent: true // Assume waiting until server confirms
+      }
     })
   }, [])
 
