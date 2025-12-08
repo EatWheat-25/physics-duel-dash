@@ -59,6 +59,7 @@ interface RoundStartEvent {
 interface QuestionReceivedEvent {
   type: 'QUESTION_RECEIVED'
   question: any // Raw question object from questions_v2
+  timer_end_at: string // ISO timestamp when timer expires (60 seconds from now)
 }
 
 interface AnswerReceivedEvent {
@@ -271,9 +272,16 @@ async function selectAndBroadcastQuestion(
       return
     }
 
+    // Timeout for answer submission (60 seconds / 1 minute)
+    const TIMEOUT_SECONDS = 60
+    
+    // Calculate timer end time (60 seconds from now)
+    const timerEndAt = new Date(Date.now() + TIMEOUT_SECONDS * 1000).toISOString()
+    
     const questionReceivedEvent: QuestionReceivedEvent = {
       type: 'QUESTION_RECEIVED',
-      question: questionDb // Send raw DB object
+      question: questionDb, // Send raw DB object
+      timer_end_at: timerEndAt
     }
 
     let sentCount = 0
@@ -300,8 +308,7 @@ async function selectAndBroadcastQuestion(
 
     console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
 
-    // Start timeout for answer submission (30 seconds)
-    const TIMEOUT_SECONDS = 30
+    // Start timeout for answer submission (60 seconds / 1 minute)
     const timeoutId = setTimeout(async () => {
       console.log(`[${matchId}] ⏰ Timeout triggered after ${TIMEOUT_SECONDS}s`)
       

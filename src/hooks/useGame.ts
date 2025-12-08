@@ -25,6 +25,9 @@ interface ConnectionState {
   matchFinished: boolean
   matchWinner: string | null
   totalRounds: number
+  // Timer state
+  timerEndAt: string | null
+  timeRemaining: number | null // seconds remaining
 }
 
 interface RoundStartEvent {
@@ -63,7 +66,10 @@ export function useGame(match: MatchRow | null) {
     consecutiveWinsCount: 0,
     matchFinished: false,
     matchWinner: null,
-    totalRounds: 0
+    totalRounds: 0,
+    // Timer state
+    timerEndAt: null,
+    timeRemaining: null
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -93,6 +99,35 @@ export function useGame(match: MatchRow | null) {
       window.removeEventListener('polling-results-detected', handlePollingResults as EventListener)
     }
   }, [])
+
+  // Timer countdown effect
+  useEffect(() => {
+    if (!state.timerEndAt || state.status !== 'playing' || state.answerSubmitted) {
+      setState(prev => ({ ...prev, timeRemaining: null }))
+      return
+    }
+
+    const updateTimer = () => {
+      const now = new Date().getTime()
+      const endTime = new Date(state.timerEndAt!).getTime()
+      const remaining = Math.max(0, Math.floor((endTime - now) / 1000))
+      
+      setState(prev => ({ ...prev, timeRemaining: remaining }))
+      
+      if (remaining <= 0) {
+        // Timer expired - server will handle timeout
+        return
+      }
+    }
+
+    // Update immediately
+    updateTimer()
+
+    // Update every second
+    const interval = setInterval(updateTimer, 1000)
+
+    return () => clearInterval(interval)
+  }, [state.timerEndAt, state.status, state.answerSubmitted])
 
   useEffect(() => {
     if (!match) {
@@ -204,11 +239,16 @@ export function useGame(match: MatchRow | null) {
               console.log('[useGame] QUESTION_RECEIVED message received')
               try {
                 const mappedQuestion = mapRawToQuestion(message.question)
+                const timerEndAt = (message as any).timer_end_at || null
                 setState(prev => ({
                   ...prev,
                   status: 'playing',
                   question: mappedQuestion,
-                  errorMessage: null
+                  errorMessage: null,
+                  timerEndAt: timerEndAt,
+                  answerSubmitted: false,
+                  waitingForOpponent: false,
+                  results: null
                 }))
               } catch (error) {
                 console.error('[useGame] Error mapping question:', error)
@@ -265,7 +305,9 @@ export function useGame(match: MatchRow | null) {
                 results: null,
                 roundNumber: message.round_number || 0,
                 lastRoundWinner: message.last_round_winner,
-                consecutiveWinsCount: message.consecutive_wins_count || 0
+                consecutiveWinsCount: message.consecutive_wins_count || 0,
+                timerEndAt: null, // Will be set when QUESTION_RECEIVED arrives
+                timeRemaining: null
               }))
             } else if (message.type === 'MATCH_FINISHED') {
               console.log('[useGame] MATCH_FINISHED message received')
@@ -394,6 +436,8 @@ export function useGame(match: MatchRow | null) {
     matchFinished: state.matchFinished,
     matchWinner: state.matchWinner,
     totalRounds: state.totalRounds,
+    timerEndAt: state.timerEndAt,
+    timeRemaining: state.timeRemaining,
     submitAnswer
   }
 }

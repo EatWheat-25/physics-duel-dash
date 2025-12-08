@@ -109,6 +109,8 @@ export default function BattleConnected() {
     matchFinished,
     matchWinner,
     totalRounds,
+    // Timer state
+    timeRemaining,
     submitAnswer 
   } = useGame(match);
 
@@ -320,9 +322,33 @@ export default function BattleConnected() {
                 const firstStep = question.steps?.[0];
                 const nonEmptyOptions = (firstStep?.options ?? []).filter((o: string) => String(o).trim() !== '');
                 
+                // Format timer as MM:SS
+                const formatTime = (seconds: number | null) => {
+                  if (seconds === null || seconds < 0) return '00:00'
+                  const mins = Math.floor(seconds / 60)
+                  const secs = seconds % 60
+                  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+                }
+                
                 return (
                   <>
                     <h2 className="text-2xl font-bold text-white mb-2">Question Ready!</h2>
+                    {/* Timer Display */}
+                    {timeRemaining !== null && !answerSubmitted && (
+                      <div className={`mt-2 mb-4 text-center ${
+                        timeRemaining <= 10 ? 'text-red-400' : timeRemaining <= 30 ? 'text-yellow-400' : 'text-green-400'
+                      }`}>
+                        <div className="text-4xl font-mono font-bold">
+                          {formatTime(timeRemaining)}
+                        </div>
+                        <p className="text-sm text-slate-400 mt-1">Time remaining</p>
+                      </div>
+                    )}
+                    {answerSubmitted && (
+                      <div className="mt-2 mb-4 text-center text-slate-400">
+                        <p className="text-sm">Answer submitted</p>
+                      </div>
+                    )}
                     <div className="mt-4 p-4 bg-slate-700/50 rounded-lg text-left">
                       <h3 className="text-xl font-semibold mb-2">{question.title}</h3>
                       <p className="text-slate-300 mb-4">{question.stem || question.questionText}</p>
