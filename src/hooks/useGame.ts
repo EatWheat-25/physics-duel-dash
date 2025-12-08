@@ -54,6 +54,32 @@ export function useGame(match: MatchRow | null) {
 
   const wsRef = useRef<WebSocket | null>(null)
 
+  // Listen for polling-detected results (fallback if WS message missed)
+  useEffect(() => {
+    const handlePollingResults = (event: CustomEvent) => {
+      const detail = event.detail
+      console.log('[useGame] Polling detected results - updating state manually')
+      setState(prev => ({
+        ...prev,
+        status: 'results',
+        results: {
+          player1_answer: detail.player1_answer,
+          player2_answer: detail.player2_answer,
+          correct_answer: detail.correct_answer,
+          player1_correct: detail.player1_correct,
+          player2_correct: detail.player2_correct,
+          round_winner: detail.round_winner
+        },
+        waitingForOpponent: false
+      }))
+    }
+
+    window.addEventListener('polling-results-detected', handlePollingResults as EventListener)
+    return () => {
+      window.removeEventListener('polling-results-detected', handlePollingResults as EventListener)
+    }
+  }, [])
+
   useEffect(() => {
     if (!match) {
       setState({

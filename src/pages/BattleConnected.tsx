@@ -107,11 +107,14 @@ export default function BattleConnected() {
 
   // Polling fallback: Check match state every 2 seconds to catch missed WS messages
   useEffect(() => {
-    if (!match || !matchId || status !== 'playing' || !question) {
+    if (!match || !matchId || (status !== 'playing' && status !== 'results') || !question) {
       return;
     }
 
-    let localResultsReceived = false;
+    // If already showing results, stop polling
+    if (status === 'results') {
+      return;
+    }
 
     const pollInterval = setInterval(async () => {
       try {
@@ -131,11 +134,27 @@ export default function BattleConnected() {
           return;
         }
 
-        if (matchData?.results_computed_at && !localResultsReceived) {
-          localResultsReceived = true;
+        // If results are computed but we haven't received the WS message, manually trigger display
+        if (matchData?.results_computed_at && status !== 'results') {
           console.log('[BattleConnected] Polling detected results - manually triggering display');
-          // Results will be displayed via RESULTS_RECEIVED message handler
-          // This is just a fallback in case the message was missed
+          
+          // Manually send a RESULTS_RECEIVED-like event to the WebSocket handler
+          // We'll dispatch it via a custom event that useGame can listen to
+          // Or we can directly update via a ref/callback
+          // Actually, simpler: just check if we need to manually update state
+          // But we don't have direct access to setState from useGame here...
+          
+          // Better approach: trigger a custom event that useGame listens for
+          window.dispatchEvent(new CustomEvent('polling-results-detected', {
+            detail: {
+              player1_answer: matchData.player1_answer,
+              player2_answer: matchData.player2_answer,
+              correct_answer: matchData.correct_answer,
+              player1_correct: matchData.player1_correct,
+              player2_correct: matchData.player2_correct,
+              round_winner: matchData.round_winner
+            }
+          }));
         }
       } catch (err) {
         // Silently handle errors in polling
