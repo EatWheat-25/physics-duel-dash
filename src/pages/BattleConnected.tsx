@@ -93,6 +93,18 @@ export default function BattleConnected() {
     }
   }, [currentUser]);
 
+  // Use game hook for connection - MUST be declared before useEffect that uses its values
+  const { 
+    status, 
+    playerRole, 
+    errorMessage, 
+    question, 
+    answerSubmitted, 
+    waitingForOpponent, 
+    results,
+    submitAnswer 
+  } = useGame(match);
+
   // Polling fallback: Check match state every 2 seconds to catch missed WS messages
   useEffect(() => {
     if (!match || !matchId || status !== 'playing' || !question) {
@@ -118,18 +130,6 @@ export default function BattleConnected() {
 
     return () => clearInterval(pollInterval);
   }, [match, matchId, status, question]);
-
-  // Use game hook for connection
-  const { 
-    status, 
-    playerRole, 
-    errorMessage, 
-    question, 
-    answerSubmitted, 
-    waitingForOpponent, 
-    results,
-    submitAnswer 
-  } = useGame(match);
 
   // Render loading state
   if (!match || !currentUser) {
