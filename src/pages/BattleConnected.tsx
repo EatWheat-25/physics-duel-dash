@@ -344,11 +344,11 @@ export default function BattleConnected() {
               <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className={`w-3 h-3 rounded-full ${
-                    status === 'both_connected' || status === 'playing' ? 'bg-green-400' : 'bg-gray-400'
+                    status === 'both_connected' || status === 'playing' || status === 'results' ? 'bg-green-400' : 'bg-gray-400'
                   }`} />
                   <span className="font-semibold">Opponent</span>
                 </div>
-                {status === 'both_connected' || status === 'playing' ? (
+                {status === 'both_connected' || status === 'playing' || status === 'results' ? (
                   <CheckCircle2 className="w-5 h-5 text-green-400" />
                 ) : (
                   <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
