@@ -114,17 +114,32 @@ export default function BattleConnected() {
     let localResultsReceived = false;
 
     const pollInterval = setInterval(async () => {
-      const { data: matchData } = await supabase
-        .from('matches')
-        .select('player1_answer, player2_answer, results_computed_at, correct_answer, player1_correct, player2_correct, round_winner')
-        .eq('id', matchId)
-        .single();
+      try {
+        const { data: matchData, error } = await supabase
+          .from('matches')
+          .select('player1_answer, player2_answer, results_computed_at, correct_answer, player1_correct, player2_correct, round_winner')
+          .eq('id', matchId)
+          .single();
 
-      if (matchData?.results_computed_at && !localResultsReceived) {
-        localResultsReceived = true;
-        console.log('[BattleConnected] Polling detected results - manually triggering display');
-        // Results will be displayed via RESULTS_RECEIVED message handler
-        // This is just a fallback in case the message was missed
+        // If columns don't exist (migration not applied), skip polling
+        if (error) {
+          if (error.code === 'PGRST116' || error.message?.includes('column') || error.message?.includes('does not exist')) {
+            console.warn('[BattleConnected] Stage 2 columns not found - migrations may not be applied. Skipping polling.');
+            return;
+          }
+          // Other errors - log but don't spam
+          return;
+        }
+
+        if (matchData?.results_computed_at && !localResultsReceived) {
+          localResultsReceived = true;
+          console.log('[BattleConnected] Polling detected results - manually triggering display');
+          // Results will be displayed via RESULTS_RECEIVED message handler
+          // This is just a fallback in case the message was missed
+        }
+      } catch (err) {
+        // Silently handle errors in polling
+        console.warn('[BattleConnected] Polling error (non-critical):', err);
       }
     }, 2000);
 

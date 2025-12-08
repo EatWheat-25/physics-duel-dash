@@ -508,8 +508,26 @@ async function handleSubmitAnswer(
     p_answer: answer
   })
 
-  if (error || !result?.success) {
-    console.error(`[${matchId}] ❌ Error submitting answer:`, error || result?.error)
+  if (error) {
+    // Check if RPC function doesn't exist (migration not applied)
+    if (error.code === '42883' || error.message?.includes('does not exist') || error.message?.includes('function')) {
+      console.error(`[${matchId}] ❌ RPC function submit_answer_stage2 not found - migrations may not be applied`)
+      socket.send(JSON.stringify({
+        type: 'GAME_ERROR',
+        message: 'Answer submission not available - database migrations required'
+      } as GameErrorEvent))
+      return
+    }
+    console.error(`[${matchId}] ❌ Error submitting answer:`, error)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: error.message || 'Failed to submit answer'
+    } as GameErrorEvent))
+    return
+  }
+
+  if (!result?.success) {
+    console.error(`[${matchId}] ❌ RPC returned error:`, result?.error)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: result?.error || 'Failed to submit answer'
