@@ -77,6 +77,19 @@ interface ResultsReceivedEvent {
   round_winner: string | null
 }
 
+interface MatchFinishedEvent {
+  type: 'MATCH_FINISHED'
+  winner_id: string | null
+  total_rounds: number
+}
+
+interface RoundStartedEvent {
+  type: 'ROUND_STARTED'
+  round_number: number
+  last_round_winner: string | null
+  consecutive_wins_count: number
+}
+
 // Track sockets locally (for broadcasting) - each instance only tracks its own sockets
 const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 
@@ -309,9 +322,30 @@ async function selectAndBroadcastQuestion(
           (match.player1_answer == null || match.player2_answer == null)) {
         console.log(`[${matchId}] ⏰ Applying timeout - marking unanswered player as wrong`)
         
-        const { error: timeoutError } = await supabase.rpc('force_timeout_stage2', {
+        // Try force_timeout_stage3 first (Stage 3), fallback to force_timeout_stage2 (Stage 2)
+        let timeoutError = null
+        let timeoutResult = null
+        
+        const { data: stage3Result, error: stage3Error } = await supabase.rpc('force_timeout_stage3', {
           p_match_id: matchId
         })
+        
+        if (stage3Error) {
+          // Check if RPC function doesn't exist (Stage 3 migration not applied)
+          if (stage3Error.code === '42883' || stage3Error.message?.includes('does not exist') || stage3Error.message?.includes('function')) {
+            console.log(`[${matchId}] ⚠️ force_timeout_stage3 not found - falling back to force_timeout_stage2`)
+            const { data: stage2Result, error: stage2Error } = await supabase.rpc('force_timeout_stage2', {
+              p_match_id: matchId
+            })
+            timeoutError = stage2Error
+            timeoutResult = stage2Result
+          } else {
+            timeoutError = stage3Error
+            timeoutResult = stage3Result
+          }
+        } else {
+          timeoutResult = stage3Result
+        }
         
         if (timeoutError) {
           console.error(`[${matchId}] ❌ Error applying timeout:`, timeoutError)
@@ -338,6 +372,9 @@ async function selectAndBroadcastQuestion(
           }
           
           broadcastToMatch(matchId, resultsEvent)
+          
+          // Stage 3: After RESULTS_RECEIVED, check match state and transition
+          await handleRoundTransition(matchId, supabase)
         }
       }
       
@@ -569,6 +606,9 @@ async function handleSubmitAnswer(
       }
 
       broadcastToMatch(matchId, resultsEvent)
+      
+      // Stage 3: After RESULTS_RECEIVED, check match state and transition
+      await handleRoundTransition(matchId, supabase)
     }
   } else {
     // Only one answered - broadcast "waiting" to both
@@ -579,6 +619,98 @@ async function handleSubmitAnswer(
     }
 
     broadcastToMatch(matchId, answerReceivedEvent)
+  }
+}
+
+/**
+ * Handle round transition after RESULTS_RECEIVED
+ * - Fetches fresh match state from database
+ * - If match finished, broadcasts MATCH_FINISHED
+ * - If match continues, starts next round
+ */
+async function handleRoundTransition(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  console.log(`[${matchId}] 🔄 Checking match state for round transition...`)
+  
+  // Fetch fresh match state from database (don't use cached state)
+  const { data: matchState, error: stateError } = await supabase
+    .from('matches')
+    .select('winner_id, status, round_number, last_round_winner, consecutive_wins_count')
+    .eq('id', matchId)
+    .single()
+  
+  if (stateError || !matchState) {
+    console.error(`[${matchId}] ❌ Failed to fetch match state:`, stateError)
+    return
+  }
+  
+  // If match finished, broadcast MATCH_FINISHED
+  if (matchState.winner_id !== null) {
+    console.log(`[${matchId}] 🏆 Match finished - winner: ${matchState.winner_id}`)
+    
+    const matchFinishedEvent: MatchFinishedEvent = {
+      type: 'MATCH_FINISHED',
+      winner_id: matchState.winner_id,
+      total_rounds: matchState.round_number || 0
+    }
+    
+    broadcastToMatch(matchId, matchFinishedEvent)
+    return
+  }
+  
+  // Match continues - start next round
+  console.log(`[${matchId}] ➡️ Match continues - starting next round...`)
+  
+  // Clear timeout (if any)
+  const existingTimeout = matchTimeouts.get(matchId)
+  if (existingTimeout) {
+    clearTimeout(existingTimeout)
+    matchTimeouts.delete(matchId)
+  }
+  
+  // Call start_next_round_stage3 to clear answer fields
+  const { data: resetResult, error: resetError } = await supabase.rpc('start_next_round_stage3', {
+    p_match_id: matchId
+  })
+  
+  if (resetError) {
+    // Check if RPC function doesn't exist (migration not applied)
+    if (resetError.code === '42883' || resetError.message?.includes('does not exist') || resetError.message?.includes('function')) {
+      console.warn(`[${matchId}] ⚠️ RPC function start_next_round_stage3 not found - Stage 3 migrations may not be applied`)
+      return
+    }
+    console.error(`[${matchId}] ❌ Error starting next round:`, resetError)
+    return
+  }
+  
+  if (!resetResult?.success) {
+    console.error(`[${matchId}] ❌ Failed to start next round:`, resetResult?.error)
+    return
+  }
+  
+  console.log(`[${matchId}] ✅ Round reset successful - selecting next question...`)
+  
+  // Select and broadcast next question
+  await selectAndBroadcastQuestion(matchId, supabase)
+  
+  // Optionally broadcast ROUND_STARTED event
+  const { data: updatedMatch } = await supabase
+    .from('matches')
+    .select('round_number, last_round_winner, consecutive_wins_count')
+    .eq('id', matchId)
+    .single()
+  
+  if (updatedMatch) {
+    const roundStartedEvent: RoundStartedEvent = {
+      type: 'ROUND_STARTED',
+      round_number: updatedMatch.round_number || 0,
+      last_round_winner: updatedMatch.last_round_winner,
+      consecutive_wins_count: updatedMatch.consecutive_wins_count || 0
+    }
+    
+    broadcastToMatch(matchId, roundStartedEvent)
   }
 }
 

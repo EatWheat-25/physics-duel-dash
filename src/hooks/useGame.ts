@@ -4,7 +4,7 @@ import type { MatchRow } from '@/types/schema'
 import { mapRawToQuestion } from '@/utils/questionMapper'
 
 interface ConnectionState {
-  status: 'connecting' | 'connected' | 'both_connected' | 'playing' | 'results' | 'error'
+  status: 'connecting' | 'connected' | 'both_connected' | 'playing' | 'results' | 'error' | 'match_finished'
   playerRole: 'player1' | 'player2' | null
   errorMessage: string | null
   question: any | null
@@ -18,6 +18,13 @@ interface ConnectionState {
     player2_correct: boolean
     round_winner: string | null
   } | null
+  // Stage 3: Tug-of-war state
+  roundNumber: number
+  lastRoundWinner: string | null
+  consecutiveWinsCount: number
+  matchFinished: boolean
+  matchWinner: string | null
+  totalRounds: number
 }
 
 interface RoundStartEvent {
@@ -49,7 +56,14 @@ export function useGame(match: MatchRow | null) {
     question: null,
     answerSubmitted: false,
     waitingForOpponent: false,
-    results: null
+    results: null,
+    // Stage 3: Tug-of-war state
+    roundNumber: 0,
+    lastRoundWinner: null,
+    consecutiveWinsCount: 0,
+    matchFinished: false,
+    matchWinner: null,
+    totalRounds: 0
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -241,6 +255,29 @@ export function useGame(match: MatchRow | null) {
                 },
                 waitingForOpponent: false
               }))
+            } else if (message.type === 'ROUND_STARTED') {
+              console.log('[useGame] ROUND_STARTED message received - new round starting')
+              setState(prev => ({
+                ...prev,
+                status: 'playing',
+                answerSubmitted: false,
+                waitingForOpponent: false,
+                results: null,
+                roundNumber: message.round_number || 0,
+                lastRoundWinner: message.last_round_winner,
+                consecutiveWinsCount: message.consecutive_wins_count || 0
+              }))
+            } else if (message.type === 'MATCH_FINISHED') {
+              console.log('[useGame] MATCH_FINISHED message received')
+              setState(prev => ({
+                ...prev,
+                status: 'match_finished',
+                matchFinished: true,
+                matchWinner: message.winner_id,
+                totalRounds: message.total_rounds || 0,
+                answerSubmitted: false,
+                waitingForOpponent: false
+              }))
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
               setState(prev => ({
@@ -350,6 +387,13 @@ export function useGame(match: MatchRow | null) {
     answerSubmitted: state.answerSubmitted,
     waitingForOpponent: state.waitingForOpponent,
     results: state.results,
+    // Stage 3: Tug-of-war state
+    roundNumber: state.roundNumber,
+    lastRoundWinner: state.lastRoundWinner,
+    consecutiveWinsCount: state.consecutiveWinsCount,
+    matchFinished: state.matchFinished,
+    matchWinner: state.matchWinner,
+    totalRounds: state.totalRounds,
     submitAnswer
   }
 }

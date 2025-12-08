@@ -102,6 +102,13 @@ export default function BattleConnected() {
     answerSubmitted, 
     waitingForOpponent, 
     results,
+    // Stage 3: Tug-of-war state
+    roundNumber,
+    lastRoundWinner,
+    consecutiveWinsCount,
+    matchFinished,
+    matchWinner,
+    totalRounds,
     submitAnswer 
   } = useGame(match);
 
@@ -218,6 +225,74 @@ export default function BattleConnected() {
         {/* Connection Status Card */}
         <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-8 border border-purple-500/20">
           <div className="space-y-6">
+            {/* Stage 3: Tug-of-War Bar */}
+            {(status === 'playing' || status === 'results') && (
+              <div className="bg-slate-700/50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-300">Round {roundNumber || 0}</span>
+                  {consecutiveWinsCount > 0 && (
+                    <span className="text-purple-300 font-semibold">
+                      {lastRoundWinner === currentUser ? 'You' : 'Opponent'}: {consecutiveWinsCount} win streak
+                    </span>
+                  )}
+                </div>
+                {/* Tug-of-war visual bar */}
+                <div className="relative h-4 bg-slate-600 rounded-full overflow-hidden">
+                  <div 
+                    className={`absolute h-full transition-all duration-500 ${
+                      lastRoundWinner === currentUser 
+                        ? 'bg-blue-500' 
+                        : lastRoundWinner === opponentId
+                        ? 'bg-red-500'
+                        : 'bg-gray-500'
+                    }`}
+                    style={{
+                      width: lastRoundWinner === currentUser 
+                        ? `${Math.min(50 + (consecutiveWinsCount * 25), 100)}%`
+                        : lastRoundWinner === opponentId
+                        ? `${Math.min(50 + (consecutiveWinsCount * 25), 100)}%`
+                        : '50%',
+                      left: lastRoundWinner === currentUser ? '0%' : lastRoundWinner === opponentId ? 'auto' : '25%',
+                      right: lastRoundWinner === opponentId ? '0%' : 'auto'
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-1 h-full bg-white/30" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Match Finished State */}
+            {status === 'match_finished' && matchFinished && (
+              <div className="text-center space-y-4">
+                <h2 className="text-3xl font-bold text-white mb-4">Match Finished!</h2>
+                <div className="p-6 bg-slate-700/50 rounded-lg space-y-3">
+                  {matchWinner === currentUser ? (
+                    <div className="text-4xl mb-4">🎉</div>
+                  ) : matchWinner === opponentId ? (
+                    <div className="text-4xl mb-4">😔</div>
+                  ) : (
+                    <div className="text-4xl mb-4">🤝</div>
+                  )}
+                  <p className="text-2xl font-semibold">
+                    {matchWinner === currentUser 
+                      ? 'You Won!' 
+                      : matchWinner === opponentId
+                      ? 'Opponent Won'
+                      : 'Draw'}
+                  </p>
+                  <p className="text-slate-300">Total Rounds: {totalRounds || 0}</p>
+                  <Button
+                    onClick={() => navigate('/matchmaking-new')}
+                    className="mt-4"
+                  >
+                    Return to Lobby
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Status Header */}
             <div className="text-center">
               {status === 'connecting' && (
@@ -291,9 +366,10 @@ export default function BattleConnected() {
                   </>
                 );
               })()}
-              {status === 'results' && results && (
+              {status === 'results' && results && !matchFinished && (
                 <>
                   <h2 className="text-2xl font-bold text-white mb-4">Round Results</h2>
+                  <p className="text-slate-400 mb-4">Next round starting soon...</p>
                   <div className="mt-4 p-4 bg-slate-700/50 rounded-lg space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-slate-300">Correct Answer:</span>
@@ -367,7 +443,7 @@ export default function BattleConnected() {
                   }`} />
                   <span className="font-semibold">Opponent</span>
                 </div>
-                {status === 'both_connected' || status === 'playing' || status === 'results' ? (
+                {status === 'both_connected' || status === 'playing' || status === 'results' || status === 'match_finished' ? (
                   <CheckCircle2 className="w-5 h-5 text-green-400" />
                 ) : (
                   <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
