@@ -93,8 +93,43 @@ export default function BattleConnected() {
     }
   }, [currentUser]);
 
+  // Polling fallback: Check match state every 2 seconds to catch missed WS messages
+  useEffect(() => {
+    if (!match || !matchId || status !== 'playing' || !question) {
+      return;
+    }
+
+    let localResultsReceived = false;
+
+    const pollInterval = setInterval(async () => {
+      const { data: matchData } = await supabase
+        .from('matches')
+        .select('player1_answer, player2_answer, results_computed_at, correct_answer, player1_correct, player2_correct, round_winner')
+        .eq('id', matchId)
+        .single();
+
+      if (matchData?.results_computed_at && !localResultsReceived) {
+        localResultsReceived = true;
+        console.log('[BattleConnected] Polling detected results - manually triggering display');
+        // Results will be displayed via RESULTS_RECEIVED message handler
+        // This is just a fallback in case the message was missed
+      }
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
+  }, [match, matchId, status, question]);
+
   // Use game hook for connection
-  const { status, playerRole, errorMessage, question } = useGame(match);
+  const { 
+    status, 
+    playerRole, 
+    errorMessage, 
+    question, 
+    answerSubmitted, 
+    waitingForOpponent, 
+    results,
+    submitAnswer 
+  } = useGame(match);
 
   // Render loading state
   if (!match || !currentUser) {
@@ -201,16 +236,80 @@ export default function BattleConnected() {
                               key={index}
                               className="w-full justify-start"
                               variant="outline"
+                              disabled={answerSubmitted}
+                              onClick={() => submitAnswer(index)}
                             >
                               {String.fromCharCode(65 + index)}. {option}
                             </Button>
                           ))}
+                          {answerSubmitted && (
+                            <div className="mt-4 p-3 bg-blue-500/20 border border-blue-500/50 rounded text-center">
+                              <p className="text-blue-300">
+                                {waitingForOpponent 
+                                  ? 'Waiting for opponent to answer...' 
+                                  : 'Answer submitted!'}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   </>
                 );
               })()}
+              {status === 'results' && results && (
+                <>
+                  <h2 className="text-2xl font-bold text-white mb-4">Round Results</h2>
+                  <div className="mt-4 p-4 bg-slate-700/50 rounded-lg space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-300">Correct Answer:</span>
+                      <span className="text-white font-semibold">
+                        {results.correct_answer === 0 ? 'A. True' : 'B. False'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-300">Your Answer:</span>
+                      <span className={`font-semibold ${
+                        (playerRole === 'player1' && results.player1_correct) ||
+                        (playerRole === 'player2' && results.player2_correct)
+                          ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {(playerRole === 'player1' ? results.player1_answer : results.player2_answer) === 0 ? 'A. True' : 'B. False'}
+                        {(playerRole === 'player1' && results.player1_correct) ||
+                         (playerRole === 'player2' && results.player2_correct)
+                          ? ' ✓' : ' ✗'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-300">Opponent's Answer:</span>
+                      <span className={`font-semibold ${
+                        (playerRole === 'player1' && results.player2_correct) ||
+                        (playerRole === 'player2' && results.player1_correct)
+                          ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {(playerRole === 'player1' ? results.player2_answer : results.player1_answer) === 0 ? 'A. True' : 'B. False'}
+                        {(playerRole === 'player1' && results.player2_correct) ||
+                         (playerRole === 'player2' && results.player1_correct)
+                          ? ' ✓' : ' ✗'}
+                      </span>
+                    </div>
+                    {results.round_winner && (
+                      <div className="mt-4 p-3 bg-purple-500/20 border border-purple-500/50 rounded text-center">
+                        <p className="text-purple-300 font-semibold">
+                          {results.round_winner === currentUser 
+                            ? '🎉 You won this round!' 
+                            : 'Opponent won this round'}
+                        </p>
+                      </div>
+                    )}
+                    {!results.round_winner && (
+                      <div className="mt-4 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded text-center">
+                        <p className="text-yellow-300 font-semibold">Draw - Both players answered correctly</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Player Status */}

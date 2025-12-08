@@ -61,8 +61,52 @@ interface QuestionReceivedEvent {
   question: any // Raw question object from questions_v2
 }
 
+interface AnswerReceivedEvent {
+  type: 'ANSWER_RECEIVED'
+  player: 'player1' | 'player2'
+  waiting_for_opponent: boolean
+}
+
+interface ResultsReceivedEvent {
+  type: 'RESULTS_RECEIVED'
+  player1_answer: number | null
+  player2_answer: number | null
+  correct_answer: number
+  player1_correct: boolean
+  player2_correct: boolean
+  round_winner: string | null
+}
+
 // Track sockets locally (for broadcasting) - each instance only tracks its own sockets
 const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
+
+// Track timeouts per match (for cleanup)
+const matchTimeouts = new Map<string, number>() // matchId -> timeoutId
+
+/**
+ * Broadcast message to all sockets for a match
+ */
+function broadcastToMatch(matchId: string, event: any): void {
+  const matchSockets = sockets.get(matchId)
+  if (!matchSockets || matchSockets.size === 0) {
+    console.warn(`[${matchId}] ⚠️ No sockets found for match - cannot broadcast ${event.type}`)
+    return
+  }
+
+  let sentCount = 0
+  matchSockets.forEach((socket) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      try {
+        socket.send(JSON.stringify(event))
+        sentCount++
+      } catch (error) {
+        console.error(`[${matchId}] ❌ Error broadcasting ${event.type}:`, error)
+      }
+    }
+  })
+
+  console.log(`[${matchId}] 📊 Broadcast ${event.type} to ${sentCount}/${matchSockets.size} sockets`)
+}
 
 /**
  * Check if both players are connected using DATABASE (works across instances)
@@ -242,6 +286,67 @@ async function selectAndBroadcastQuestion(
       .neq('status', 'in_progress')
 
     console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
+
+    // Start timeout for answer submission (30 seconds)
+    const TIMEOUT_SECONDS = 30
+    const timeoutId = setTimeout(async () => {
+      console.log(`[${matchId}] ⏰ Timeout triggered after ${TIMEOUT_SECONDS}s`)
+      
+      const { data: match } = await supabase
+        .from('matches')
+        .select('player1_answer, player2_answer, results_computed_at')
+        .eq('id', matchId)
+        .single()
+      
+      if (!match) {
+        console.error(`[${matchId}] ❌ Match not found during timeout`)
+        matchTimeouts.delete(matchId)
+        return
+      }
+      
+      // If results not computed and one player hasn't answered
+      if (!match.results_computed_at && 
+          (match.player1_answer == null || match.player2_answer == null)) {
+        console.log(`[${matchId}] ⏰ Applying timeout - marking unanswered player as wrong`)
+        
+        const { error: timeoutError } = await supabase.rpc('force_timeout_stage2', {
+          p_match_id: matchId
+        })
+        
+        if (timeoutError) {
+          console.error(`[${matchId}] ❌ Error applying timeout:`, timeoutError)
+          matchTimeouts.delete(matchId)
+          return
+        }
+        
+        // Fetch and broadcast results after timeout
+        const { data: matchResults } = await supabase
+          .from('matches')
+          .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
+          .eq('id', matchId)
+          .single()
+        
+        if (matchResults) {
+          const resultsEvent: ResultsReceivedEvent = {
+            type: 'RESULTS_RECEIVED',
+            player1_answer: matchResults.player1_answer,
+            player2_answer: matchResults.player2_answer,
+            correct_answer: matchResults.correct_answer!,
+            player1_correct: matchResults.player1_correct!,
+            player2_correct: matchResults.player2_correct!,
+            round_winner: matchResults.round_winner
+          }
+          
+          broadcastToMatch(matchId, resultsEvent)
+        }
+      }
+      
+      // Clean up timeout reference
+      matchTimeouts.delete(matchId)
+    }, TIMEOUT_SECONDS * 1000)
+    
+    matchTimeouts.set(matchId, timeoutId)
+    console.log(`[${matchId}] ⏰ Started ${TIMEOUT_SECONDS}s timeout for answer submission`)
   } catch (error) {
     console.error(`[${matchId}] ❌ Error in atomic question selection:`, error)
 
@@ -351,6 +456,112 @@ async function checkAndBroadcastBothConnected(
   }
   
   return success
+}
+
+/**
+ * Handle SUBMIT_ANSWER message
+ * - Validates answer
+ * - Calls atomic RPC
+ * - Broadcasts results when both answered
+ * - Clears timeout on early completion
+ */
+async function handleSubmitAnswer(
+  matchId: string,
+  playerId: string,
+  answer: number,
+  socket: WebSocket,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  console.log(`[${matchId}] SUBMIT_ANSWER from player ${playerId}, answer: ${answer}`)
+
+  // Validate answer index
+  if (answer !== 0 && answer !== 1) {
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'Invalid answer: must be 0 or 1'
+    } as GameErrorEvent))
+    return
+  }
+
+  // Get match to determine player role
+  const { data: match, error: matchError } = await supabase
+    .from('matches')
+    .select('player1_id, player2_id')
+    .eq('id', matchId)
+    .single()
+
+  if (matchError || !match) {
+    console.error(`[${matchId}] ❌ Match not found:`, matchError)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'Match not found'
+    } as GameErrorEvent))
+    return
+  }
+
+  const isP1 = match.player1_id === playerId
+
+  // Call atomic RPC
+  const { data: result, error } = await supabase.rpc('submit_answer_stage2', {
+    p_match_id: matchId,
+    p_player_id: playerId,
+    p_answer: answer
+  })
+
+  if (error || !result?.success) {
+    console.error(`[${matchId}] ❌ Error submitting answer:`, error || result?.error)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: result?.error || 'Failed to submit answer'
+    } as GameErrorEvent))
+    return
+  }
+
+  // Send confirmation to submitter
+  socket.send(JSON.stringify({
+    type: 'ANSWER_SUBMITTED',
+    both_answered: result.both_answered
+  }))
+
+  // If both answered, fetch and broadcast results
+  if (result.both_answered) {
+    // Clear timeout since both answered early
+    const existingTimeout = matchTimeouts.get(matchId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+      matchTimeouts.delete(matchId)
+      console.log(`[${matchId}] ✅ Cleared timeout - both players answered early`)
+    }
+
+    const { data: matchResults } = await supabase
+      .from('matches')
+      .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
+      .eq('id', matchId)
+      .single()
+
+    if (matchResults) {
+      const resultsEvent: ResultsReceivedEvent = {
+        type: 'RESULTS_RECEIVED',
+        player1_answer: matchResults.player1_answer,
+        player2_answer: matchResults.player2_answer,
+        correct_answer: matchResults.correct_answer!,
+        player1_correct: matchResults.player1_correct!,
+        player2_correct: matchResults.player2_correct!,
+        round_winner: matchResults.round_winner
+      }
+
+      broadcastToMatch(matchId, resultsEvent)
+    }
+  } else {
+    // Only one answered - broadcast "waiting" to both
+    const answerReceivedEvent: AnswerReceivedEvent = {
+      type: 'ANSWER_RECEIVED',
+      player: isP1 ? 'player1' : 'player2',
+      waiting_for_opponent: true
+    }
+
+    broadcastToMatch(matchId, answerReceivedEvent)
+  }
 }
 
 /**
@@ -601,6 +812,9 @@ Deno.serve(async (req) => {
       if (message.type === 'JOIN_MATCH') {
         console.log(`[${matchId}] Processing JOIN_MATCH from user ${user.id}`)
         await handleJoinMatch(matchId, user.id, socket, supabase)
+      } else if (message.type === 'SUBMIT_ANSWER') {
+        console.log(`[${matchId}] Processing SUBMIT_ANSWER from user ${user.id}`)
+        await handleSubmitAnswer(matchId, user.id, message.answer, socket, supabase)
       } else {
         console.warn(`[${matchId}] Unknown message type: ${message.type}`)
         socket.send(JSON.stringify({

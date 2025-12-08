@@ -4,10 +4,20 @@ import type { MatchRow } from '@/types/schema'
 import { mapRawToQuestion } from '@/utils/questionMapper'
 
 interface ConnectionState {
-  status: 'connecting' | 'connected' | 'both_connected' | 'playing' | 'error'
+  status: 'connecting' | 'connected' | 'both_connected' | 'playing' | 'results' | 'error'
   playerRole: 'player1' | 'player2' | null
   errorMessage: string | null
   question: any | null
+  answerSubmitted: boolean
+  waitingForOpponent: boolean
+  results: {
+    player1_answer: number | null
+    player2_answer: number | null
+    correct_answer: number
+    player1_correct: boolean
+    player2_correct: boolean
+    round_winner: string | null
+  } | null
 }
 
 interface RoundStartEvent {
@@ -36,7 +46,10 @@ export function useGame(match: MatchRow | null) {
     status: 'connecting',
     playerRole: null,
     errorMessage: null,
-    question: null
+    question: null,
+    answerSubmitted: false,
+    waitingForOpponent: false,
+    results: null
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -174,6 +187,34 @@ export function useGame(match: MatchRow | null) {
                 question: roundStartEvent.question,
                 errorMessage: null
               }))
+            } else if (message.type === 'ANSWER_SUBMITTED') {
+              console.log('[useGame] ANSWER_SUBMITTED message received')
+              setState(prev => ({
+                ...prev,
+                answerSubmitted: true,
+                waitingForOpponent: !message.both_answered
+              }))
+            } else if (message.type === 'ANSWER_RECEIVED') {
+              console.log('[useGame] ANSWER_RECEIVED message received - opponent answered')
+              setState(prev => ({
+                ...prev,
+                waitingForOpponent: true
+              }))
+            } else if (message.type === 'RESULTS_RECEIVED') {
+              console.log('[useGame] RESULTS_RECEIVED message received')
+              setState(prev => ({
+                ...prev,
+                status: 'results',
+                results: {
+                  player1_answer: message.player1_answer,
+                  player2_answer: message.player2_answer,
+                  correct_answer: message.correct_answer,
+                  player1_correct: message.player1_correct,
+                  player2_correct: message.player2_correct,
+                  round_winner: message.round_winner
+                },
+                waitingForOpponent: false
+              }))
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
               setState(prev => ({
@@ -235,10 +276,43 @@ export function useGame(match: MatchRow | null) {
     }
   }, [match?.id])
 
+  const submitAnswer = (answerIndex: number) => {
+    if (answerIndex !== 0 && answerIndex !== 1) {
+      console.error('[useGame] Invalid answer index:', answerIndex)
+      return
+    }
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('[useGame] WebSocket not connected')
+      setState(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: 'WebSocket not connected'
+      }))
+      return
+    }
+
+    if (state.answerSubmitted) {
+      console.warn('[useGame] Answer already submitted')
+      return
+    }
+
+    const submitMessage = {
+      type: 'SUBMIT_ANSWER',
+      answer: answerIndex
+    }
+    console.log('[useGame] Sending SUBMIT_ANSWER:', submitMessage)
+    wsRef.current.send(JSON.stringify(submitMessage))
+  }
+
   return {
     status: state.status,
     playerRole: state.playerRole,
     errorMessage: state.errorMessage,
-    question: state.question
+    question: state.question,
+    answerSubmitted: state.answerSubmitted,
+    waitingForOpponent: state.waitingForOpponent,
+    results: state.results,
+    submitAnswer
   }
 }
