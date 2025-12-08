@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
 import type { MatchRow } from '@/types/schema'
 import { mapRawToQuestion } from '@/utils/questionMapper'
@@ -276,13 +276,14 @@ export function useGame(match: MatchRow | null) {
     }
   }, [match?.id])
 
-  const submitAnswer = (answerIndex: number) => {
+  const submitAnswer = useCallback((answerIndex: number) => {
     if (answerIndex !== 0 && answerIndex !== 1) {
       console.error('[useGame] Invalid answer index:', answerIndex)
       return
     }
 
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
       console.error('[useGame] WebSocket not connected')
       setState(prev => ({
         ...prev,
@@ -292,18 +293,22 @@ export function useGame(match: MatchRow | null) {
       return
     }
 
-    if (state.answerSubmitted) {
-      console.warn('[useGame] Answer already submitted')
-      return
-    }
+    setState(prev => {
+      if (prev.answerSubmitted) {
+        console.warn('[useGame] Answer already submitted')
+        return prev
+      }
 
-    const submitMessage = {
-      type: 'SUBMIT_ANSWER',
-      answer: answerIndex
-    }
-    console.log('[useGame] Sending SUBMIT_ANSWER:', submitMessage)
-    wsRef.current.send(JSON.stringify(submitMessage))
-  }
+      const submitMessage = {
+        type: 'SUBMIT_ANSWER',
+        answer: answerIndex
+      }
+      console.log('[useGame] Sending SUBMIT_ANSWER:', submitMessage)
+      ws.send(JSON.stringify(submitMessage))
+      
+      return prev
+    })
+  }, [])
 
   return {
     status: state.status,
