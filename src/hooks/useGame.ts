@@ -307,11 +307,11 @@ export function useGame(match: MatchRow | null) {
       ws.send(JSON.stringify(submitMessage))
       
       // Optimistically update UI - show "submitted" immediately
-      // Server will confirm and update waitingForOpponent status
+      // Server will confirm and update waitingForOpponent status via ANSWER_SUBMITTED message
       return {
         ...prev,
         answerSubmitted: true,
-        waitingForOpponent: true // Assume waiting until server confirms
+        waitingForOpponent: false // Show "Answer submitted!" first, server will update if opponent hasn't answered
       }
     })
   }, [])

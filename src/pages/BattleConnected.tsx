@@ -262,7 +262,7 @@ export default function BattleConnected() {
                               <p className="text-blue-300">
                                 {waitingForOpponent 
                                   ? 'Waiting for opponent to answer...' 
-                                  : 'Answer submitted!'}
+                                  : 'Answer submitted! Waiting for opponent...'}
                               </p>
                             </div>
                           )}
