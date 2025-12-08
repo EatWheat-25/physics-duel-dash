@@ -56,6 +56,11 @@ interface RoundStartEvent {
   thinkingEndsAt: string
 }
 
+interface QuestionReceivedEvent {
+  type: 'QUESTION_RECEIVED'
+  question: any // Raw question object from questions_v2
+}
+
 // Track sockets locally (for broadcasting) - each instance only tracks its own sockets
 const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 
@@ -64,112 +69,188 @@ const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
  * and broadcast BOTH_CONNECTED to all local sockets if so
  */
 /**
- * Fetch a question from questions_v2 and start the round
+ * Atomic question selection and broadcast for Stage 1
+ * 
+ * Ensures both players see the same question by:
+ * 1. Checking if question_id already exists (idempotency)
+ * 2. Atomically claiming a question using UPDATE ... WHERE question_id IS NULL
+ * 3. Filtering for True/False questions (2 options)
+ * 4. Broadcasting QUESTION_RECEIVED with raw question object
  */
-async function startGameRound(
+async function selectAndBroadcastQuestion(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  console.log(`[${matchId}] 🎮 Starting game round...`)
+  console.log(`[${matchId}] 🔒 Starting atomic question selection...`)
   
   try {
-    // 1. Fetch a random question from questions_v2
-    const { data: questions, error: questionError } = await supabase
-      .from('questions_v2')
-      .select('*')
-      .limit(10)
-    
-    if (questionError) {
-      console.error(`[${matchId}] ❌ Error fetching questions:`, questionError)
-      throw questionError
+    // 1. Check if question already assigned (idempotency)
+    const { data: matchWithQuestion, error: matchQError } = await supabase
+      .from('matches')
+      .select('question_id, question_sent_at')
+      .eq('id', matchId)
+      .single()
+
+    if (matchQError) {
+      console.error(`[${matchId}] ❌ Error fetching match question:`, matchQError)
+      throw matchQError
     }
-    
-    if (!questions || questions.length === 0) {
-      console.error(`[${matchId}] ❌ No questions found in questions_v2`)
-      throw new Error('No questions available')
+
+    let questionDb: any = null
+
+    if (matchWithQuestion?.question_id) {
+      // Question already assigned, fetch it
+      console.log(`[${matchId}] ✅ Question already assigned: ${matchWithQuestion.question_id}`)
+      const { data: q, error: fetchError } = await supabase
+        .from('questions_v2')
+        .select('*')
+        .eq('id', matchWithQuestion.question_id)
+        .single()
+
+      if (fetchError || !q) {
+        console.error(`[${matchId}] ❌ Failed to fetch existing question:`, fetchError)
+        throw new Error(`Failed to fetch question ${matchWithQuestion.question_id}`)
+      }
+      questionDb = q
+      console.log(`[${matchId}] ✅ Fetched existing question: ${questionDb.id} - "${questionDb.title}"`)
+    } else {
+      // No question assigned, try to claim one atomically
+      console.log(`[${matchId}] 🔍 No question assigned, fetching TF questions...`)
+
+      // Fetch available questions
+      const { data: availableQuestions, error: qFetchError } = await supabase
+        .from('questions_v2')
+        .select('*')
+        .limit(50)
+
+      if (qFetchError || !availableQuestions || availableQuestions.length === 0) {
+        console.error(`[${matchId}] ❌ No questions available:`, qFetchError)
+        throw new Error('No questions available')
+      }
+
+      // Filter for True/False questions (2 options in first step)
+      const tfQuestions = availableQuestions.filter((q: any) => {
+        try {
+          let steps = q.steps
+          if (typeof steps === 'string') {
+            steps = JSON.parse(steps)
+          }
+          if (!Array.isArray(steps) || steps.length === 0) return false
+          const firstStep = steps[0]
+          const options = firstStep?.options || []
+          // TF question: exactly 2 options OR type is 'true_false'
+          return (Array.isArray(options) && options.length === 2) || 
+                 firstStep?.type === 'true_false'
+        } catch (err) {
+          console.warn(`[${matchId}] ⚠️ Error parsing steps for question ${q.id}:`, err)
+          return false
+        }
+      })
+
+      if (tfQuestions.length === 0) {
+        console.error(`[${matchId}] ❌ No True/False questions available`)
+        throw new Error('No True/False questions available')
+      }
+
+      // Pick random TF question
+      const selectedQuestion = tfQuestions[Math.floor(Math.random() * tfQuestions.length)]
+      console.log(`[${matchId}] 🎯 Selected TF question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
+
+      // Atomic claim: UPDATE only if question_id IS NULL
+      const { data: lock, error: lockError } = await supabase
+        .from('matches')
+        .update({
+          question_sent_at: new Date().toISOString(),
+          question_id: selectedQuestion.id,
+        })
+        .eq('id', matchId)
+        .is('question_id', null) // Atomic lock: only update if NULL
+        .select('id, question_id')
+        .maybeSingle()
+
+      if (lockError) {
+        console.error(`[${matchId}] ❌ Lock error:`, lockError)
+        throw lockError
+      }
+
+      if (!lock) {
+        // Lost race condition - another instance claimed it first
+        console.log(`[${matchId}] ⚠️ Lost atomic lock, re-reading question_id...`)
+        
+        // Re-fetch the question that was claimed by the winner
+        const { data: matchAfterRace } = await supabase
+          .from('matches')
+          .select('question_id, question_sent_at')
+          .eq('id', matchId)
+          .single()
+
+        if (!matchAfterRace?.question_id) {
+          throw new Error('Failed to claim question and no question found after race')
+        }
+
+        const { data: qAfterRace } = await supabase
+          .from('questions_v2')
+          .select('*')
+          .eq('id', matchAfterRace.question_id)
+          .single()
+
+        if (!qAfterRace) {
+          throw new Error(`Failed to fetch question ${matchAfterRace.question_id} after race`)
+        }
+
+        questionDb = qAfterRace
+        console.log(`[${matchId}] ✅ Using question claimed by other instance: ${questionDb.id}`)
+      } else {
+        // Won the lock
+        questionDb = selectedQuestion
+        console.log(`[${matchId}] ✅ Won atomic lock, claimed question: ${questionDb.id}`)
+      }
     }
-    
-    // Pick random question
-    const randomIndex = Math.floor(Math.random() * questions.length)
-    const questionDb = questions[randomIndex]
-    console.log(`[${matchId}] ✅ Selected question: ${questionDb.id} - "${questionDb.title}"`)
-    
-    // 2. Transform question from DB format to QuestionDTO format
-    const questionDTO = {
-      id: questionDb.id,
-      title: questionDb.title,
-      subject: questionDb.subject,
-      chapter: questionDb.chapter,
-      level: questionDb.level,
-      difficulty: questionDb.difficulty,
-      questionText: questionDb.stem, // Map stem to questionText
-      totalMarks: questionDb.total_marks,
-      steps: (questionDb.steps as any[]).map((step: any) => ({
-        id: step.id || `step-${step.index}`,
-        question: step.prompt || step.title || '', // Map prompt to question field
-        options: step.options || [],
-        correctAnswer: step.correctAnswer ?? step.correct_answer ?? 0,
-        marks: step.marks || 0,
-        explanation: step.explanation || undefined
-      })),
-      topicTags: questionDb.topic_tags || [],
-      rankTier: questionDb.rank_tier || undefined
-    }
-    
-    // 3. Create ROUND_START event
-    const roundId = `${matchId}-round-1`
-    const thinkingDuration = 3000 // 3 seconds thinking time
-    const thinkingEndsAt = new Date(Date.now() + thinkingDuration).toISOString()
-    
-    const roundStartEvent: RoundStartEvent = {
-      type: 'ROUND_START',
-      matchId: matchId,
-      roundId: roundId,
-      roundIndex: 1,
-      phase: 'thinking',
-      question: questionDTO,
-      thinkingEndsAt: thinkingEndsAt
-    }
-    
-    // 4. Send to all sockets for this match
+
+    // Broadcast QUESTION_RECEIVED with raw question object
     const matchSockets = sockets.get(matchId)
     if (!matchSockets || matchSockets.size === 0) {
-      console.warn(`[${matchId}] ⚠️  No sockets found for match - cannot send ROUND_START`)
+      console.warn(`[${matchId}] ⚠️ No sockets found for match - cannot send QUESTION_RECEIVED`)
       return
     }
-    
+
+    const questionReceivedEvent: QuestionReceivedEvent = {
+      type: 'QUESTION_RECEIVED',
+      question: questionDb // Send raw DB object
+    }
+
     let sentCount = 0
     matchSockets.forEach((socket, index) => {
       if (socket.readyState === WebSocket.OPEN) {
         try {
-          socket.send(JSON.stringify(roundStartEvent))
+          socket.send(JSON.stringify(questionReceivedEvent))
           sentCount++
-          console.log(`[${matchId}] ✅ Sent ROUND_START to socket ${index + 1}`)
+          console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
         } catch (error) {
-          console.error(`[${matchId}] ❌ Error sending ROUND_START to socket ${index + 1}:`, error)
+          console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
         }
       }
     })
-    
-    console.log(`[${matchId}] 📊 ROUND_START sent to ${sentCount}/${matchSockets.size} sockets`)
-    
-    // 5. Update match status to 'in_progress' (optional - depends on your schema)
+
+    console.log(`[${matchId}] 📊 QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
+
+    // Update match status
     await supabase
       .from('matches')
       .update({ status: 'in_progress' })
       .eq('id', matchId)
-      .neq('status', 'in_progress') // Only update if not already in_progress
-    
-    console.log(`[${matchId}] ✅ Game round started successfully!`)
+      .neq('status', 'in_progress')
+
+    console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
   } catch (error) {
-    console.error(`[${matchId}] ❌ Error starting game round:`, error)
-    
+    console.error(`[${matchId}] ❌ Error in atomic question selection:`, error)
+
     // Send error to all sockets
     const matchSockets = sockets.get(matchId)
     if (matchSockets) {
       const errorEvent: GameErrorEvent = {
         type: 'GAME_ERROR',
-        message: 'Failed to start game round'
+        message: 'Failed to select question'
       }
       matchSockets.forEach(socket => {
         if (socket.readyState === WebSocket.OPEN) {
@@ -385,8 +466,8 @@ async function handleJoinMatch(
         }
         
         // Start the game round after both players are connected
-        console.log(`[${matchId}] 🎮 Both players connected - starting game round...`)
-        await startGameRound(matchId, supabase)
+        console.log(`[${matchId}] 🎮 Both players connected - starting atomic question selection...`)
+        await selectAndBroadcastQuestion(matchId, supabase)
         
         return true
       } else {
