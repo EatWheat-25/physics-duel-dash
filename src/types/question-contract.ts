@@ -26,8 +26,8 @@ export interface QuestionStep {
     /** 0-based display order (0 = first step) */
     index: number;
 
-    /** Step type - currently only MCQ supported */
-    type: 'mcq';
+    /** Step type - MCQ or True/False */
+    type: 'mcq' | 'true_false';
 
     /** Step heading/title (e.g., "Find the derivative") */
     title: string;
@@ -101,7 +101,7 @@ export function isValidQuestionStep(obj: any): obj is QuestionStep {
         typeof obj === 'object' &&
         typeof obj.id === 'string' &&
         typeof obj.index === 'number' &&
-        obj.type === 'mcq' &&
+        (obj.type === 'mcq' || obj.type === 'true_false') &&
         typeof obj.title === 'string' &&
         typeof obj.prompt === 'string' &&
         Array.isArray(obj.options) &&

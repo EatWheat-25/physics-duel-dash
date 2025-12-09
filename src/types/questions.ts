@@ -24,10 +24,10 @@ export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Diamond' | 'Unbeatable' |
 export interface QuestionStep {
   id: string;
   index: number;                    // 0-based display order
-  type: 'mcq';                       // Multiple choice question
+  type: 'mcq' | 'true_false';        // Multiple choice question or True/False
   title: string;                     // Step heading (e.g., "Find the derivative")
   prompt: string;                    // The actual question text for this step
-  options: [string, string, string, string];  // EXACTLY 4 options
+  options: [string, string, string, string];  // EXACTLY 4 options (TF uses first 2)
   correctAnswer: 0 | 1 | 2 | 3;      // Index of correct option
   timeLimitSeconds: number | null;   // Time limit for this step (null = no limit)
   marks: number;                     // Points awarded for this step
@@ -175,8 +175,8 @@ export function validateQuestionStep(step: QuestionStep, stepIndex: number): str
     errors.push(`Step ${stepIndex}: index mismatch (expected ${stepIndex}, got ${step.index})`);
   }
 
-  if (step.type !== 'mcq') {
-    errors.push(`Step ${stepIndex}: only 'mcq' type is supported`);
+  if (step.type !== 'mcq' && step.type !== 'true_false') {
+    errors.push(`Step ${stepIndex}: type must be 'mcq' or 'true_false', got '${step.type}'`);
   }
 
   if (!step.title?.trim()) {

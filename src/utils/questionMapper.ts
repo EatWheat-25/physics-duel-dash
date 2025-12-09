@@ -103,10 +103,11 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
     // Note: For TF questions, normalizeOptions returns exactly 2 options (no padding)
     // We pad to 4 only for type compatibility, but the actual meaningful options are only 2
     // The UI will filter out empty options to get the real count
+    const stepType = (s.type === 'true_false' || s.type === 'mcq') ? s.type : 'mcq';
     const step: QuestionStep = {
       id: String(s.id || s.step_id || `${id}-step-${fallbackIndex}`),
       index: stepIndex,
-      type: 'mcq' as const,
+      type: stepType,
       title: String(s.title || ''),
       prompt: String(s.prompt || s.question || ''),
       // Pad to 4 only for type safety - UI will filter empty strings
