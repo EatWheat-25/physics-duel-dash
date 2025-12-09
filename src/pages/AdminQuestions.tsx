@@ -692,7 +692,12 @@ export default function AdminQuestions() {
                     {/* Steps */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <Label className="text-lg font-semibold text-white">Steps</Label>
+                        <div>
+                          <Label className="text-lg font-semibold text-white">Steps</Label>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Each step can be True/False or MCQ. Add multiple steps for multi-part questions.
+                          </p>
+                        </div>
                         <Button variant="outline" size="sm" onClick={handleAddStep}>
                           <Plus className="w-4 h-4 mr-2" />
                           Add Step
