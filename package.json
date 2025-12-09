@@ -10,6 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed:questions": "tsx scripts/seed-questions.ts",
+    "seed:real-questions": "tsx scripts/seed-real-questions.ts",
+    "seed:delete": "tsx scripts/delete-seeded-questions.ts",
     "seed:test-v2": "tsx scripts/seed-test-question-v2.ts",
     "db:matches": "tsx scripts/query-supabase.ts matches",
     "db:queue": "tsx scripts/query-supabase.ts queue",

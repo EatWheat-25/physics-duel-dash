@@ -142,76 +142,110 @@ async function selectAndBroadcastQuestion(
   console.log(`[${matchId}] 🔒 Starting atomic question selection...`)
   
   try {
-    // 1. Check if question already assigned (idempotency)
-    const { data: matchWithQuestion, error: matchQError } = await supabase
+    // 1. Get match with safety checks
+    const { data: match, error: matchError } = await supabase
       .from('matches')
-      .select('question_id, question_sent_at')
+      .select('subject, mode, status, winner_id, question_id, question_sent_at')
       .eq('id', matchId)
       .single()
 
-    if (matchQError) {
-      console.error(`[${matchId}] ❌ Error fetching match question:`, matchQError)
-      throw matchQError
+    if (matchError) {
+      console.error(`[${matchId}] ❌ Error fetching match:`, matchError)
+      throw matchError
+    }
+
+    // Safety checks
+    if (!match || match.status !== 'in_progress' || match.winner_id) {
+      console.warn(`[${matchId}] ⚠️ Match not ready for question selection (status: ${match?.status}, winner: ${match?.winner_id})`)
+      return
     }
 
     let questionDb: any = null
 
-    if (matchWithQuestion?.question_id) {
+    if (match.question_id) {
       // Question already assigned, fetch it
-      console.log(`[${matchId}] ✅ Question already assigned: ${matchWithQuestion.question_id}`)
+      console.log(`[${matchId}] ✅ Question already assigned: ${match.question_id}`)
       const { data: q, error: fetchError } = await supabase
         .from('questions_v2')
         .select('*')
-        .eq('id', matchWithQuestion.question_id)
+        .eq('id', match.question_id)
         .single()
 
       if (fetchError || !q) {
         console.error(`[${matchId}] ❌ Failed to fetch existing question:`, fetchError)
-        throw new Error(`Failed to fetch question ${matchWithQuestion.question_id}`)
+        throw new Error(`Failed to fetch question ${match.question_id}`)
       }
       questionDb = q
       console.log(`[${matchId}] ✅ Fetched existing question: ${questionDb.id} - "${questionDb.title}"`)
     } else {
-      // No question assigned, try to claim one atomically
-      console.log(`[${matchId}] 🔍 No question assigned, fetching TF questions...`)
+      // No question assigned, try to claim one atomically with tiered filtering
+      console.log(`[${matchId}] 🔍 No question assigned, fetching TF questions with tiered filtering...`)
 
-      // Fetch available questions
-      const { data: availableQuestions, error: qFetchError } = await supabase
-        .from('questions_v2')
-        .select('*')
-        .limit(50)
+      const subject = match.subject ?? null
+      const level = match.mode ?? null // mode = level (A1/A2)
 
-      if (qFetchError || !availableQuestions || availableQuestions.length === 0) {
-        console.error(`[${matchId}] ❌ No questions available:`, qFetchError)
-        throw new Error('No questions available')
+      // Tiered fetching with early filtering
+      const fetchTier = async (filters: { subject?: boolean; level?: boolean }) => {
+        let q = supabase
+          .from('questions_v2')
+          .select('*')
+          .limit(200)
+        
+        // Note: is_active column may not exist yet - skip it for now
+        // If you add is_active migration later, uncomment: q = q.eq('is_active', true)
+        
+        if (filters.subject && subject) q = q.eq('subject', subject)
+        if (filters.level && level) q = q.eq('level', level)
+        
+        const { data, error } = await q
+        
+        if (error) {
+          console.warn(`[${matchId}] ⚠️ Tier fetch error:`, error)
+          return []
+        }
+        
+        return (data ?? []).filter((q: any) => {
+          // Early filter: ensure steps exist and are non-empty
+          try {
+            const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
+            return Array.isArray(steps) && steps.length > 0
+          } catch {
+            return false
+          }
+        })
       }
 
-      // Filter for True/False questions (2 options in first step)
-      const tfQuestions = availableQuestions.filter((q: any) => {
+      // Fetch in tiers (most specific to least specific)
+      const tiers = [
+        await fetchTier({ subject: true, level: true }),   // Tier 1: Match both
+        await fetchTier({ subject: true, level: false }),   // Tier 2: Match subject only
+        await fetchTier({ subject: false, level: true }),   // Tier 3: Match level only
+        await fetchTier({ subject: false, level: false })   // Tier 4: Any question
+      ]
+
+      // Filter for True/False questions (keep fallback)
+      const isTF = (q: any) => {
         try {
-          let steps = q.steps
-          if (typeof steps === 'string') {
-            steps = JSON.parse(steps)
-          }
-          if (!Array.isArray(steps) || steps.length === 0) return false
-          const firstStep = steps[0]
-          const options = firstStep?.options || []
-          // TF question: exactly 2 options OR type is 'true_false'
-          return (Array.isArray(options) && options.length === 2) || 
-                 firstStep?.type === 'true_false'
-        } catch (err) {
-          console.warn(`[${matchId}] ⚠️ Error parsing steps for question ${q.id}:`, err)
+          const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
+          const first = steps?.[0]
+          const opts = first?.options ?? []
+          // Check type field first, then fallback to option count
+          return first?.type === 'true_false' || (Array.isArray(opts) && opts.length === 2)
+        } catch {
           return false
         }
-      })
+      }
 
-      if (tfQuestions.length === 0) {
+      // Find first tier with TF questions
+      const tfPool = tiers.flatMap(list => list.filter(isTF))
+
+      if (tfPool.length === 0) {
         console.error(`[${matchId}] ❌ No True/False questions available`)
         throw new Error('No True/False questions available')
       }
 
-      // Pick random TF question
-      const selectedQuestion = tfQuestions[Math.floor(Math.random() * tfQuestions.length)]
+      // Pick random from TF pool
+      const selectedQuestion = tfPool[Math.floor(Math.random() * tfPool.length)]
       console.log(`[${matchId}] 🎯 Selected TF question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
 
       // Atomic claim: UPDATE only if question_id IS NULL
@@ -283,7 +317,7 @@ async function selectAndBroadcastQuestion(
       question: questionDb, // Send raw DB object
       timer_end_at: timerEndAt
     }
-
+    
     let sentCount = 0
     matchSockets.forEach((socket, index) => {
       if (socket.readyState === WebSocket.OPEN) {
@@ -296,9 +330,9 @@ async function selectAndBroadcastQuestion(
         }
       }
     })
-
+    
     console.log(`[${matchId}] 📊 QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
-
+    
     // Update match status
     await supabase
       .from('matches')
@@ -393,7 +427,7 @@ async function selectAndBroadcastQuestion(
     console.log(`[${matchId}] ⏰ Started ${TIMEOUT_SECONDS}s timeout for answer submission`)
   } catch (error) {
     console.error(`[${matchId}] ❌ Error in atomic question selection:`, error)
-
+    
     // Send error to all sockets
     const matchSockets = sockets.get(matchId)
     if (matchSockets) {

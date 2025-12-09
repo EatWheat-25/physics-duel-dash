@@ -217,3 +217,4 @@ git diff stage-2-stable..HEAD
 - Timeout test requires waiting 30 seconds (can be reduced for testing)
 - Polling test requires WebSocket to actually fail (use browser DevTools Network tab)
 
+

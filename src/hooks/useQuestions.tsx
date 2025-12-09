@@ -6,6 +6,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { StepBasedQuestion, QuestionFilters, QuestionInput } from '@/types/questions';
 import { dbRowsToQuestions, questionToDBRow, validateQuestion } from '@/utils/questionMapper';
@@ -14,12 +15,36 @@ import { dbRowsToQuestions, questionToDBRow, validateQuestion } from '@/utils/qu
  * Fetch questions with optional filters
  */
 export const useQuestions = (filters?: QuestionFilters) => {
+  const queryClient = useQueryClient();
+  
+  // Real-time subscription for admin UX (game doesn't need this)
+  useEffect(() => {
+    const channel = supabase
+      .channel('questions_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'questions_v2' 
+        },
+        () => {
+          // Invalidate all question queries to refetch
+          queryClient.invalidateQueries({ queryKey: ['questions'] });
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+  
   return useQuery({
     queryKey: ['questions', filters],
     queryFn: async () => {
       console.log('🔍 useQuestions: Starting fetch with filters:', filters);
 
-      let query = supabase.from('questions').select('*');
+      let query = supabase.from('questions_v2').select('*');
 
       if (filters?.subject) query = query.eq('subject', filters.subject);
       if (filters?.chapter) query = query.eq('chapter', filters.chapter);
@@ -67,7 +92,7 @@ export const useAddQuestion = () => {
       // Convert to DB format
       const dbRow = questionToDBRow(question) as any;
 
-      const { data, error } = await supabase.from('questions').insert([dbRow]).select().single();
+      const { data, error } = await supabase.from('questions_v2').insert([dbRow]).select().single();
 
       if (error) throw error;
       return data;
@@ -96,7 +121,7 @@ export const useUpdateQuestion = () => {
       const dbRow = questionToDBRow({ ...question, id }) as any;
 
       const { data, error } = await supabase
-        .from('questions')
+        .from('questions_v2')
         .update(dbRow)
         .eq('id', id)
         .select()
@@ -119,7 +144,7 @@ export const useDeleteQuestion = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('questions').delete().eq('id', id);
+      const { error } = await supabase.from('questions_v2').delete().eq('id', id);
 
       if (error) throw error;
     },

@@ -276,18 +276,38 @@ export default function AdminQuestions() {
         .map(t => t.trim())
         .filter(t => t.length > 0);
 
-      const stepsPayload: QuestionStep[] = form.steps.map((s, i) => ({
-        id: s.id || `step-${i + 1}`,
-        stepIndex: i,
-        type: 'mcq',
-        title: s.title,
-        prompt: s.prompt,
-        options: s.options,
-        correctAnswer: s.correctAnswer,
-        timeLimitSeconds: s.timeLimitSeconds ?? null,
-        marks: s.marks,
-        explanation: s.explanation
-      }));
+      // Strict type detection with validation
+      const normalize = (s: string) => s.toLowerCase().trim()
+      
+      const stepsPayload: QuestionStep[] = form.steps.map((s, i) => {
+        const nonEmptyOptions = s.options.map(o => o.trim()).filter(Boolean)
+        const normalized = nonEmptyOptions.map(normalize).sort().join(',')
+        
+        // Strict TF detection: exactly 2 options, must be True/False
+        const isTrueFalse = nonEmptyOptions.length === 2 && normalized === 'false,true'
+        
+        // Validate correctAnswer range
+        const correct = Number(s.correctAnswer)
+        if (Number.isNaN(correct)) {
+          throw new Error(`Step ${i + 1}: correctAnswer missing`)
+        }
+        if (correct < 0 || correct >= nonEmptyOptions.length) {
+          throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${nonEmptyOptions.length - 1})`)
+        }
+        
+        return {
+          id: s.id || `step-${i + 1}`,
+          stepIndex: i,
+          type: isTrueFalse ? 'true_false' : 'mcq',
+          title: s.title,
+          prompt: s.prompt,
+          options: nonEmptyOptions, // Only non-empty options
+          correctAnswer: correct,
+          timeLimitSeconds: s.timeLimitSeconds ?? null,
+          marks: s.marks,
+          explanation: s.explanation
+        }
+      });
 
       const payload = {
         title: form.title,
@@ -699,8 +719,23 @@ export default function AdminQuestions() {
                             <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:bg-red-500/20" onClick={() => handleDeleteStep(index)} disabled={form.steps.length <= 1}><Trash2 className="w-4 h-4" /></Button>
                           </div>
 
-                          <div className="mb-4">
-                            <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0 mb-2">STEP {index + 1}</Badge>
+                          <div className="mb-4 flex items-center gap-2">
+                            <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0">STEP {index + 1}</Badge>
+                            {(() => {
+                              // Live type detection
+                              const normalize = (s: string) => s.toLowerCase().trim()
+                              const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean)
+                              const normalized = nonEmptyOptions.map(normalize).sort().join(',')
+                              const isTrueFalse = nonEmptyOptions.length === 2 && normalized === 'false,true'
+                              const isValid = nonEmptyOptions.length >= 2 && step.correctAnswer >= 0 && step.correctAnswer < nonEmptyOptions.length
+                              
+                              if (!isValid) {
+                                return <Badge className="bg-red-500/20 text-red-400 border-red-500/50">⚠️ Invalid config</Badge>
+                              }
+                              return isTrueFalse 
+                                ? <Badge className="bg-green-500/20 text-green-400 border-green-500/50">✅ True/False</Badge>
+                                : <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">✅ MCQ</Badge>
+                            })()}
                           </div>
 
                           <div className="grid grid-cols-1 gap-4">

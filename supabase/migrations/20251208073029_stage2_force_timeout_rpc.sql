@@ -69,3 +69,4 @@ ALTER FUNCTION public.force_timeout_stage2(UUID) SET search_path = public;
 -- This prevents griefing/cheating by allowing players to force timeouts
 -- Server calls this via service_role key, so no GRANT needed
 
+

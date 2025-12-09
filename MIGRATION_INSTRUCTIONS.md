@@ -80,3 +80,4 @@ Once migrations are applied:
 - Polling will stop showing 400 errors
 - Results will be computed and displayed correctly
 
+

@@ -133,3 +133,4 @@ ALTER FUNCTION public.submit_answer_stage2(UUID, UUID, INTEGER) SET search_path 
 -- Grant to authenticated users (players submit their own answers)
 GRANT EXECUTE ON FUNCTION public.submit_answer_stage2(UUID, UUID, INTEGER) TO authenticated;
 
+

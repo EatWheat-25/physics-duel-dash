@@ -29,3 +29,4 @@ COMMENT ON COLUMN public.matches.correct_answer IS 'Authoritative correct answer
 COMMENT ON COLUMN public.matches.round_winner IS 'Winner of this round (player1_id, player2_id, or NULL for draw)';
 COMMENT ON COLUMN public.matches.results_computed_at IS 'Timestamp when results were computed (idempotency guard)';
 
+
