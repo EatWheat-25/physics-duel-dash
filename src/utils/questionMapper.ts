@@ -235,9 +235,23 @@ export function dbRowsToQuestions(raws: any[]): StepBasedQuestion[] {
 
 /**
  * Convert StepBasedQuestion to database insert/update format.
- * Note: Steps should be inserted separately into question_steps table.
+ * Steps are stored as JSONB array in the questions_v2 table.
  */
 export function questionToDBRow(question: StepBasedQuestion): any {
+  // Convert steps to database format (ensure index field is used, not stepIndex)
+  const dbSteps = question.steps.map(step => ({
+    id: step.id,
+    index: step.index, // Use 'index' field
+    type: step.type,
+    title: step.title,
+    prompt: step.prompt,
+    options: step.options,
+    correctAnswer: step.correctAnswer,
+    timeLimitSeconds: step.timeLimitSeconds,
+    marks: step.marks,
+    explanation: step.explanation
+  }));
+
   return {
     id: question.id,
     title: question.title,
@@ -246,9 +260,10 @@ export function questionToDBRow(question: StepBasedQuestion): any {
     level: question.level,
     difficulty: question.difficulty,
     rank_tier: question.rankTier || null,
-    question_text: question.stem,
+    stem: question.stem, // Use 'stem' not 'question_text' for questions_v2
     total_marks: question.totalMarks,
     topic_tags: question.topicTags,
+    steps: dbSteps, // Include steps as JSONB
     image_url: question.imageUrl || null,
   };
 }

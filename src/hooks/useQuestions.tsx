@@ -10,6 +10,9 @@ import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { StepBasedQuestion, QuestionFilters, QuestionInput } from '@/types/questions';
 import { dbRowsToQuestions, questionToDBRow, validateQuestion } from '@/utils/questionMapper';
+import { useAuth } from '@/contexts/AuthContext';
+
+const ADMIN_EMAIL = 'noffalnawaz65@gmail.com';
 
 /**
  * Fetch questions with optional filters
@@ -80,17 +83,31 @@ export const useQuestions = (filters?: QuestionFilters) => {
  */
 export const useAddQuestion = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (question: QuestionInput) => {
+      // Server-side email validation
+      if (user?.email !== ADMIN_EMAIL) {
+        throw new Error('Unauthorized: Admin access required');
+      }
+
+      // Convert QuestionInput to StepBasedQuestion (add id if missing)
+      const stepBasedQuestion: StepBasedQuestion = {
+        ...question,
+        id: question.id || crypto.randomUUID()
+      };
+
       // Validate before sending to DB
-      const errors = validateQuestion(question);
+      const errors = validateQuestion(stepBasedQuestion);
       if (errors.length > 0) {
         throw new Error(`Validation failed:\n${errors.join('\n')}`);
       }
 
       // Convert to DB format
-      const dbRow = questionToDBRow(question) as any;
+      const dbRow = questionToDBRow(stepBasedQuestion) as any;
+      // Remove id for insert (let DB generate it)
+      delete dbRow.id;
 
       const { data, error } = await supabase.from('questions_v2').insert([dbRow]).select().single();
 
@@ -108,17 +125,31 @@ export const useAddQuestion = () => {
  */
 export const useUpdateQuestion = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, question }: { id: string; question: QuestionInput }) => {
+      // Server-side email validation
+      if (user?.email !== ADMIN_EMAIL) {
+        throw new Error('Unauthorized: Admin access required');
+      }
+
+      // Convert QuestionInput to StepBasedQuestion (id is required)
+      const stepBasedQuestion: StepBasedQuestion = {
+        ...question,
+        id: id // id is provided in the function parameter
+      };
+
       // Validate before sending to DB
-      const errors = validateQuestion(question);
-      if (errors.length > 0) {
-        throw new Error(`Validation failed:\n${errors.join('\n')}`);
+      const validationErrors = validateQuestion(stepBasedQuestion);
+      if (validationErrors.length > 0) {
+        throw new Error(`Validation failed:\n${validationErrors.join('\n')}`);
       }
 
       // Convert to DB format
-      const dbRow = questionToDBRow({ ...question, id }) as any;
+      const dbRow = questionToDBRow(stepBasedQuestion) as any;
+      // Remove id from update payload (id is in WHERE clause)
+      delete dbRow.id;
 
       const { data, error } = await supabase
         .from('questions_v2')
@@ -141,9 +172,15 @@ export const useUpdateQuestion = () => {
  */
 export const useDeleteQuestion = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Server-side email validation
+      if (user?.email !== ADMIN_EMAIL) {
+        throw new Error('Unauthorized: Admin access required');
+      }
+
       const { error } = await supabase.from('questions_v2').delete().eq('id', id);
 
       if (error) throw error;
