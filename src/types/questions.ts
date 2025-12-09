@@ -183,22 +183,28 @@ export function validateQuestionStep(step: QuestionStep, stepIndex: number): str
     errors.push(`Step ${stepIndex}: title is required`);
   }
 
-  if (!step.prompt?.trim()) {
-    errors.push(`Step ${stepIndex}: prompt is required`);
-  }
+  // Prompt validation removed - no longer required
 
-  if (!Array.isArray(step.options) || step.options.length !== 4) {
-    errors.push(`Step ${stepIndex}: must have exactly 4 options`);
+  // Validate options based on question type
+  if (!Array.isArray(step.options)) {
+    errors.push(`Step ${stepIndex}: options must be an array`);
   } else {
-    step.options.forEach((opt, i) => {
-      if (typeof opt !== 'string' || !opt.trim()) {
-        errors.push(`Step ${stepIndex}, option ${i}: must be non-empty string`);
-      }
-    });
+    const expectedLength = step.type === 'true_false' ? 2 : 4;
+    if (step.options.length !== expectedLength) {
+      errors.push(`Step ${stepIndex}: must have exactly ${expectedLength} options for ${step.type} questions`);
+    } else {
+      step.options.forEach((opt, i) => {
+        if (typeof opt !== 'string' || !opt.trim()) {
+          errors.push(`Step ${stepIndex}, option ${i}: must be non-empty string`);
+        }
+      });
+    }
   }
 
-  if (![0, 1, 2, 3].includes(step.correctAnswer)) {
-    errors.push(`Step ${stepIndex}: correctAnswer must be 0, 1, 2, or 3`);
+  // Validate correctAnswer based on number of options
+  const maxAnswer = step.type === 'true_false' ? 1 : 3;
+  if (step.correctAnswer < 0 || step.correctAnswer > maxAnswer) {
+    errors.push(`Step ${stepIndex}: correctAnswer must be between 0 and ${maxAnswer}`);
   }
 
   if (step.marks <= 0) {

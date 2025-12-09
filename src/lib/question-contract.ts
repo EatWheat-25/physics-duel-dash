@@ -160,8 +160,8 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
 
     // Extract type
     const type = rawStep.type || rawStep.step_type;
-    if (type !== 'mcq') {
-        throw new Error(`${context}: Invalid type. Must be 'mcq', got "${type}"`);
+    if (type !== 'mcq' && type !== 'true_false') {
+        throw new Error(`${context}: Invalid type. Must be 'mcq' or 'true_false', got "${type}"`);
     }
 
     // Extract title
@@ -170,19 +170,17 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
         throw new Error(`${context}: Missing or invalid title`);
     }
 
-    // Extract prompt
-    const prompt = rawStep.prompt || rawStep.question;
-    if (!prompt || typeof prompt !== 'string') {
-        throw new Error(`${context}: Missing prompt/question text`);
-    }
+    // Extract prompt (optional now, but still in contract)
+    const prompt = rawStep.prompt || rawStep.question || '';
 
-    // Extract options - MUST be exactly 4
+    // Extract options - 2 for true_false, 4 for mcq
     const options = rawStep.options;
     if (!Array.isArray(options)) {
         throw new Error(`${context}: options must be an array, got ${typeof options}`);
     }
-    if (options.length !== 4) {
-        throw new Error(`${context}: Must have exactly 4 options, got ${options.length}`);
+    const expectedLength = type === 'true_false' ? 2 : 4;
+    if (options.length !== expectedLength) {
+        throw new Error(`${context}: Must have exactly ${expectedLength} options for ${type}, got ${options.length}`);
     }
     if (options.some(opt => typeof opt !== 'string')) {
         throw new Error(`${context}: All options must be strings`);
@@ -202,8 +200,9 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
         throw new Error(`${context}: Cannot find correctAnswer in any expected format`);
     }
 
-    if (typeof correctAnswer !== 'number' || correctAnswer < 0 || correctAnswer > 3) {
-        throw new Error(`${context}: correctAnswer must be 0-3, got ${correctAnswer}`);
+    const maxAnswer = type === 'true_false' ? 1 : 3;
+    if (typeof correctAnswer !== 'number' || correctAnswer < 0 || correctAnswer > maxAnswer) {
+        throw new Error(`${context}: correctAnswer must be 0-${maxAnswer} for ${type}, got ${correctAnswer}`);
     }
 
     // Extract marks
@@ -216,10 +215,12 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
     const step: QuestionStep = {
         id,
         index,
-        type: 'mcq',
+        type: type as 'mcq' | 'true_false',
         title,
         prompt,
-        options: options as [string, string, string, string],
+        options: type === 'true_false' 
+            ? [options[0], options[1]] as [string, string]
+            : [options[0], options[1], options[2], options[3]] as [string, string, string, string],
         correctAnswer: correctAnswer as 0 | 1 | 2 | 3,
         timeLimitSeconds: rawStep.timeLimitSeconds || rawStep.time_limit_seconds || null,
         marks,

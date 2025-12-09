@@ -94,32 +94,9 @@ export function useGame(match: MatchRow | null) {
       }))
     }
 
-    const handlePolledQuestion = (event: CustomEvent) => {
-      const detail = event.detail
-      console.log('[useGame] Polling detected question - updating state manually')
-      try {
-        // The question is already mapped in BattleConnected
-        setState(prev => ({
-          ...prev,
-          status: 'playing',
-          question: detail.question,
-          errorMessage: null,
-          timerEndAt: detail.timer_end_at,
-          answerSubmitted: false,
-          waitingForOpponent: false,
-          results: null
-        }))
-        console.log('[useGame] ✅ State updated with polled question')
-      } catch (error) {
-        console.error('[useGame] Error handling polled question:', error)
-      }
-    }
-
     window.addEventListener('polling-results-detected', handlePollingResults as EventListener)
-    window.addEventListener('question-polled-from-db', handlePolledQuestion as EventListener)
     return () => {
       window.removeEventListener('polling-results-detected', handlePollingResults as EventListener)
-      window.removeEventListener('question-polled-from-db', handlePolledQuestion as EventListener)
     }
   }, [])
 
@@ -253,31 +230,16 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'BOTH_CONNECTED') {
               console.log('[useGame] BOTH_CONNECTED message received - both players ready!')
-              console.log('[useGame] Waiting for QUESTION_RECEIVED or ROUND_START...')
               setState(prev => ({
                 ...prev,
                 status: 'both_connected',
                 errorMessage: null
               }))
-              // Note: Server should send QUESTION_RECEIVED shortly after BOTH_CONNECTED
-              // If it doesn't arrive within a few seconds, we'll need to handle that
             } else if (message.type === 'QUESTION_RECEIVED') {
-              console.log('[useGame] ✅ QUESTION_RECEIVED message received!')
-              console.log('[useGame] Question data:', {
-                hasQuestion: !!message.question,
-                questionId: message.question?.id,
-                hasSteps: !!message.question?.steps,
-                stepsLength: Array.isArray(message.question?.steps) ? message.question.steps.length : 'not array',
-                timerEndAt: (message as any).timer_end_at
-              })
+              console.log('[useGame] QUESTION_RECEIVED message received')
               try {
                 const mappedQuestion = mapRawToQuestion(message.question)
                 const timerEndAt = (message as any).timer_end_at || null
-                console.log('[useGame] ✅ Question mapped successfully:', {
-                  questionId: mappedQuestion?.id,
-                  title: mappedQuestion?.title,
-                  stepsCount: mappedQuestion?.steps?.length
-                })
                 setState(prev => ({
                   ...prev,
                   status: 'playing',
@@ -288,14 +250,12 @@ export function useGame(match: MatchRow | null) {
                   waitingForOpponent: false,
                   results: null
                 }))
-                console.log('[useGame] ✅ State updated to playing with question')
               } catch (error) {
-                console.error('[useGame] ❌ Error mapping question:', error)
-                console.error('[useGame] Raw question object:', message.question)
+                console.error('[useGame] Error mapping question:', error)
                 setState(prev => ({
                   ...prev,
                   status: 'error',
-                  errorMessage: 'Failed to process question: ' + (error instanceof Error ? error.message : String(error))
+                  errorMessage: 'Failed to process question'
                 }))
               }
             } else if (message.type === 'ROUND_START') {
@@ -389,20 +349,15 @@ export function useGame(match: MatchRow | null) {
           }))
         }
 
-        ws.onclose = (event) => {
-          console.log('[useGame] WebSocket closed', { code: event.code, reason: event.reason, wasClean: event.wasClean })
-          // Don't reset to 'connecting' if we're in a game state - the connection might have closed
-          // but we should still show the current state (question might have been received)
+        ws.onclose = () => {
+          console.log('[useGame] WebSocket closed')
           setState(prev => {
-            // Only reset if we're in early connection states
-            if (prev.status === 'connecting' || prev.status === 'connected') {
+            if (prev.status !== 'error') {
               return {
                 ...prev,
                 status: 'connecting'
               }
             }
-            // For 'both_connected', 'playing', 'results' - keep the state
-            // The question might have been received before close
             return prev
           })
         }

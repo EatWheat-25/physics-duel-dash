@@ -139,8 +139,7 @@ async function selectAndBroadcastQuestion(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-    console.log(`[${matchId}] 🔒 Starting atomic question selection...`)
-    console.log(`[${matchId}] Current time: ${new Date().toISOString()}`)
+  console.log(`[${matchId}] 🔒 Starting atomic question selection...`)
   
   try {
     // 1. Get match with safety checks
@@ -155,23 +154,10 @@ async function selectAndBroadcastQuestion(
       throw matchError
     }
 
-    // Safety checks - allow 'pending' status too (match might not be updated to 'in_progress' yet)
-    if (!match || match.winner_id) {
+    // Safety checks
+    if (!match || match.status !== 'in_progress' || match.winner_id) {
       console.warn(`[${matchId}] ⚠️ Match not ready for question selection (status: ${match?.status}, winner: ${match?.winner_id})`)
       return
-    }
-    
-    // Log match status for debugging
-    console.log(`[${matchId}] 📊 Match status: ${match.status}, winner: ${match.winner_id}, question_id: ${match.question_id}`)
-    
-    // Update match status to 'in_progress' if it's still 'pending'
-    if (match.status === 'pending') {
-      console.log(`[${matchId}] 🔄 Updating match status from 'pending' to 'in_progress'`)
-      await supabase
-        .from('matches')
-        .update({ status: 'in_progress' })
-        .eq('id', matchId)
-        .neq('status', 'in_progress')
     }
 
     let questionDb: any = null
@@ -255,15 +241,6 @@ async function selectAndBroadcastQuestion(
 
       if (tfPool.length === 0) {
         console.error(`[${matchId}] ❌ No True/False questions available`)
-        console.error(`[${matchId}] Tier counts:`, tiers.map((t, i) => `Tier ${i+1}: ${t.length} questions`))
-        console.error(`[${matchId}] Match filters - subject: ${subject}, level: ${level}`)
-        
-        // Send error to clients
-        const errorEvent: GameErrorEvent = {
-          type: 'GAME_ERROR',
-          message: 'No True/False questions available in database. Please seed questions.'
-        }
-        broadcastToMatch(matchId, errorEvent)
         throw new Error('No True/False questions available')
       }
 
@@ -325,12 +302,8 @@ async function selectAndBroadcastQuestion(
     // Broadcast QUESTION_RECEIVED with raw question object
     const matchSockets = sockets.get(matchId)
     if (!matchSockets || matchSockets.size === 0) {
-      console.error(`[${matchId}] ❌ CRITICAL: No sockets found for match - cannot send QUESTION_RECEIVED`)
-      console.error(`[${matchId}] This means WebSocket connections were lost before question could be sent!`)
-      console.error(`[${matchId}] Question was selected: ${questionDb.id} but cannot be delivered`)
-      // Don't return - still update the database so polling fallback can work
-    } else {
-      console.log(`[${matchId}] ✅ Found ${matchSockets.size} socket(s) for broadcasting QUESTION_RECEIVED`)
+      console.warn(`[${matchId}] ⚠️ No sockets found for match - cannot send QUESTION_RECEIVED`)
+      return
     }
 
     // Timeout for answer submission (60 seconds / 1 minute)
@@ -346,31 +319,19 @@ async function selectAndBroadcastQuestion(
     }
     
     let sentCount = 0
-    let skippedCount = 0
-    
-    if (matchSockets && matchSockets.size > 0) {
-      matchSockets.forEach((socket, index) => {
-        console.log(`[${matchId}] Checking socket ${index + 1}/${matchSockets.size} - readyState: ${socket.readyState} (OPEN=1)`)
-        if (socket.readyState === WebSocket.OPEN) {
-          try {
-            socket.send(JSON.stringify(questionReceivedEvent))
-            sentCount++
-            console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
-          } catch (error) {
-            console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
-            skippedCount++
-          }
-        } else {
-          console.warn(`[${matchId}] ⚠️ Socket ${index + 1} not OPEN (readyState: ${socket.readyState}), skipping`)
-          skippedCount++
+    matchSockets.forEach((socket, index) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        try {
+          socket.send(JSON.stringify(questionReceivedEvent))
+          sentCount++
+          console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
+        } catch (error) {
+          console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
         }
-      })
-      
-      console.log(`[${matchId}] 📊 QUESTION_RECEIVED broadcast summary: ${sentCount} sent, ${skippedCount} skipped, ${matchSockets.size} total`)
-    } else {
-      console.error(`[${matchId}] ❌ No sockets available - QUESTION_RECEIVED not sent via WebSocket`)
-      console.error(`[${matchId}] ⚠️ Client will need to use polling fallback to get question`)
-    }
+      }
+    })
+    
+    console.log(`[${matchId}] 📊 QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
     
     // Update match status
     await supabase

@@ -151,7 +151,7 @@ export default function AdminQuestions() {
       rankTier: '',
       stem: '',
       totalMarks: 1,
-      topicTags: '',
+      topicTags: '', // Topic tags removed from form but kept in data structure
       questionType: 'auto', // Auto-detect from steps
       steps: [{
         title: 'Step 1',
@@ -356,10 +356,7 @@ export default function AdminQuestions() {
 
     setSaving(true);
     try {
-      const topicTagsArray = form.topicTags
-        .split(',')
-        .map(t => t.trim())
-        .filter(t => t.length > 0);
+      const topicTagsArray: string[] = []; // Topic tags removed from form
 
       // Build steps payload with auto type detection
       const stepsPayload = form.steps.map((s, i) => {
@@ -370,15 +367,28 @@ export default function AdminQuestions() {
           : (form.questionType === 'true_false' ? 'true_false' : 'mcq');
         const stepType = detectStepType(s, forceType);
         
+        // Build options array based on type
+        let options: [string, string] | [string, string, string, string];
+        if (stepType === 'true_false' && nonEmptyOptions.length === 2) {
+          options = [nonEmptyOptions[0], nonEmptyOptions[1]] as [string, string];
+        } else if (nonEmptyOptions.length >= 2) {
+          // Pad to 4 for MCQ
+          const padded = [...nonEmptyOptions];
+          while (padded.length < 4) {
+            padded.push('');
+          }
+          options = [padded[0], padded[1], padded[2], padded[3]] as [string, string, string, string];
+        } else {
+          options = ['', '', '', ''] as [string, string, string, string];
+        }
+        
         return {
           id: s.id || `step-${i + 1}`,
           index: i, // Use 'index' not 'stepIndex'
           type: stepType,
           title: s.title,
-          prompt: s.prompt,
-          options: nonEmptyOptions.length === 2 && stepType === 'true_false'
-            ? nonEmptyOptions
-            : (nonEmptyOptions.length >= 2 ? nonEmptyOptions : ['', '', '', '']),
+          prompt: '', // Prompt removed from form
+          options,
           correctAnswer: s.correctAnswer,
           timeLimitSeconds: s.timeLimitSeconds ?? null,
           marks: s.marks,
@@ -715,15 +725,6 @@ export default function AdminQuestions() {
                         />
                       </div>
                       <div>
-                        <Label className="text-white">Topic Tags (comma-separated)</Label>
-                        <Input
-                          value={form.topicTags}
-                          onChange={(e) => updateFormField('topicTags', e.target.value)}
-                          placeholder="tag1, tag2, tag3"
-                          className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-                        />
-                      </div>
-                      <div>
                         <Label className="text-white">Question Type</Label>
                         <Select
                           value={form.questionType}
@@ -803,15 +804,6 @@ export default function AdminQuestions() {
                                 <Input
                                   value={step.title}
                                   onChange={(e) => updateStepField(stepIndex, 'title', e.target.value)}
-                                  className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-white">Prompt</Label>
-                                <Textarea
-                                  value={step.prompt}
-                                  onChange={(e) => updateStepField(stepIndex, 'prompt', e.target.value)}
-                                  rows={2}
                                   className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
                                 />
                               </div>
