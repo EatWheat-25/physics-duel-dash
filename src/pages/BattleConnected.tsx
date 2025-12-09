@@ -25,12 +25,12 @@ export default function BattleConnected() {
   // Try to use match from navigation state first
   useEffect(() => {
     const stateMatch = location.state?.match as MatchRow | undefined;
-    if (stateMatch && stateMatch.id === matchId) {
+    if (stateMatch && stateMatch.id === matchId && !match) {
       console.log('[BattleConnected] ✅ Using match from navigation state:', stateMatch.id);
       setMatch(stateMatch);
       return;
     }
-  }, [location.state, matchId]);
+  }, [location.state, matchId, match]);
 
   // Fetch match from database if not in state
   useEffect(() => {
@@ -113,6 +113,89 @@ export default function BattleConnected() {
     timeRemaining,
     submitAnswer 
   } = useGame(match);
+
+  // Fallback: If we're in 'both_connected' state but no question after 3 seconds, poll database
+  useEffect(() => {
+    if (!match || !matchId || status !== 'both_connected') {
+      return;
+    }
+
+    // Wait 3 seconds after BOTH_CONNECTED, then poll if still no question
+    const pollTimeout = setTimeout(async () => {
+      console.log('[BattleConnected] ⏰ 3 seconds passed after BOTH_CONNECTED, checking for question in database...')
+      
+      try {
+        const { data: matchData, error } = await supabase
+          .from('matches')
+          .select('question_id, question_sent_at')
+          .eq('id', matchId)
+          .single();
+
+        if (error) {
+          console.warn('[BattleConnected] Error polling for question:', error)
+          return
+        }
+
+        if (matchData?.question_id && matchData?.question_sent_at) {
+          console.log('[BattleConnected] ✅ Found question in database, fetching...')
+          
+          // Fetch the question
+          const { data: questionData, error: qError } = await supabase
+            .from('questions_v2')
+            .select('*')
+            .eq('id', matchData.question_id)
+            .single();
+
+          if (qError || !questionData) {
+            console.error('[BattleConnected] Error fetching question:', qError)
+            return
+          }
+
+          console.log('[BattleConnected] ✅ Question fetched from database, updating state...')
+          
+          // Import the mapper
+          const { mapRawToQuestion } = await import('@/utils/questionMapper')
+          const mappedQuestion = mapRawToQuestion(questionData)
+          
+          // Calculate timer end (60 seconds from when question was sent, or now + 60 if sent_at is old)
+          const questionSentAt = new Date(matchData.question_sent_at).getTime()
+          const now = Date.now()
+          const timeSinceSent = (now - questionSentAt) / 1000 // seconds
+          const timerEndAt = timeSinceSent < 60 
+            ? new Date(questionSentAt + 60 * 1000).toISOString()
+            : new Date(now + 60 * 1000).toISOString()
+          
+          // Dispatch event for useGame to handle
+          window.dispatchEvent(new CustomEvent('question-polled-from-db', {
+            detail: {
+              question: mappedQuestion,
+              timer_end_at: timerEndAt
+            }
+          }))
+        } else {
+          console.log('[BattleConnected] No question found in database yet, will retry...')
+        }
+      } catch (err) {
+        console.warn('[BattleConnected] Error in question polling:', err)
+      }
+    }, 3000)
+
+    return () => clearTimeout(pollTimeout)
+  }, [match, matchId, status])
+
+  // Listen for polled question event
+  useEffect(() => {
+    const handlePolledQuestion = (event: CustomEvent) => {
+      console.log('[BattleConnected] Received polled question event')
+      // The useGame hook should handle this, but we can also manually update if needed
+      // For now, just log - the WebSocket should have received it by now
+    }
+
+    window.addEventListener('question-polled-from-db', handlePolledQuestion as EventListener)
+    return () => {
+      window.removeEventListener('question-polled-from-db', handlePolledQuestion as EventListener)
+    }
+  }, [])
 
   // Polling fallback: Check match state every 2 seconds to catch missed WS messages
   useEffect(() => {
