@@ -98,13 +98,13 @@ export default function AdminQuestions() {
   if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-md w-full bg-slate-800 border-slate-700">
           <CardHeader>
             <div className="flex items-center gap-3 mb-2">
               <Shield className="w-8 h-8 text-red-500" />
-              <CardTitle className="text-2xl">Access Denied</CardTitle>
+              <CardTitle className="text-2xl text-white">Access Denied</CardTitle>
             </div>
-            <CardDescription>
+            <CardDescription className="text-slate-400">
               Only authorized administrators can access this panel.
             </CardDescription>
           </CardHeader>
@@ -417,10 +417,10 @@ export default function AdminQuestions() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: Question List */}
           <div className={`lg:col-span-2 ${mode !== 'idle' ? 'hidden lg:block' : ''}`}>
-            <Card>
+            <Card className="bg-slate-800 border-slate-700">
               <CardHeader>
-                <CardTitle>Questions</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-white">Questions</CardTitle>
+                <CardDescription className="text-slate-400">
                   {filteredQuestions.length} of {questions.length} questions
                 </CardDescription>
               </CardHeader>
@@ -435,7 +435,7 @@ export default function AdminQuestions() {
                           placeholder="Search questions..."
                           value={filters.search}
                           onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                          className="pl-10"
+                          className="pl-10 bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                         />
                       </div>
                     </div>
@@ -445,54 +445,54 @@ export default function AdminQuestions() {
                       value={filters.subject}
                       onValueChange={(v: any) => setFilters(prev => ({ ...prev, subject: v }))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                         <SelectValue placeholder="Subject" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Subjects</SelectItem>
-                        <SelectItem value="math">Math</SelectItem>
-                        <SelectItem value="physics">Physics</SelectItem>
-                        <SelectItem value="chemistry">Chemistry</SelectItem>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="all" className="text-white">All Subjects</SelectItem>
+                        <SelectItem value="math" className="text-white">Math</SelectItem>
+                        <SelectItem value="physics" className="text-white">Physics</SelectItem>
+                        <SelectItem value="chemistry" className="text-white">Chemistry</SelectItem>
                       </SelectContent>
                     </Select>
                     <Select
                       value={filters.level}
                       onValueChange={(v: any) => setFilters(prev => ({ ...prev, level: v }))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                         <SelectValue placeholder="Level" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Levels</SelectItem>
-                        <SelectItem value="A1">A1</SelectItem>
-                        <SelectItem value="A2">A2</SelectItem>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="all" className="text-white">All Levels</SelectItem>
+                        <SelectItem value="A1" className="text-white">A1</SelectItem>
+                        <SelectItem value="A2" className="text-white">A2</SelectItem>
                       </SelectContent>
                     </Select>
                     <Select
                       value={filters.difficulty}
                       onValueChange={(v: any) => setFilters(prev => ({ ...prev, difficulty: v }))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                         <SelectValue placeholder="Difficulty" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="easy">Easy</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="hard">Hard</SelectItem>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="all" className="text-white">All</SelectItem>
+                        <SelectItem value="easy" className="text-white">Easy</SelectItem>
+                        <SelectItem value="medium" className="text-white">Medium</SelectItem>
+                        <SelectItem value="hard" className="text-white">Hard</SelectItem>
                       </SelectContent>
                     </Select>
                     <Select
                       value={filters.type}
                       onValueChange={(v: any) => setFilters(prev => ({ ...prev, type: v }))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                         <SelectValue placeholder="Type" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="true_false">True/False</SelectItem>
-                        <SelectItem value="mcq">MCQ</SelectItem>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="all" className="text-white">All Types</SelectItem>
+                        <SelectItem value="true_false" className="text-white">True/False</SelectItem>
+                        <SelectItem value="mcq" className="text-white">MCQ</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -508,16 +508,16 @@ export default function AdminQuestions() {
                     No questions found
                   </div>
                 ) : (
-                  <div className="border rounded-lg overflow-hidden">
+                  <div className="border border-slate-700 rounded-lg overflow-hidden">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>Title</TableHead>
-                          <TableHead>Subject</TableHead>
-                          <TableHead>Level</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Steps</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
+                        <TableRow className="border-slate-700 hover:bg-slate-800">
+                          <TableHead className="text-white">Title</TableHead>
+                          <TableHead className="text-white">Subject</TableHead>
+                          <TableHead className="text-white">Level</TableHead>
+                          <TableHead className="text-white">Type</TableHead>
+                          <TableHead className="text-white">Steps</TableHead>
+                          <TableHead className="text-right text-white">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -526,10 +526,10 @@ export default function AdminQuestions() {
                           return (
                             <TableRow
                               key={q.id}
-                              className="cursor-pointer hover:bg-slate-800"
+                              className="cursor-pointer hover:bg-slate-800 border-slate-700"
                               onClick={() => handleSelectQuestion(q)}
                             >
-                              <TableCell className="font-medium">{q.title}</TableCell>
+                              <TableCell className="font-medium text-white">{q.title}</TableCell>
                               <TableCell>
                                 <Badge variant="outline">{q.subject}</Badge>
                               </TableCell>
@@ -571,10 +571,10 @@ export default function AdminQuestions() {
 
           {/* Right: Editor */}
           <div className={`${mode === 'idle' ? 'hidden lg:block' : ''}`}>
-            <Card>
+            <Card className="bg-slate-800 border-slate-700">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>
+                  <CardTitle className="text-white">
                     {mode === 'creating' ? 'Create Question' : mode === 'editing' ? 'Edit Question' : 'Question Editor'}
                   </CardTitle>
                   {mode !== 'idle' && (
@@ -586,7 +586,7 @@ export default function AdminQuestions() {
                     </Button>
                   )}
                 </div>
-                <CardDescription>
+                <CardDescription className="text-slate-400">
                   {mode === 'idle' ? 'Select a question to edit or create a new one' : 'Fill in the question details'}
                 </CardDescription>
               </CardHeader>
@@ -600,87 +600,91 @@ export default function AdminQuestions() {
                     {/* Basic Info */}
                     <div className="space-y-4">
                       <div>
-                        <Label>Title *</Label>
+                        <Label className="text-white">Title *</Label>
                         <Input
                           value={form.title}
                           onChange={(e) => updateFormField('title', e.target.value)}
                           placeholder="Question title"
+                          className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label>Subject *</Label>
+                          <Label className="text-white">Subject *</Label>
                           <Select
                             value={form.subject}
                             onValueChange={(v: any) => updateFormField('subject', v)}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="math">Math</SelectItem>
-                              <SelectItem value="physics">Physics</SelectItem>
-                              <SelectItem value="chemistry">Chemistry</SelectItem>
+                            <SelectContent className="bg-slate-800 border-slate-700">
+                              <SelectItem value="math" className="text-white">Math</SelectItem>
+                              <SelectItem value="physics" className="text-white">Physics</SelectItem>
+                              <SelectItem value="chemistry" className="text-white">Chemistry</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div>
-                          <Label>Level *</Label>
+                          <Label className="text-white">Level *</Label>
                           <Select
                             value={form.level}
                             onValueChange={(v: any) => updateFormField('level', v)}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="A1">A1</SelectItem>
-                              <SelectItem value="A2">A2</SelectItem>
+                            <SelectContent className="bg-slate-800 border-slate-700">
+                              <SelectItem value="A1" className="text-white">A1</SelectItem>
+                              <SelectItem value="A2" className="text-white">A2</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label>Difficulty *</Label>
+                          <Label className="text-white">Difficulty *</Label>
                           <Select
                             value={form.difficulty}
                             onValueChange={(v: any) => updateFormField('difficulty', v)}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="easy">Easy</SelectItem>
-                              <SelectItem value="medium">Medium</SelectItem>
-                              <SelectItem value="hard">Hard</SelectItem>
+                            <SelectContent className="bg-slate-800 border-slate-700">
+                              <SelectItem value="easy" className="text-white">Easy</SelectItem>
+                              <SelectItem value="medium" className="text-white">Medium</SelectItem>
+                              <SelectItem value="hard" className="text-white">Hard</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div>
-                          <Label>Chapter</Label>
+                          <Label className="text-white">Chapter</Label>
                           <Input
                             value={form.chapter}
                             onChange={(e) => updateFormField('chapter', e.target.value)}
                             placeholder="Chapter name"
+                            className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                           />
                         </div>
                       </div>
                       <div>
-                        <Label>Question Stem *</Label>
+                        <Label className="text-white">Question Stem *</Label>
                         <Textarea
                           value={form.stem}
                           onChange={(e) => updateFormField('stem', e.target.value)}
                           placeholder="Main question text"
                           rows={3}
+                          className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                         />
                       </div>
                       <div>
-                        <Label>Topic Tags (comma-separated)</Label>
+                        <Label className="text-white">Topic Tags (comma-separated)</Label>
                         <Input
                           value={form.topicTags}
                           onChange={(e) => updateFormField('topicTags', e.target.value)}
                           placeholder="tag1, tag2, tag3"
+                          className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                         />
                       </div>
                     </div>
@@ -688,7 +692,7 @@ export default function AdminQuestions() {
                     {/* Steps */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <Label className="text-lg font-semibold">Steps</Label>
+                        <Label className="text-lg font-semibold text-white">Steps</Label>
                         <Button variant="outline" size="sm" onClick={handleAddStep}>
                           <Plus className="w-4 h-4 mr-2" />
                           Add Step
@@ -698,10 +702,10 @@ export default function AdminQuestions() {
                         const stepType = detectStepType(step);
                         const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean);
                         return (
-                          <Card key={stepIndex} className="p-4">
+                          <Card key={stepIndex} className="p-4 bg-slate-700 border-slate-600">
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-2">
-                                <Badge>Step {stepIndex + 1}</Badge>
+                                <Badge className="bg-slate-600 text-white">Step {stepIndex + 1}</Badge>
                                 <Badge variant={stepType === 'true_false' ? 'default' : 'secondary'}>
                                   {stepType === 'true_false' ? (
                                     <><CheckCircle2 className="w-3 h-3 mr-1" /> True/False</>
@@ -722,22 +726,24 @@ export default function AdminQuestions() {
                             </div>
                             <div className="space-y-4">
                               <div>
-                                <Label>Step Title</Label>
+                                <Label className="text-white">Step Title</Label>
                                 <Input
                                   value={step.title}
                                   onChange={(e) => updateStepField(stepIndex, 'title', e.target.value)}
+                                  className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
                                 />
                               </div>
                               <div>
-                                <Label>Prompt</Label>
+                                <Label className="text-white">Prompt</Label>
                                 <Textarea
                                   value={step.prompt}
                                   onChange={(e) => updateStepField(stepIndex, 'prompt', e.target.value)}
                                   rows={2}
+                                  className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
                                 />
                               </div>
                               <div>
-                                <Label>Options</Label>
+                                <Label className="text-white">Options</Label>
                                 <div className="grid grid-cols-2 gap-2">
                                   {[0, 1, 2, 3].map((optIdx) => (
                                     <div key={optIdx} className="flex items-center gap-2">
@@ -752,30 +758,30 @@ export default function AdminQuestions() {
                                         value={step.options[optIdx]}
                                         onChange={(e) => updateStepOption(stepIndex, optIdx, e.target.value)}
                                         placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
-                                        className="flex-1"
+                                        className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
                                       />
                                     </div>
                                   ))}
                                 </div>
                                 {stepType === 'true_false' && nonEmptyOptions.length === 2 && (
-                                  <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                                  <p className="text-xs text-green-400 mt-2">
                                     ✓ Detected as True/False question
                                   </p>
                                 )}
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <Label>Correct Answer</Label>
+                                  <Label className="text-white">Correct Answer</Label>
                                   <Select
                                     value={step.correctAnswer.toString()}
                                     onValueChange={(v) => updateStepField(stepIndex, 'correctAnswer', parseInt(v))}
                                   >
-                                    <SelectTrigger>
+                                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
                                       <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="bg-slate-800 border-slate-700">
                                       {nonEmptyOptions.map((opt, idx) => (
-                                        <SelectItem key={idx} value={idx.toString()}>
+                                        <SelectItem key={idx} value={idx.toString()} className="text-white">
                                           {String.fromCharCode(65 + idx)}: {opt || `Option ${String.fromCharCode(65 + idx)}`}
                                         </SelectItem>
                                       ))}
@@ -783,22 +789,24 @@ export default function AdminQuestions() {
                                   </Select>
                                 </div>
                                 <div>
-                                  <Label>Marks</Label>
+                                  <Label className="text-white">Marks</Label>
                                   <Input
                                     type="number"
                                     value={step.marks}
                                     onChange={(e) => updateStepField(stepIndex, 'marks', parseInt(e.target.value) || 1)}
                                     min="1"
+                                    className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
                                   />
                                 </div>
                               </div>
                               <div>
-                                <Label>Explanation</Label>
+                                <Label className="text-white">Explanation</Label>
                                 <Textarea
                                   value={step.explanation}
                                   onChange={(e) => updateStepField(stepIndex, 'explanation', e.target.value)}
                                   rows={2}
                                   placeholder="Explanation shown after answering"
+                                  className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
                                 />
                               </div>
                             </div>
