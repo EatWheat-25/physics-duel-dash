@@ -390,14 +390,14 @@ export default function AdminQuestions() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="container mx-auto p-6 max-w-7xl">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Admin Dashboard</h1>
-              <p className="text-slate-600 dark:text-slate-400 mt-1">Manage questions and content</p>
+              <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+              <p className="text-slate-400 mt-1">Manage questions and content</p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => navigate('/')}>
@@ -504,7 +504,7 @@ export default function AdminQuestions() {
                     <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
                   </div>
                 ) : filteredQuestions.length === 0 ? (
-                  <div className="text-center py-12 text-slate-500">
+                  <div className="text-center py-12 text-slate-400">
                     No questions found
                   </div>
                 ) : (
@@ -526,7 +526,7 @@ export default function AdminQuestions() {
                           return (
                             <TableRow
                               key={q.id}
-                              className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                              className="cursor-pointer hover:bg-slate-800"
                               onClick={() => handleSelectQuestion(q)}
                             >
                               <TableCell className="font-medium">{q.title}</TableCell>
@@ -592,7 +592,7 @@ export default function AdminQuestions() {
               </CardHeader>
               <CardContent>
                 {mode === 'idle' ? (
-                  <div className="text-center py-12 text-slate-500">
+                  <div className="text-center py-12 text-slate-400">
                     <p>Select a question from the list or create a new one</p>
                   </div>
                 ) : (
@@ -744,7 +744,7 @@ export default function AdminQuestions() {
                                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                                         step.correctAnswer === optIdx 
                                           ? 'bg-green-500 text-white' 
-                                          : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                          : 'bg-slate-700 text-slate-300'
                                       }`}>
                                         {String.fromCharCode(65 + optIdx)}
                                       </div>
