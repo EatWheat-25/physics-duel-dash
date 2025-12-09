@@ -120,9 +120,12 @@ export default function BattleConnected() {
       return;
     }
 
+    console.log('[BattleConnected] ⏰ Setting up 3-second timeout to poll for question if not received...')
+
     // Wait 3 seconds after BOTH_CONNECTED, then poll if still no question
     const pollTimeout = setTimeout(async () => {
       console.log('[BattleConnected] ⏰ 3 seconds passed after BOTH_CONNECTED, checking for question in database...')
+      console.log('[BattleConnected] Current status:', status, 'Has question:', !!question)
       
       try {
         const { data: matchData, error } = await supabase
@@ -399,6 +402,11 @@ export default function BattleConnected() {
                   <Users className="w-16 h-16 text-green-400 mx-auto mb-4" />
                   <h2 className="text-2xl font-bold text-white mb-2">Both Players Connected!</h2>
                   <p className="text-slate-300">Starting game...</p>
+                  <p className="text-xs text-slate-500 mt-2">Waiting for question from server...</p>
+                  <div className="mt-4 text-xs text-slate-500">
+                    <p>If question doesn't appear, check browser console for errors.</p>
+                    <p>Server should send QUESTION_RECEIVED within 3 seconds.</p>
+                  </div>
                 </>
               )}
               {status === 'playing' && question && (() => {
