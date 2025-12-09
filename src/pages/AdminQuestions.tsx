@@ -55,6 +55,7 @@ type QuestionForm = {
   topicTags: string;
   steps: FormStep[];
   imageUrl: string;
+  questionType: 'auto' | 'true_false' | 'mcq'; // Overall question type hint
 };
 
 export default function AdminQuestions() {
@@ -151,6 +152,7 @@ export default function AdminQuestions() {
       stem: '',
       totalMarks: 1,
       topicTags: '',
+      questionType: 'auto', // Auto-detect from steps
       steps: [{
         title: 'Step 1',
         prompt: '',
@@ -197,6 +199,13 @@ export default function AdminQuestions() {
       };
     });
 
+    // Detect question type from steps
+    const stepTypes = q.steps.map(s => s.type);
+    const allSameType = stepTypes.every(t => t === stepTypes[0]);
+    const questionType = allSameType && stepTypes[0] 
+      ? (stepTypes[0] === 'true_false' ? 'true_false' : 'mcq')
+      : 'auto';
+
     setForm({
       title: q.title,
       subject: q.subject,
@@ -207,6 +216,7 @@ export default function AdminQuestions() {
       stem: q.stem,
       totalMarks: q.totalMarks,
       topicTags: topicTagsStr,
+      questionType,
       steps,
       imageUrl: q.imageUrl || ''
     });
@@ -257,18 +267,26 @@ export default function AdminQuestions() {
   }
 
   function handleAddStep() {
-    setForm(prev => ({
-      ...prev,
-      steps: [...prev.steps, {
-        title: `Step ${prev.steps.length + 1}`,
-        prompt: '',
-        options: ['', '', '', ''],
-        correctAnswer: 0,
-        marks: 1,
-        timeLimitSeconds: 30,
-        explanation: ''
-      }]
-    }));
+    setForm(prev => {
+      // Pre-fill options based on question type
+      let options: [string, string, string, string] = ['', '', '', ''];
+      if (prev.questionType === 'true_false') {
+        options = ['True', 'False', '', ''];
+      }
+      
+      return {
+        ...prev,
+        steps: [...prev.steps, {
+          title: `Step ${prev.steps.length + 1}`,
+          prompt: '',
+          options,
+          correctAnswer: 0,
+          marks: 1,
+          timeLimitSeconds: 30,
+          explanation: ''
+        }]
+      };
+    });
   }
 
   function handleDeleteStep(stepIndex: number) {
@@ -282,8 +300,22 @@ export default function AdminQuestions() {
     }));
   }
 
-  // Auto-detect step type
-  function detectStepType(step: FormStep): 'mcq' | 'true_false' {
+  // Auto-detect step type (respects questionType if set)
+  function detectStepType(step: FormStep, forceType?: 'mcq' | 'true_false'): 'mcq' | 'true_false' {
+    // If question type is explicitly set, use it
+    if (forceType) {
+      return forceType;
+    }
+    
+    // If questionType is set to true_false or mcq, use it
+    if (form.questionType === 'true_false') {
+      return 'true_false';
+    }
+    if (form.questionType === 'mcq') {
+      return 'mcq';
+    }
+    
+    // Otherwise auto-detect from options
     const normalize = (s: string) => s.toLowerCase().trim();
     const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean);
     const normalized = nonEmptyOptions.map(normalize).sort().join(',');
@@ -332,7 +364,11 @@ export default function AdminQuestions() {
       // Build steps payload with auto type detection
       const stepsPayload = form.steps.map((s, i) => {
         const nonEmptyOptions = s.options.map(o => o.trim()).filter(Boolean);
-        const stepType = detectStepType(s);
+        // Use questionType if set, otherwise auto-detect
+        const forceType = form.questionType === 'auto' 
+          ? undefined 
+          : (form.questionType === 'true_false' ? 'true_false' : 'mcq');
+        const stepType = detectStepType(s, forceType);
         
         return {
           id: s.id || `step-${i + 1}`,
@@ -687,24 +723,56 @@ export default function AdminQuestions() {
                           className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                         />
                       </div>
+                      <div>
+                        <Label className="text-white">Question Type</Label>
+                        <Select
+                          value={form.questionType}
+                          onValueChange={(v: any) => updateFormField('questionType', v)}
+                        >
+                          <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-slate-800 border-slate-700">
+                            <SelectItem value="auto" className="text-white">Auto-detect from steps</SelectItem>
+                            <SelectItem value="true_false" className="text-white">True/False (all steps)</SelectItem>
+                            <SelectItem value="mcq" className="text-white">MCQ (all steps)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {form.questionType === 'auto' 
+                            ? 'Type will be detected from each step\'s options'
+                            : form.questionType === 'true_false'
+                            ? 'All steps will be treated as True/False (use 2 options: True, False)'
+                            : 'All steps will be treated as MCQ (use 4 options)'}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Steps */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <Label className="text-lg font-semibold text-white">Steps</Label>
+                          <Label className="text-lg font-semibold text-white">Steps ({form.steps.length})</Label>
                           <p className="text-xs text-slate-400 mt-1">
                             Each step can be True/False or MCQ. Add multiple steps for multi-part questions.
                           </p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={handleAddStep}>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleAddStep}
+                          className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
+                        >
                           <Plus className="w-4 h-4 mr-2" />
                           Add Step
                         </Button>
                       </div>
                       {form.steps.map((step, stepIndex) => {
-                        const stepType = detectStepType(step);
+                        // Use questionType if set, otherwise auto-detect
+                        const forceType = form.questionType === 'auto' 
+                          ? undefined 
+                          : (form.questionType === 'true_false' ? 'true_false' : 'mcq');
+                        const stepType = detectStepType(step, forceType);
                         const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean);
                         return (
                           <Card key={stepIndex} className="p-4 bg-slate-700 border-slate-600">
