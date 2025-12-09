@@ -817,28 +817,57 @@ export default function AdminQuestions() {
                               </div>
                               <div>
                                 <Label className="text-white">Options</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {[0, 1, 2, 3].map((optIdx) => (
-                                    <div key={optIdx} className="flex items-center gap-2">
-                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                        step.correctAnswer === optIdx 
-                                          ? 'bg-green-500 text-white' 
-                                          : 'bg-slate-700 text-slate-300'
-                                      }`}>
-                                        {String.fromCharCode(65 + optIdx)}
+                                {stepType === 'true_false' ? (
+                                  // True/False: Show only 2 options
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {[0, 1].map((optIdx) => {
+                                      const defaultValue = optIdx === 0 ? 'True' : 'False';
+                                      const currentValue = step.options[optIdx]?.trim() || '';
+                                      
+                                      return (
+                                        <div key={optIdx} className="flex items-center gap-2">
+                                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                            step.correctAnswer === optIdx 
+                                              ? 'bg-green-500 text-white' 
+                                              : 'bg-slate-700 text-slate-300'
+                                          }`}>
+                                            {optIdx === 0 ? 'T' : 'F'}
+                                          </div>
+                                          <Input
+                                            value={currentValue}
+                                            onChange={(e) => updateStepOption(stepIndex, optIdx, e.target.value)}
+                                            placeholder={defaultValue}
+                                            className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  // MCQ: Show all 4 options
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {[0, 1, 2, 3].map((optIdx) => (
+                                      <div key={optIdx} className="flex items-center gap-2">
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                          step.correctAnswer === optIdx 
+                                            ? 'bg-green-500 text-white' 
+                                            : 'bg-slate-700 text-slate-300'
+                                        }`}>
+                                          {String.fromCharCode(65 + optIdx)}
+                                        </div>
+                                        <Input
+                                          value={step.options[optIdx]}
+                                          onChange={(e) => updateStepOption(stepIndex, optIdx, e.target.value)}
+                                          placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
+                                          className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
+                                        />
                                       </div>
-                                      <Input
-                                        value={step.options[optIdx]}
-                                        onChange={(e) => updateStepOption(stepIndex, optIdx, e.target.value)}
-                                        placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
-                                        className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
+                                    ))}
+                                  </div>
+                                )}
                                 {stepType === 'true_false' && nonEmptyOptions.length === 2 && (
                                   <p className="text-xs text-green-400 mt-2">
-                                    ✓ Detected as True/False question
+                                    ✓ True/False question - only 2 options shown
                                   </p>
                                 )}
                               </div>
@@ -853,11 +882,24 @@ export default function AdminQuestions() {
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-slate-800 border-slate-700">
-                                      {nonEmptyOptions.map((opt, idx) => (
-                                        <SelectItem key={idx} value={idx.toString()} className="text-white">
-                                          {String.fromCharCode(65 + idx)}: {opt || `Option ${String.fromCharCode(65 + idx)}`}
-                                        </SelectItem>
-                                      ))}
+                                      {stepType === 'true_false' ? (
+                                        // True/False: Show True/False labels
+                                        <>
+                                          <SelectItem value="0" className="text-white">
+                                            True: {step.options[0] || 'True'}
+                                          </SelectItem>
+                                          <SelectItem value="1" className="text-white">
+                                            False: {step.options[1] || 'False'}
+                                          </SelectItem>
+                                        </>
+                                      ) : (
+                                        // MCQ: Show A, B, C, D labels
+                                        nonEmptyOptions.map((opt, idx) => (
+                                          <SelectItem key={idx} value={idx.toString()} className="text-white">
+                                            {String.fromCharCode(65 + idx)}: {opt || `Option ${String.fromCharCode(65 + idx)}`}
+                                          </SelectItem>
+                                        ))
+                                      )}
                                     </SelectContent>
                                   </Select>
                                 </div>
