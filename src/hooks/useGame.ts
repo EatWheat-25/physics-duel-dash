@@ -139,7 +139,24 @@ export function useGame(match: MatchRow | null) {
       return
     }
 
+    let reconnectTimeout: NodeJS.Timeout | null = null
+    let isConnecting = false
+
     const connect = async () => {
+      // Prevent multiple simultaneous connection attempts
+      if (isConnecting) {
+        console.log('[useGame] Already connecting, skipping duplicate attempt')
+        return
+      }
+
+      // If WebSocket is already open, don't reconnect
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        console.log('[useGame] WebSocket already open, skipping connection')
+        return
+      }
+
+      isConnecting = true
+
       try {
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -149,6 +166,7 @@ export function useGame(match: MatchRow | null) {
             playerRole: null,
             errorMessage: 'Not authenticated'
           })
+          isConnecting = false
           return
         }
 
@@ -159,6 +177,7 @@ export function useGame(match: MatchRow | null) {
             playerRole: null,
             errorMessage: 'You are not part of this match'
           })
+          isConnecting = false
           return
         }
 
@@ -170,6 +189,7 @@ export function useGame(match: MatchRow | null) {
             playerRole: null,
             errorMessage: 'No session token'
           })
+          isConnecting = false
           return
         }
 
@@ -181,7 +201,14 @@ export function useGame(match: MatchRow | null) {
             playerRole: null,
             errorMessage: 'Missing SUPABASE_URL'
           })
+          isConnecting = false
           return
+        }
+
+        // Close existing connection if any
+        if (wsRef.current) {
+          wsRef.current.close()
+          wsRef.current = null
         }
 
         const wsUrl = `${SUPABASE_URL.replace('http', 'ws')}/functions/v1/game-ws?token=${session.access_token}&match_id=${match.id}`
@@ -190,22 +217,48 @@ export function useGame(match: MatchRow | null) {
         const ws = new WebSocket(wsUrl)
         wsRef.current = ws
 
+        // Connection timeout (10 seconds)
+        const connectionTimeout = setTimeout(() => {
+          if (ws.readyState !== WebSocket.OPEN) {
+            console.error('[useGame] Connection timeout')
+            ws.close()
+            isConnecting = false
+            // Retry connection after 1 second
+            reconnectTimeout = setTimeout(() => {
+              connect()
+            }, 1000)
+          }
+        }, 10000)
+
         ws.onopen = () => {
+          clearTimeout(connectionTimeout)
           console.log('[useGame] WebSocket connected')
+          isConnecting = false
           setState(prev => ({
             ...prev,
             status: 'connecting',
             errorMessage: null
           }))
 
-          // Send JOIN_MATCH message
+          // Send JOIN_MATCH message - ensure it's sent even if tab was in background
           const joinMessage = {
             type: 'JOIN_MATCH',
             match_id: match.id,
             player_id: user.id
           }
           console.log('[useGame] Sending JOIN_MATCH:', joinMessage)
-          ws.send(JSON.stringify(joinMessage))
+          
+          // Ensure message is sent - retry if needed
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(joinMessage))
+          } else {
+            // Wait a bit and retry
+            setTimeout(() => {
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify(joinMessage))
+              }
+            }, 100)
+          }
         }
 
         ws.onmessage = (event) => {
@@ -342,27 +395,52 @@ export function useGame(match: MatchRow | null) {
 
         ws.onerror = (error) => {
           console.error('[useGame] WebSocket error:', error)
-          setState(prev => ({
-            ...prev,
-            status: 'error',
-            errorMessage: 'WebSocket connection error'
-          }))
+          clearTimeout(connectionTimeout)
+          isConnecting = false
+          
+          // Retry connection after 1 second (don't immediately set error state)
+          reconnectTimeout = setTimeout(() => {
+            connect()
+          }, 1000)
         }
 
-        ws.onclose = () => {
-          console.log('[useGame] WebSocket closed')
-          setState(prev => {
-            if (prev.status !== 'error') {
-              return {
-                ...prev,
-                status: 'connecting'
+        ws.onclose = (event) => {
+          console.log('[useGame] WebSocket closed', { code: event.code, reason: event.reason })
+          clearTimeout(connectionTimeout)
+          isConnecting = false
+          
+          // Only reconnect if it wasn't a clean close (code 1000 = normal closure)
+          if (event.code !== 1000) {
+            setState(prev => {
+              // Don't reconnect if already in error or finished state
+              if (prev.status !== 'error' && prev.status !== 'match_finished') {
+                // Retry connection after 1 second
+                reconnectTimeout = setTimeout(() => {
+                  connect()
+                }, 1000)
+                return {
+                  ...prev,
+                  status: 'connecting'
+                }
               }
-            }
-            return prev
-          })
+              return prev
+            })
+          } else {
+            // Clean close - don't reconnect
+            setState(prev => {
+              if (prev.status !== 'error' && prev.status !== 'match_finished') {
+                return {
+                  ...prev,
+                  status: 'connecting'
+                }
+              }
+              return prev
+            })
+          }
         }
       } catch (error: any) {
         console.error('[useGame] Connection error:', error)
+        isConnecting = false
         setState({
           status: 'error',
           playerRole: null,
@@ -372,6 +450,49 @@ export function useGame(match: MatchRow | null) {
     }
 
     connect()
+
+    // Handle visibility change - reconnect when tab becomes visible
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[useGame] Tab became visible, checking connection...')
+        // Check if WebSocket is connected, reconnect if not
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          console.log('[useGame] WebSocket not connected, reconnecting...')
+          connect()
+        } else {
+          // WebSocket is open, but verify we've sent JOIN_MATCH
+          // Re-send JOIN_MATCH to ensure server knows we're connected
+          try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user && wsRef.current?.readyState === WebSocket.OPEN) {
+              const joinMessage = {
+                type: 'JOIN_MATCH',
+                match_id: match.id,
+                player_id: user.id
+              }
+              console.log('[useGame] Tab visible, re-sending JOIN_MATCH:', joinMessage)
+              wsRef.current.send(JSON.stringify(joinMessage))
+            }
+          } catch (error) {
+            console.error('[useGame] Error re-sending JOIN_MATCH on visibility change:', error)
+          }
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout)
+      }
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
+    }
 
     return () => {
       if (wsRef.current) {
