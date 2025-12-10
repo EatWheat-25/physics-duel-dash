@@ -119,7 +119,15 @@ Deno.serve(async (req) => {
 
     console.log(`[MM] Queued player ${user.id}`)
 
-    // Step 2: Find and atomically claim an opponent
+    // Step 2: Clean up stale entries first (older than 60 seconds)
+    // This prevents matching with inactive players
+    await supabase
+      .from('matchmaking_queue')
+      .delete()
+      .eq('status', 'waiting')
+      .lt('created_at', new Date(Date.now() - 60000).toISOString())
+
+    // Step 3: Find and atomically claim an opponent
     // Strategy: Find the earliest waiting opponent with same subject/level, then atomically update their status
     // This prevents both players from creating matches with each other
     const { data: waitingPlayers, error: searchError } = await supabase
@@ -207,7 +215,7 @@ Deno.serve(async (req) => {
     // Successfully claimed opponent!
     console.log(`[MM] Claimed opponent ${opponentId} for player ${user.id}`)
 
-    // Step 3: Create match with consistent player ordering
+    // Step 4: Create match with consistent player ordering
     // Convention: player1_id = earlier queued player, player2_id = later queued player
     // This ensures both players get the same match row regardless of who called first
     const userQueueEntry = existingEntry || { created_at: new Date().toISOString() }
@@ -257,7 +265,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Step 4: Remove both players from queue (match created successfully)
+    // Step 5: Remove both players from queue (match created successfully)
     await supabase
       .from('matchmaking_queue')
       .delete()
