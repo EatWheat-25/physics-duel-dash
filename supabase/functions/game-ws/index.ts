@@ -155,8 +155,13 @@ async function selectAndBroadcastQuestion(
     }
 
     // Safety checks
-    if (!match || match.status !== 'in_progress' || match.winner_id) {
+    // Allow both 'pending' (new match) and 'in_progress' (subsequent rounds)
+    if (!match || match.winner_id) {
       console.warn(`[${matchId}] ⚠️ Match not ready for question selection (status: ${match?.status}, winner: ${match?.winner_id})`)
+      return
+    }
+    if (match.status !== 'pending' && match.status !== 'in_progress') {
+      console.warn(`[${matchId}] ⚠️ Match status not playable (status: ${match.status})`)
       return
     }
 
