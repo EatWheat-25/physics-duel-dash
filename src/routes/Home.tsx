@@ -20,7 +20,7 @@ export default function Home() {
   const [playerData, setPlayerData] = useState<PlayerData | null>(null);
 
   useEffect(() => {
-    document.title = 'FRAGPUNK | Lobby';
+    document.title = 'Battle Nerds | Lobby';
   }, []);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export default function Home() {
       {/* Top Navigation Bar */}
       <header className="relative z-30 w-full">
         <div className="w-full px-8 py-4 flex justify-between items-center">
-          <div className="text-2xl font-bold tracking-wider text-white">FRAGPUNK</div>
+          <div className="text-2xl font-bold tracking-wider text-white">BATTLE NERDS</div>
           
           <nav className="flex items-center gap-10">
             <a href="#" className="relative text-white text-sm font-semibold uppercase tracking-wider pb-3">
