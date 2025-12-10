@@ -6,6 +6,7 @@ import { Loader2, ArrowLeft, Check, X, Trophy, Clock, Zap } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Starfield } from '@/components/Starfield';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -13,6 +14,7 @@ export default function BattleConnected() {
   const location = useLocation();
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [showRoundIntro, setShowRoundIntro] = useState(false);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -73,6 +75,15 @@ export default function BattleConnected() {
     matchFinished, matchWinner, timeRemaining, submitAnswer 
   } = useGame(match);
 
+  // Round Intro Effect
+  useEffect(() => {
+    if (roundNumber && roundNumber > 0 && status === 'playing') {
+      setShowRoundIntro(true);
+      const timer = setTimeout(() => setShowRoundIntro(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [roundNumber, status]);
+
   // Polling fallback
   useEffect(() => {
     if (!match || !matchId || (status !== 'playing' && status !== 'results') || !question) return;
@@ -109,8 +120,9 @@ export default function BattleConnected() {
 
   if (!match || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center relative overflow-hidden">
+        <Starfield />
+        <div className="flex flex-col items-center gap-4 relative z-10">
           <div className="relative">
             <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin" />
             <div className="absolute inset-0 flex items-center justify-center">
@@ -125,8 +137,9 @@ export default function BattleConnected() {
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-red-950/10 border border-red-500/20 p-8 rounded-2xl text-center">
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
+        <Starfield />
+        <div className="max-w-md w-full bg-red-950/10 border border-red-500/20 p-8 rounded-2xl text-center relative z-10 backdrop-blur-sm">
           <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
             <X className="w-8 h-8 text-red-500" />
           </div>
@@ -145,12 +158,47 @@ export default function BattleConnected() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-blue-500/30 overflow-hidden relative">
-      {/* Background Elements */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505]" />
-      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
+      <Starfield />
       
+      {/* Background Elements */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505] pointer-events-none" />
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent pointer-events-none" />
+      
+      {/* Round Intro Overlay */}
+      <AnimatePresence>
+        {showRoundIntro && (
+          <motion.div
+            initial={{ opacity: 0, scale: 1.2 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8, filter: 'blur(20px)' }}
+            transition={{ duration: 0.5 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none"
+          >
+            <div className="text-center">
+              <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-blue-500 font-mono tracking-[0.5em] text-sm mb-4 uppercase"
+              >
+                Subject: {match.subject}
+              </motion.div>
+              <h1 className="text-7xl md:text-9xl font-black text-white tracking-tighter italic">
+                ROUND {roundNumber}
+              </h1>
+              <motion.div 
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ delay: 0.4, duration: 0.5 }}
+                className="h-2 w-32 bg-blue-500 mx-auto mt-6 rounded-full"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
-      <header className="relative z-10 w-full max-w-7xl mx-auto p-4 md:p-6 flex justify-between items-center">
+      <header className="relative z-20 w-full max-w-7xl mx-auto p-4 md:p-6 flex justify-between items-center">
         <button 
           onClick={() => navigate('/matchmaking-new')}
           className="flex items-center gap-2 text-white/40 hover:text-white transition-colors group"
@@ -161,7 +209,7 @@ export default function BattleConnected() {
           <span className="text-sm font-medium tracking-wide">EXIT</span>
         </button>
 
-        <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full">
+        <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full backdrop-blur-md">
           <div className={`w-2 h-2 rounded-full ${status.includes('connected') || status === 'playing' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
           <span className="text-xs font-mono text-blue-200 uppercase tracking-wider">
             {status.replace('_', ' ')}
@@ -177,19 +225,23 @@ export default function BattleConnected() {
           {/* Player Stats */}
           <div className="flex flex-col items-start">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-blue-400/30">
                 <span className="font-bold text-lg">Y</span>
               </div>
               <div>
                 <div className="text-xs text-blue-200/50 font-mono mb-0.5">OPERATOR</div>
-                <div className="font-bold">YOU</div>
+                <div className="font-bold text-shadow-glow">YOU</div>
               </div>
             </div>
             {lastRoundWinner === currentUser && (
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 rounded-md border border-yellow-500/20">
+              <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 rounded-md border border-yellow-500/20"
+              >
                 <Trophy className="w-3 h-3 text-yellow-500" />
                 <span className="text-xs font-bold text-yellow-500">STREAK x{consecutiveWinsCount}</span>
-              </div>
+              </motion.div>
             )}
           </div>
 
@@ -199,7 +251,7 @@ export default function BattleConnected() {
               ROUND {roundNumber || 0}
             </div>
             <div className={`text-5xl font-black font-mono tracking-tighter tabular-nums transition-colors duration-300 ${
-              (timeRemaining ?? 60) <= 10 ? 'text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'text-white'
+              (timeRemaining ?? 60) <= 10 ? 'text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]'
             }`}>
               {Math.floor((timeRemaining ?? 0) / 60)}:{String((timeRemaining ?? 0) % 60).padStart(2, '0')}
             </div>
@@ -208,23 +260,27 @@ export default function BattleConnected() {
           {/* Opponent Stats */}
           <div className="flex flex-col items-end">
             <div className="flex items-center gap-3 mb-2 flex-row-reverse text-right">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-colors ${
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-colors ring-1 ${
                 status === 'playing' || status === 'results' 
-                  ? 'bg-gradient-to-br from-red-600 to-red-800 shadow-red-500/20' 
-                  : 'bg-white/5'
+                  ? 'bg-gradient-to-br from-red-600 to-red-800 shadow-red-500/20 ring-red-400/30' 
+                  : 'bg-white/5 ring-white/10'
               }`}>
                 <span className="font-bold text-lg">{status.includes('connect') ? '?' : 'O'}</span>
               </div>
               <div>
                 <div className="text-xs text-red-200/50 font-mono mb-0.5">TARGET</div>
-                <div className="font-bold">OPPONENT</div>
+                <div className="font-bold text-shadow-glow">OPPONENT</div>
               </div>
             </div>
             {lastRoundWinner === opponentId && (
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded-md border border-red-500/20">
+              <motion.div 
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded-md border border-red-500/20"
+              >
                 <Zap className="w-3 h-3 text-red-500" />
                 <span className="text-xs font-bold text-red-500">STREAK x{consecutiveWinsCount}</span>
-              </div>
+              </motion.div>
             )}
           </div>
         </div>
@@ -260,7 +316,7 @@ export default function BattleConnected() {
             )}
 
             {/* PLAYING STATE */}
-            {status === 'playing' && question && (
+            {status === 'playing' && question && !showRoundIntro && (
               <motion.div
                 key="playing"
                 initial={{ opacity: 0, y: 20 }}
@@ -271,8 +327,9 @@ export default function BattleConnected() {
                 {/* Question Card */}
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   
-                  <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center">
+                  <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
                     {question.stem || question.questionText}
                   </h3>
                 </div>
@@ -288,10 +345,11 @@ export default function BattleConnected() {
                         relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
                         ${answerSubmitted 
                           ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
-                          : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] active:scale-[0.98]'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-blue-500/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] active:scale-[0.98]'
                         }
                       `}
                     >
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                       <div className="flex items-center gap-4 relative z-10">
                         <div className={`
                           w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
@@ -311,7 +369,7 @@ export default function BattleConnected() {
                     animate={{ opacity: 1, y: 0 }}
                     className="mt-6 text-center"
                   >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       AWAITING RESULT CONFIRMATION
                     </div>
@@ -327,13 +385,16 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center"
+                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
               >
                 <div className="mb-8">
                   {results.round_winner === currentUser ? (
-                    <div className="inline-block p-4 rounded-full bg-yellow-500/20 mb-4 ring-4 ring-yellow-500/10">
+                    <motion.div 
+                      initial={{ scale: 0 }} animate={{ scale: 1 }} type="spring"
+                      className="inline-block p-4 rounded-full bg-yellow-500/20 mb-4 ring-4 ring-yellow-500/10"
+                    >
                       <Trophy className="w-12 h-12 text-yellow-500" />
-                    </div>
+                    </motion.div>
                   ) : results.round_winner === null ? (
                     <div className="inline-block p-4 rounded-full bg-white/10 mb-4 ring-4 ring-white/5">
                       <Clock className="w-12 h-12 text-white/60" />
@@ -353,7 +414,9 @@ export default function BattleConnected() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-8">
-                  <div className={`p-4 rounded-2xl border ${
+                  <motion.div 
+                    initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.1 }}
+                    className={`p-4 rounded-2xl border ${
                     (playerRole === 'player1' && results.player1_correct) || (playerRole === 'player2' && results.player2_correct)
                       ? 'bg-green-500/10 border-green-500/20' 
                       : 'bg-red-500/10 border-red-500/20'
@@ -366,9 +429,11 @@ export default function BattleConnected() {
                         : <X className="w-5 h-5 text-red-500" />
                       }
                     </div>
-                  </div>
+                  </motion.div>
 
-                  <div className={`p-4 rounded-2xl border ${
+                  <motion.div 
+                    initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }}
+                    className={`p-4 rounded-2xl border ${
                     (playerRole === 'player1' && results.player2_correct) || (playerRole === 'player2' && results.player1_correct)
                       ? 'bg-green-500/10 border-green-500/20' 
                       : 'bg-red-500/10 border-red-500/20'
@@ -381,7 +446,7 @@ export default function BattleConnected() {
                         : <X className="w-5 h-5 text-red-500" />
                       }
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
 
                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
@@ -402,14 +467,17 @@ export default function BattleConnected() {
                 key="finished"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="text-center"
+                className="text-center relative z-50"
               >
-                <h1 className="text-6xl font-black mb-6 tracking-tighter">
-                  {matchWinner === currentUser ? 'VICTORY' : matchWinner === opponentId ? 'DEFEAT' : 'DRAW'}
-                </h1>
+                <div className="mb-8">
+                  <Trophy className={`w-32 h-32 mx-auto mb-6 ${matchWinner === currentUser ? 'text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'text-gray-500'}`} />
+                  <h1 className="text-6xl md:text-8xl font-black mb-6 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50">
+                    {matchWinner === currentUser ? 'VICTORY' : matchWinner === opponentId ? 'DEFEAT' : 'DRAW'}
+                  </h1>
+                </div>
                 <button 
                   onClick={() => navigate('/matchmaking-new')}
-                  className="px-8 py-4 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform"
+                  className="px-8 py-4 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]"
                 >
                   RETURN TO BASE
                 </button>
