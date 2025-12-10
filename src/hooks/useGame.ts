@@ -75,6 +75,7 @@ export function useGame(match: MatchRow | null) {
   const wsRef = useRef<WebSocket | null>(null)
   const submittingAnswerRef = useRef(false)
   const lastSubmissionTimeRef = useRef<number>(0)
+  const lastVisibilityCheckRef = useRef<number>(0)
 
   // Listen for polling-detected results (fallback if WS message missed)
   useEffect(() => {
@@ -493,45 +494,35 @@ export function useGame(match: MatchRow | null) {
     connect()
 
     // Handle visibility change - reconnect when tab becomes visible
-    // Only reconnect if not in active game state to avoid disrupting gameplay
+    // Only reconnect if not in active game state and only if actually needed
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        console.log('[useGame] Tab became visible, checking connection...')
+        // Throttle visibility checks - only check once every 2 seconds
+        const now = Date.now()
+        const timeSinceLastCheck = now - lastVisibilityCheckRef.current
+        if (timeSinceLastCheck < 2000) {
+          // Too soon since last check, skip
+          return
+        }
+        lastVisibilityCheckRef.current = now
         
-        // Don't reconnect if we're in an active game state
-        // This prevents disrupting gameplay when switching tabs
+        // Don't do anything if we're in an active game state
+        // This prevents any disruption during gameplay
         const activeGameStates = ['playing', 'results', 'both_connected']
         if (activeGameStates.includes(state.status)) {
-          console.log('[useGame] In active game state, skipping reconnection to avoid disruption')
+          // In active game - don't check anything, just return silently
           return
         }
         
-        // Check if WebSocket is connected, reconnect if not
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-          // Only reconnect if we're in a connection state (not in active game)
-          if (state.status === 'connecting' || state.status === 'connected') {
-            console.log('[useGame] WebSocket not connected, reconnecting...')
+        // Only check connection if we're in early connection states
+        if (state.status === 'connecting' || state.status === 'connected') {
+          // Check if WebSocket is actually disconnected (not just checking status)
+          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            console.log('[useGame] WebSocket disconnected, reconnecting...')
             connect()
           }
-        } else {
-          // WebSocket is open, but only re-send JOIN_MATCH if we're in early connection states
-          // Don't re-send if we're already in game (playing/results)
-          if (state.status === 'connecting' || state.status === 'connected') {
-            try {
-              const { data: { user } } = await supabase.auth.getUser()
-              if (user && wsRef.current?.readyState === WebSocket.OPEN) {
-                const joinMessage = {
-                  type: 'JOIN_MATCH',
-                  match_id: match.id,
-                  player_id: user.id
-                }
-                console.log('[useGame] Tab visible, re-sending JOIN_MATCH:', joinMessage)
-                wsRef.current.send(JSON.stringify(joinMessage))
-              }
-            } catch (error) {
-              console.error('[useGame] Error re-sending JOIN_MATCH on visibility change:', error)
-            }
-          }
+          // If WebSocket is open, don't re-send JOIN_MATCH - it's already connected
+          // The server will handle reconnections automatically if needed
         }
       }
     }
