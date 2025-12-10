@@ -834,9 +834,6 @@ async function handleJoinMatch(
   console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected and confirmed`)
 
   // 5. Check if both players are connected (query database) and broadcast if so
-  // Add a small delay to ensure database update is committed
-  await new Promise(resolve => setTimeout(resolve, 200))
-  
   // Track if we've already sent BOTH_CONNECTED
   let bothConnectedSent = false
   let checkInterval: number | null = null
@@ -887,14 +884,15 @@ async function handleJoinMatch(
     return false
   }
   
-  // Initial check
+  // Immediate check (no delay - database update should be committed synchronously)
   const alreadyBothConnected = await checkConnection()
   
   // Set up periodic check only if not already both connected
   // This handles the case where the other player connects to a different instance
+  // Use faster polling (100ms) for quicker detection
   if (!alreadyBothConnected) {
     let checkCount = 0
-    const maxChecks = 20 // 20 checks × 500ms = 10 seconds max
+    const maxChecks = 50 // 50 checks × 100ms = 5 seconds max (faster detection)
     
     checkInterval = setInterval(async () => {
       checkCount++
@@ -924,7 +922,7 @@ async function handleJoinMatch(
         clearInterval(checkInterval)
         checkInterval = null
       }
-    }, 500) as unknown as number // Deno uses number for intervals
+    }, 100) as unknown as number // Faster polling: 100ms instead of 500ms
 
     // Store interval ID on socket for cleanup
     ;(socket as any)._checkInterval = checkInterval
