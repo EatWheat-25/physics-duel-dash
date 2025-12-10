@@ -566,10 +566,10 @@ async function handleSubmitAnswer(
     return
   }
 
-  // Get match to determine player role
+  // Get match to determine player role and validate player is in match
   const { data: match, error: matchError } = await supabase
     .from('matches')
-    .select('player1_id, player2_id')
+    .select('player1_id, player2_id, status')
     .eq('id', matchId)
     .single()
 
@@ -578,6 +578,16 @@ async function handleSubmitAnswer(
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: 'Match not found'
+    } as GameErrorEvent))
+    return
+  }
+
+  // Validate player is part of match
+  if (match.player1_id !== playerId && match.player2_id !== playerId) {
+    console.error(`[${matchId}] ❌ Player ${playerId} not in match`)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'You are not part of this match'
     } as GameErrorEvent))
     return
   }
@@ -736,7 +746,26 @@ async function handleRoundTransition(
     return
   }
   
-  console.log(`[${matchId}] ✅ Round reset successful - selecting next question...`)
+  console.log(`[${matchId}] ✅ Round reset successful - waiting before next question...`)
+  
+  // Add delay to allow UI to display results before starting next round
+  // This prevents the question from restarting while results are being shown
+  const RESULTS_DISPLAY_DELAY_MS = 3000 // 3 seconds
+  await new Promise(resolve => setTimeout(resolve, RESULTS_DISPLAY_DELAY_MS))
+  
+  // Re-check match state before starting next round (match might have finished during delay)
+  const { data: recheckMatch } = await supabase
+    .from('matches')
+    .select('winner_id, status')
+    .eq('id', matchId)
+    .single()
+  
+  if (recheckMatch?.winner_id !== null) {
+    console.log(`[${matchId}] Match finished during delay, skipping next round`)
+    return
+  }
+  
+  console.log(`[${matchId}] Starting next question after delay...`)
   
   // Select and broadcast next question
   await selectAndBroadcastQuestion(matchId, supabase)
@@ -805,7 +834,12 @@ async function handleJoinMatch(
   const playerRole = isPlayer1 ? 'player1' : 'player2'
   const connectionColumn = isPlayer1 ? 'player1_connected_at' : 'player2_connected_at'
 
-  // 3. Update database to mark this player as connected (works across instances!)
+  // 3. Check if player is already connected (idempotent operation)
+  const currentConnectionTime = isPlayer1 ? match.player1_connected_at : match.player2_connected_at
+  const isAlreadyConnected = currentConnectionTime !== null
+
+  // 4. Update database to mark this player as connected (works across instances!)
+  // This is idempotent - updating again is safe and just refreshes the timestamp
   const { error: updateError } = await supabase
     .from('matches')
     .update({
@@ -822,7 +856,11 @@ async function handleJoinMatch(
     return
   }
 
-  console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connection recorded in database`)
+  if (isAlreadyConnected) {
+    console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) already connected - idempotent JOIN_MATCH`)
+  } else {
+    console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connection recorded in database`)
+  }
 
   // 4. Send connection confirmation
   socket.send(JSON.stringify({

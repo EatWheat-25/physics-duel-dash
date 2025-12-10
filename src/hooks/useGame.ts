@@ -73,6 +73,8 @@ export function useGame(match: MatchRow | null) {
   })
 
   const wsRef = useRef<WebSocket | null>(null)
+  const submittingAnswerRef = useRef(false)
+  const lastSubmissionTimeRef = useRef<number>(0)
 
   // Listen for polling-detected results (fallback if WS message missed)
   useEffect(() => {
@@ -290,9 +292,46 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'QUESTION_RECEIVED') {
               console.log('[useGame] QUESTION_RECEIVED message received')
+              
+              // Guard: Ignore QUESTION_RECEIVED if we're in results phase
+              // This prevents the question from restarting while results are being displayed
+              if (state.status === 'results') {
+                console.log('[useGame] Ignoring QUESTION_RECEIVED - currently showing results, will process after delay')
+                // Queue the question to be processed after a short delay
+                // This allows results to be displayed before transitioning
+                setTimeout(() => {
+                  // Re-check state - if still in results, process the question
+                  setState(prev => {
+                    if (prev.status === 'results') {
+                      try {
+                        const mappedQuestion = mapRawToQuestion(message.question)
+                        const timerEndAt = (message as any).timer_end_at || null
+                        submittingAnswerRef.current = false // Reset submission flag for new question
+                        return {
+                          ...prev,
+                          status: 'playing',
+                          question: mappedQuestion,
+                          errorMessage: null,
+                          timerEndAt: timerEndAt,
+                          answerSubmitted: false,
+                          waitingForOpponent: false,
+                          results: null
+                        }
+                      } catch (error) {
+                        console.error('[useGame] Error mapping queued question:', error)
+                        return prev
+                      }
+                    }
+                    return prev
+                  })
+                }, 2000) // Wait 2 seconds before processing
+                return
+              }
+              
               try {
                 const mappedQuestion = mapRawToQuestion(message.question)
                 const timerEndAt = (message as any).timer_end_at || null
+                submittingAnswerRef.current = false // Reset submission flag for new question
                 setState(prev => ({
                   ...prev,
                   status: 'playing',
@@ -322,6 +361,7 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'ANSWER_SUBMITTED') {
               console.log('[useGame] ANSWER_SUBMITTED message received')
+              submittingAnswerRef.current = false // Reset submission flag
               setState(prev => ({
                 ...prev,
                 answerSubmitted: true,
@@ -350,6 +390,7 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'ROUND_STARTED') {
               console.log('[useGame] ROUND_STARTED message received - new round starting')
+              submittingAnswerRef.current = false // Reset submission flag for new round
               setState(prev => ({
                 ...prev,
                 status: 'playing',
@@ -452,29 +493,44 @@ export function useGame(match: MatchRow | null) {
     connect()
 
     // Handle visibility change - reconnect when tab becomes visible
+    // Only reconnect if not in active game state to avoid disrupting gameplay
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         console.log('[useGame] Tab became visible, checking connection...')
+        
+        // Don't reconnect if we're in an active game state
+        // This prevents disrupting gameplay when switching tabs
+        const activeGameStates = ['playing', 'results', 'both_connected']
+        if (activeGameStates.includes(state.status)) {
+          console.log('[useGame] In active game state, skipping reconnection to avoid disruption')
+          return
+        }
+        
         // Check if WebSocket is connected, reconnect if not
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-          console.log('[useGame] WebSocket not connected, reconnecting...')
-          connect()
+          // Only reconnect if we're in a connection state (not in active game)
+          if (state.status === 'connecting' || state.status === 'connected') {
+            console.log('[useGame] WebSocket not connected, reconnecting...')
+            connect()
+          }
         } else {
-          // WebSocket is open, but verify we've sent JOIN_MATCH
-          // Re-send JOIN_MATCH to ensure server knows we're connected
-          try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user && wsRef.current?.readyState === WebSocket.OPEN) {
-              const joinMessage = {
-                type: 'JOIN_MATCH',
-                match_id: match.id,
-                player_id: user.id
+          // WebSocket is open, but only re-send JOIN_MATCH if we're in early connection states
+          // Don't re-send if we're already in game (playing/results)
+          if (state.status === 'connecting' || state.status === 'connected') {
+            try {
+              const { data: { user } } = await supabase.auth.getUser()
+              if (user && wsRef.current?.readyState === WebSocket.OPEN) {
+                const joinMessage = {
+                  type: 'JOIN_MATCH',
+                  match_id: match.id,
+                  player_id: user.id
+                }
+                console.log('[useGame] Tab visible, re-sending JOIN_MATCH:', joinMessage)
+                wsRef.current.send(JSON.stringify(joinMessage))
               }
-              console.log('[useGame] Tab visible, re-sending JOIN_MATCH:', joinMessage)
-              wsRef.current.send(JSON.stringify(joinMessage))
+            } catch (error) {
+              console.error('[useGame] Error re-sending JOIN_MATCH on visibility change:', error)
             }
-          } catch (error) {
-            console.error('[useGame] Error re-sending JOIN_MATCH on visibility change:', error)
           }
         }
       }
@@ -508,6 +564,20 @@ export function useGame(match: MatchRow | null) {
       return
     }
 
+    // Debounce: Prevent rapid duplicate submissions (within 500ms)
+    const now = Date.now()
+    const timeSinceLastSubmission = now - lastSubmissionTimeRef.current
+    if (timeSinceLastSubmission < 500) {
+      console.warn('[useGame] Submission debounced - too soon after last submission')
+      return
+    }
+
+    // Check if already submitting
+    if (submittingAnswerRef.current) {
+      console.warn('[useGame] Answer submission already in progress')
+      return
+    }
+
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       console.error('[useGame] WebSocket not connected')
@@ -520,17 +590,39 @@ export function useGame(match: MatchRow | null) {
     }
 
     setState(prev => {
+      // Double-check state before submitting
       if (prev.answerSubmitted) {
         console.warn('[useGame] Answer already submitted')
         return prev
       }
+
+      // Don't allow submission if not in playing state
+      if (prev.status !== 'playing') {
+        console.warn('[useGame] Cannot submit answer - not in playing state:', prev.status)
+        return prev
+      }
+
+      // Mark as submitting
+      submittingAnswerRef.current = true
+      lastSubmissionTimeRef.current = now
 
       const submitMessage = {
         type: 'SUBMIT_ANSWER',
         answer: answerIndex
       }
       console.log('[useGame] Sending SUBMIT_ANSWER:', submitMessage)
-      ws.send(JSON.stringify(submitMessage))
+      
+      try {
+        ws.send(JSON.stringify(submitMessage))
+      } catch (error) {
+        console.error('[useGame] Error sending SUBMIT_ANSWER:', error)
+        submittingAnswerRef.current = false
+        return {
+          ...prev,
+          status: 'error',
+          errorMessage: 'Failed to send answer'
+        }
+      }
       
       // Optimistically update UI - show "submitted" immediately
       // Server will confirm and update waitingForOpponent status via ANSWER_SUBMITTED message
