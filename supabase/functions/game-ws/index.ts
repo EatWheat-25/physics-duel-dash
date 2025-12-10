@@ -859,7 +859,7 @@ async function handleJoinMatch(
   if (isAlreadyConnected) {
     console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) already connected - idempotent JOIN_MATCH`)
   } else {
-    console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connection recorded in database`)
+  console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connection recorded in database`)
   }
 
   // 4. Send connection confirmation

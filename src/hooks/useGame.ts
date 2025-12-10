@@ -253,7 +253,7 @@ export function useGame(match: MatchRow | null) {
           
           // Ensure message is sent - retry if needed
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(joinMessage))
+          ws.send(JSON.stringify(joinMessage))
           } else {
             // Wait a bit and retry
             setTimeout(() => {
@@ -469,15 +469,15 @@ export function useGame(match: MatchRow | null) {
             })
           } else {
             // Clean close - don't reconnect
-            setState(prev => {
+          setState(prev => {
               if (prev.status !== 'error' && prev.status !== 'match_finished') {
-                return {
-                  ...prev,
-                  status: 'connecting'
-                }
+              return {
+                ...prev,
+                status: 'connecting'
               }
-              return prev
-            })
+            }
+            return prev
+          })
           }
         }
       } catch (error: any) {
@@ -604,7 +604,7 @@ export function useGame(match: MatchRow | null) {
       console.log('[useGame] Sending SUBMIT_ANSWER:', submitMessage)
       
       try {
-        ws.send(JSON.stringify(submitMessage))
+      ws.send(JSON.stringify(submitMessage))
       } catch (error) {
         console.error('[useGame] Error sending SUBMIT_ANSWER:', error)
         submittingAnswerRef.current = false
