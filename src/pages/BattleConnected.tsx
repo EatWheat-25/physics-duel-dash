@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Users, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Loader2, Users, ArrowLeft, CheckCircle2, Zap, Trophy, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
+import { motion, AnimatePresence } from 'framer-motion';
 
 /**
  * Minimal Battle Connection UI
@@ -177,10 +178,39 @@ export default function BattleConnected() {
   // Render loading state
   if (!match || !currentUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-          <h2 className="text-2xl font-bold text-white">Loading match...</h2>
+      <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#1a0a1f] to-[#0a0a0f] relative overflow-hidden">
+        {/* Animated gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-purple-900/20 animate-pulse" />
+        {/* Starfield effect */}
+        <div className="absolute inset-0 opacity-30">
+          {[...Array(50)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-white rounded-full animate-pulse"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 3}s`,
+                animationDuration: `${2 + Math.random() * 2}s`
+              }}
+            />
+          ))}
+        </div>
+        <div className="relative z-10 flex items-center justify-center min-h-screen">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="text-center space-y-4"
+          >
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            >
+              <Loader2 className="w-12 h-12 text-purple-400 mx-auto drop-shadow-[0_0_10px_rgba(139,92,246,0.5)]" />
+            </motion.div>
+            <h2 className="text-2xl font-bold text-white">Loading match...</h2>
+          </motion.div>
         </div>
       </div>
     );
@@ -189,16 +219,29 @@ export default function BattleConnected() {
   // Render error state
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-center space-y-4 max-w-md">
-          <div className="text-red-500 text-xl">⚠️ Error</div>
-          <p className="text-white">{errorMessage || 'Unknown error'}</p>
-          <Button
-            onClick={() => navigate('/matchmaking-new')}
-            className="mt-4"
+      <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#1a0a1f] to-[#0a0a0f] relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-red-900/20 via-purple-900/20 to-red-900/20 animate-pulse" />
+        <div className="relative z-10 flex items-center justify-center min-h-screen">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center space-y-4 max-w-md"
           >
-            Go Back
-          </Button>
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="text-red-500 text-xl"
+            >
+              ⚠️ Error
+            </motion.div>
+            <p className="text-white">{errorMessage || 'Unknown error'}</p>
+            <Button
+              onClick={() => navigate('/matchmaking-new')}
+              className="mt-4"
+            >
+              Go Back
+            </Button>
+          </motion.div>
         </div>
       </div>
     );
@@ -208,28 +251,88 @@ export default function BattleConnected() {
   const opponentId = isPlayer1 ? match.player2_id : match.player1_id;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-8">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#1a0a1f] to-[#0a0a0f] text-white p-8 relative overflow-hidden">
+      {/* Animated gradient overlay */}
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-blue-900/20 to-purple-900/30"
+        animate={{
+          backgroundPosition: ['0% 0%', '100% 100%'],
+        }}
+        transition={{
+          duration: 10,
+          repeat: Infinity,
+          repeatType: 'reverse',
+        }}
+        style={{
+          backgroundSize: '200% 200%',
+        }}
+      />
+      {/* Subtle starfield */}
+      <div className="absolute inset-0 opacity-20">
+        {[...Array(30)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-1 h-1 bg-white rounded-full"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
+            animate={{
+              opacity: [0.3, 1, 0.3],
+              scale: [1, 1.5, 1],
+            }}
+            transition={{
+              duration: 3 + Math.random() * 2,
+              repeat: Infinity,
+              delay: Math.random() * 2,
+            }}
+          />
+        ))}
+      </div>
+      <div className="relative z-10 max-w-2xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/matchmaking-new')}
-            className="text-white mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <h1 className="text-3xl font-bold text-white">Battle Connection</h1>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-6"
+        >
+          <motion.div whileHover={{ x: -5 }} whileTap={{ scale: 0.95 }}>
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/matchmaking-new')}
+              className="text-white mb-4 hover:bg-purple-500/20"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          </motion.div>
+          <h1 className="text-3xl font-bold text-white mb-2 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+            Battle Connection
+          </h1>
           <p className="text-gray-400">Match ID: {match.id}</p>
-        </div>
+        </motion.div>
 
         {/* Connection Status Card */}
-        <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-8 border border-purple-500/20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="bg-[rgba(15,15,25,0.8)] backdrop-blur-xl rounded-xl p-8 border border-purple-500/30 shadow-[0_0_30px_rgba(139,92,246,0.2)] relative overflow-hidden"
+        >
+          {/* Animated border gradient */}
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/20 via-blue-500/20 to-purple-500/20 opacity-50 animate-pulse" />
+          <div className="relative z-10">
           <div className="space-y-6">
             {/* Stage 3: Tug-of-War Bar */}
-            {(status === 'playing' || status === 'results') && (
-              <div className="bg-slate-700/50 rounded-lg p-4 space-y-2">
+            <AnimatePresence>
+              {(status === 'playing' || status === 'results') && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="bg-[rgba(30,30,40,0.6)] backdrop-blur-sm rounded-lg p-4 space-y-2 border border-purple-500/20 shadow-[0_0_15px_rgba(139,92,246,0.1)]"
+                >
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-300">Round {roundNumber || 0}</span>
                   {consecutiveWinsCount > 0 && (
@@ -262,14 +365,33 @@ export default function BattleConnected() {
                     <div className="w-1 h-full bg-white/30" />
                   </div>
                 </div>
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Match Finished State */}
-            {status === 'match_finished' && matchFinished && (
-              <div className="text-center space-y-4">
-                <h2 className="text-3xl font-bold text-white mb-4">Match Finished!</h2>
-                <div className="p-6 bg-slate-700/50 rounded-lg space-y-3">
+            <AnimatePresence>
+              {status === 'match_finished' && matchFinished && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.5 }}
+                  className="text-center space-y-4"
+                >
+                  <motion.h2
+                    animate={{ scale: [1, 1.05, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="text-3xl font-bold text-white mb-4 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent"
+                  >
+                    Match Finished!
+                  </motion.h2>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="p-6 bg-[rgba(30,30,40,0.6)] backdrop-blur-sm rounded-lg space-y-3 border border-purple-500/30 shadow-[0_0_25px_rgba(139,92,246,0.2)]"
+                  >
                   {matchWinner === currentUser ? (
                     <div className="text-4xl mb-4">🎉</div>
                   ) : matchWinner === opponentId ? (
@@ -291,65 +413,229 @@ export default function BattleConnected() {
                   >
                     Return to Lobby
                   </Button>
-                </div>
-              </div>
-            )}
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Status Header */}
             <div className="text-center">
-              {status === 'connecting' && (
-                <>
-                  <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold text-white mb-2">Connecting...</h2>
-                  <p className="text-slate-300">Establishing connection to game server</p>
-                </>
-              )}
-              {status === 'connected' && (
-                <>
-                  <CheckCircle2 className="w-16 h-16 text-green-400 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold text-white mb-2">You're Connected!</h2>
-                  <p className="text-slate-300">Waiting for opponent to connect...</p>
-                </>
-              )}
-              {status === 'both_connected' && (
-                <>
-                  <Users className="w-16 h-16 text-green-400 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold text-white mb-2">Both Players Connected!</h2>
-                  <p className="text-slate-300">Starting game...</p>
-                </>
-              )}
-              {status === 'playing' && question && (() => {
-                const firstStep = question.steps?.[0];
-                const nonEmptyOptions = (firstStep?.options ?? []).filter((o: string) => String(o).trim() !== '');
-                
-                // Format timer as MM:SS
-                const formatTime = (seconds: number | null) => {
-                  if (seconds === null || seconds < 0) return '00:00'
-                  const mins = Math.floor(seconds / 60)
-                  const secs = seconds % 60
-                  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-                }
-                
-                return (
-                  <>
-                    <h2 className="text-2xl font-bold text-white mb-2">Question Ready!</h2>
-                    {/* Timer Display */}
-                    {timeRemaining !== null && !answerSubmitted && (
-                      <div className={`mt-2 mb-4 text-center ${
-                        timeRemaining <= 10 ? 'text-red-400' : timeRemaining <= 30 ? 'text-yellow-400' : 'text-green-400'
-                      }`}>
-                        <div className="text-4xl font-mono font-bold">
-                          {formatTime(timeRemaining)}
-                        </div>
-                        <p className="text-sm text-slate-400 mt-1">Time remaining</p>
-                      </div>
-                    )}
-                    {answerSubmitted && (
-                      <div className="mt-2 mb-4 text-center text-slate-400">
-                        <p className="text-sm">Answer submitted</p>
-                      </div>
-                    )}
-                    <div className="mt-4 p-4 bg-slate-700/50 rounded-lg text-left">
+              <AnimatePresence mode="wait">
+                {status === 'connecting' && (
+                  <motion.div
+                    key="connecting"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="mx-auto mb-4 w-16 h-16"
+                    >
+                      <Loader2 className="w-16 h-16 text-blue-400 drop-shadow-[0_0_20px_rgba(59,130,246,0.6)]" />
+                    </motion.div>
+                    <motion.h2
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-2xl font-bold text-white mb-2"
+                    >
+                      Connecting...
+                    </motion.h2>
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className="text-slate-300"
+                    >
+                      Establishing connection to game server
+                    </motion.p>
+                  </motion.div>
+                )}
+                {status === 'connected' && (
+                  <motion.div
+                    key="connected"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                      className="mx-auto mb-4 w-16 h-16"
+                    >
+                      <CheckCircle2 className="w-16 h-16 text-green-400 drop-shadow-[0_0_20px_rgba(16,185,129,0.6)]" />
+                    </motion.div>
+                    <motion.h2
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-2xl font-bold text-white mb-2"
+                    >
+                      You're Connected!
+                    </motion.h2>
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className="text-slate-300"
+                    >
+                      Waiting for opponent to connect...
+                    </motion.p>
+                  </motion.div>
+                )}
+                {status === 'both_connected' && (
+                  <motion.div
+                    key="both_connected"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                      className="mx-auto mb-4 w-16 h-16"
+                    >
+                      <Users className="w-16 h-16 text-green-400 drop-shadow-[0_0_20px_rgba(16,185,129,0.6)]" />
+                    </motion.div>
+                    <motion.h2
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-2xl font-bold text-white mb-2 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent"
+                    >
+                      Both Players Connected!
+                    </motion.h2>
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className="text-slate-300"
+                    >
+                      Starting game...
+                    </motion.p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <AnimatePresence mode="wait">
+                {status === 'playing' && question && (() => {
+                  const firstStep = question.steps?.[0];
+                  const nonEmptyOptions = (firstStep?.options ?? []).filter((o: string) => String(o).trim() !== '');
+                  
+                  // Format timer as MM:SS
+                  const formatTime = (seconds: number | null) => {
+                    if (seconds === null || seconds < 0) return '00:00'
+                    const mins = Math.floor(seconds / 60)
+                    const secs = seconds % 60
+                    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+                  }
+                  
+                  return (
+                    <motion.div
+                      key="playing"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <motion.h2
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-2xl font-bold text-white mb-2"
+                      >
+                        Question Ready!
+                      </motion.h2>
+                    {/* Animated Timer Display */}
+                    <AnimatePresence mode="wait">
+                      {timeRemaining !== null && !answerSubmitted && (
+                        <motion.div
+                          key={timeRemaining}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          className={`mt-2 mb-4 text-center relative ${
+                            timeRemaining <= 10 
+                              ? 'text-red-400' 
+                              : timeRemaining <= 30 
+                              ? 'text-yellow-400' 
+                              : 'text-green-400'
+                          }`}
+                        >
+                          <motion.div
+                            animate={
+                              timeRemaining <= 10
+                                ? {
+                                    scale: [1, 1.1, 1],
+                                  }
+                                : timeRemaining <= 30
+                                ? {
+                                    scale: [1, 1.05, 1],
+                                  }
+                                : {}
+                            }
+                            transition={{
+                              duration: 1,
+                              repeat: timeRemaining <= 10 ? Infinity : 0,
+                              ease: 'easeInOut',
+                            }}
+                            className="text-5xl font-mono font-bold drop-shadow-[0_0_15px_currentColor] relative z-10"
+                          >
+                            {formatTime(timeRemaining)}
+                          </motion.div>
+                          <motion.p
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="text-sm text-slate-400 mt-1 relative z-10"
+                          >
+                            Time remaining
+                          </motion.p>
+                          {/* Progress ring */}
+                          {timeRemaining <= 30 && (
+                            <motion.div
+                              className="absolute inset-0 rounded-full border-4 border-current opacity-20 -z-0"
+                              style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '120%', height: '120%' }}
+                              animate={{
+                                scale: [1, 1.2, 1],
+                                opacity: [0.2, 0.4, 0.2],
+                              }}
+                              transition={{
+                                duration: 1,
+                                repeat: Infinity,
+                                ease: 'easeInOut',
+                              }}
+                            />
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    <AnimatePresence>
+                      {answerSubmitted && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          className="mt-2 mb-4 text-center"
+                        >
+                          <motion.div
+                            animate={{ scale: [1, 1.05, 1] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/20 border border-green-500/50 rounded-lg"
+                          >
+                            <Check className="w-4 h-4 text-green-400" />
+                            <p className="text-sm text-green-300 font-medium">Answer submitted</p>
+                          </motion.div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="mt-4 p-6 bg-[rgba(30,30,40,0.6)] backdrop-blur-sm rounded-lg text-left border border-purple-500/20 shadow-[0_0_20px_rgba(139,92,246,0.1)]"
+                    >
                       <h3 className="text-xl font-semibold mb-2">{question.title}</h3>
                       <p className="text-slate-300 mb-4">{question.stem || question.questionText}</p>
 
@@ -365,128 +651,339 @@ export default function BattleConnected() {
                           <p className="text-sm">Step[0] has {nonEmptyOptions.length} options (need exactly 2).</p>
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {nonEmptyOptions.map((option: string, index: number) => (
-                            <Button
+                            <motion.div
                               key={index}
-                              className="w-full justify-start"
-                              variant="outline"
-                              disabled={answerSubmitted}
-                              onClick={() => submitAnswer(index)}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              whileHover={!answerSubmitted ? { scale: 1.02, x: 5 } : {}}
+                              whileTap={!answerSubmitted ? { scale: 0.98 } : {}}
                             >
-                              {String.fromCharCode(65 + index)}. {option}
-                            </Button>
+                              <Button
+                                className={`w-full justify-start relative overflow-hidden transition-all duration-300 ${
+                                  answerSubmitted
+                                    ? 'opacity-60 cursor-not-allowed'
+                                    : 'hover:shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:border-purple-400/50'
+                                }`}
+                                variant="outline"
+                                disabled={answerSubmitted}
+                                onClick={() => submitAnswer(index)}
+                              >
+                                <motion.span
+                                  className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/20 to-purple-500/0"
+                                  initial={{ x: '-100%' }}
+                                  whileHover={!answerSubmitted ? { x: '100%' } : {}}
+                                  transition={{ duration: 0.6 }}
+                                />
+                                <span className="relative z-10 font-semibold">
+                                  {String.fromCharCode(65 + index)}. {option}
+                                </span>
+                              </Button>
+                            </motion.div>
                           ))}
-                          {answerSubmitted && (
-                            <div className="mt-4 p-3 bg-blue-500/20 border border-blue-500/50 rounded text-center">
-                              <p className="text-blue-300">
-                                {waitingForOpponent 
-                                  ? 'Waiting for opponent to answer...' 
-                                  : 'Answer submitted! Waiting for opponent...'}
-                              </p>
-                            </div>
-                          )}
+                          <AnimatePresence>
+                            {answerSubmitted && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="mt-4 p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg text-center backdrop-blur-sm shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+                              >
+                                <motion.p
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  className="text-blue-300 font-medium"
+                                >
+                                  {waitingForOpponent 
+                                    ? 'Waiting for opponent to answer...' 
+                                    : 'Answer submitted! Waiting for opponent...'}
+                                </motion.p>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       )}
-                    </div>
-                  </>
-                );
-              })()}
-              {status === 'results' && results && !matchFinished && (
-                <>
-                  <h2 className="text-2xl font-bold text-white mb-4">Round Results</h2>
-                  <p className="text-slate-400 mb-4">Next round starting soon...</p>
-                  <div className="mt-4 p-4 bg-slate-700/50 rounded-lg space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-300">Correct Answer:</span>
-                      <span className="text-white font-semibold">
-                        {results.correct_answer === 0 ? 'A. True' : 'B. False'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-300">Your Answer:</span>
-                      <span className={`font-semibold ${
-                        (playerRole === 'player1' && results.player1_correct) ||
-                        (playerRole === 'player2' && results.player2_correct)
-                          ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {(playerRole === 'player1' ? results.player1_answer : results.player2_answer) === 0 ? 'A. True' : 'B. False'}
-                        {(playerRole === 'player1' && results.player1_correct) ||
-                         (playerRole === 'player2' && results.player2_correct)
-                          ? ' ✓' : ' ✗'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-300">Opponent's Answer:</span>
-                      <span className={`font-semibold ${
-                        (playerRole === 'player1' && results.player2_correct) ||
-                        (playerRole === 'player2' && results.player1_correct)
-                          ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {(playerRole === 'player1' ? results.player2_answer : results.player1_answer) === 0 ? 'A. True' : 'B. False'}
-                        {(playerRole === 'player1' && results.player2_correct) ||
-                         (playerRole === 'player2' && results.player1_correct)
-                          ? ' ✓' : ' ✗'}
-                      </span>
-                    </div>
-                    {results.round_winner && (
-                      <div className="mt-4 p-3 bg-purple-500/20 border border-purple-500/50 rounded text-center">
-                        <p className="text-purple-300 font-semibold">
-                          {results.round_winner === currentUser 
-                            ? '🎉 You won this round!' 
-                            : 'Opponent won this round'}
-                        </p>
-                      </div>
-                    )}
-                    {!results.round_winner && (
-                      <div className="mt-4 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded text-center">
-                        <p className="text-yellow-300 font-semibold">Draw - Both players answered correctly</p>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+                    </motion.div>
+                    </motion.div>
+                  );
+                })()}
+              </AnimatePresence>
+              <AnimatePresence>
+                {status === 'results' && results && !matchFinished && (
+                  <motion.div
+                    key="results"
+                    initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -50, scale: 0.9 }}
+                    transition={{ duration: 0.5, type: "spring", stiffness: 100 }}
+                  >
+                    <motion.h2
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="text-2xl font-bold text-white mb-4"
+                    >
+                      Round Results
+                    </motion.h2>
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className="text-slate-400 mb-4"
+                    >
+                      Next round starting soon...
+                    </motion.p>
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="mt-4 p-6 bg-[rgba(30,30,40,0.6)] backdrop-blur-sm rounded-lg space-y-4 border border-purple-500/20 shadow-[0_0_20px_rgba(139,92,246,0.1)]"
+                    >
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="flex justify-between items-center p-3 bg-slate-800/30 rounded-lg"
+                      >
+                        <span className="text-slate-300">Correct Answer:</span>
+                        <span className="text-white font-semibold flex items-center gap-2">
+                          {results.correct_answer === 0 ? 'A. True' : 'B. False'}
+                          <Check className="w-4 h-4 text-green-400" />
+                        </span>
+                      </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="flex justify-between items-center p-3 bg-slate-800/30 rounded-lg"
+                      >
+                        <span className="text-slate-300">Your Answer:</span>
+                        <motion.span
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.6, type: "spring", stiffness: 200 }}
+                          className={`font-semibold flex items-center gap-2 ${
+                            (playerRole === 'player1' && results.player1_correct) ||
+                            (playerRole === 'player2' && results.player2_correct)
+                              ? 'text-green-400' : 'text-red-400'
+                          }`}
+                        >
+                          {(playerRole === 'player1' ? results.player1_answer : results.player2_answer) === 0 ? 'A. True' : 'B. False'}
+                          {(playerRole === 'player1' && results.player1_correct) ||
+                           (playerRole === 'player2' && results.player2_correct) ? (
+                            <motion.div
+                              initial={{ scale: 0, rotate: -180 }}
+                              animate={{ scale: 1, rotate: 0 }}
+                              transition={{ delay: 0.7, type: "spring", stiffness: 200 }}
+                            >
+                              <Check className="w-5 h-5" />
+                            </motion.div>
+                          ) : (
+                            <motion.div
+                              initial={{ scale: 0, rotate: 180 }}
+                              animate={{ scale: 1, rotate: 0 }}
+                              transition={{ delay: 0.7, type: "spring", stiffness: 200 }}
+                            >
+                              <X className="w-5 h-5" />
+                            </motion.div>
+                          )}
+                        </motion.span>
+                      </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.6 }}
+                        className="flex justify-between items-center p-3 bg-slate-800/30 rounded-lg"
+                      >
+                        <span className="text-slate-300">Opponent's Answer:</span>
+                        <motion.span
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.7, type: "spring", stiffness: 200 }}
+                          className={`font-semibold flex items-center gap-2 ${
+                            (playerRole === 'player1' && results.player2_correct) ||
+                            (playerRole === 'player2' && results.player1_correct)
+                              ? 'text-green-400' : 'text-red-400'
+                          }`}
+                        >
+                          {(playerRole === 'player1' ? results.player2_answer : results.player1_answer) === 0 ? 'A. True' : 'B. False'}
+                          {(playerRole === 'player1' && results.player2_correct) ||
+                           (playerRole === 'player2' && results.player1_correct) ? (
+                            <motion.div
+                              initial={{ scale: 0, rotate: -180 }}
+                              animate={{ scale: 1, rotate: 0 }}
+                              transition={{ delay: 0.8, type: "spring", stiffness: 200 }}
+                            >
+                              <Check className="w-5 h-5" />
+                            </motion.div>
+                          ) : (
+                            <motion.div
+                              initial={{ scale: 0, rotate: 180 }}
+                              animate={{ scale: 1, rotate: 0 }}
+                              transition={{ delay: 0.8, type: "spring", stiffness: 200 }}
+                            >
+                              <X className="w-5 h-5" />
+                            </motion.div>
+                          )}
+                        </motion.span>
+                      </motion.div>
+                      <AnimatePresence>
+                        {results.round_winner && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ delay: 0.8, type: "spring", stiffness: 150 }}
+                            className="mt-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center backdrop-blur-sm shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+                          >
+                            <motion.p
+                              animate={{ scale: [1, 1.05, 1] }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                              className="text-purple-300 font-semibold text-lg flex items-center justify-center gap-2"
+                            >
+                              {results.round_winner === currentUser ? (
+                                <>
+                                  <Trophy className="w-5 h-5 text-yellow-400" />
+                                  🎉 You won this round!
+                                </>
+                              ) : (
+                                <>
+                                  <Trophy className="w-5 h-5" />
+                                  Opponent won this round
+                                </>
+                              )}
+                            </motion.p>
+                          </motion.div>
+                        )}
+                        {!results.round_winner && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ delay: 0.8 }}
+                            className="mt-4 p-4 bg-yellow-500/20 border border-yellow-500/50 rounded-lg text-center backdrop-blur-sm shadow-[0_0_20px_rgba(234,179,8,0.3)]"
+                          >
+                            <p className="text-yellow-300 font-semibold">Draw - Both players answered correctly</p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Player Status */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                className="flex items-center justify-between p-4 bg-[rgba(30,30,40,0.6)] backdrop-blur-sm rounded-lg border border-purple-500/20 shadow-[0_0_15px_rgba(139,92,246,0.1)]"
+              >
                 <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${
-                    status !== 'connecting' ? 'bg-green-400' : 'bg-yellow-400'
-                  }`} />
+                  <motion.div
+                    animate={
+                      status !== 'connecting'
+                        ? {
+                            scale: [1, 1.2, 1],
+                            boxShadow: [
+                              '0 0 0px rgba(16,185,129,0)',
+                              '0 0 10px rgba(16,185,129,0.5)',
+                              '0 0 0px rgba(16,185,129,0)',
+                            ],
+                          }
+                        : {
+                            scale: [1, 1.1, 1],
+                            boxShadow: [
+                              '0 0 0px rgba(234,179,8,0)',
+                              '0 0 10px rgba(234,179,8,0.5)',
+                              '0 0 0px rgba(234,179,8,0)',
+                            ],
+                          }
+                    }
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className={`w-3 h-3 rounded-full ${
+                      status !== 'connecting' ? 'bg-green-400' : 'bg-yellow-400'
+                    }`}
+                  />
                   <span className="font-semibold">You ({playerRole || 'connecting...'})</span>
                 </div>
                 {status !== 'connecting' && (
-                  <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 200 }}
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-green-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
 
-              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="flex items-center justify-between p-4 bg-[rgba(30,30,40,0.6)] backdrop-blur-sm rounded-lg border border-purple-500/20 shadow-[0_0_15px_rgba(139,92,246,0.1)]"
+              >
                 <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${
-                    status === 'both_connected' || status === 'playing' || status === 'results' ? 'bg-green-400' : 'bg-gray-400'
-                  }`} />
+                  <motion.div
+                    animate={
+                      status === 'both_connected' || status === 'playing' || status === 'results'
+                        ? {
+                            scale: [1, 1.2, 1],
+                            boxShadow: [
+                              '0 0 0px rgba(16,185,129,0)',
+                              '0 0 10px rgba(16,185,129,0.5)',
+                              '0 0 0px rgba(16,185,129,0)',
+                            ],
+                          }
+                        : {}
+                    }
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className={`w-3 h-3 rounded-full ${
+                      status === 'both_connected' || status === 'playing' || status === 'results' ? 'bg-green-400' : 'bg-gray-400'
+                    }`}
+                  />
                   <span className="font-semibold">Opponent</span>
                 </div>
                 {status === 'both_connected' || status === 'playing' || status === 'results' || status === 'match_finished' ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 200 }}
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-green-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                  </motion.div>
                 ) : (
-                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Loader2 className="w-5 h-5 text-gray-400" />
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
             </div>
 
             {/* Match Info */}
-            <div className="pt-4 border-t border-slate-700">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="pt-4 border-t border-purple-500/20"
+            >
               <div className="text-sm text-slate-400 space-y-1">
                 <p>Match ID: <span className="text-white font-mono">{match.id}</span></p>
                 <p>Your Role: <span className="text-white">{playerRole || 'connecting...'}</span></p>
                 <p>Status: <span className="text-white capitalize">{status.replace('_', ' ')}</span></p>
               </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
+          </div>
+        </motion.div>
       </div>
     </div>
   );
