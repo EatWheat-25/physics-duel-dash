@@ -2,13 +2,19 @@
 
 This folder contains custom rank logo images.
 
-## Gold Rank Logo
+## Rank Logos
 
-Place your gold rank logo image here as:
+Place your rank logo images here with the following naming convention:
+
+### Bronze Rank Logo
+- **Filename**: `bronze-rank-logo.png`
+- **Path**: `public/ranks/bronze-rank-logo.png`
+- The image will automatically be used for all Bronze rank tiers (Bronze 1, Bronze 2, Bronze 3) instead of the default emoji (🥉).
+
+### Gold Rank Logo
 - **Filename**: `gold-rank-logo.png`
 - **Path**: `public/ranks/gold-rank-logo.png`
-
-The image will automatically be used for all Gold rank tiers (Gold 1, Gold 2, Gold 3) instead of the default emoji (🥇).
+- The image will automatically be used for all Gold rank tiers (Gold 1, Gold 2, Gold 3) instead of the default emoji (🥇).
 
 ## Image Requirements
 

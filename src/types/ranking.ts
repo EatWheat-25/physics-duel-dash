@@ -48,6 +48,7 @@ const createRanks = (): Rank[] => {
     {
       tier: 'Bronze',
       emoji: '🥉',
+      imageUrl: '/ranks/bronze-rank-logo.png', // Custom bronze rank logo
       color: 'hsl(30 50% 50%)',
       gradient: 'linear-gradient(135deg, hsl(30 50% 50%), hsl(30 60% 60%))',
       glowColor: 'hsl(30 50% 50% / 0.4)',
