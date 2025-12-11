@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Starfield } from '@/components/Starfield';
 import { BottomNav } from '@/components/BottomNav';
 import { HeaderUserMenu } from '@/components/hub/HeaderUserMenu';
 import { PlayerCard } from '@/components/hub/PlayerCard';
@@ -64,48 +63,65 @@ export default function Home() {
   }, [user]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col justify-between">
-      <Starfield />
-
+    <div 
+      className="relative min-h-screen overflow-hidden flex flex-col justify-between"
+      style={{
+        background: 'linear-gradient(135deg, hsl(222, 30%, 8%) 0%, hsl(240, 25%, 6%) 50%, hsl(222, 30%, 8%) 100%)',
+      }}
+    >
+      {/* Subtle diagonal gradient overlay - red to blue */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background:
-            'radial-gradient(circle at 50% 50%, rgba(154,91,255,0.1) 0%, transparent 50%)',
+          background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.08) 0%, transparent 50%, rgba(59, 130, 246, 0.08) 100%)',
         }}
       />
 
-      <header className="relative z-20 w-full max-w-[1200px] mx-auto px-6 pt-6 flex justify-between items-start">
+      <header className="relative z-20 w-full px-6 pt-6 flex justify-between items-center">
         <Button
           onClick={() => setRankMenuOpen(true)}
           variant="ghost"
-          className="gap-2 font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[var(--violet)]"
+          className="gap-2 font-bold uppercase tracking-wider text-white hover:bg-white/10"
           style={{
-            background: 'rgba(255,255,255,0.2)',
-            backdropFilter: 'blur(20px)',
-            border: '2px solid rgba(94, 241, 255, 0.5)',
+            background: 'rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
             color: 'white',
-            boxShadow: '0 0 20px rgba(94, 241, 255, 0.3)',
           }}
           aria-label="View ranking system"
         >
-          <Trophy className="w-4 h-4" style={{ color: 'rgb(94, 241, 255)' }} />
+          <Trophy className="w-4 h-4" />
           <span className="hidden sm:inline">Ranks</span>
         </Button>
         <HeaderUserMenu />
       </header>
 
-      <main className="relative z-10 flex flex-col items-center justify-center gap-6 px-4 py-8">
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center gap-8 px-4 py-8">
         <PlayerCard />
 
-        {/* Temporary Dev Button */}
-        <div className="w-full max-w-[48rem] mx-auto flex justify-center">
-          <button
-            onClick={() => window.location.href = '/dev/db-test'}
-            className="px-6 py-3 bg-red-500/20 border border-red-500/50 text-red-200 rounded-xl font-bold hover:bg-red-500/30 transition-colors flex items-center gap-2"
+        {/* Action Buttons */}
+        <div className="w-full max-w-[48rem] mx-auto flex flex-col sm:flex-row gap-4 justify-center">
+          <Button
+            onClick={() => window.location.href = '/matchmaking-new'}
+            className="px-8 py-6 text-lg font-bold uppercase tracking-wider text-white"
+            style={{
+              background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+              border: '2px solid rgba(255, 255, 255, 0.2)',
+              boxShadow: '0 4px 20px rgba(220, 38, 38, 0.4)',
+            }}
           >
-            🐞 DEV: Go to Test Match
-          </button>
+            START
+          </Button>
+          <Button
+            onClick={() => window.location.href = '/dev/db-test'}
+            variant="ghost"
+            className="px-8 py-6 text-lg font-bold uppercase tracking-wider text-white"
+            style={{
+              background: 'rgba(55, 65, 81, 0.8)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+            }}
+          >
+            WINNER DEMO
+          </Button>
         </div>
       </main>
 

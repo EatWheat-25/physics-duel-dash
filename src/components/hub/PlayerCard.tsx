@@ -13,6 +13,7 @@ interface PlayerStats {
   winrate: number | null;
   mmr: number | null;
   rank_tier: string;
+  level: number;
   avatar_url?: string;
 }
 
@@ -67,12 +68,15 @@ export function PlayerCard() {
 
         const mmr = playerData?.mmr || 1000;
         const rank = getRankByPoints(mmr);
+        // Calculate level from MMR (1 level per 100 MMR, starting at level 1)
+        const level = Math.max(1, Math.floor(mmr / 100) + 1);
 
         setStats({
           accuracy: totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : null,
           winrate: totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : null,
           mmr,
           rank_tier: rank.tier,
+          level,
           avatar_url: profile?.username ? undefined : undefined, // Will use placeholder
         });
       } catch (error) {
@@ -130,6 +134,18 @@ export function PlayerCard() {
   const colors = rankColor(stats.rank_tier as RankTier);
   const rank = getRankByPoints(stats.mmr || 1000);
 
+  const getRankEmoji = (tier: string) => {
+    const emojiMap: Record<string, string> = {
+      'Bronze': '🥉',
+      'Silver': '🥈',
+      'Gold': '🥇',
+      'Diamond': '💎',
+      'Unbeatable': '🔥',
+      'Pocket Calculator': '🧮',
+    };
+    return emojiMap[tier] || '🥉';
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -138,90 +154,83 @@ export function PlayerCard() {
       className="w-full max-w-[48rem] mx-auto"
     >
       <div
-        className="relative rounded-2xl overflow-hidden backdrop-blur-xl"
+        className="relative rounded-2xl overflow-hidden"
         style={{
-          background: 'rgba(0, 20, 40, 0.15)',
-          border: `1px solid ${colors.outline}`,
-          boxShadow: `0 0 40px ${colors.glow}, inset 0 1px 0 ${colors.innerBorder}`,
+          background: 'rgba(30, 41, 59, 0.9)',
+          border: '2px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
         }}
       >
         {/* Top Stats Row */}
-        <div className="p-6 flex items-center gap-4 border-b border-white/10">
-          <RankBadge rank={rank} size="sm" />
+        <div className="p-6 flex items-center justify-between border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">{getRankEmoji(rank.tier)}</div>
+            <div>
+              <div className="text-xl font-bold text-white uppercase">
+                {rank.tier} {rank.subRank}
+              </div>
+            </div>
+          </div>
           
-          {stats.accuracy !== null && (
-            <div className="flex flex-col">
-              <span className="text-2xl font-bold text-foreground">{stats.accuracy}%</span>
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">Accuracy</span>
+          <div className="flex items-center gap-6">
+            <div className="flex flex-col items-end">
+              <span className="text-lg font-bold text-white">LEVEL {stats.level || 1}</span>
             </div>
-          )}
-
-          {stats.winrate !== null && (
-            <div className="flex flex-col ml-4">
-              <span className="text-2xl font-bold text-foreground">{stats.winrate}%</span>
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">Winrate</span>
-            </div>
-          )}
-
-          {stats.mmr !== null && stats.winrate === null && (
-            <div className="flex flex-col ml-4">
-              <span className="text-2xl font-bold text-foreground">{stats.mmr}</span>
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">MMR</span>
-            </div>
-          )}
+            {stats.mmr !== null && (
+              <div className="flex flex-col items-end">
+                <span className="text-2xl font-bold text-white">{stats.mmr}</span>
+                <span className="text-xs uppercase tracking-wider text-white/70">MMR</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Main Character/Cover Canvas */}
-        <div className="relative h-[20rem] w-full overflow-hidden">
+        {/* Main Avatar Section */}
+        <div className="relative h-[24rem] w-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
           {stats.avatar_url ? (
             <img
               src={stats.avatar_url}
-              alt="Player card"
+              alt="Player avatar"
               className="w-full h-full object-cover"
             />
           ) : (
-            <div
-              className="w-full h-full"
-              style={{
-                background: `
-                  repeating-linear-gradient(
-                    0deg,
-                    rgba(255, 255, 255, 0.03) 0px,
-                    transparent 1px,
-                    transparent 40px,
-                    rgba(255, 255, 255, 0.03) 41px
-                  ),
-                  repeating-linear-gradient(
-                    90deg,
-                    rgba(255, 255, 255, 0.03) 0px,
-                    transparent 1px,
-                    transparent 40px,
-                    rgba(255, 255, 255, 0.03) 41px
-                  ),
-                  linear-gradient(135deg, rgba(${parseInt(colors.outline.slice(1, 3), 16)}, ${parseInt(colors.outline.slice(3, 5), 16)}, ${parseInt(colors.outline.slice(5, 7), 16)}, 0.05), transparent)
-                `,
-              }}
-            >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-6xl opacity-20">{profile?.username?.[0]?.toUpperCase() || '?'}</span>
-              </div>
+            <div className="w-32 h-32 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center border-4 border-white/20">
+              <span className="text-6xl font-bold text-white">
+                {profile?.username?.[0]?.toUpperCase() || '?'}
+              </span>
             </div>
           )}
         </div>
 
+        {/* Player Name Section */}
+        <div className="p-6 border-b border-white/10">
+          <div className="text-3xl font-bold text-white mb-1">
+            {profile?.username || 'Player'}
+          </div>
+          <div className="text-lg text-white/80">
+            {rank.tier} {rank.subRank}
+          </div>
+        </div>
+
         {/* Bottom Action Row */}
-        <div className="p-6 flex justify-end gap-3">
+        <div className="p-6 flex justify-between gap-3">
           <Button
             variant="ghost"
             onClick={() => navigate('/profile')}
-            className="text-sm font-medium text-foreground hover:bg-white/5 border border-white/10"
+            className="text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 border border-white/20"
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+            }}
           >
             Customize Card
           </Button>
           <Button
             variant="ghost"
             onClick={() => navigate('/progression')}
-            className="text-sm font-medium text-foreground hover:bg-white/5 border border-white/10"
+            className="text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 border border-white/20"
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+            }}
           >
             View Progression
           </Button>

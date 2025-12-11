@@ -38,10 +38,10 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
       <motion.nav
         className="flex items-center justify-center gap-2 p-3 rounded-3xl"
         style={{
-          background: 'rgba(255,255,255,0.08)',
-          backdropFilter: 'blur(40px)',
-          border: '1px solid rgba(255,255,255,0.18)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
+          background: 'rgba(30, 41, 59, 0.95)',
+          backdropFilter: 'blur(20px)',
+          border: '2px solid rgba(255,255,255,0.2)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)',
         }}
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -65,11 +65,11 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
                   }
                 }}
                 className="relative px-6 md:px-8 py-3 md:py-4 rounded-full font-bold text-xs md:text-sm uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914]"
-                style={{
-                  background: 'linear-gradient(135deg, var(--magenta), var(--violet))',
-                  color: 'white',
-                  boxShadow: '0 0 30px rgba(242,55,212,0.4)',
-                }}
+              style={{
+                background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                color: 'white',
+                boxShadow: '0 0 30px rgba(220, 38, 38, 0.6)',
+              }}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 animate={
@@ -106,14 +106,14 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
               onClick={() => handleNavigation(item.path, item.excludeSubject)}
               className="flex flex-col items-center gap-1 px-3 md:px-4 py-2 md:py-3 rounded-2xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--violet)] focus:ring-offset-2 focus:ring-offset-[#060914]"
               style={{
-                background: active ? 'rgba(154,91,255,0.2)' : 'rgba(255,255,255,0.05)',
-                color: active ? 'var(--text-primary)' : 'var(--text-dim)',
-                border: active ? '1px solid rgba(154,91,255,0.4)' : 'none',
+                background: active ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
+                color: active ? 'white' : 'rgba(255,255,255,0.8)',
+                border: active ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.1)',
               }}
               whileHover={{
-                background: 'rgba(255,255,255,0.1)',
-                color: 'var(--text-primary)',
-                boxShadow: '0 0 20px rgba(154,91,255,0.2)',
+                background: 'rgba(255,255,255,0.15)',
+                color: 'white',
+                boxShadow: '0 0 20px rgba(255,255,255,0.2)',
               }}
               whileTap={{ scale: 0.95 }}
               aria-label={item.label}
