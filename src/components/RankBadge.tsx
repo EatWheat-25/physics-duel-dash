@@ -30,6 +30,12 @@ const RankBadge: React.FC<RankBadgeProps> = ({
     lg: 'text-xl'
   };
 
+  const imageSizes = {
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5',
+    lg: 'w-7 h-7'
+  };
+
   return (
     <motion.div
       className={`inline-flex items-center gap-2 rounded-full font-bold uppercase tracking-widest glassmorphism ${sizeClasses[size]} ${className}`}
@@ -56,21 +62,39 @@ const RankBadge: React.FC<RankBadgeProps> = ({
           : `var(--shadow-intense), 0 0 40px ${rankData.glowColor}80`,
       }}
     >
-      <motion.span 
-        className={`${emojiSizes[size]} filter drop-shadow-lg`}
-        animate={showAnimation || isTopRank ? {
-          rotate: [0, 10, -10, 0],
-          scale: [1, 1.2, 1],
-        } : {}}
-        transition={{
-          duration: isTopRank ? 3 : 2,
-          repeat: (showAnimation || isTopRank) ? (isTopRank ? Infinity : 2) : 0,
-          delay: 0.5,
-          repeatType: isTopRank ? "reverse" : "loop"
-        }}
-      >
-        {rankData.emoji}
-      </motion.span>
+      {rankData.imageUrl ? (
+        <motion.img
+          src={rankData.imageUrl}
+          alt={rankData.displayName}
+          className={`${imageSizes[size]} object-contain filter drop-shadow-lg`}
+          animate={showAnimation || isTopRank ? {
+            rotate: [0, 10, -10, 0],
+            scale: [1, 1.2, 1],
+          } : {}}
+          transition={{
+            duration: isTopRank ? 3 : 2,
+            repeat: (showAnimation || isTopRank) ? (isTopRank ? Infinity : 2) : 0,
+            delay: 0.5,
+            repeatType: isTopRank ? "reverse" : "loop"
+          }}
+        />
+      ) : (
+        <motion.span 
+          className={`${emojiSizes[size]} filter drop-shadow-lg`}
+          animate={showAnimation || isTopRank ? {
+            rotate: [0, 10, -10, 0],
+            scale: [1, 1.2, 1],
+          } : {}}
+          transition={{
+            duration: isTopRank ? 3 : 2,
+            repeat: (showAnimation || isTopRank) ? (isTopRank ? Infinity : 2) : 0,
+            delay: 0.5,
+            repeatType: isTopRank ? "reverse" : "loop"
+          }}
+        >
+          {rankData.emoji}
+        </motion.span>
+      )}
       <span className={`drop-shadow-lg text-white ${isTopRank ? 'font-extrabold' : ''}`}>
         {rankData.displayName}
       </span>

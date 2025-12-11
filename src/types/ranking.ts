@@ -12,6 +12,7 @@ export interface Rank {
   minPoints: number;
   maxPoints: number;
   emoji: string;
+  imageUrl?: string; // Optional custom image for rank logo
   color: string;
   gradient: string;
   glowColor: string;
@@ -43,7 +44,7 @@ export interface UserRankData {
 
 // Create all ranks with sub-ranks (removed Platinum, added Unbeatable & Pocket Calculator)
 const createRanks = (): Rank[] => {
-  const tiers: { tier: RankTier; emoji: string; color: string; gradient: string; glowColor: string }[] = [
+  const tiers: { tier: RankTier; emoji: string; imageUrl?: string; color: string; gradient: string; glowColor: string }[] = [
     {
       tier: 'Bronze',
       emoji: '🥉',
@@ -61,6 +62,7 @@ const createRanks = (): Rank[] => {
     {
       tier: 'Gold',
       emoji: '🥇',
+      imageUrl: '/ranks/gold-rank-logo.png', // Custom gold rank logo
       color: 'hsl(45 100% 60%)',
       gradient: 'linear-gradient(135deg, hsl(45 100% 60%), hsl(45 100% 70%))',
       glowColor: 'hsl(45 100% 60% / 0.4)',
@@ -99,6 +101,7 @@ const createRanks = (): Rank[] => {
         minPoints: 1500, // 15 ranks * 100 points = 1500 (Unbeatable 3 max)
         maxPoints: 99999,
         emoji: tierData.emoji,
+        imageUrl: tierData.imageUrl,
         color: tierData.color,
         gradient: tierData.gradient,
         glowColor: tierData.glowColor,
@@ -107,17 +110,18 @@ const createRanks = (): Rank[] => {
     } else {
       for (let subRank = 1; subRank <= 3; subRank++) {
         const rankIndex = tierIndex * 3 + (subRank - 1);
-        ranks.push({
-          tier: tierData.tier,
-          subRank: subRank as SubRank,
-          minPoints: rankIndex * 100,
-          maxPoints: (rankIndex + 1) * 100 - 1,
-          emoji: tierData.emoji,
-          color: tierData.color,
-          gradient: tierData.gradient,
-          glowColor: tierData.glowColor,
-          displayName: `${tierData.tier} ${subRank}`,
-        });
+      ranks.push({
+        tier: tierData.tier,
+        subRank: subRank as SubRank,
+        minPoints: rankIndex * 100,
+        maxPoints: (rankIndex + 1) * 100 - 1,
+        emoji: tierData.emoji,
+        imageUrl: tierData.imageUrl,
+        color: tierData.color,
+        gradient: tierData.gradient,
+        glowColor: tierData.glowColor,
+        displayName: `${tierData.tier} ${subRank}`,
+      });
       }
     }
   });
