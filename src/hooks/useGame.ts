@@ -116,6 +116,8 @@ export function useGame(match: MatchRow | null) {
   const heartbeatRef = useRef<number | null>(null)
   const matchIdRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
+  const lastVisibilityChangeRef = useRef<number>(0)
+  const hasConnectedRef = useRef<boolean>(false)
 
   // Listen for polling-detected results (fallback if WS message missed)
   useEffect(() => {
