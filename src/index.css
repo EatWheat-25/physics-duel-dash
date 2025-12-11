@@ -489,6 +489,15 @@ All colors MUST be HSL.
     animation: grid-move 25s linear infinite;
   }
 
+  @keyframes gradient-shift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
   @keyframes grid-move {
     0% { transform: translate(0, 0); }
     100% { transform: translate(50px, 50px); }

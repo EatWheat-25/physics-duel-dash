@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { BottomNav } from '@/components/BottomNav';
 import { HeaderUserMenu } from '@/components/hub/HeaderUserMenu';
 import { PlayerCard } from '@/components/hub/PlayerCard';
@@ -97,6 +98,32 @@ export default function Home() {
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center gap-8 px-4 py-8">
         <PlayerCard />
+
+        {/* Prominent Ranks Button */}
+        <div className="w-full max-w-[48rem] mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <Button
+              onClick={() => setRankMenuOpen(true)}
+              className="w-full px-8 py-10 text-2xl font-bold uppercase tracking-wider text-white rounded-2xl"
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed, #5b21b6, #7c3aed)',
+                backgroundSize: '200% 200%',
+                border: '3px solid rgba(255, 255, 255, 0.4)',
+                boxShadow: '0 8px 32px rgba(124, 58, 237, 0.6), 0 0 60px rgba(124, 58, 237, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                animation: 'gradient-shift 3s ease infinite',
+              }}
+            >
+              <Trophy className="w-8 h-8 mr-4" style={{ filter: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.5))' }} />
+              <span style={{ textShadow: '0 0 20px rgba(255, 255, 255, 0.5)' }}>RANKS</span>
+            </Button>
+          </motion.div>
+        </div>
 
         {/* Action Buttons */}
         <div className="w-full max-w-[48rem] mx-auto flex flex-col sm:flex-row gap-4 justify-center">
