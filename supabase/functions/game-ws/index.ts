@@ -176,13 +176,19 @@ const matchStates = new Map<string, MatchState>() // matchId -> MatchState
  */
 function broadcastToMatch(matchId: string, event: any): void {
   const matchSockets = sockets.get(matchId)
+  const socketCount = matchSockets ? matchSockets.size : 0
+  console.log(`[${matchId}] 📡 broadcastToMatch type=${event.type}, sockets=${socketCount}`)
+  
   if (!matchSockets || matchSockets.size === 0) {
     console.warn(`[${matchId}] ⚠️ No sockets found for match - cannot broadcast ${event.type}`)
     return
   }
 
   let sentCount = 0
+  let socketIndex = 0
   matchSockets.forEach((socket) => {
+    socketIndex++
+    console.log(`[${matchId}]   socket[${socketIndex}] state=${socket.readyState} (OPEN=1)`)
     if (socket.readyState === WebSocket.OPEN) {
       try {
         socket.send(JSON.stringify(event))
@@ -194,6 +200,10 @@ function broadcastToMatch(matchId: string, event: any): void {
   })
 
   console.log(`[${matchId}] 📊 Broadcast ${event.type} to ${sentCount}/${matchSockets.size} sockets`)
+  
+  if (event.type === 'RESULTS_RECEIVED') {
+    console.log(`[${matchId}] 📊 RESULTS_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
+  }
 }
 
 /**
@@ -1660,6 +1670,26 @@ async function handleJoinMatch(
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   console.log(`[${matchId}] JOIN_MATCH from player ${playerId}`)
+  
+  // Log socket state in JOIN_MATCH handler and ensure socket is registered
+  let matchSockets = sockets.get(matchId)
+  const socketCountBefore = matchSockets ? matchSockets.size : 0
+  console.log(`[${matchId}] 🔗 JOIN_MATCH handler: sockets in map = ${socketCountBefore}`)
+  
+  // Ensure socket is in the map (should already be there from WebSocket open, but double-check)
+  if (!matchSockets) {
+    matchSockets = new Set()
+    sockets.set(matchId, matchSockets)
+    console.log(`[${matchId}] 🔗 JOIN_MATCH: created new socket Set for match`)
+  }
+  
+  if (!matchSockets.has(socket)) {
+    console.warn(`[${matchId}] ⚠️ JOIN_MATCH: socket not found in map, adding it now`)
+    matchSockets.add(socket)
+    console.log(`[${matchId}] 🔗 JOIN_MATCH: after adding, sockets in map = ${matchSockets.size}`)
+  } else {
+    console.log(`[${matchId}] 🔗 JOIN_MATCH: socket already in map, count = ${matchSockets.size}`)
+  }
 
   // 1. Validate match exists and player is part of it
   const { data: match, error: matchError } = await supabase
@@ -1886,11 +1916,30 @@ Deno.serve(async (req) => {
 
   const { socket, response } = Deno.upgradeWebSocket(req)
 
-  // Track socket
+  // Track socket - ensure we append, not overwrite
+  // BEFORE adding
+  const beforeSockets = sockets.get(matchId)
+  const beforeCount = beforeSockets ? beforeSockets.size : 0
+  console.log(`[${matchId}] 🔗 BEFORE register: sockets in map = ${beforeCount}`)
+  
+  // Get existing sockets Set (or create new one)
   if (!sockets.has(matchId)) {
     sockets.set(matchId, new Set())
   }
-  sockets.get(matchId)!.add(socket)
+  const socketSet = sockets.get(matchId)!
+  
+  // Avoid duplicate if same socket somehow re-registers
+  if (!socketSet.has(socket)) {
+    socketSet.add(socket)
+    console.log(`[${matchId}] 🔗 Registered socket. Now tracking ${socketSet.size} socket(s) for this match`)
+  } else {
+    console.warn(`[${matchId}] ⚠️ Socket already registered, skipping duplicate registration`)
+  }
+  
+  // AFTER adding
+  const afterSockets = sockets.get(matchId)
+  const afterCount = afterSockets ? afterSockets.size : 0
+  console.log(`[${matchId}] 🔗 AFTER register: sockets in map = ${afterCount}`)
 
   // Use service role for database operations
   const supabase = createClient(
@@ -1987,15 +2036,26 @@ Deno.serve(async (req) => {
       console.log(`[${matchId}] ✅ Cleared ${isPlayer1 ? 'player1' : 'player2'} connection status in database`)
     }
     
-    // Remove from local sockets
+    // Remove from local sockets - only remove this specific socket, not the whole entry
     const matchSockets = sockets.get(matchId)
+    const beforeCount = matchSockets ? matchSockets.size : 0
+    
     if (matchSockets) {
+      // Remove only this socket from the Set
       matchSockets.delete(socket)
+      const afterCount = matchSockets.size
+      
       if (matchSockets.size === 0) {
+        // Only delete the entry if no sockets remain
         sockets.delete(matchId)
         // Cleanup game state when all sockets disconnected
         cleanupGameState(matchId)
       }
+      // Note: No need to call sockets.set() again - Set is modified in place
+      
+      console.log(`[${matchId}] 🔌 socket closed. Before=${beforeCount}, After=${afterCount}`)
+    } else {
+      console.log(`[${matchId}] 🔌 socket closed. Before=0 (no sockets found), After=0`)
     }
   }
 
