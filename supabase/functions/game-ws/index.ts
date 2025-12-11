@@ -213,7 +213,7 @@ async function selectAndBroadcastQuestion(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  console.log(`[${matchId}] 🔒 Starting atomic question selection...`)
+  console.log(`[${matchId}] 🔒 [WS] selectAndBroadcastQuestion called for match ${matchId}`)
   
   try {
     // 1. Get match with safety checks
@@ -230,9 +230,12 @@ async function selectAndBroadcastQuestion(
 
     // Safety checks
     if (!match || match.status !== 'in_progress' || match.winner_id) {
-      console.warn(`[${matchId}] ⚠️ Match not ready for question selection (status: ${match?.status}, winner: ${match?.winner_id})`)
+      console.warn(`[${matchId}] ⚠️ [WS] Match not ready for question selection (status: ${match?.status}, winner: ${match?.winner_id})`)
+      console.log(`[${matchId}] ⚠️ [WS] selectAndBroadcastQuestion returning early - match not ready`)
       return
     }
+    
+    console.log(`[${matchId}] ✅ [WS] Match is ready (status: ${match.status}, winner: ${match.winner_id || 'none'})`)
 
     let questionDb: any = null
 
@@ -376,9 +379,12 @@ async function selectAndBroadcastQuestion(
     // Broadcast QUESTION_RECEIVED with raw question object
     const matchSockets = sockets.get(matchId)
     if (!matchSockets || matchSockets.size === 0) {
-      console.warn(`[${matchId}] ⚠️ No sockets found for match - cannot send QUESTION_RECEIVED`)
+      console.warn(`[${matchId}] ⚠️ [WS] No sockets found for match - cannot send QUESTION_RECEIVED`)
+      console.log(`[${matchId}] ⚠️ [WS] selectAndBroadcastQuestion returning early - no sockets`)
       return
     }
+    
+    console.log(`[${matchId}] ✅ [WS] Found ${matchSockets.size} socket(s) for match`)
 
     // Parse steps to check if multi-step
     let steps: any[] = []
@@ -499,7 +505,15 @@ async function selectAndBroadcastQuestion(
         totalSteps: steps.length
       }
 
+      console.log(`[${matchId}] 📤 [WS] Broadcasting ROUND_START event:`, JSON.stringify({
+        type: roundStartEvent.type,
+        matchId: roundStartEvent.matchId,
+        phase: roundStartEvent.phase,
+        questionId: roundStartEvent.question.id,
+        totalSteps: roundStartEvent.totalSteps
+      }))
       broadcastToMatch(matchId, roundStartEvent)
+      console.log(`[${matchId}] ✅ [WS] ROUND_START broadcast completed`)
 
       // Start main question timer
       const mainTimerId = setTimeout(() => {
@@ -542,6 +556,12 @@ async function selectAndBroadcastQuestion(
         timer_end_at: timerEndAt
       }
       
+      console.log(`[${matchId}] 📤 [WS] Broadcasting QUESTION_RECEIVED event:`, JSON.stringify({
+        type: questionReceivedEvent.type,
+        questionId: questionDb.id,
+        timer_end_at: timerEndAt
+      }))
+      
       let sentCount = 0
       matchSockets.forEach((socket, index) => {
         if (socket.readyState === WebSocket.OPEN) {
@@ -555,7 +575,8 @@ async function selectAndBroadcastQuestion(
         }
       })
       
-      console.log(`[${matchId}] 📊 QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
+      console.log(`[${matchId}] 📊 [WS] QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
+      console.log(`[${matchId}] ✅ [WS] QUESTION_RECEIVED broadcast completed`)
       
       // Update match status
       await supabase
@@ -1539,9 +1560,11 @@ async function handleJoinMatch(
     
     if (matchStatus.player1_connected_at && matchStatus.player2_connected_at) {
       // Both connected! Attempt to broadcast
+      console.log(`[${matchId}] ✅ [WS] Both players connected detected in checkConnection`)
       // NOTE: checkAndBroadcastBothConnected will re-check the database
       // right before broadcasting to catch any disconnects
       const broadcastSuccess = await checkAndBroadcastBothConnected(matchId, match, supabase)
+      console.log(`[${matchId}] 📊 [WS] checkAndBroadcastBothConnected returned:`, broadcastSuccess)
       
       // Only mark as sent and clear interval if broadcast was successful
       if (broadcastSuccess) {
@@ -1556,11 +1579,13 @@ async function handleJoinMatch(
         
         // Start the game round after both players are connected
         // selectAndBroadcastQuestion is idempotent - it handles existing questions internally
-        console.log(`[${matchId}] 🎮 Both players connected - starting atomic question selection...`)
+        console.log(`[${matchId}] 🎮 [WS] BOTH_CONNECTED handler - calling selectAndBroadcastQuestion...`)
         try {
           await selectAndBroadcastQuestion(matchId, supabase)
+          console.log(`[${matchId}] ✅ [WS] selectAndBroadcastQuestion completed successfully`)
         } catch (error) {
-          console.error(`[${matchId}] ❌ Error selecting/broadcasting question:`, error)
+          console.error(`[${matchId}] ❌ [WS] Error in selectAndBroadcastQuestion:`, error)
+          console.error(`[${matchId}] ❌ [WS] Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
           // Don't throw - let the game continue, question might already be sent
         }
         
