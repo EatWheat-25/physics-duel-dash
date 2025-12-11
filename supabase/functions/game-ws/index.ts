@@ -1578,6 +1578,20 @@ async function handleJoinMatch(
         }
         
         // Start the game round after both players are connected
+        // First, ensure match status is 'in_progress' (it may still be 'pending')
+        console.log(`[${matchId}] 🎮 [WS] BOTH_CONNECTED handler - updating match status to in_progress...`)
+        const { error: statusUpdateError } = await supabase
+          .from('matches')
+          .update({ status: 'in_progress' })
+          .eq('id', matchId)
+          .neq('status', 'in_progress')
+        
+        if (statusUpdateError) {
+          console.error(`[${matchId}] ❌ [WS] Failed to update match status:`, statusUpdateError)
+        } else {
+          console.log(`[${matchId}] ✅ [WS] Match status updated to in_progress`)
+        }
+        
         // selectAndBroadcastQuestion is idempotent - it handles existing questions internally
         console.log(`[${matchId}] 🎮 [WS] BOTH_CONNECTED handler - calling selectAndBroadcastQuestion...`)
         try {
