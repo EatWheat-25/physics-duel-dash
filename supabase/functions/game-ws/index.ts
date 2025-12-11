@@ -207,7 +207,12 @@ function broadcastToMatch(matchId: string, event: any): void {
 async function broadcastQuestion(
   matchId: string,
   questionDb: any,
-  supabase: ReturnType<typeof createClient>
+  supabase: ReturnType<typeof createClient>,
+  matchData?: {
+    id: string
+    player1_id: string | null
+    player2_id: string | null
+  }
 ): Promise<void> {
   const matchSockets = sockets.get(matchId)
   if (!matchSockets || matchSockets.size === 0) {
@@ -227,12 +232,22 @@ async function broadcastQuestion(
 
   const isMultiStep = Array.isArray(steps) && steps.length >= 2
 
-  // Get match players for game state
-  const { data: matchData } = await supabase
-    .from('matches')
-    .select('player1_id, player2_id')
-    .eq('id', matchId)
-    .single()
+  // Ensure matchData is available
+  let localMatchData = matchData
+  if (!localMatchData) {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('id, player1_id, player2_id')
+      .eq('id', matchId)
+      .single()
+    
+    if (error) {
+      console.error(`[${matchId}] ❌ Failed to load match data in broadcastQuestion:`, error)
+      // we can still broadcast the question without match state
+    } else {
+      localMatchData = data
+    }
+  }
 
   if (isMultiStep) {
     // Multi-step question flow
@@ -246,8 +261,8 @@ async function broadcastQuestion(
         roundNumber: 1,
         targetRoundsToWin: 4,
         playerRoundWins: new Map(),
-        p1Id: matchData?.player1_id || null,
-        p2Id: matchData?.player2_id || null
+        p1Id: localMatchData?.player1_id || null,
+        p2Id: localMatchData?.player2_id || null
       }
       matchStates.set(matchId, matchState)
     } else {
@@ -267,8 +282,8 @@ async function broadcastQuestion(
         stepEndsAt: null,
         playerStepAnswers: new Map(),
         currentQuestion: questionDb,
-        p1Id: matchData?.player1_id || null,
-        p2Id: matchData?.player2_id || null,
+        p1Id: localMatchData?.player1_id || null,
+        p2Id: localMatchData?.player2_id || null,
         eliminatedPlayers: new Set(),
         roundNumber: matchState.roundNumber,
         targetRoundsToWin: matchState.targetRoundsToWin,
@@ -354,14 +369,14 @@ async function broadcastQuestion(
     // Initialize or get match state for single-step questions
     // Don't increment round number here - it will be incremented after results
     let matchState = matchStates.get(matchId)
-    if (!matchState) {
+    if (!matchState && localMatchData) {
       // First round - initialize match state
       matchState = {
         roundNumber: 1,
         targetRoundsToWin: 4,
         playerRoundWins: new Map(),
-        p1Id: matchData?.player1_id || null,
-        p2Id: matchData?.player2_id || null
+        p1Id: localMatchData.player1_id || null,
+        p2Id: localMatchData.player2_id || null
       }
       matchStates.set(matchId, matchState)
     }
@@ -514,7 +529,14 @@ async function selectAndBroadcastQuestion(
     console.log(
       `[${matchId}] ✅ Reusing existing question from GameState: ${gameState.currentQuestion.id}`
     )
-    await broadcastQuestion(matchId, gameState.currentQuestion, supabase)
+    // Get match data for broadcastQuestion
+    const { data: matchRow } = await supabase
+      .from('matches')
+      .select('id, player1_id, player2_id')
+      .eq('id', matchId)
+      .single()
+    
+    await broadcastQuestion(matchId, gameState.currentQuestion, supabase, matchRow || undefined)
     return
   }
   
@@ -714,7 +736,15 @@ async function selectAndBroadcastQuestion(
     }
     
     console.log(`[${matchId}] ✅ Selected new question from DB: ${questionDb.id}`)
-    await broadcastQuestion(matchId, questionDb, supabase)
+    
+    // Get match data to pass to broadcastQuestion
+    const { data: matchRow } = await supabase
+      .from('matches')
+      .select('id, player1_id, player2_id')
+      .eq('id', matchId)
+      .single()
+    
+    await broadcastQuestion(matchId, questionDb, supabase, matchRow || undefined)
   } catch (error) {
     console.error(`[${matchId}] ❌ Error in atomic question selection:`, error)
     
@@ -1417,7 +1447,7 @@ async function handleSubmitAnswer(
       const matchState = matchStates.get(matchId)
       if (!matchState) {
         console.error(`[${matchId}] ⚠️ Match state not found for single-step question`)
-        // Fallback - create it now
+        // Fallback - create it now (but don't call handleRoundTransition here - let normal flow handle it)
         const { data: matchData } = await supabase
           .from('matches')
           .select('player1_id, player2_id')
@@ -1431,31 +1461,30 @@ async function handleSubmitAnswer(
           p2Id: matchData?.player2_id || null
         }
         matchStates.set(matchId, fallbackState)
-        await handleRoundTransition(matchId, supabase)
-        return
+        // Continue with normal flow - don't call handleRoundTransition here
       }
 
-      // Update round wins
+      // Update round wins (matchState is guaranteed to exist here after fallback)
       const winnerId = matchResults.round_winner
-      if (winnerId) {
+      if (winnerId && matchState) {
         const currentWins = matchState.playerRoundWins.get(winnerId) || 0
         matchState.playerRoundWins.set(winnerId, currentWins + 1)
         console.log(`[${matchId}] 🏆 Round ${matchState.roundNumber} won by ${winnerId} (now has ${currentWins + 1} wins)`)
       }
       
       // Increment round number for next round (if match continues)
-      const currentRoundNum = matchState.roundNumber
+      const currentRoundNum = matchState?.roundNumber || 1
 
       // Check if match is over
-      const p1Wins = matchState.playerRoundWins.get(matchState.p1Id || '') || 0
-      const p2Wins = matchState.playerRoundWins.get(matchState.p2Id || '') || 0
-      const targetWins = matchState.targetRoundsToWin || 4
+      const p1Wins = matchState?.playerRoundWins.get(matchState.p1Id || '') || 0
+      const p2Wins = matchState?.playerRoundWins.get(matchState.p2Id || '') || 0
+      const targetWins = matchState?.targetRoundsToWin || 4
       const matchOver = p1Wins >= targetWins || p2Wins >= targetWins
-      const matchWinnerId = matchOver ? (p1Wins >= targetWins ? matchState.p1Id : matchState.p2Id) : null
+      const matchWinnerId = matchOver ? (p1Wins >= targetWins ? matchState?.p1Id : matchState?.p2Id) : null
 
       // Convert playerRoundWins Map to object for JSON serialization
       const playerRoundWinsObj: { [playerId: string]: number } = {}
-      matchState.playerRoundWins.forEach((wins, playerId) => {
+      matchState?.playerRoundWins.forEach((wins, playerId) => {
         playerRoundWinsObj[playerId] = wins
       })
 
@@ -1482,7 +1511,9 @@ async function handleSubmitAnswer(
         matchStates.delete(matchId)
       } else {
         // Increment round number for next round
-        matchState.roundNumber = currentRoundNum + 1
+        if (matchState) {
+          matchState.roundNumber = currentRoundNum + 1
+        }
         // Stage 3: After RESULTS_RECEIVED, check match state and transition
         await handleRoundTransition(matchId, supabase)
       }
@@ -1558,23 +1589,48 @@ async function handleRoundTransition(
   
   if (resetError) {
     // Check if RPC function doesn't exist (migration not applied)
-    if (resetError.code === '42883' || resetError.message?.includes('does not exist') || resetError.message?.includes('function')) {
-      console.warn(`[${matchId}] ⚠️ RPC function start_next_round_stage3 not found - Stage 3 migrations may not be applied`)
+    if (
+      resetError.code === '42883' || // function does not exist
+      resetError.message?.includes('does not exist') ||
+      resetError.message?.includes('function') ||
+      resetError.message?.includes('start_next_round_stage3')
+    ) {
+      console.warn(`[${matchId}] ⚠️ RPC function start_next_round_stage3 not found - using manual reset`)
+      
+      // Manually clear answer fields
+      const { error: manualError } = await supabase
+        .from('matches')
+        .update({
+          player1_answer: null,
+          player2_answer: null,
+          results_computed_at: null,
+          round_winner: null
+        })
+        .eq('id', matchId)
+      
+      if (manualError) {
+        console.error(`[${matchId}] ❌ Manual reset failed in handleRoundTransition:`, manualError)
+        // In this rare case it's safer to abort rather than loop forever
+        return
+      }
+    } else {
+      console.error(`[${matchId}] ❌ Error starting next round via start_next_round_stage3:`, resetError)
       return
     }
-    console.error(`[${matchId}] ❌ Error starting next round:`, resetError)
-    return
-  }
-  
-  if (!resetResult?.success) {
+  } else if (!resetResult?.success) {
     console.error(`[${matchId}] ❌ Failed to start next round:`, resetResult?.error)
     return
   }
   
-  console.log(`[${matchId}] ✅ Round reset successful - selecting next question...`)
+  // IMPORTANT: always try to start the next question if we got here
+  console.log(`[${matchId}] ➡️ Match continues - starting next round (manual or RPC reset succeeded)...`)
   
-  // Select and broadcast next question
-  await selectAndBroadcastQuestion(matchId, supabase)
+  try {
+    await selectAndBroadcastQuestion(matchId, supabase)
+    console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
+  } catch (err) {
+    console.error(`[${matchId}] ❌ Failed to select/broadcast next round question:`, err)
+  }
   
   // Optionally broadcast ROUND_STARTED event (using in-memory state instead of DB columns)
   const matchState = matchStates.get(matchId)
