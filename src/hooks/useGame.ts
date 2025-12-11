@@ -278,6 +278,7 @@ export function useGame(match: MatchRow | null) {
 
         ws.onopen = () => {
           console.log('[useGame] WebSocket connected')
+          hasConnectedRef.current = false
           setState(prev => ({
             ...prev,
             status: 'connecting',
@@ -319,6 +320,7 @@ export function useGame(match: MatchRow | null) {
 
             if (message.type === 'CONNECTED') {
               console.log('[useGame] CONNECTED message received, updating state')
+              hasConnectedRef.current = true
               setState(prev => ({
                 ...prev,
                 status: 'connected',
@@ -559,23 +561,51 @@ export function useGame(match: MatchRow | null) {
   // Visibility-based lightweight resync
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState !== 'visible') return
+      // Only act when tab becomes visible (not on initial load or when hiding)
+      if (document.visibilityState !== 'visible') {
+        lastVisibilityChangeRef.current = Date.now()
+        return
+      }
+
+      const now = Date.now()
+      // Ignore if this is the initial visibility (page load) or too soon after last change
+      if (lastVisibilityChangeRef.current === 0 || now - lastVisibilityChangeRef.current < 1000) {
+        lastVisibilityChangeRef.current = now
+        return
+      }
+
       const ws = wsRef.current
       if (!ws || ws.readyState !== WebSocket.OPEN) return
       if (!matchIdRef.current || !userIdRef.current) return
+
+      // Only resync if we're not already in a playing state (to avoid interrupting active rounds)
+      // But allow resync if we're stuck in connecting/connected state
+      const currentState = state.status
+      if (currentState === 'playing' || currentState === 'results' || currentState === 'match_finished') {
+        // Already playing - don't resync, just update timers from EndsAt
+        console.log('[useGame] Tab visible but already playing - skipping resync')
+        return
+      }
+
+      // Only resync if we've actually connected before (avoid resync during initial connection)
+      if (!hasConnectedRef.current) {
+        console.log('[useGame] Tab visible but not yet connected - skipping resync')
+        return
+      }
 
       const joinMessage = {
         type: 'JOIN_MATCH',
         match_id: matchIdRef.current,
         player_id: userIdRef.current
       }
-      console.log('[useGame] Visibility resync - re-sending JOIN_MATCH')
+      console.log('[useGame] Visibility resync - re-sending JOIN_MATCH (status:', currentState, ')')
       ws.send(JSON.stringify(joinMessage))
+      lastVisibilityChangeRef.current = now
     }
 
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [])
+  }, [state.status])
 
   const submitAnswer = useCallback((answerIndex: number) => {
     const ws = wsRef.current

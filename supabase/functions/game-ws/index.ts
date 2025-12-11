@@ -1555,8 +1555,21 @@ async function handleJoinMatch(
         }
         
         // Start the game round after both players are connected
-        console.log(`[${matchId}] 🎮 Both players connected - starting atomic question selection...`)
-        await selectAndBroadcastQuestion(matchId, supabase)
+        // Only if question hasn't been sent yet (check question_sent_at)
+        const { data: matchCheck } = await supabase
+          .from('matches')
+          .select('question_sent_at, question_id')
+          .eq('id', matchId)
+          .single()
+        
+        if (matchCheck && !matchCheck.question_sent_at) {
+          console.log(`[${matchId}] 🎮 Both players connected - starting atomic question selection...`)
+          await selectAndBroadcastQuestion(matchId, supabase)
+        } else if (matchCheck?.question_sent_at && matchCheck.question_id) {
+          // Question already sent - re-broadcast it to ensure both players have it
+          console.log(`[${matchId}] 🔄 Question already sent, re-broadcasting to ensure both players receive it...`)
+          await selectAndBroadcastQuestion(matchId, supabase)
+        }
         
         return true
       } else {
