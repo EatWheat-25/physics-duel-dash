@@ -465,18 +465,15 @@ async function selectAndBroadcastQuestion(
       const mainQuestionEndsAt = new Date(Date.now() + mainQuestionTimerSeconds * 1000).toISOString()
       gameState.mainQuestionEndsAt = mainQuestionEndsAt
 
-      // Get round number
-      const { data: roundData } = await supabase
-        .from('matches')
-        .select('round_number')
-        .eq('id', matchId)
-        .single()
+      // Get round number from match state
+      const currentMatchState = matchStates.get(matchId)
+      const currentRoundNumber = currentMatchState?.roundNumber || 1
 
       const roundStartEvent: RoundStartEvent = {
         type: 'ROUND_START',
         matchId,
         roundId: matchId, // Using matchId as roundId for now
-        roundIndex: roundData?.round_number || 0,
+        roundIndex: currentRoundNumber - 1, // roundIndex is 0-based
         phase: 'main_question',
         question: {
           id: questionDb.id,
@@ -1386,7 +1383,7 @@ async function handleRoundTransition(
   // Fetch fresh match state from database (don't use cached state)
   const { data: matchState, error: stateError } = await supabase
     .from('matches')
-    .select('winner_id, status, round_number, last_round_winner, consecutive_wins_count')
+    .select('winner_id, status')
     .eq('id', matchId)
     .single()
   
@@ -1399,10 +1396,14 @@ async function handleRoundTransition(
   if (matchState.winner_id !== null) {
     console.log(`[${matchId}] 🏆 Match finished - winner: ${matchState.winner_id}`)
     
+    // Get round number from in-memory state
+    const inMemoryState = matchStates.get(matchId)
+    const totalRounds = inMemoryState?.roundNumber || 0
+    
     const matchFinishedEvent: MatchFinishedEvent = {
       type: 'MATCH_FINISHED',
       winner_id: matchState.winner_id,
-      total_rounds: matchState.round_number || 0
+      total_rounds: totalRounds
     }
     
     broadcastToMatch(matchId, matchFinishedEvent)
@@ -1444,19 +1445,14 @@ async function handleRoundTransition(
   // Select and broadcast next question
   await selectAndBroadcastQuestion(matchId, supabase)
   
-  // Optionally broadcast ROUND_STARTED event
-  const { data: updatedMatch } = await supabase
-    .from('matches')
-    .select('round_number, last_round_winner, consecutive_wins_count')
-    .eq('id', matchId)
-    .single()
-  
-  if (updatedMatch) {
+  // Optionally broadcast ROUND_STARTED event (using in-memory state instead of DB columns)
+  const matchState = matchStates.get(matchId)
+  if (matchState) {
     const roundStartedEvent: RoundStartedEvent = {
       type: 'ROUND_STARTED',
-      round_number: updatedMatch.round_number || 0,
-      last_round_winner: updatedMatch.last_round_winner,
-      consecutive_wins_count: updatedMatch.consecutive_wins_count || 0
+      round_number: matchState.roundNumber || 0,
+      last_round_winner: null, // Not tracked in new system
+      consecutive_wins_count: 0 // Not tracked in new system
     }
     
     broadcastToMatch(matchId, roundStartedEvent)
