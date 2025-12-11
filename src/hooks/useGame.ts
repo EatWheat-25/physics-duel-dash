@@ -17,8 +17,18 @@ interface ConnectionState {
     player1_correct: boolean
     player2_correct: boolean
     round_winner: string | null
+    p1Score?: number
+    p2Score?: number
+    stepResults?: Array<{
+      stepIndex: number
+      correctAnswer: number
+      p1AnswerIndex: number | null
+      p2AnswerIndex: number | null
+      p1Marks: number
+      p2Marks: number
+    }>
   } | null
-  // Stage 3: Tug-of-war state
+  // Stage 3: Tug-of-war state (deprecated, kept for compatibility)
   roundNumber: number
   lastRoundWinner: string | null
   consecutiveWinsCount: number
@@ -28,6 +38,21 @@ interface ConnectionState {
   // Timer state
   timerEndAt: string | null
   timeRemaining: number | null // seconds remaining
+  // Step-based question state
+  phase: 'question' | 'main_question' | 'steps' | 'result'
+  currentStepIndex: number
+  totalSteps: number
+  mainQuestionEndsAt: string | null
+  stepEndsAt: string | null
+  mainQuestionTimeLeft: number | null
+  stepTimeLeft: number | null
+  currentStep: any | null
+  // Match-level state (rounds system)
+  currentRoundNumber: number
+  targetRoundsToWin: number
+  playerRoundWins: { [playerId: string]: number }
+  matchOver: boolean
+  matchWinnerId: string | null
 }
 
 interface RoundStartEvent {
@@ -60,7 +85,7 @@ export function useGame(match: MatchRow | null) {
     answerSubmitted: false,
     waitingForOpponent: false,
     results: null,
-    // Stage 3: Tug-of-war state
+    // Stage 3: Tug-of-war state (deprecated, kept for compatibility)
     roundNumber: 0,
     lastRoundWinner: null,
     consecutiveWinsCount: 0,
@@ -69,13 +94,28 @@ export function useGame(match: MatchRow | null) {
     totalRounds: 0,
     // Timer state
     timerEndAt: null,
-    timeRemaining: null
+    timeRemaining: null,
+    // Step-based question state
+    phase: 'question',
+    currentStepIndex: 0,
+    totalSteps: 0,
+    mainQuestionEndsAt: null,
+    stepEndsAt: null,
+    mainQuestionTimeLeft: null,
+    stepTimeLeft: null,
+    currentStep: null,
+    // Match-level state (rounds system)
+    currentRoundNumber: 1,
+    targetRoundsToWin: 4,
+    playerRoundWins: {},
+    matchOver: false,
+    matchWinnerId: null
   })
 
   const wsRef = useRef<WebSocket | null>(null)
-  const submittingAnswerRef = useRef(false)
-  const lastSubmissionTimeRef = useRef<number>(0)
-  const lastVisibilityCheckRef = useRef<number>(0)
+  const heartbeatRef = useRef<number | null>(null)
+  const matchIdRef = useRef<string | null>(null)
+  const userIdRef = useRef<string | null>(null)
 
   // Listen for polling-detected results (fallback if WS message missed)
   useEffect(() => {
@@ -103,17 +143,17 @@ export function useGame(match: MatchRow | null) {
     }
   }, [])
 
-  // Timer countdown effect
+  // Timer countdown effect (for single-step questions)
   useEffect(() => {
-    if (!state.timerEndAt || state.status !== 'playing' || state.answerSubmitted) {
+    if (!state.timerEndAt || state.status !== 'playing' || state.answerSubmitted || state.phase !== 'question') {
       setState(prev => ({ ...prev, timeRemaining: null }))
       return
     }
 
     const updateTimer = () => {
-      const now = new Date().getTime()
+      const now = Date.now()
       const endTime = new Date(state.timerEndAt!).getTime()
-      const remaining = Math.max(0, Math.floor((endTime - now) / 1000))
+      const remaining = Math.max(0, Math.round((endTime - now) / 1000))
       
       setState(prev => ({ ...prev, timeRemaining: remaining }))
       
@@ -130,7 +170,47 @@ export function useGame(match: MatchRow | null) {
     const interval = setInterval(updateTimer, 1000)
 
     return () => clearInterval(interval)
-  }, [state.timerEndAt, state.status, state.answerSubmitted])
+  }, [state.timerEndAt, state.status, state.answerSubmitted, state.phase])
+
+  // Main question timer countdown effect
+  useEffect(() => {
+    if (!state.mainQuestionEndsAt || state.phase !== 'main_question') {
+      setState(prev => ({ ...prev, mainQuestionTimeLeft: null }))
+      return
+    }
+
+    const updateTimer = () => {
+      const now = Date.now()
+      const endTime = new Date(state.mainQuestionEndsAt!).getTime()
+      const remaining = Math.max(0, Math.round((endTime - now) / 1000))
+      
+      setState(prev => ({ ...prev, mainQuestionTimeLeft: remaining }))
+    }
+
+    updateTimer()
+    const interval = setInterval(updateTimer, 1000)
+    return () => clearInterval(interval)
+  }, [state.mainQuestionEndsAt, state.phase])
+
+  // Step timer countdown effect
+  useEffect(() => {
+    if (!state.stepEndsAt || state.phase !== 'steps') {
+      setState(prev => ({ ...prev, stepTimeLeft: null }))
+      return
+    }
+
+    const updateTimer = () => {
+      const now = Date.now()
+      const endTime = new Date(state.stepEndsAt!).getTime()
+      const remaining = Math.max(0, Math.round((endTime - now) / 1000))
+      
+      setState(prev => ({ ...prev, stepTimeLeft: remaining }))
+    }
+
+    updateTimer()
+    const interval = setInterval(updateTimer, 1000)
+    return () => clearInterval(interval)
+  }, [state.stepEndsAt, state.phase])
 
   useEffect(() => {
     if (!match) {
@@ -142,24 +222,7 @@ export function useGame(match: MatchRow | null) {
       return
     }
 
-    let reconnectTimeout: NodeJS.Timeout | null = null
-    let isConnecting = false
-
     const connect = async () => {
-      // Prevent multiple simultaneous connection attempts
-      if (isConnecting) {
-        console.log('[useGame] Already connecting, skipping duplicate attempt')
-        return
-      }
-
-      // If WebSocket is already open, don't reconnect
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        console.log('[useGame] WebSocket already open, skipping connection')
-        return
-      }
-
-      isConnecting = true
-
       try {
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -169,9 +232,11 @@ export function useGame(match: MatchRow | null) {
             playerRole: null,
             errorMessage: 'Not authenticated'
           })
-          isConnecting = false
           return
         }
+
+        userIdRef.current = user.id
+        matchIdRef.current = match.id
 
         // Verify user is part of match
         if (match.player1_id !== user.id && match.player2_id !== user.id) {
@@ -180,7 +245,6 @@ export function useGame(match: MatchRow | null) {
             playerRole: null,
             errorMessage: 'You are not part of this match'
           })
-          isConnecting = false
           return
         }
 
@@ -192,7 +256,6 @@ export function useGame(match: MatchRow | null) {
             playerRole: null,
             errorMessage: 'No session token'
           })
-          isConnecting = false
           return
         }
 
@@ -204,14 +267,7 @@ export function useGame(match: MatchRow | null) {
             playerRole: null,
             errorMessage: 'Missing SUPABASE_URL'
           })
-          isConnecting = false
           return
-        }
-
-        // Close existing connection if any
-        if (wsRef.current) {
-          wsRef.current.close()
-          wsRef.current = null
         }
 
         const wsUrl = `${SUPABASE_URL.replace('http', 'ws')}/functions/v1/game-ws?token=${session.access_token}&match_id=${match.id}`
@@ -220,48 +276,33 @@ export function useGame(match: MatchRow | null) {
         const ws = new WebSocket(wsUrl)
         wsRef.current = ws
 
-        // Connection timeout (10 seconds)
-        const connectionTimeout = setTimeout(() => {
-          if (ws.readyState !== WebSocket.OPEN) {
-            console.error('[useGame] Connection timeout')
-            ws.close()
-            isConnecting = false
-            // Retry connection after 1 second
-            reconnectTimeout = setTimeout(() => {
-              connect()
-            }, 1000)
-          }
-        }, 10000)
-
         ws.onopen = () => {
-          clearTimeout(connectionTimeout)
           console.log('[useGame] WebSocket connected')
-          isConnecting = false
           setState(prev => ({
             ...prev,
             status: 'connecting',
             errorMessage: null
           }))
 
-          // Send JOIN_MATCH message - ensure it's sent even if tab was in background
+          // Send JOIN_MATCH message
           const joinMessage = {
             type: 'JOIN_MATCH',
             match_id: match.id,
             player_id: user.id
           }
           console.log('[useGame] Sending JOIN_MATCH:', joinMessage)
-          
-          // Ensure message is sent - retry if needed
-          if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify(joinMessage))
-          } else {
-            // Wait a bit and retry
-            setTimeout(() => {
-              if (wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify(joinMessage))
-              }
-            }, 100)
+
+          // Heartbeat to keep connection alive
+          if (heartbeatRef.current) {
+            clearInterval(heartbeatRef.current)
+            heartbeatRef.current = null
           }
+          heartbeatRef.current = setInterval(() => {
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ type: 'PING' }))
+            }
+          }, 25000) as unknown as number
         }
 
         ws.onmessage = (event) => {
@@ -293,46 +334,9 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'QUESTION_RECEIVED') {
               console.log('[useGame] QUESTION_RECEIVED message received')
-              
-              // Guard: Ignore QUESTION_RECEIVED if we're in results phase
-              // This prevents the question from restarting while results are being displayed
-              if (state.status === 'results') {
-                console.log('[useGame] Ignoring QUESTION_RECEIVED - currently showing results, will process after delay')
-                // Queue the question to be processed after a short delay
-                // This allows results to be displayed before transitioning
-                setTimeout(() => {
-                  // Re-check state - if still in results, process the question
-                  setState(prev => {
-                    if (prev.status === 'results') {
-                      try {
-                        const mappedQuestion = mapRawToQuestion(message.question)
-                        const timerEndAt = (message as any).timer_end_at || null
-                        submittingAnswerRef.current = false // Reset submission flag for new question
-                        return {
-                          ...prev,
-                          status: 'playing',
-                          question: mappedQuestion,
-                          errorMessage: null,
-                          timerEndAt: timerEndAt,
-                          answerSubmitted: false,
-                          waitingForOpponent: false,
-                          results: null
-                        }
-                      } catch (error) {
-                        console.error('[useGame] Error mapping queued question:', error)
-                        return prev
-                      }
-                    }
-                    return prev
-                  })
-                }, 2000) // Wait 2 seconds before processing
-                return
-              }
-              
               try {
                 const mappedQuestion = mapRawToQuestion(message.question)
                 const timerEndAt = (message as any).timer_end_at || null
-                submittingAnswerRef.current = false // Reset submission flag for new question
                 setState(prev => ({
                   ...prev,
                   status: 'playing',
@@ -354,15 +358,62 @@ export function useGame(match: MatchRow | null) {
             } else if (message.type === 'ROUND_START') {
               console.log('[useGame] ROUND_START message received - game starting!', message)
               const roundStartEvent = message as RoundStartEvent
+              if (roundStartEvent.phase === 'main_question') {
+                // Multi-step question - main question phase
+                setState(prev => ({
+                  ...prev,
+                  status: 'playing',
+                  phase: 'main_question',
+                  question: roundStartEvent.question,
+                  mainQuestionEndsAt: roundStartEvent.mainQuestionEndsAt || null,
+                  totalSteps: roundStartEvent.totalSteps || 0,
+                  currentStepIndex: 0,
+                  answerSubmitted: false,
+                  waitingForOpponent: false,
+                  results: null,
+                  errorMessage: null
+                }))
+              } else {
+                // Single-step question - existing flow
+                setState(prev => ({
+                  ...prev,
+                  status: 'playing',
+                  phase: 'question',
+                  question: roundStartEvent.question,
+                  errorMessage: null
+                }))
+              }
+            } else if (message.type === 'PHASE_CHANGE') {
+              console.log('[useGame] PHASE_CHANGE message received', message)
+              if (message.phase === 'steps') {
+                setState(prev => ({
+                  ...prev,
+                  phase: 'steps',
+                  currentStepIndex: message.stepIndex ?? message.currentStepIndex ?? 0,
+                  totalSteps: message.totalSteps ?? prev.totalSteps,
+                  stepEndsAt: message.stepEndsAt || null,
+                  currentStep: message.currentStep || null,
+                  answerSubmitted: false,
+                  waitingForOpponent: false
+                }))
+              } else {
+                // Other phase changes (choosing, result)
+                setState(prev => ({
+                  ...prev,
+                  phase: message.phase === 'choosing' ? 'question' : 'result',
+                  currentStepIndex: message.currentStepIndex ?? prev.currentStepIndex,
+                  totalSteps: message.totalSteps ?? prev.totalSteps
+                }))
+              }
+            } else if (message.type === 'STEP_ANSWER_RECEIVED') {
+              console.log('[useGame] STEP_ANSWER_RECEIVED message received', message)
               setState(prev => ({
                 ...prev,
-                status: 'playing',
-                question: roundStartEvent.question,
-                errorMessage: null
+                answerSubmitted: true,
+                waitingForOpponent: message.waitingForOpponent
               }))
             } else if (message.type === 'ANSWER_SUBMITTED') {
               console.log('[useGame] ANSWER_SUBMITTED message received')
-              submittingAnswerRef.current = false // Reset submission flag
               setState(prev => ({
                 ...prev,
                 answerSubmitted: true,
@@ -375,26 +426,39 @@ export function useGame(match: MatchRow | null) {
                 waitingForOpponent: true
               }))
             } else if (message.type === 'RESULTS_RECEIVED') {
-              console.log('[useGame] RESULTS_RECEIVED message received')
+              console.log('[useGame] RESULTS_RECEIVED message received', message)
+              const msg = message as any
               setState(prev => ({
                 ...prev,
                 status: 'results',
+                phase: 'result',
                 results: {
                   player1_answer: message.player1_answer,
                   player2_answer: message.player2_answer,
                   correct_answer: message.correct_answer,
                   player1_correct: message.player1_correct,
                   player2_correct: message.player2_correct,
-                  round_winner: message.round_winner
+                  round_winner: message.round_winner,
+                  p1Score: msg.p1Score,
+                  p2Score: msg.p2Score,
+                  stepResults: msg.stepResults
                 },
-                waitingForOpponent: false
+                waitingForOpponent: false,
+                // Update match-level state
+                currentRoundNumber: msg.roundNumber ?? prev.currentRoundNumber,
+                targetRoundsToWin: msg.targetRoundsToWin ?? prev.targetRoundsToWin,
+                playerRoundWins: msg.playerRoundWins ?? prev.playerRoundWins,
+                matchOver: msg.matchOver ?? false,
+                matchWinnerId: msg.matchWinnerId ?? null,
+                matchFinished: msg.matchOver ?? false,
+                matchWinner: msg.matchWinnerId ?? prev.matchWinner
               }))
             } else if (message.type === 'ROUND_STARTED') {
               console.log('[useGame] ROUND_STARTED message received - new round starting')
-              submittingAnswerRef.current = false // Reset submission flag for new round
               setState(prev => ({
                 ...prev,
                 status: 'playing',
+                phase: 'question',
                 answerSubmitted: false,
                 waitingForOpponent: false,
                 results: null,
@@ -402,7 +466,15 @@ export function useGame(match: MatchRow | null) {
                 lastRoundWinner: message.last_round_winner,
                 consecutiveWinsCount: message.consecutive_wins_count || 0,
                 timerEndAt: null, // Will be set when QUESTION_RECEIVED arrives
-                timeRemaining: null
+                timeRemaining: null,
+                // Reset step state
+                currentStepIndex: 0,
+                totalSteps: 0,
+                mainQuestionEndsAt: null,
+                stepEndsAt: null,
+                mainQuestionTimeLeft: null,
+                stepTimeLeft: null,
+                currentStep: null
               }))
             } else if (message.type === 'MATCH_FINISHED') {
               console.log('[useGame] MATCH_FINISHED message received')
@@ -437,40 +509,21 @@ export function useGame(match: MatchRow | null) {
 
         ws.onerror = (error) => {
           console.error('[useGame] WebSocket error:', error)
-          clearTimeout(connectionTimeout)
-          isConnecting = false
-          
-          // Retry connection after 1 second (don't immediately set error state)
-          reconnectTimeout = setTimeout(() => {
-            connect()
-          }, 1000)
+          setState(prev => ({
+            ...prev,
+            status: 'error',
+            errorMessage: 'WebSocket connection error'
+          }))
         }
 
-        ws.onclose = (event) => {
-          console.log('[useGame] WebSocket closed', { code: event.code, reason: event.reason })
-          clearTimeout(connectionTimeout)
-          isConnecting = false
-          
-          // Only reconnect if it wasn't a clean close (code 1000 = normal closure)
-          if (event.code !== 1000) {
-            setState(prev => {
-              // Don't reconnect if already in error or finished state
-              if (prev.status !== 'error' && prev.status !== 'match_finished') {
-                // Retry connection after 1 second
-                reconnectTimeout = setTimeout(() => {
-                  connect()
-                }, 1000)
-                return {
-                  ...prev,
-                  status: 'connecting'
-                }
-              }
-              return prev
-            })
-          } else {
-            // Clean close - don't reconnect
+        ws.onclose = () => {
+          console.log('[useGame] WebSocket closed')
+          if (heartbeatRef.current) {
+            clearInterval(heartbeatRef.current)
+            heartbeatRef.current = null
+          }
           setState(prev => {
-              if (prev.status !== 'error' && prev.status !== 'match_finished') {
+            if (prev.status !== 'error') {
               return {
                 ...prev,
                 status: 'connecting'
@@ -478,11 +531,9 @@ export function useGame(match: MatchRow | null) {
             }
             return prev
           })
-          }
         }
       } catch (error: any) {
         console.error('[useGame] Connection error:', error)
-        isConnecting = false
         setState({
           status: 'error',
           playerRole: null,
@@ -493,82 +544,40 @@ export function useGame(match: MatchRow | null) {
 
     connect()
 
-    // Handle visibility change - reconnect when tab becomes visible
-    // Only reconnect if not in active game state and only if actually needed
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        // Throttle visibility checks - only check once every 2 seconds
-        const now = Date.now()
-        const timeSinceLastCheck = now - lastVisibilityCheckRef.current
-        if (timeSinceLastCheck < 2000) {
-          // Too soon since last check, skip
-          return
-        }
-        lastVisibilityCheckRef.current = now
-        
-        // Don't do anything if we're in an active game state
-        // This prevents any disruption during gameplay
-        const activeGameStates = ['playing', 'results', 'both_connected']
-        if (activeGameStates.includes(state.status)) {
-          // In active game - don't check anything, just return silently
-          return
-        }
-        
-        // Only check connection if we're in early connection states
-        if (state.status === 'connecting' || state.status === 'connected') {
-          // Check if WebSocket is actually disconnected (not just checking status)
-          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            console.log('[useGame] WebSocket disconnected, reconnecting...')
-            connect()
-          }
-          // If WebSocket is open, don't re-send JOIN_MATCH - it's already connected
-          // The server will handle reconnections automatically if needed
-        }
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    // Cleanup
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout)
-      }
-      if (wsRef.current) {
-        wsRef.current.close()
-        wsRef.current = null
-      }
-    }
-
     return () => {
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
+      }
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current)
+        heartbeatRef.current = null
       }
     }
   }, [match?.id])
 
+  // Visibility-based lightweight resync
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return
+      const ws = wsRef.current
+      if (!ws || ws.readyState !== WebSocket.OPEN) return
+      if (!matchIdRef.current || !userIdRef.current) return
+
+      const joinMessage = {
+        type: 'JOIN_MATCH',
+        match_id: matchIdRef.current,
+        player_id: userIdRef.current
+      }
+      console.log('[useGame] Visibility resync - re-sending JOIN_MATCH')
+      ws.send(JSON.stringify(joinMessage))
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
+
   const submitAnswer = useCallback((answerIndex: number) => {
-    if (answerIndex !== 0 && answerIndex !== 1) {
-      console.error('[useGame] Invalid answer index:', answerIndex)
-      return
-    }
-
-    // Debounce: Prevent rapid duplicate submissions (within 500ms)
-    const now = Date.now()
-    const timeSinceLastSubmission = now - lastSubmissionTimeRef.current
-    if (timeSinceLastSubmission < 500) {
-      console.warn('[useGame] Submission debounced - too soon after last submission')
-      return
-    }
-
-    // Check if already submitting
-    if (submittingAnswerRef.current) {
-      console.warn('[useGame] Answer submission already in progress')
-      return
-    }
-
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       console.error('[useGame] WebSocket not connected')
@@ -581,46 +590,83 @@ export function useGame(match: MatchRow | null) {
     }
 
     setState(prev => {
-      // Double-check state before submitting
       if (prev.answerSubmitted) {
         console.warn('[useGame] Answer already submitted')
         return prev
       }
 
-      // Don't allow submission if not in playing state
-      if (prev.status !== 'playing') {
-        console.warn('[useGame] Cannot submit answer - not in playing state:', prev.status)
-        return prev
-      }
-
-      // Mark as submitting
-      submittingAnswerRef.current = true
-      lastSubmissionTimeRef.current = now
-
-      const submitMessage = {
-        type: 'SUBMIT_ANSWER',
-        answer: answerIndex
-      }
-      console.log('[useGame] Sending SUBMIT_ANSWER:', submitMessage)
-      
-      try {
-      ws.send(JSON.stringify(submitMessage))
-      } catch (error) {
-        console.error('[useGame] Error sending SUBMIT_ANSWER:', error)
-        submittingAnswerRef.current = false
-        return {
-          ...prev,
-          status: 'error',
-          errorMessage: 'Failed to send answer'
+      // Route based on current phase
+      if (prev.phase === 'steps') {
+        // Step-based answer
+        const submitMessage = {
+          type: 'SUBMIT_STEP_ANSWER',
+          stepIndex: prev.currentStepIndex,
+          answerIndex: answerIndex
         }
+        console.log('[useGame] Sending SUBMIT_STEP_ANSWER:', submitMessage)
+        ws.send(JSON.stringify(submitMessage))
+      } else {
+        // Single-step answer
+        if (answerIndex !== 0 && answerIndex !== 1) {
+          console.error('[useGame] Invalid answer index:', answerIndex)
+          return prev
+        }
+        const submitMessage = {
+          type: 'SUBMIT_ANSWER',
+          answer: answerIndex
+        }
+        console.log('[useGame] Sending SUBMIT_ANSWER:', submitMessage)
+        ws.send(JSON.stringify(submitMessage))
       }
       
-      // Optimistically update UI - show "submitted" immediately
-      // Server will confirm and update waitingForOpponent status via ANSWER_SUBMITTED message
+      // Optimistically update UI
       return {
         ...prev,
         answerSubmitted: true,
-        waitingForOpponent: false // Show "Answer submitted!" first, server will update if opponent hasn't answered
+        waitingForOpponent: false
+      }
+    })
+  }, [])
+
+  const submitEarlyAnswer = useCallback(() => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.error('[useGame] WebSocket not connected')
+      return
+    }
+
+    const submitMessage = {
+      type: 'EARLY_ANSWER'
+    }
+    console.log('[useGame] Sending EARLY_ANSWER:', submitMessage)
+    ws.send(JSON.stringify(submitMessage))
+  }, [])
+
+  const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.error('[useGame] WebSocket not connected')
+      return
+    }
+
+    setState(prev => {
+      if (prev.answerSubmitted) {
+        console.warn('[useGame] Answer already submitted')
+        return prev
+      }
+
+      const submitMessage = {
+        type: 'SUBMIT_STEP_ANSWER',
+        stepIndex,
+        answerIndex
+      }
+      console.log('[useGame] Sending SUBMIT_STEP_ANSWER:', submitMessage)
+      ws.send(JSON.stringify(submitMessage))
+      
+      return {
+        ...prev,
+        answerSubmitted: true,
+        waitingForOpponent: false
       }
     })
   }, [])
@@ -642,6 +688,23 @@ export function useGame(match: MatchRow | null) {
     totalRounds: state.totalRounds,
     timerEndAt: state.timerEndAt,
     timeRemaining: state.timeRemaining,
-    submitAnswer
+    submitAnswer,
+    // Step-based question state
+    phase: state.phase,
+    currentStepIndex: state.currentStepIndex,
+    totalSteps: state.totalSteps,
+    mainQuestionEndsAt: state.mainQuestionEndsAt,
+    stepEndsAt: state.stepEndsAt,
+    mainQuestionTimeLeft: state.mainQuestionTimeLeft,
+    stepTimeLeft: state.stepTimeLeft,
+    currentStep: state.currentStep,
+    submitEarlyAnswer,
+    submitStepAnswer,
+    // Match-level state (rounds system)
+    currentRoundNumber: state.currentRoundNumber,
+    targetRoundsToWin: state.targetRoundsToWin,
+    playerRoundWins: state.playerRoundWins,
+    matchOver: state.matchOver,
+    matchWinnerId: state.matchWinnerId
   }
 }

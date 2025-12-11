@@ -32,7 +32,7 @@ interface RoundStartEvent {
   matchId: string
   roundId: string
   roundIndex: number
-  phase: 'thinking'
+  phase: 'thinking' | 'main_question'
   question: {
     id: string
     title: string
@@ -41,10 +41,12 @@ interface RoundStartEvent {
     level: string
     difficulty: string
     questionText: string
+    stem?: string
     totalMarks: number
     steps: Array<{
       id: string
       question: string
+      prompt?: string
       options: string[]
       correctAnswer: number
       marks: number
@@ -53,7 +55,10 @@ interface RoundStartEvent {
     topicTags?: string[]
     rankTier?: string
   }
-  thinkingEndsAt: string
+  thinkingEndsAt?: string
+  mainQuestionEndsAt?: string
+  mainQuestionTimerSeconds?: number
+  totalSteps?: number
 }
 
 interface QuestionReceivedEvent {
@@ -68,6 +73,29 @@ interface AnswerReceivedEvent {
   waiting_for_opponent: boolean
 }
 
+interface PhaseChangeEvent {
+  type: 'PHASE_CHANGE'
+  matchId: string
+  phase: 'steps'
+  stepIndex: number
+  totalSteps: number
+  stepEndsAt: string
+  currentStep: {
+    id: string
+    prompt: string
+    options: string[]
+    correctAnswer: number
+    marks: number
+  }
+}
+
+interface StepAnswerReceivedEvent {
+  type: 'STEP_ANSWER_RECEIVED'
+  stepIndex: number
+  playerId: string
+  waitingForOpponent: boolean
+}
+
 interface ResultsReceivedEvent {
   type: 'RESULTS_RECEIVED'
   player1_answer: number | null
@@ -76,6 +104,21 @@ interface ResultsReceivedEvent {
   player1_correct: boolean
   player2_correct: boolean
   round_winner: string | null
+  p1Score?: number
+  p2Score?: number
+  stepResults?: Array<{
+    stepIndex: number
+    correctAnswer: number
+    p1AnswerIndex: number | null
+    p2AnswerIndex: number | null
+    p1Marks: number
+    p2Marks: number
+  }>
+  roundNumber?: number
+  targetRoundsToWin?: number
+  playerRoundWins?: { [playerId: string]: number }
+  matchOver?: boolean
+  matchWinnerId?: string | null
 }
 
 interface MatchFinishedEvent {
@@ -96,6 +139,37 @@ const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 
 // Track timeouts per match (for cleanup)
 const matchTimeouts = new Map<string, number>() // matchId -> timeoutId
+
+// Track game state for multi-step questions
+interface GameState {
+  currentPhase: 'question' | 'main_question' | 'steps' | 'result'
+  currentStepIndex: number
+  mainQuestionTimer: number | null // timeout ID
+  stepTimers: Map<number, number> // stepIndex -> timeout ID
+  mainQuestionEndsAt: string | null
+  stepEndsAt: string | null
+  playerStepAnswers: Map<string, Map<number, number>> // playerId -> stepIndex -> answerIndex
+  currentQuestion: any | null
+  p1Id: string | null
+  p2Id: string | null
+  eliminatedPlayers: Set<string> // playerIds eliminated for this round
+  roundNumber: number
+  targetRoundsToWin: number
+  playerRoundWins: Map<string, number> // playerId -> round wins
+}
+
+const gameStates = new Map<string, GameState>() // matchId -> GameState
+
+// Track match-level state (round wins, etc.) for all matches
+interface MatchState {
+  roundNumber: number
+  targetRoundsToWin: number
+  playerRoundWins: Map<string, number> // playerId -> round wins
+  p1Id: string | null
+  p2Id: string | null
+}
+
+const matchStates = new Map<string, MatchState>() // matchId -> MatchState
 
 /**
  * Broadcast message to all sockets for a match
@@ -155,13 +229,8 @@ async function selectAndBroadcastQuestion(
     }
 
     // Safety checks
-    // Allow both 'pending' (new match) and 'in_progress' (subsequent rounds)
-    if (!match || match.winner_id) {
+    if (!match || match.status !== 'in_progress' || match.winner_id) {
       console.warn(`[${matchId}] ⚠️ Match not ready for question selection (status: ${match?.status}, winner: ${match?.winner_id})`)
-      return
-    }
-    if (match.status !== 'pending' && match.status !== 'in_progress') {
-      console.warn(`[${matchId}] ⚠️ Match status not playable (status: ${match.status})`)
       return
     }
 
@@ -311,44 +380,194 @@ async function selectAndBroadcastQuestion(
       return
     }
 
-    // Timeout for answer submission (60 seconds / 1 minute)
-    const TIMEOUT_SECONDS = 60
-    
-    // Calculate timer end time (60 seconds from now)
-    const timerEndAt = new Date(Date.now() + TIMEOUT_SECONDS * 1000).toISOString()
-    
-    const questionReceivedEvent: QuestionReceivedEvent = {
-      type: 'QUESTION_RECEIVED',
-      question: questionDb, // Send raw DB object
-      timer_end_at: timerEndAt
+    // Parse steps to check if multi-step
+    let steps: any[] = []
+    try {
+      steps = Array.isArray(questionDb.steps) ? questionDb.steps : JSON.parse(questionDb.steps ?? '[]')
+    } catch {
+      steps = []
     }
-    
-    let sentCount = 0
-    matchSockets.forEach((socket, index) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        try {
-          socket.send(JSON.stringify(questionReceivedEvent))
-          sentCount++
-          console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
-        } catch (error) {
-          console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
-        }
-      }
-    })
-    
-    console.log(`[${matchId}] 📊 QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
-    
-    // Update match status
-    await supabase
+
+    const isMultiStep = Array.isArray(steps) && steps.length >= 2
+
+    // Get match players for game state
+    const { data: matchData } = await supabase
       .from('matches')
-      .update({ status: 'in_progress' })
+      .select('player1_id, player2_id')
       .eq('id', matchId)
-      .neq('status', 'in_progress')
+      .single()
 
-    console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
+    if (isMultiStep) {
+      // Multi-step question flow
+      console.log(`[${matchId}] 📚 Multi-step question detected (${steps.length} steps)`)
+      
+      // Get or initialize match-level state
+      let matchState = matchStates.get(matchId)
+      if (!matchState) {
+        // First round - initialize match state
+        matchState = {
+          roundNumber: 1,
+          targetRoundsToWin: 4,
+          playerRoundWins: new Map(),
+          p1Id: matchData?.player1_id || null,
+          p2Id: matchData?.player2_id || null
+        }
+        matchStates.set(matchId, matchState)
+      } else {
+        // New round - increment round number
+        matchState.roundNumber = (matchState.roundNumber || 0) + 1
+      }
 
-    // Start timeout for answer submission (60 seconds / 1 minute)
-    const timeoutId = setTimeout(async () => {
+      // Initialize or reset game state for this round
+      let gameState = gameStates.get(matchId)
+      if (!gameState) {
+        gameState = {
+          currentPhase: 'main_question',
+          currentStepIndex: 0,
+          mainQuestionTimer: null,
+          stepTimers: new Map(),
+          mainQuestionEndsAt: null,
+          stepEndsAt: null,
+          playerStepAnswers: new Map(),
+          currentQuestion: questionDb,
+          p1Id: matchData?.player1_id || null,
+          p2Id: matchData?.player2_id || null,
+          eliminatedPlayers: new Set(),
+          roundNumber: matchState.roundNumber,
+          targetRoundsToWin: matchState.targetRoundsToWin,
+          playerRoundWins: new Map(matchState.playerRoundWins) // Copy match-level wins
+        }
+        gameStates.set(matchId, gameState)
+      } else {
+        // New round - reset per-round state but keep match state
+        gameState.currentPhase = 'main_question'
+        gameState.currentStepIndex = 0
+        gameState.mainQuestionTimer = null
+        gameState.stepTimers.clear()
+        gameState.mainQuestionEndsAt = null
+        gameState.stepEndsAt = null
+        gameState.playerStepAnswers.clear()
+        gameState.currentQuestion = questionDb
+        gameState.eliminatedPlayers.clear()
+        gameState.roundNumber = matchState.roundNumber
+        gameState.targetRoundsToWin = matchState.targetRoundsToWin
+        gameState.playerRoundWins = new Map(matchState.playerRoundWins) // Sync with match state
+      }
+
+      // Read main question timer from metadata or default to 60 seconds
+      const mainQuestionTimerSeconds = questionDb.main_question_timer_seconds || 60
+      const mainQuestionEndsAt = new Date(Date.now() + mainQuestionTimerSeconds * 1000).toISOString()
+      gameState.mainQuestionEndsAt = mainQuestionEndsAt
+
+      // Get round number
+      const { data: roundData } = await supabase
+        .from('matches')
+        .select('round_number')
+        .eq('id', matchId)
+        .single()
+
+      const roundStartEvent: RoundStartEvent = {
+        type: 'ROUND_START',
+        matchId,
+        roundId: matchId, // Using matchId as roundId for now
+        roundIndex: roundData?.round_number || 0,
+        phase: 'main_question',
+        question: {
+          id: questionDb.id,
+          title: questionDb.title,
+          subject: questionDb.subject,
+          chapter: questionDb.chapter,
+          level: questionDb.level,
+          difficulty: questionDb.difficulty,
+          questionText: questionDb.question_text || questionDb.stem || '',
+          stem: questionDb.question_text || questionDb.stem || questionDb.title,
+          totalMarks: questionDb.total_marks || 0,
+          steps: steps.map((s: any) => ({
+            id: s.id || '',
+            question: s.prompt || s.question || '',
+            prompt: s.prompt || s.question || '',
+            options: Array.isArray(s.options) ? s.options : [],
+            correctAnswer: s.correct_answer?.correctIndex ?? s.correctAnswer ?? 0,
+            marks: s.marks || 0,
+            explanation: s.explanation || undefined
+          })),
+          topicTags: questionDb.topic_tags || [],
+          rankTier: questionDb.rank_tier || undefined
+        },
+        mainQuestionEndsAt,
+        mainQuestionTimerSeconds,
+        totalSteps: steps.length
+      }
+
+      broadcastToMatch(matchId, roundStartEvent)
+
+      // Start main question timer
+      const mainTimerId = setTimeout(() => {
+        transitionToSteps(matchId, supabase)
+      }, mainQuestionTimerSeconds * 1000) as unknown as number
+      
+      gameState.mainQuestionTimer = mainTimerId
+      console.log(`[${matchId}] ⏰ Started main question timer (${mainQuestionTimerSeconds}s)`)
+    } else {
+      // Single-step question - use existing flow
+      console.log(`[${matchId}] 📝 Single-step question - using existing flow`)
+      
+      // Initialize or get match state for single-step questions
+      // Don't increment round number here - it will be incremented after results
+      let matchState = matchStates.get(matchId)
+      if (!matchState) {
+        // First round - initialize match state
+        matchState = {
+          roundNumber: 1,
+          targetRoundsToWin: 4,
+          playerRoundWins: new Map(),
+          p1Id: matchData?.player1_id || null,
+          p2Id: matchData?.player2_id || null
+        }
+        matchStates.set(matchId, matchState)
+      }
+      
+      // Clear any existing game state (multi-step state)
+      cleanupGameState(matchId)
+
+      // Timeout for answer submission (60 seconds / 1 minute)
+      const TIMEOUT_SECONDS = 60
+      
+      // Calculate timer end time (60 seconds from now)
+      const timerEndAt = new Date(Date.now() + TIMEOUT_SECONDS * 1000).toISOString()
+      
+      const questionReceivedEvent: QuestionReceivedEvent = {
+        type: 'QUESTION_RECEIVED',
+        question: questionDb, // Send raw DB object
+        timer_end_at: timerEndAt
+      }
+      
+      let sentCount = 0
+      matchSockets.forEach((socket, index) => {
+        if (socket.readyState === WebSocket.OPEN) {
+          try {
+            socket.send(JSON.stringify(questionReceivedEvent))
+            sentCount++
+            console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
+          } catch (error) {
+            console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
+          }
+        }
+      })
+      
+      console.log(`[${matchId}] 📊 QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
+      
+      // Update match status
+      await supabase
+        .from('matches')
+        .update({ status: 'in_progress' })
+        .eq('id', matchId)
+        .neq('status', 'in_progress')
+
+      console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
+
+      // Start timeout for answer submission (60 seconds / 1 minute)
+      const timeoutId = setTimeout(async () => {
       console.log(`[${matchId}] ⏰ Timeout triggered after ${TIMEOUT_SECONDS}s`)
       
       const { data: match } = await supabase
@@ -430,6 +649,7 @@ async function selectAndBroadcastQuestion(
     
     matchTimeouts.set(matchId, timeoutId)
     console.log(`[${matchId}] ⏰ Started ${TIMEOUT_SECONDS}s timeout for answer submission`)
+    }
   } catch (error) {
     console.error(`[${matchId}] ❌ Error in atomic question selection:`, error)
     
@@ -542,6 +762,409 @@ async function checkAndBroadcastBothConnected(
 }
 
 /**
+ * Cleanup game state for a match
+ */
+function cleanupGameState(matchId: string): void {
+  const state = gameStates.get(matchId)
+  if (state) {
+    if (state.mainQuestionTimer) {
+      clearTimeout(state.mainQuestionTimer)
+    }
+    state.stepTimers.forEach((timerId) => {
+      clearTimeout(timerId)
+    })
+    gameStates.delete(matchId)
+  }
+  // Also cleanup match state if match is over
+  matchStates.delete(matchId)
+}
+
+/**
+ * Transition from main question phase to steps phase
+ */
+async function transitionToSteps(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const state = gameStates.get(matchId)
+  if (!state || state.currentPhase !== 'main_question') {
+    console.warn(`[${matchId}] ⚠️ Cannot transition to steps - invalid state`)
+    return
+  }
+
+  // Clear main question timer
+  if (state.mainQuestionTimer) {
+    clearTimeout(state.mainQuestionTimer)
+    state.mainQuestionTimer = null
+  }
+
+  state.currentPhase = 'steps'
+  state.currentStepIndex = 0
+  // Reset eliminated players for new round (should already be clear, but ensure it)
+  state.eliminatedPlayers.clear()
+
+  const steps = Array.isArray(state.currentQuestion.steps) 
+    ? state.currentQuestion.steps 
+    : JSON.parse(state.currentQuestion.steps ?? '[]')
+  
+  if (steps.length === 0) {
+    console.error(`[${matchId}] ❌ No steps found`)
+    return
+  }
+
+  const currentStep = steps[0]
+  const stepEndsAt = new Date(Date.now() + 15 * 1000).toISOString()
+  state.stepEndsAt = stepEndsAt
+
+  const phaseChangeEvent: PhaseChangeEvent = {
+    type: 'PHASE_CHANGE',
+    matchId,
+    phase: 'steps',
+    stepIndex: 0,
+    totalSteps: steps.length,
+    stepEndsAt,
+    currentStep: {
+      id: currentStep.id || '',
+      prompt: currentStep.prompt || currentStep.question || '',
+      options: Array.isArray(currentStep.options) ? currentStep.options : [],
+      correctAnswer: currentStep.correct_answer?.correctIndex ?? currentStep.correctAnswer ?? 0,
+      marks: currentStep.marks || 0
+    }
+  }
+
+  broadcastToMatch(matchId, phaseChangeEvent)
+
+  // Start step timer - on timeout, check for eliminations
+  const stepTimerId = setTimeout(() => {
+    checkStepTimeout(matchId, 0, supabase)
+  }, 15 * 1000) as unknown as number
+  
+  state.stepTimers.set(0, stepTimerId)
+  console.log(`[${matchId}] ⏰ Started step 0 timer (15s)`)
+}
+
+/**
+ * Check for step timeout and eliminate players who didn't answer
+ */
+async function checkStepTimeout(
+  matchId: string,
+  stepIndex: number,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const state = gameStates.get(matchId)
+  if (!state || state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
+    return
+  }
+
+  const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
+  const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
+
+  // Eliminate players who didn't answer this step
+  if (!p1Answers.has(stepIndex) && state.p1Id) {
+    state.eliminatedPlayers.add(state.p1Id)
+    console.log(`[${matchId}] ⚠️ Player 1 eliminated - no answer for step ${stepIndex}`)
+  }
+  if (!p2Answers.has(stepIndex) && state.p2Id) {
+    state.eliminatedPlayers.add(state.p2Id)
+    console.log(`[${matchId}] ⚠️ Player 2 eliminated - no answer for step ${stepIndex}`)
+  }
+
+  // Move to next step (or results)
+  await moveToNextStep(matchId, supabase)
+}
+
+/**
+ * Move to next step or calculate results
+ */
+async function moveToNextStep(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const state = gameStates.get(matchId)
+  if (!state || state.currentPhase !== 'steps') {
+    console.warn(`[${matchId}] ⚠️ Cannot move to next step - invalid state`)
+    return
+  }
+
+  // Clear current step timer
+  const currentTimer = state.stepTimers.get(state.currentStepIndex)
+  if (currentTimer) {
+    clearTimeout(currentTimer)
+    state.stepTimers.delete(state.currentStepIndex)
+  }
+
+  const steps = Array.isArray(state.currentQuestion.steps) 
+    ? state.currentQuestion.steps 
+    : JSON.parse(state.currentQuestion.steps ?? '[]')
+  
+  const nextStepIndex = state.currentStepIndex + 1
+
+  if (nextStepIndex >= steps.length) {
+    // All steps done - calculate results
+    await calculateStepResults(matchId, supabase)
+    return
+  }
+
+  // Move to next step
+  state.currentStepIndex = nextStepIndex
+  const currentStep = steps[nextStepIndex]
+  const stepEndsAt = new Date(Date.now() + 15 * 1000).toISOString()
+  state.stepEndsAt = stepEndsAt
+
+  const phaseChangeEvent: PhaseChangeEvent = {
+    type: 'PHASE_CHANGE',
+    matchId,
+    phase: 'steps',
+    stepIndex: nextStepIndex,
+    totalSteps: steps.length,
+    stepEndsAt,
+    currentStep: {
+      id: currentStep.id || '',
+      prompt: currentStep.prompt || currentStep.question || '',
+      options: Array.isArray(currentStep.options) ? currentStep.options : [],
+      correctAnswer: currentStep.correct_answer?.correctIndex ?? currentStep.correctAnswer ?? 0,
+      marks: currentStep.marks || 0
+    }
+  }
+
+  broadcastToMatch(matchId, phaseChangeEvent)
+
+  // Start timer for next step - on timeout, check for eliminations
+  const stepTimerId = setTimeout(() => {
+    checkStepTimeout(matchId, nextStepIndex, supabase)
+  }, 15 * 1000) as unknown as number
+  
+  state.stepTimers.set(nextStepIndex, stepTimerId)
+  console.log(`[${matchId}] ⏰ Started step ${nextStepIndex} timer (15s)`)
+}
+
+/**
+ * Calculate results for all steps
+ */
+async function calculateStepResults(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const state = gameStates.get(matchId)
+  if (!state) {
+    console.warn(`[${matchId}] ⚠️ Cannot calculate results - no game state`)
+    return
+  }
+
+  // Clear all timers
+  state.stepTimers.forEach((timerId) => {
+    clearTimeout(timerId)
+  })
+  state.stepTimers.clear()
+
+  const steps = Array.isArray(state.currentQuestion.steps) 
+    ? state.currentQuestion.steps 
+    : JSON.parse(state.currentQuestion.steps ?? '[]')
+  
+  const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
+  const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
+
+  let p1Score = 0
+  let p2Score = 0
+  const stepResults: Array<{
+    stepIndex: number
+    correctAnswer: number
+    p1AnswerIndex: number | null
+    p2AnswerIndex: number | null
+    p1Marks: number
+    p2Marks: number
+  }> = []
+
+  steps.forEach((step: any, index: number) => {
+    const correctAnswer = step.correct_answer?.correctIndex ?? step.correctAnswer ?? 0
+    const marks = step.marks || 0
+
+    const p1Answer = p1Answers.get(index) ?? null
+    const p2Answer = p2Answers.get(index) ?? null
+
+    const p1Correct = p1Answer === correctAnswer
+    const p2Correct = p2Answer === correctAnswer
+
+    const p1StepMarks = p1Correct ? marks : 0
+    const p2StepMarks = p2Correct ? marks : 0
+
+    p1Score += p1StepMarks
+    p2Score += p2StepMarks
+
+    stepResults.push({
+      stepIndex: index,
+      correctAnswer,
+      p1AnswerIndex: p1Answer,
+      p2AnswerIndex: p2Answer,
+      p1Marks: p1StepMarks,
+      p2Marks: p2StepMarks
+    })
+  })
+
+  // Apply elimination penalty: eliminated players get 0 score
+  const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
+  const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
+  
+  if (p1Eliminated) {
+    p1Score = 0
+    console.log(`[${matchId}] ⚠️ Player 1 eliminated - score set to 0`)
+  }
+  if (p2Eliminated) {
+    p2Score = 0
+    console.log(`[${matchId}] ⚠️ Player 2 eliminated - score set to 0`)
+  }
+
+  // Determine round winner
+  const winnerId = p1Score > p2Score ? state.p1Id : p2Score > p1Score ? state.p2Id : null
+
+  // Update round wins in both game state and match state
+  if (winnerId) {
+    const currentWins = state.playerRoundWins.get(winnerId) || 0
+    state.playerRoundWins.set(winnerId, currentWins + 1)
+    
+    // Also update match-level state
+    const matchState = matchStates.get(matchId)
+    if (matchState) {
+      matchState.playerRoundWins.set(winnerId, currentWins + 1)
+    }
+    
+    console.log(`[${matchId}] 🏆 Round ${state.roundNumber} won by ${winnerId} (now has ${currentWins + 1} wins)`)
+  }
+
+  // Check if match is over
+  const p1Wins = state.playerRoundWins.get(state.p1Id || '') || 0
+  const p2Wins = state.playerRoundWins.get(state.p2Id || '') || 0
+  const targetWins = state.targetRoundsToWin || 4
+  const matchOver = p1Wins >= targetWins || p2Wins >= targetWins
+  const matchWinnerId = matchOver ? (p1Wins >= targetWins ? state.p1Id : state.p2Id) : null
+
+  state.currentPhase = 'result'
+
+  // Convert playerRoundWins Map to object for JSON serialization
+  const playerRoundWinsObj: { [playerId: string]: number } = {}
+  state.playerRoundWins.forEach((wins, playerId) => {
+    playerRoundWinsObj[playerId] = wins
+  })
+
+  const resultsEvent: ResultsReceivedEvent = {
+    type: 'RESULTS_RECEIVED',
+    player1_answer: null, // Not used for multi-step
+    player2_answer: null, // Not used for multi-step
+    correct_answer: 0, // Not used for multi-step
+    player1_correct: p1Score > p2Score,
+    player2_correct: p2Score > p1Score,
+    round_winner: winnerId,
+    p1Score,
+    p2Score,
+    stepResults,
+    roundNumber: state.roundNumber,
+    targetRoundsToWin: targetWins,
+    playerRoundWins: playerRoundWinsObj,
+    matchOver,
+    matchWinnerId
+  }
+
+  broadcastToMatch(matchId, resultsEvent)
+  console.log(`[${matchId}] ✅ Step results calculated - P1: ${p1Score}, P2: ${p2Score}, Round Winner: ${winnerId || 'Tie'}, Match Over: ${matchOver}`)
+
+  if (matchOver) {
+    // Match finished - cleanup and don't start next round
+    console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
+    matchStates.delete(matchId)
+    setTimeout(() => {
+      cleanupGameState(matchId)
+    }, 5000) // Give time for UI to show final results
+  } else {
+    // Transition to next round after delay
+    setTimeout(async () => {
+      await handleRoundTransition(matchId, supabase)
+      // Don't cleanup game state - we need it for next round
+    }, 3000)
+  }
+}
+
+/**
+ * Handle EARLY_ANSWER message (skip main question phase)
+ */
+async function handleEarlyAnswer(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const state = gameStates.get(matchId)
+  if (!state || state.currentPhase !== 'main_question') {
+    console.warn(`[${matchId}] ⚠️ Cannot handle early answer - invalid state`)
+    return
+  }
+
+  console.log(`[${matchId}] ⚡ Early answer received - transitioning to steps`)
+  await transitionToSteps(matchId, supabase)
+}
+
+/**
+ * Handle SUBMIT_STEP_ANSWER message
+ */
+async function handleStepAnswer(
+  matchId: string,
+  playerId: string,
+  stepIndex: number,
+  answerIndex: number,
+  socket: WebSocket,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const state = gameStates.get(matchId)
+  if (!state || state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'Invalid step answer submission'
+    } as GameErrorEvent))
+    return
+  }
+
+  // Check if player is eliminated - ignore their answer
+  if (state.eliminatedPlayers.has(playerId)) {
+    console.log(`[${matchId}] ⚠️ Ignoring answer from eliminated player ${playerId}`)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'You have been eliminated from this round'
+    } as GameErrorEvent))
+    return
+  }
+
+  // Store answer
+  if (!state.playerStepAnswers.has(playerId)) {
+    state.playerStepAnswers.set(playerId, new Map())
+  }
+  state.playerStepAnswers.get(playerId)!.set(stepIndex, answerIndex)
+
+  console.log(`[${matchId}] ✅ Step ${stepIndex} answer stored for player ${playerId}: ${answerIndex}`)
+
+  // Check if both players have either answered OR are eliminated
+  const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
+  const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
+  const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
+  const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
+  const p1Done = p1Answers.has(stepIndex) || p1Eliminated
+  const p2Done = p2Answers.has(stepIndex) || p2Eliminated
+  const bothDone = p1Done && p2Done
+
+  // Send confirmation
+  const stepAnswerEvent: StepAnswerReceivedEvent = {
+    type: 'STEP_ANSWER_RECEIVED',
+    stepIndex,
+    playerId,
+    waitingForOpponent: !bothDone
+  }
+
+  socket.send(JSON.stringify(stepAnswerEvent))
+
+  if (bothDone) {
+    // Both players done (answered or eliminated) - move to next step immediately
+    console.log(`[${matchId}] ⚡ Both players done with step ${stepIndex} - moving to next step`)
+    await moveToNextStep(matchId, supabase)
+  }
+}
+
+/**
  * Handle SUBMIT_ANSWER message
  * - Validates answer
  * - Calls atomic RPC
@@ -566,10 +1189,10 @@ async function handleSubmitAnswer(
     return
   }
 
-  // Get match to determine player role and validate player is in match
+  // Get match to determine player role
   const { data: match, error: matchError } = await supabase
     .from('matches')
-    .select('player1_id, player2_id, status')
+    .select('player1_id, player2_id')
     .eq('id', matchId)
     .single()
 
@@ -578,16 +1201,6 @@ async function handleSubmitAnswer(
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: 'Match not found'
-    } as GameErrorEvent))
-    return
-  }
-
-  // Validate player is part of match
-  if (match.player1_id !== playerId && match.player2_id !== playerId) {
-    console.error(`[${matchId}] ❌ Player ${playerId} not in match`)
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'You are not part of this match'
     } as GameErrorEvent))
     return
   }
@@ -651,6 +1264,52 @@ async function handleSubmitAnswer(
       .single()
 
     if (matchResults) {
+      // Get match state (should already be initialized in selectAndBroadcastQuestion)
+      const matchState = matchStates.get(matchId)
+      if (!matchState) {
+        console.error(`[${matchId}] ⚠️ Match state not found for single-step question`)
+        // Fallback - create it now
+        const { data: matchData } = await supabase
+          .from('matches')
+          .select('player1_id, player2_id')
+          .eq('id', matchId)
+          .single()
+        const fallbackState: MatchState = {
+          roundNumber: 1,
+          targetRoundsToWin: 4,
+          playerRoundWins: new Map(),
+          p1Id: matchData?.player1_id || null,
+          p2Id: matchData?.player2_id || null
+        }
+        matchStates.set(matchId, fallbackState)
+        await handleRoundTransition(matchId, supabase)
+        return
+      }
+
+      // Update round wins
+      const winnerId = matchResults.round_winner
+      if (winnerId) {
+        const currentWins = matchState.playerRoundWins.get(winnerId) || 0
+        matchState.playerRoundWins.set(winnerId, currentWins + 1)
+        console.log(`[${matchId}] 🏆 Round ${matchState.roundNumber} won by ${winnerId} (now has ${currentWins + 1} wins)`)
+      }
+      
+      // Increment round number for next round (if match continues)
+      const currentRoundNum = matchState.roundNumber
+
+      // Check if match is over
+      const p1Wins = matchState.playerRoundWins.get(matchState.p1Id || '') || 0
+      const p2Wins = matchState.playerRoundWins.get(matchState.p2Id || '') || 0
+      const targetWins = matchState.targetRoundsToWin || 4
+      const matchOver = p1Wins >= targetWins || p2Wins >= targetWins
+      const matchWinnerId = matchOver ? (p1Wins >= targetWins ? matchState.p1Id : matchState.p2Id) : null
+
+      // Convert playerRoundWins Map to object for JSON serialization
+      const playerRoundWinsObj: { [playerId: string]: number } = {}
+      matchState.playerRoundWins.forEach((wins, playerId) => {
+        playerRoundWinsObj[playerId] = wins
+      })
+
       const resultsEvent: ResultsReceivedEvent = {
         type: 'RESULTS_RECEIVED',
         player1_answer: matchResults.player1_answer,
@@ -658,13 +1317,26 @@ async function handleSubmitAnswer(
         correct_answer: matchResults.correct_answer!,
         player1_correct: matchResults.player1_correct!,
         player2_correct: matchResults.player2_correct!,
-        round_winner: matchResults.round_winner
+        round_winner: matchResults.round_winner,
+        roundNumber: currentRoundNum,
+        targetRoundsToWin: targetWins,
+        playerRoundWins: playerRoundWinsObj,
+        matchOver,
+        matchWinnerId
       }
 
       broadcastToMatch(matchId, resultsEvent)
       
-      // Stage 3: After RESULTS_RECEIVED, check match state and transition
-      await handleRoundTransition(matchId, supabase)
+      if (matchOver) {
+        // Match finished - cleanup and don't start next round
+        console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
+        matchStates.delete(matchId)
+      } else {
+        // Increment round number for next round
+        matchState.roundNumber = currentRoundNum + 1
+        // Stage 3: After RESULTS_RECEIVED, check match state and transition
+        await handleRoundTransition(matchId, supabase)
+      }
     }
   } else {
     // Only one answered - broadcast "waiting" to both
@@ -746,26 +1418,7 @@ async function handleRoundTransition(
     return
   }
   
-  console.log(`[${matchId}] ✅ Round reset successful - waiting before next question...`)
-  
-  // Add delay to allow UI to display results before starting next round
-  // This prevents the question from restarting while results are being shown
-  const RESULTS_DISPLAY_DELAY_MS = 3000 // 3 seconds
-  await new Promise(resolve => setTimeout(resolve, RESULTS_DISPLAY_DELAY_MS))
-  
-  // Re-check match state before starting next round (match might have finished during delay)
-  const { data: recheckMatch } = await supabase
-    .from('matches')
-    .select('winner_id, status')
-    .eq('id', matchId)
-    .single()
-  
-  if (recheckMatch?.winner_id !== null) {
-    console.log(`[${matchId}] Match finished during delay, skipping next round`)
-    return
-  }
-  
-  console.log(`[${matchId}] Starting next question after delay...`)
+  console.log(`[${matchId}] ✅ Round reset successful - selecting next question...`)
   
   // Select and broadcast next question
   await selectAndBroadcastQuestion(matchId, supabase)
@@ -834,12 +1487,7 @@ async function handleJoinMatch(
   const playerRole = isPlayer1 ? 'player1' : 'player2'
   const connectionColumn = isPlayer1 ? 'player1_connected_at' : 'player2_connected_at'
 
-  // 3. Check if player is already connected (idempotent operation)
-  const currentConnectionTime = isPlayer1 ? match.player1_connected_at : match.player2_connected_at
-  const isAlreadyConnected = currentConnectionTime !== null
-
-  // 4. Update database to mark this player as connected (works across instances!)
-  // This is idempotent - updating again is safe and just refreshes the timestamp
+  // 3. Update database to mark this player as connected (works across instances!)
   const { error: updateError } = await supabase
     .from('matches')
     .update({
@@ -856,11 +1504,7 @@ async function handleJoinMatch(
     return
   }
 
-  if (isAlreadyConnected) {
-    console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) already connected - idempotent JOIN_MATCH`)
-  } else {
   console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connection recorded in database`)
-  }
 
   // 4. Send connection confirmation
   socket.send(JSON.stringify({
@@ -872,6 +1516,9 @@ async function handleJoinMatch(
   console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected and confirmed`)
 
   // 5. Check if both players are connected (query database) and broadcast if so
+  // Add a small delay to ensure database update is committed
+  await new Promise(resolve => setTimeout(resolve, 200))
+  
   // Track if we've already sent BOTH_CONNECTED
   let bothConnectedSent = false
   let checkInterval: number | null = null
@@ -922,15 +1569,14 @@ async function handleJoinMatch(
     return false
   }
   
-  // Immediate check (no delay - database update should be committed synchronously)
+  // Initial check
   const alreadyBothConnected = await checkConnection()
   
   // Set up periodic check only if not already both connected
   // This handles the case where the other player connects to a different instance
-  // Use faster polling (100ms) for quicker detection
   if (!alreadyBothConnected) {
     let checkCount = 0
-    const maxChecks = 50 // 50 checks × 100ms = 5 seconds max (faster detection)
+    const maxChecks = 20 // 20 checks × 500ms = 10 seconds max
     
     checkInterval = setInterval(async () => {
       checkCount++
@@ -960,7 +1606,7 @@ async function handleJoinMatch(
         clearInterval(checkInterval)
         checkInterval = null
       }
-    }, 100) as unknown as number // Faster polling: 100ms instead of 500ms
+    }, 500) as unknown as number // Deno uses number for intervals
 
     // Store interval ID on socket for cleanup
     ;(socket as any)._checkInterval = checkInterval
@@ -1041,12 +1687,31 @@ Deno.serve(async (req) => {
       const message = JSON.parse(event.data)
       console.log(`[${matchId}] 📨 Parsed message:`, message)
 
-      if (message.type === 'JOIN_MATCH') {
+      if (message.type === 'PING') {
+        // Lightweight heartbeat - respond with PONG (no game logic)
+        try {
+          socket.send(JSON.stringify({ type: 'PONG' }))
+        } catch (_err) {
+          // Ignore send errors for heartbeat
+        }
+      } else if (message.type === 'JOIN_MATCH') {
         console.log(`[${matchId}] Processing JOIN_MATCH from user ${user.id}`)
         await handleJoinMatch(matchId, user.id, socket, supabase)
+      } else if (message.type === 'EARLY_ANSWER') {
+        console.log(`[${matchId}] Processing EARLY_ANSWER from user ${user.id}`)
+        await handleEarlyAnswer(matchId, supabase)
+      } else if (message.type === 'SUBMIT_STEP_ANSWER') {
+        console.log(`[${matchId}] Processing SUBMIT_STEP_ANSWER from user ${user.id}`)
+        await handleStepAnswer(matchId, user.id, message.stepIndex, message.answerIndex, socket, supabase)
       } else if (message.type === 'SUBMIT_ANSWER') {
         console.log(`[${matchId}] Processing SUBMIT_ANSWER from user ${user.id}`)
-        await handleSubmitAnswer(matchId, user.id, message.answer, socket, supabase)
+        // Check if we're in step phase - if so, route to step handler
+        const state = gameStates.get(matchId)
+        if (state && state.currentPhase === 'steps') {
+          await handleStepAnswer(matchId, user.id, state.currentStepIndex, message.answer, socket, supabase)
+        } else {
+          await handleSubmitAnswer(matchId, user.id, message.answer, socket, supabase)
+        }
       } else {
         console.warn(`[${matchId}] Unknown message type: ${message.type}`)
         socket.send(JSON.stringify({
@@ -1100,6 +1765,8 @@ Deno.serve(async (req) => {
       matchSockets.delete(socket)
       if (matchSockets.size === 0) {
         sockets.delete(matchId)
+        // Cleanup game state when all sockets disconnected
+        cleanupGameState(matchId)
       }
     }
   }

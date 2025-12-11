@@ -3,7 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { MatchRow } from '@/types/schema';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface MatchmakingState {
   status: 'idle' | 'searching' | 'matched';
@@ -20,19 +19,78 @@ export function useMatchmaking() {
   });
 
   const isSearchingRef = useRef(false);
-  const channelRef = useRef<RealtimeChannel | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const matchmakingStartTimeRef = useRef<Date | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null); // Fallback polling
 
-  // Use Realtime subscription for instant match detection
+  const checkForMatch = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('[MATCHMAKING] Poll: No user, skipping check');
+        return;
+      }
+
+      // Check if user has a match in matches table
+      const { data: matches, error } = await supabase
+        .from('matches')
+        .select('*')
+        .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('[MATCHMAKING] Poll: Error checking for match:', error);
+        return;
+      }
+
+      if (matches && matches.length > 0) {
+        const match = matches[0] as MatchRow;
+        
+        // Only navigate if match was created after we started searching
+        if (matchmakingStartTimeRef.current) {
+          const matchCreatedAt = new Date(match.created_at);
+          if (matchCreatedAt < matchmakingStartTimeRef.current) {
+            console.log('[MATCHMAKING] Poll: Found old match, ignoring...', {
+              matchId: match.id,
+              matchCreatedAt,
+              startedSearchingAt: matchmakingStartTimeRef.current,
+            });
+            return;
+          }
+        }
+        
+        console.log(`[MATCHMAKING] ✅ Poll detected fresh match, navigating...`, match.id);
+        
+        // Clear polling
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+
+        setState({
+          status: 'matched',
+          match: match,
+          error: null,
+        });
+
+        toast.success('Match found! Starting battle...');
+        
+        navigate(`/online-battle-new/${match.id}`, {
+          state: { match },
+        });
+      } else {
+        console.log('[MATCHMAKING] Poll: No match found yet, continuing to wait...');
+      }
+    } catch (error) {
+      console.error('[MATCHMAKING] Poll: Error in polling:', error);
+    }
+  }, [navigate]);
+
+  // Poll for matches when in searching state
   useEffect(() => {
     if (state.status !== 'searching') {
-      // Cleanup subscription
-      if (channelRef.current) {
-        channelRef.current.unsubscribe();
-        channelRef.current = null;
-      }
-      // Cleanup fallback polling
+      // Clear any existing polling
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
@@ -40,159 +98,29 @@ export function useMatchmaking() {
       return;
     }
 
-    const setupRealtimeSubscription = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          console.log('[MATCHMAKING] No user, skipping subscription');
-          return;
-        }
-
-        console.log('[MATCHMAKING] Setting up Realtime subscription for user', user.id);
-
-        // Subscribe to matches table INSERT events where user is player1 or player2
-        const channel = supabase
-          .channel(`matchmaking-${user.id}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'matches',
-              filter: `player1_id=eq.${user.id}`,
-            },
-            (payload) => {
-              console.log('[MATCHMAKING] ✅ Realtime: Match INSERT detected (as player1)', payload.new);
-              handleMatchFound(payload.new as MatchRow);
-            }
-          )
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'matches',
-              filter: `player2_id=eq.${user.id}`,
-            },
-            (payload) => {
-              console.log('[MATCHMAKING] ✅ Realtime: Match INSERT detected (as player2)', payload.new);
-              handleMatchFound(payload.new as MatchRow);
-            }
-          )
-          .subscribe((status) => {
-            console.log('[MATCHMAKING] Realtime subscription status:', status);
-            if (status === 'SUBSCRIBED') {
-              console.log('[MATCHMAKING] ✅ Realtime subscription active');
-            } else if (status === 'CHANNEL_ERROR') {
-              console.error('[MATCHMAKING] Realtime subscription error, falling back to polling');
-              startFallbackPolling();
-            }
-          });
-
-        channelRef.current = channel;
-
-        // Also set up fallback polling in case Realtime fails (every 1 second as backup)
-        startFallbackPolling();
-
-      } catch (error) {
-        console.error('[MATCHMAKING] Error setting up Realtime:', error);
-        startFallbackPolling();
-      }
-    };
-
-    const handleMatchFound = (match: MatchRow) => {
-      // Only navigate if match was created after we started searching
-      if (matchmakingStartTimeRef.current) {
-        const matchCreatedAt = new Date(match.created_at);
-        if (matchCreatedAt < matchmakingStartTimeRef.current) {
-          console.log('[MATCHMAKING] Found old match, ignoring...', {
-            matchId: match.id,
-            matchCreatedAt,
-            startedSearchingAt: matchmakingStartTimeRef.current,
-          });
-          return;
-        }
-      }
-
-      // Only process pending matches
-      if (match.status !== 'pending') {
-        console.log('[MATCHMAKING] Match is not pending, ignoring...', match.status);
-        return;
-      }
-
-      console.log(`[MATCHMAKING] ✅ Match found! Navigating...`, match.id);
-
-      // Cleanup
-      if (channelRef.current) {
-        channelRef.current.unsubscribe();
-        channelRef.current = null;
-      }
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-
-      setState({
-        status: 'matched',
-        match: match,
-        error: null,
-      });
-
-      toast.success('Match found! Starting battle...');
-
-      navigate(`/online-battle-new/${match.id}`, {
-        state: { match },
-      });
-    };
-
-    const startFallbackPolling = () => {
-      // Clear existing polling
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-
-      // Fallback polling every 1 second (faster than before)
-      pollIntervalRef.current = setInterval(async () => {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-
-          const { data: matches, error } = await supabase
-            .from('matches')
-            .select('*')
-            .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          if (error) {
-            console.error('[MATCHMAKING] Poll: Error checking for match:', error);
-            return;
-          }
-
-          if (matches && matches.length > 0) {
-            handleMatchFound(matches[0] as MatchRow);
-          }
-        } catch (error) {
-          console.error('[MATCHMAKING] Poll: Error in polling:', error);
-        }
-      }, 1000);
-    };
-
-    setupRealtimeSubscription();
+    // Poll every 3 seconds (reduced from 2s to reduce backend load)
+    pollIntervalRef.current = setInterval(checkForMatch, 3000);
 
     // Cleanup on unmount
     return () => {
-      if (channelRef.current) {
-        channelRef.current.unsubscribe();
-        channelRef.current = null;
-      }
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
     };
-  }, [state.status, navigate]);
+  }, [state.status, navigate, checkForMatch]);
+
+  // Visibility-based lightweight resync (poll once when tab returns)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (state.status !== 'searching') return;
+      checkForMatch();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [state.status, checkForMatch]);
 
   const startMatchmaking = useCallback(async (subject: string, level: string) => {
     if (isSearchingRef.current) {
@@ -304,12 +232,6 @@ export function useMatchmaking() {
 
   const leaveQueue = useCallback(async () => {
     console.log('[MATCHMAKING] Leaving queue');
-
-    // Cleanup subscription
-    if (channelRef.current) {
-      channelRef.current.unsubscribe();
-      channelRef.current = null;
-    }
 
     // Clear polling
     if (pollIntervalRef.current) {
