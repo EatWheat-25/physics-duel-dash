@@ -81,14 +81,15 @@ export default function Home() {
           variant="ghost"
           className="gap-2 font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[var(--violet)]"
           style={{
-            background: 'rgba(255,255,255,0.08)',
+            background: 'rgba(255,255,255,0.2)',
             backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.18)',
+            border: '2px solid rgba(94, 241, 255, 0.5)',
             color: 'white',
+            boxShadow: '0 0 20px rgba(94, 241, 255, 0.3)',
           }}
           aria-label="View ranking system"
         >
-          <Trophy className="w-4 h-4" style={{ color: 'var(--aqua)' }} />
+          <Trophy className="w-4 h-4" style={{ color: 'rgb(94, 241, 255)' }} />
           <span className="hidden sm:inline">Ranks</span>
         </Button>
         <HeaderUserMenu />

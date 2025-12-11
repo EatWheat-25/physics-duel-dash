@@ -23,10 +23,10 @@ export function HeaderUserMenu() {
         onClick={() => navigate('/profile')}
         className="gap-2 font-medium focus:outline-none focus:ring-2 focus:ring-[var(--violet)]"
         style={{
-          background: 'rgba(255,255,255,0.05)',
+          background: 'rgba(255,255,255,0.15)',
           backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          color: 'var(--text-primary)',
+          border: '1px solid rgba(255,255,255,0.3)',
+          color: 'white',
         }}
         aria-label="Profile"
       >
@@ -42,10 +42,11 @@ export function HeaderUserMenu() {
           onClick={() => navigate('/admin/questions')}
           className="gap-2 font-medium focus:outline-none focus:ring-2 focus:ring-[var(--violet)]"
           style={{
-            background: 'rgba(147, 51, 234, 0.1)',
+            background: 'rgba(147, 51, 234, 0.25)',
             backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(147, 51, 234, 0.3)',
-            color: 'rgb(147, 51, 234)',
+            border: '2px solid rgba(147, 51, 234, 0.5)',
+            color: 'rgb(196, 181, 253)',
+            boxShadow: '0 0 15px rgba(147, 51, 234, 0.4)',
           }}
           aria-label="Admin Panel"
         >
@@ -60,10 +61,10 @@ export function HeaderUserMenu() {
         onClick={() => { }}
         className="gap-2 font-medium focus:outline-none focus:ring-2 focus:ring-[var(--violet)]"
         style={{
-          background: 'rgba(255,255,255,0.05)',
+          background: 'rgba(255,255,255,0.15)',
           backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          color: 'var(--text-primary)',
+          border: '1px solid rgba(255,255,255,0.3)',
+          color: 'white',
         }}
         aria-label="Settings"
       >
@@ -77,10 +78,10 @@ export function HeaderUserMenu() {
         onClick={signOut}
         className="gap-2 font-medium focus:outline-none focus:ring-2 focus:ring-[var(--violet)]"
         style={{
-          background: 'rgba(255,255,255,0.05)',
+          background: 'rgba(255,255,255,0.15)',
           backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          color: 'var(--text-primary)',
+          border: '1px solid rgba(255,255,255,0.3)',
+          color: 'white',
         }}
         aria-label="Sign Out"
       >
