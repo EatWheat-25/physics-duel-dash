@@ -20,3 +20,5 @@ COMMENT ON COLUMN public.matches.player1_round_wins IS 'Number of rounds won by 
 COMMENT ON COLUMN public.matches.player2_round_wins IS 'Number of rounds won by player2';
 COMMENT ON COLUMN public.matches.target_rounds_to_win IS 'Number of rounds needed to win the match (default: 4)';
 
+
+

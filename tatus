@@ -1,0 +1,28 @@
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/Starfield.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/hooks/useGame.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/hooks/useMatchmaking.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/question-contract.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/AdminQuestions.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/BattleConnected.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/types/question-contract.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/types/questions.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/functions/game-ws/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/functions/matchmake-simple/index.ts', LF will be replaced by CRLF the next time Git touches it
+ package.json                                       |    1 [32m+[m
+ src/components/PlayerCard.tsx                      |  202 [31m---[m
+ src/components/Starfield.tsx                       |    5 [32m+[m[31m-[m
+ src/hooks/useGame.ts                               |  487 [32m+++[m[31m----[m
+ src/hooks/useMatchmaking.ts                        |  200 [32m+[m[31m--[m
+ src/lib/question-contract.ts                       |   29 [32m+[m[31m-[m
+ src/pages/AdminQuestions.tsx                       | 1367 [32m+++++++++[m[31m-----------[m
+ src/pages/BattleConnected.tsx                      |  361 [32m++++[m[31m--[m
+ src/types/gameEvents.ts                            |   59 [32m+[m[31m-[m
+ src/types/question-contract.ts                     |   39 [32m+[m[31m-[m
+ src/types/questions.ts                             |   30 [32m+[m[31m-[m
+ supabase/functions/game-ws/index.ts                |  842 [32m++++++++++[m[31m--[m
+ supabase/functions/matchmake-simple/index.ts       |   14 [32m+[m[31m-[m
+ ...251202100000_add_subject_level_to_questions.sql |    3 [32m+[m
+ .../20251202100002_add_subject_level_to_queue.sql  |    3 [32m+[m
+ ...20251202100003_ensure_matches_subject_level.sql |    3 [32m+[m
+ 16 files changed, 2053 insertions(+), 1592 deletions(-)

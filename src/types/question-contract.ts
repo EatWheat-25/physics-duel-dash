@@ -35,10 +35,10 @@ export interface QuestionStep {
     /** The actual question text for this step */
     prompt: string;
 
-    /** Options: 2 for true_false, 4 for mcq */
-    options: [string, string] | [string, string, string, string];
+    /** Exactly 4 multiple choice options */
+    options: [string, string, string, string];
 
-    /** Index of correct option (0-1 for true_false, 0-3 for mcq) */
+    /** Index of correct option (0, 1, 2, or 3) */
     correctAnswer: 0 | 1 | 2 | 3;
 
     /** Time limit for this step in seconds (null = no limit) */
@@ -97,25 +97,20 @@ export interface StepBasedQuestion {
  * Type guard to validate if an object is a valid QuestionStep
  */
 export function isValidQuestionStep(obj: any): obj is QuestionStep {
-    if (typeof obj !== 'object' || !obj) return false;
-    if (typeof obj.id !== 'string') return false;
-    if (typeof obj.index !== 'number') return false;
-    if (obj.type !== 'mcq' && obj.type !== 'true_false') return false;
-    if (typeof obj.title !== 'string') return false;
-    if (typeof obj.prompt !== 'string') return false;
-    if (!Array.isArray(obj.options)) return false;
-    
-    // Validate options length based on type
-    const expectedLength = obj.type === 'true_false' ? 2 : 4;
-    if (obj.options.length !== expectedLength) return false;
-    
-    // Validate correctAnswer range based on type
-    const maxAnswer = obj.type === 'true_false' ? 1 : 3;
-    if (typeof obj.correctAnswer !== 'number' || obj.correctAnswer < 0 || obj.correctAnswer > maxAnswer) return false;
-    
-    if (typeof obj.marks !== 'number') return false;
-    
-    return true;
+    return (
+        typeof obj === 'object' &&
+        typeof obj.id === 'string' &&
+        typeof obj.index === 'number' &&
+        (obj.type === 'mcq' || obj.type === 'true_false') &&
+        typeof obj.title === 'string' &&
+        typeof obj.prompt === 'string' &&
+        Array.isArray(obj.options) &&
+        obj.options.length === 4 &&
+        typeof obj.correctAnswer === 'number' &&
+        obj.correctAnswer >= 0 &&
+        obj.correctAnswer <= 3 &&
+        typeof obj.marks === 'number'
+    );
 }
 
 /**

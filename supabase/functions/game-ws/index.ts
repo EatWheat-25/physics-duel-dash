@@ -508,22 +508,11 @@ async function selectAndBroadcastQuestion(
 ): Promise<void> {
   console.log(`[${matchId}] 🔒 [WS] selectAndBroadcastQuestion called`)
   
-  // 1) First, try in-memory GameState (most idempotent)
-  const gameState = gameStates.get(matchId)
-  if (gameState?.currentQuestion) {
-    console.log(
-      `[${matchId}] ✅ Reusing existing question from GameState: ${gameState.currentQuestion.id}`
-    )
-    await broadcastQuestion(matchId, gameState.currentQuestion, supabase)
-    return
-  }
-  
   try {
-    // 2) No question in GameState – use DB (existing logic)
-    // 1. Get match with safety checks
+    // Get match with current_round_id for clearing old results
     const { data: match, error: matchError } = await supabase
       .from('matches')
-      .select('subject, mode, status, winner_id, question_id, question_sent_at')
+      .select('subject, mode, status, winner_id, question_id, question_sent_at, current_round_id, current_round_number, target_rounds_to_win')
       .eq('id', matchId)
       .single()
 
@@ -535,12 +524,32 @@ async function selectAndBroadcastQuestion(
     // Safety checks
     if (!match || match.status !== 'in_progress' || match.winner_id) {
       console.warn(`[${matchId}] ⚠️ [WS] Match not ready for question selection (status: ${match?.status}, winner: ${match?.winner_id})`)
-      console.log(`[${matchId}] ⚠️ [WS] selectAndBroadcastQuestion returning early - match not ready`)
       return
     }
     
     console.log(`[${matchId}] ✅ [WS] Match is ready (status: ${match.status}, winner: ${match.winner_id || 'none'})`)
 
+    // ===== CRITICAL SEQUENCE: Clear old results first =====
+    const previousRoundId = match.current_round_id
+    if (previousRoundId) {
+      console.log(`[${matchId}] 🧹 Clearing old results for round ${previousRoundId}`)
+      const { data: clearResult, error: clearError } = await supabase.rpc('clear_round_results', {
+        p_match_id: matchId,
+        p_expected_round_id: previousRoundId
+      })
+      
+      if (clearError) {
+        console.error(`[${matchId}] ❌ Error clearing round results:`, clearError)
+        // Continue anyway - clear might have already been done
+      } else if (!clearResult?.success && clearResult?.reason !== 'nothing_to_clear') {
+        console.warn(`[${matchId}] ⚠️ Clear round results returned:`, clearResult)
+      }
+    }
+
+    // Calculate new round number
+    const newRoundNumber = (match.current_round_number || 0) + 1
+
+    // Select question (reuse existing logic)
     let questionDb: any = null
 
     if (match.question_id) {
@@ -572,9 +581,6 @@ async function selectAndBroadcastQuestion(
           .select('*')
           .limit(200)
         
-        // Note: is_active column may not exist yet - skip it for now
-        // If you add is_active migration later, uncomment: q = q.eq('is_active', true)
-        
         if (filters.subject && subject) q = q.eq('subject', subject)
         if (filters.level && level) q = q.eq('level', level)
         
@@ -586,7 +592,6 @@ async function selectAndBroadcastQuestion(
         }
         
         return (data ?? []).filter((q: any) => {
-          // Early filter: ensure steps exist and are non-empty
           try {
             const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
             return Array.isArray(steps) && steps.length > 0
@@ -596,28 +601,26 @@ async function selectAndBroadcastQuestion(
         })
       }
 
-      // Fetch in tiers (most specific to least specific)
+      // Fetch in tiers
       const tiers = [
-        await fetchTier({ subject: true, level: true }),   // Tier 1: Match both
-        await fetchTier({ subject: true, level: false }),   // Tier 2: Match subject only
-        await fetchTier({ subject: false, level: true }),   // Tier 3: Match level only
-        await fetchTier({ subject: false, level: false })   // Tier 4: Any question
+        await fetchTier({ subject: true, level: true }),
+        await fetchTier({ subject: true, level: false }),
+        await fetchTier({ subject: false, level: true }),
+        await fetchTier({ subject: false, level: false })
       ]
 
-      // Filter for True/False questions (keep fallback)
+      // Filter for True/False questions
       const isTF = (q: any) => {
         try {
           const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
           const first = steps?.[0]
           const opts = first?.options ?? []
-          // Check type field first, then fallback to option count
           return first?.type === 'true_false' || (Array.isArray(opts) && opts.length === 2)
         } catch {
           return false
         }
       }
 
-      // Find first tier with TF questions
       const tfPool = tiers.flatMap(list => list.filter(isTF))
 
       if (tfPool.length === 0) {
@@ -625,7 +628,6 @@ async function selectAndBroadcastQuestion(
         throw new Error('No True/False questions available')
       }
 
-      // Pick random from TF pool
       const selectedQuestion = tfPool[Math.floor(Math.random() * tfPool.length)]
       console.log(`[${matchId}] 🎯 Selected TF question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
 
@@ -637,7 +639,7 @@ async function selectAndBroadcastQuestion(
           question_id: selectedQuestion.id,
         })
         .eq('id', matchId)
-        .is('question_id', null) // Atomic lock: only update if NULL
+        .is('question_id', null)
         .select('id, question_id')
         .maybeSingle()
 
@@ -647,10 +649,9 @@ async function selectAndBroadcastQuestion(
       }
 
       if (!lock) {
-        // Lost race condition - another instance claimed it first
+        // Lost race condition
         console.log(`[${matchId}] ⚠️ Lost atomic lock, re-reading question_id...`)
         
-        // Re-fetch the question that was claimed by the winner
         const { data: matchAfterRace } = await supabase
           .from('matches')
           .select('question_id, question_sent_at')
@@ -674,11 +675,47 @@ async function selectAndBroadcastQuestion(
         questionDb = qAfterRace
         console.log(`[${matchId}] ✅ Using question claimed by other instance: ${questionDb.id}`)
       } else {
-        // Won the lock
         questionDb = selectedQuestion
         console.log(`[${matchId}] ✅ Won atomic lock, claimed question: ${questionDb.id}`)
       }
     }
+
+    // ===== Create new match_rounds row with question_id (NON-NEGOTIABLE 1: single source of truth) =====
+    const { data: newRound, error: roundError } = await supabase
+      .from('match_rounds')
+      .insert({
+        match_id: matchId,
+        question_id: questionDb.id, // Single source of truth for question
+        round_number: newRoundNumber,
+        status: 'main' // For simple questions, will transition to 'results' when computed
+      })
+      .select('id')
+      .single()
+
+    if (roundError || !newRound) {
+      console.error(`[${matchId}] ❌ Failed to create match_rounds row:`, roundError)
+      throw roundError || new Error('Failed to create match_rounds row')
+    }
+
+    console.log(`[${matchId}] ✅ Created match_rounds row: ${newRound.id} for round ${newRoundNumber}`)
+
+    // ===== Update matches with current_round_id and current_round_number =====
+    const { error: updateError } = await supabase
+      .from('matches')
+      .update({
+        current_round_id: newRound.id,
+        current_round_number: newRoundNumber,
+        // Keep question_id for backwards compatibility, but we read from match_rounds.question_id
+        question_id: questionDb.id
+      })
+      .eq('id', matchId)
+
+    if (updateError) {
+      console.error(`[${matchId}] ❌ Failed to update matches with round info:`, updateError)
+      throw updateError
+    }
+
+    console.log(`[${matchId}] ✅ Updated matches.current_round_id = ${newRound.id}, current_round_number = ${newRoundNumber}`)
 
     // After obtaining questionDb, set it in gameState for idempotency
     const existingGameState = gameStates.get(matchId)
@@ -692,8 +729,6 @@ async function selectAndBroadcastQuestion(
         .eq('id', matchId)
         .single()
       
-      // Create minimal gameState with just currentQuestion
-      // broadcastQuestion will initialize full state if needed
       const newGameState: GameState = {
         currentPhase: 'question',
         currentStepIndex: 0,
@@ -706,8 +741,8 @@ async function selectAndBroadcastQuestion(
         p1Id: matchData?.player1_id || null,
         p2Id: matchData?.player2_id || null,
         eliminatedPlayers: new Set(),
-        roundNumber: 1,
-        targetRoundsToWin: 4,
+        roundNumber: newRoundNumber,
+        targetRoundsToWin: match.target_rounds_to_win || 4,
         playerRoundWins: new Map()
       }
       gameStates.set(matchId, newGameState)
@@ -750,169 +785,81 @@ async function checkAndBroadcastBothConnected(
   // Query database to check connection status (works across all instances!)
   // IMPORTANT: We check RIGHT BEFORE broadcasting to catch disconnects
   const { data: matchStatus, error: statusError } = await supabase
+    .from('matches')
+    .select('player1_connected_at, player2_connected_at')
+    .eq('id', matchId)
+    .single()
 
-      // Initialize or reset game state for this round
-      let gameState = gameStates.get(matchId)
-      if (!gameState) {
-        gameState = {
-          currentPhase: 'main_question',
-          currentStepIndex: 0,
-          mainQuestionTimer: null,
-          stepTimers: new Map(),
-          mainQuestionEndsAt: null,
-          stepEndsAt: null,
-          playerStepAnswers: new Map(),
-          currentQuestion: questionDb,
-          p1Id: matchData?.player1_id || null,
-          p2Id: matchData?.player2_id || null,
-          eliminatedPlayers: new Set(),
-          roundNumber: matchState.roundNumber,
-          targetRoundsToWin: matchState.targetRoundsToWin,
-          playerRoundWins: new Map(matchState.playerRoundWins) // Copy match-level wins
-        }
-        gameStates.set(matchId, gameState)
-      } else {
-        // New round - reset per-round state but keep match state
-        gameState.currentPhase = 'main_question'
-        gameState.currentStepIndex = 0
-        gameState.mainQuestionTimer = null
-        gameState.stepTimers.clear()
-        gameState.mainQuestionEndsAt = null
-        gameState.stepEndsAt = null
-        gameState.playerStepAnswers.clear()
-        gameState.currentQuestion = questionDb
-        gameState.eliminatedPlayers.clear()
-        gameState.roundNumber = matchState.roundNumber
-        gameState.targetRoundsToWin = matchState.targetRoundsToWin
-        gameState.playerRoundWins = new Map(matchState.playerRoundWins) // Sync with match state
+  if (statusError || !matchStatus) {
+    console.error(`[${matchId}] ❌ Failed to query connection status:`, statusError)
+    return false
+  }
+
+  const player1Connected = matchStatus.player1_connected_at !== null
+  const player2Connected = matchStatus.player2_connected_at !== null
+  const bothConnected = player1Connected && player2Connected
+  
+  console.log(`[${matchId}] Checking both connected status (from database):`)
+  console.log(`  - Player1 (${match.player1_id}): ${player1Connected ? '✅ Connected' : '❌ Not connected'}`)
+  console.log(`  - Player2 (${match.player2_id}): ${player2Connected ? '✅ Connected' : '❌ Not connected'}`)
+  console.log(`  - Both connected: ${bothConnected ? '✅ YES' : '❌ NO'}`)
+
+  // If not both connected, return false immediately (don't broadcast)
+  if (!bothConnected) {
+    const connectedCount = (player1Connected ? 1 : 0) + (player2Connected ? 1 : 0)
+    console.log(`[${matchId}] ⏳ Waiting for both players - currently ${connectedCount}/2 connected`)
+    return false
+  }
+
+  // Both are connected - proceed with broadcast
+  console.log(`[${matchId}] ✅ Both players connected! Broadcasting BOTH_CONNECTED to local sockets...`)
+  
+  const matchSockets = sockets.get(matchId)
+  console.log(`[${matchId}] Local socket map has ${matchSockets?.size || 0} socket(s) for this match`)
+  
+  if (!matchSockets || matchSockets.size === 0) {
+    console.warn(`[${matchId}] ⚠️  No local sockets found for match (other instance may have the sockets)`)
+    // This is not a failure - the other instance will handle it
+    // Return true to prevent infinite retries
+    return true
+  }
+
+  const bothConnectedMessage: BothConnectedEvent = {
+    type: 'BOTH_CONNECTED',
+    matchId: matchId
+  }
+  let sentCount = 0
+  let skippedCount = 0
+  
+  matchSockets.forEach((s, index) => {
+    console.log(`[${matchId}] Socket ${index + 1}/${matchSockets.size} readyState: ${s.readyState} (OPEN=1, CONNECTING=0, CLOSING=2, CLOSED=3)`)
+    
+    if (s.readyState === WebSocket.OPEN) {
+      try {
+        s.send(JSON.stringify(bothConnectedMessage))
+        sentCount++
+        console.log(`[${matchId}] ✅ Sent BOTH_CONNECTED to socket ${index + 1}`)
+      } catch (error) {
+        console.error(`[${matchId}] ❌ Error sending BOTH_CONNECTED to socket ${index + 1}:`, error)
+        skippedCount++
       }
-
-      // Read main question timer from metadata or default to 60 seconds
-      const mainQuestionTimerSeconds = questionDb.main_question_timer_seconds || 60
-      const mainQuestionEndsAt = new Date(Date.now() + mainQuestionTimerSeconds * 1000).toISOString()
-      gameState.mainQuestionEndsAt = mainQuestionEndsAt
-
-      // Get round number from match state
-      const currentMatchState = matchStates.get(matchId)
-      const currentRoundNumber = currentMatchState?.roundNumber || 1
-
-      const roundStartEvent: RoundStartEvent = {
-        type: 'ROUND_START',
-        matchId,
-        roundId: matchId, // Using matchId as roundId for now
-        roundIndex: currentRoundNumber - 1, // roundIndex is 0-based
-        phase: 'main_question',
-        question: {
-          id: questionDb.id,
-          title: questionDb.title,
-          subject: questionDb.subject,
-          chapter: questionDb.chapter,
-          level: questionDb.level,
-          difficulty: questionDb.difficulty,
-          questionText: questionDb.question_text || questionDb.stem || '',
-          stem: questionDb.question_text || questionDb.stem || questionDb.title,
-          totalMarks: questionDb.total_marks || 0,
-          steps: steps.map((s: any) => ({
-            id: s.id || '',
-            question: s.prompt || s.question || '',
-            prompt: s.prompt || s.question || '',
-            options: Array.isArray(s.options) ? s.options : [],
-            correctAnswer: s.correct_answer?.correctIndex ?? s.correctAnswer ?? 0,
-            marks: s.marks || 0,
-            explanation: s.explanation || undefined
-          })),
-          topicTags: questionDb.topic_tags || [],
-          rankTier: questionDb.rank_tier || undefined
-        },
-        mainQuestionEndsAt,
-        mainQuestionTimerSeconds,
-        totalSteps: steps.length
-      }
-
-      console.log(`[${matchId}] 📤 [WS] Broadcasting ROUND_START event:`, JSON.stringify({
-        type: roundStartEvent.type,
-        matchId: roundStartEvent.matchId,
-        phase: roundStartEvent.phase,
-        questionId: roundStartEvent.question.id,
-        totalSteps: roundStartEvent.totalSteps
-      }))
-      broadcastToMatch(matchId, roundStartEvent)
-      console.log(`[${matchId}] ✅ [WS] ROUND_START broadcast completed`)
-
-      // Start main question timer
-      const mainTimerId = setTimeout(() => {
-        transitionToSteps(matchId, supabase)
-      }, mainQuestionTimerSeconds * 1000) as unknown as number
-      
-      gameState.mainQuestionTimer = mainTimerId
-      console.log(`[${matchId}] ⏰ Started main question timer (${mainQuestionTimerSeconds}s)`)
     } else {
-      // Single-step question - use existing flow
-      console.log(`[${matchId}] 📝 Single-step question - using existing flow`)
-      
-      // Initialize or get match state for single-step questions
-      // Don't increment round number here - it will be incremented after results
-      let matchState = matchStates.get(matchId)
-      if (!matchState) {
-        // First round - initialize match state
-        matchState = {
-          roundNumber: 1,
-          targetRoundsToWin: 4,
-          playerRoundWins: new Map(),
-          p1Id: matchData?.player1_id || null,
-          p2Id: matchData?.player2_id || null
-        }
-        matchStates.set(matchId, matchState)
-      }
-      
-      // Clear any existing game state (multi-step state)
-      cleanupGameState(matchId)
-
-      // Timeout for answer submission (60 seconds / 1 minute)
-      const TIMEOUT_SECONDS = 60
-      
-      // Calculate timer end time (60 seconds from now)
-      const timerEndAt = new Date(Date.now() + TIMEOUT_SECONDS * 1000).toISOString()
-      
-      const questionReceivedEvent: QuestionReceivedEvent = {
-        type: 'QUESTION_RECEIVED',
-        question: questionDb, // Send raw DB object
-        timer_end_at: timerEndAt
-      }
-      
-      console.log(`[${matchId}] 📤 [WS] Broadcasting QUESTION_RECEIVED event:`, JSON.stringify({
-        type: questionReceivedEvent.type,
-        questionId: questionDb.id,
-        timer_end_at: timerEndAt
-      }))
-      
-      let sentCount = 0
-      matchSockets.forEach((socket, index) => {
-        if (socket.readyState === WebSocket.OPEN) {
-          try {
-            socket.send(JSON.stringify(questionReceivedEvent))
-            sentCount++
-            console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
-          } catch (error) {
-            console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
-          }
-        }
-      })
-      
-      console.log(`[${matchId}] 📊 [WS] QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
-      console.log(`[${matchId}] ✅ [WS] QUESTION_RECEIVED broadcast completed`)
-      
-      // Update match status
-      await supabase
-        .from('matches')
-        .update({ status: 'in_progress' })
-        .eq('id', matchId)
-        .neq('status', 'in_progress')
-
-      console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
-
-      // Start timeout for answer submission (60 seconds / 1 minute)
-      const timeoutId = setTimeout(async () => {
+      console.warn(`[${matchId}] ⚠️  Socket ${index + 1} not ready (readyState: ${s.readyState}), skipping`)
+      skippedCount++
+    }
+  })
+  
+  console.log(`[${matchId}] 📊 Broadcast summary: ${sentCount} sent, ${skippedCount} skipped, ${matchSockets.size} total`)
+  
+  // Return true only if we successfully sent to at least one socket
+  // This allows retries if broadcast completely failed
+  const success = sentCount > 0
+  if (!success) {
+    console.error(`[${matchId}] ❌ WARNING: Failed to send BOTH_CONNECTED to any socket! Will retry...`)
+  }
+  
+  return success
+}
       console.log(`[${matchId}] ⏰ Timeout triggered after ${TIMEOUT_SECONDS}s`)
       
       const { data: match } = await supabase
@@ -1739,10 +1686,10 @@ async function handleSubmitAnswerV2(
   }
 
   if (!data?.success) {
-    console.error(`[${matchId}] ❌ [V2] RPC returned error:`, data?.error)
+    console.error(`[${matchId}] ❌ [V2] RPC returned error:`, data?.error || data?.reason)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
-      message: data?.error || 'Failed to submit answer'
+      message: data?.error || data?.reason || 'Failed to submit answer'
     } as GameErrorEvent))
     return
   }
@@ -1753,8 +1700,9 @@ async function handleSubmitAnswerV2(
     both_answered: data.both_answered
   }))
 
-  // If both answered, broadcast results and handle next round
-  if (data.both_answered && data.result) {
+  // Realtime will deliver results to all clients (primary mechanism)
+  // WebSocket broadcast removed per v2 architecture - Realtime is the only delivery mechanism
+  if (data.both_answered && data.results_payload) {
     // Clear timeout since both answered early
     const existingTimeout = matchTimeouts.get(matchId)
     if (existingTimeout) {
@@ -1763,43 +1711,12 @@ async function handleSubmitAnswerV2(
       console.log(`[${matchId}] ✅ [V2] Cleared timeout - both players answered early`)
     }
 
-    // Construct RESULTS_RECEIVED event using exactly what RPC returned (no extra logic)
-    const resultsEvent: ResultsReceivedEvent = {
-      type: 'RESULTS_RECEIVED',
-      player1_answer: data.result.player1_answer,
-      player2_answer: data.result.player2_answer,
-      correct_answer: data.result.correct_answer,
-      player1_correct: data.result.player1_correct,
-      player2_correct: data.result.player2_correct,
-      round_winner: data.result.round_winner,
-      roundNumber: data.result.round_number,
-      targetRoundsToWin: data.result.target_rounds_to_win,
-      playerRoundWins: data.result.player_round_wins,
-      matchOver: data.result.match_over,
-      matchWinnerId: data.result.match_winner_id
-    }
+    // Results will be delivered via Realtime UPDATE event on matches table
+    // No WebSocket broadcast needed - Realtime works across all Edge instances
+    console.log(`[${matchId}] ✅ [V2] Results computed - Realtime will deliver to all clients`)
 
-    // Broadcast to all local sockets (best effort)
-    broadcastToMatch(matchId, resultsEvent)
-    console.log(`[${matchId}] ✅ [V2] Broadcast RESULTS_RECEIVED`)
-
-    // Handle match completion or next round
-    if (data.result.match_over) {
-      // Match finished
-      console.log(`[${matchId}] 🏁 [V2] Match finished - Winner: ${data.result.match_winner_id}`)
-      const matchFinishedEvent: MatchFinishedEvent = {
-        type: 'MATCH_FINISHED',
-        winner_id: data.result.match_winner_id,
-        total_rounds: data.result.round_number
-      }
-      broadcastToMatch(matchId, matchFinishedEvent)
-      // Cleanup
-      matchStates.delete(matchId)
-    } else if (data.result.next_round_ready) {
-      // Match continues - start next round
-      console.log(`[${matchId}] 🔄 [V2] Starting next round (round ${data.result.round_number + 1})`)
-      await selectAndBroadcastQuestion(matchId, supabase)
-    }
+    // Note: Next round will be started by server after delay or client signal
+    // Don't start it here to avoid double-firing
   } else {
     // Only one answered - get match to determine player role for broadcast
     const { data: matchData } = await supabase

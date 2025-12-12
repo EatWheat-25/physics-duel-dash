@@ -5,7 +5,7 @@
  * and clients during Online 1v1 matches.
  */
 
-export type RoundPhase = 'thinking' | 'choosing' | 'result';
+export type RoundPhase = 'thinking' | 'choosing' | 'result' | 'main_question' | 'steps';
 
 export interface QuestionDTO {
   id: string;
@@ -47,20 +47,32 @@ export interface RoundStartEvent {
   matchId: string;
   roundId: string;
   roundIndex: number;
-  phase: 'thinking';
+  phase: 'thinking' | 'main_question';
   question: QuestionDTO;
-  thinkingEndsAt: string; // ISO timestamp
+  thinkingEndsAt?: string; // ISO timestamp
+  mainQuestionEndsAt?: string; // ISO timestamp
+  mainQuestionTimerSeconds?: number;
+  totalSteps?: number;
 }
 
 export interface PhaseChangeEvent {
   type: 'PHASE_CHANGE';
   matchId: string;
-  roundIndex: number;
-  phase: 'choosing' | 'result';
+  roundIndex?: number;
+  phase: 'choosing' | 'result' | 'steps';
   choosingEndsAt?: string; // ISO timestamp, present when phase = 'choosing'
   options?: OptionDTO[]; // present when phase = 'choosing'
   currentStepIndex?: number; // Current step index (0-based)
+  stepIndex?: number; // Current step index (0-based) - for steps phase
   totalSteps?: number; // Total number of steps in the question
+  stepEndsAt?: string; // ISO timestamp, present when phase = 'steps'
+  currentStep?: {
+    id: string;
+    prompt: string;
+    options: string[];
+    correctAnswer: number;
+    marks: number;
+  };
 }
 
 export interface RoundResultEvent {
@@ -70,9 +82,22 @@ export interface RoundResultEvent {
   questionId: string;
   correctOptionId: number;
   playerResults: PlayerResult[];
-  tugOfWar: number; // Score difference for tug-of-war bar
+  tugOfWar?: number; // Score difference for tug-of-war bar (deprecated, kept for compatibility)
   p1Score: number;
   p2Score: number;
+  stepResults?: Array<{
+    stepIndex: number;
+    correctAnswer: number;
+    p1AnswerIndex: number | null;
+    p2AnswerIndex: number | null;
+    p1Marks: number;
+    p2Marks: number;
+  }>;
+  roundNumber?: number;
+  targetRoundsToWin?: number;
+  playerRoundWins?: { [playerId: string]: number };
+  matchOver?: boolean;
+  matchWinnerId?: string | null;
 }
 
 export interface MatchEndEvent {
@@ -108,12 +133,30 @@ export interface ReadyForOptionsMessage {
   matchId: string;
 }
 
+export interface EarlyAnswerMessage {
+  type: 'EARLY_ANSWER';
+}
+
+export interface SubmitStepAnswerMessage {
+  type: 'SUBMIT_STEP_ANSWER';
+  stepIndex: number;
+  answerIndex: number;
+}
+
+export interface StepAnswerReceivedEvent {
+  type: 'STEP_ANSWER_RECEIVED';
+  stepIndex: number;
+  playerId: string;
+  waitingForOpponent: boolean;
+}
+
 // Union type for all server events
 export type ServerGameEvent =
   | RoundStartEvent
   | PhaseChangeEvent
   | RoundResultEvent
-  | MatchEndEvent;
+  | MatchEndEvent
+  | StepAnswerReceivedEvent;
 
 // Union type for all client messages
-export type ClientGameMessage = AnswerSubmitMessage | ReadyForOptionsMessage;
+export type ClientGameMessage = AnswerSubmitMessage | ReadyForOptionsMessage | EarlyAnswerMessage | SubmitStepAnswerMessage;

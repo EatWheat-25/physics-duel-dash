@@ -1,33 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuestions, useAddQuestion, useUpdateQuestion, useDeleteQuestion } from '@/hooks/useQuestions';
-import { StepBasedQuestion, QuestionStep } from '@/types/questions';
-import { mapRawToQuestion } from '@/utils/questionMapper';
+import { supabase } from '@/integrations/supabase/client';
+import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
+import { dbRowToQuestion } from '@/lib/question-contract';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { 
-  Loader2, Plus, Trash2, Edit2, Search, Filter, 
-  Shield, Save, X, ArrowLeft, CheckCircle2, XCircle 
-} from 'lucide-react';
-import { LoadingScreen } from '@/components/LoadingScreen';
-
-const ADMIN_EMAIL = 'noffalnawaz65@gmail.com';
+import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Filter } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import SpaceBackground from '@/components/SpaceBackground';
 
 type QuestionFilter = {
   subject: 'all' | 'math' | 'physics' | 'chemistry';
   level: 'all' | 'A1' | 'A2';
   difficulty: 'all' | 'easy' | 'medium' | 'hard';
-  type: 'all' | 'true_false' | 'mcq';
-  search: string;
+  rankTier: string;
 };
 
 type EditorMode = 'idle' | 'creating' | 'editing';
@@ -52,10 +43,9 @@ type QuestionForm = {
   rankTier: string;
   stem: string;
   totalMarks: number;
-  topicTags: string;
+  topicTags: string; // Comma-separated string for editing
   steps: FormStep[];
   imageUrl: string;
-  questionType: 'auto' | 'true_false' | 'mcq'; // Overall question type hint
 };
 
 export default function AdminQuestions() {
@@ -63,83 +53,42 @@ export default function AdminQuestions() {
   const { user, loading: authLoading } = useAuth();
 
   // Access control
-  const isAuthorized = user?.email === ADMIN_EMAIL;
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
 
-  // Filters
+  // Question list state
+  const [questions, setQuestions] = useState<StepBasedQuestion[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [filters, setFilters] = useState<QuestionFilter>({
     subject: 'all',
     level: 'all',
     difficulty: 'all',
-    type: 'all',
-    search: ''
+    rankTier: ''
   });
-
-  // Question list
-  const { data: questions = [], isLoading: loadingQuestions } = useQuestions();
 
   // Editor state
   const [mode, setMode] = useState<EditorMode>('idle');
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [form, setForm] = useState<QuestionForm>(getEmptyForm());
   const [saving, setSaving] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
 
-  // Mutations
-  const addQuestion = useAddQuestion();
-  const updateQuestion = useUpdateQuestion();
-  const deleteQuestion = useDeleteQuestion();
-
-  // Show loading while checking auth
-  if (authLoading) {
-    return <LoadingScreen />;
-  }
-
-  // Access denied
-  if (!isAuthorized) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full bg-slate-800 border-slate-700">
-          <CardHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <Shield className="w-8 h-8 text-red-500" />
-              <CardTitle className="text-2xl text-white">Access Denied</CardTitle>
-            </div>
-            <CardDescription className="text-slate-400">
-              Only authorized administrators can access this panel.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => navigate('/')} className="w-full">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Return to Home
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Filter questions
-  const filteredQuestions = questions.filter(q => {
-    if (filters.subject !== 'all' && q.subject !== filters.subject) return false;
-    if (filters.level !== 'all' && q.level !== filters.level) return false;
-    if (filters.difficulty !== 'all' && q.difficulty !== filters.difficulty) return false;
-    if (filters.type !== 'all') {
-      const firstStepType = q.steps[0]?.type;
-      if (filters.type === 'true_false' && firstStepType !== 'true_false') return false;
-      if (filters.type === 'mcq' && firstStepType !== 'mcq') return false;
+  // Check admin access
+  useEffect(() => {
+    if (!authLoading && user) {
+      const role = user.user_metadata?.role;
+      setIsAdmin(role === 'admin');
+      setCheckingAdmin(false);
+    } else if (!authLoading && !user) {
+      setCheckingAdmin(false);
     }
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      if (!q.title.toLowerCase().includes(searchLower) &&
-          !q.stem.toLowerCase().includes(searchLower) &&
-          !q.chapter.toLowerCase().includes(searchLower)) {
-        return false;
-      }
+  }, [user, authLoading]);
+
+  // Load questions on mount and filter changes
+  useEffect(() => {
+    if (isAdmin) {
+      fetchQuestions();
     }
-    return true;
-  });
+  }, [isAdmin, filters]);
 
   function getEmptyForm(): QuestionForm {
     return {
@@ -151,8 +100,7 @@ export default function AdminQuestions() {
       rankTier: '',
       stem: '',
       totalMarks: 1,
-      topicTags: '', // Topic tags removed from form but kept in data structure
-      questionType: 'auto', // Auto-detect from steps
+      topicTags: '',
       steps: [{
         title: 'Step 1',
         prompt: '',
@@ -166,6 +114,33 @@ export default function AdminQuestions() {
     };
   }
 
+  async function fetchQuestions() {
+    setLoadingQuestions(true);
+    try {
+      let query = supabase
+        .from('questions_v2')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (filters.subject !== 'all') query = query.eq('subject', filters.subject);
+      if (filters.level !== 'all') query = query.eq('level', filters.level);
+      if (filters.difficulty !== 'all') query = query.eq('difficulty', filters.difficulty);
+      if (filters.rankTier.trim()) query = query.eq('rank_tier', filters.rankTier.trim());
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const mapped = (data || []).map(dbRowToQuestion);
+      setQuestions(mapped);
+    } catch (error: any) {
+      console.error('[AdminQuestions] Error fetching:', error);
+      toast.error(error.message || 'Failed to load questions');
+    } finally {
+      setLoadingQuestions(false);
+    }
+  }
+
   function handleNewQuestion() {
     setMode('creating');
     setSelectedQuestionId(null);
@@ -175,37 +150,6 @@ export default function AdminQuestions() {
   function handleSelectQuestion(q: StepBasedQuestion) {
     setMode('editing');
     setSelectedQuestionId(q.id);
-    
-    // Convert question to form format
-    const topicTagsStr = q.topicTags.join(', ');
-    const steps: FormStep[] = q.steps.map(step => {
-      // Pad options to 4 for form
-      const paddedOptions: [string, string, string, string] = [
-        step.options[0] || '',
-        step.options[1] || '',
-        step.options[2] || '',
-        step.options[3] || ''
-      ];
-      
-      return {
-        id: step.id,
-        title: step.title,
-        prompt: step.prompt,
-        options: paddedOptions,
-        correctAnswer: step.correctAnswer,
-        marks: step.marks,
-        timeLimitSeconds: step.timeLimitSeconds,
-        explanation: step.explanation || ''
-      };
-    });
-
-    // Detect question type from steps
-    const stepTypes = q.steps.map(s => s.type);
-    const allSameType = stepTypes.every(t => t === stepTypes[0]);
-    const questionType = allSameType && stepTypes[0] 
-      ? (stepTypes[0] === 'true_false' ? 'true_false' : 'mcq')
-      : 'auto';
-
     setForm({
       title: q.title,
       subject: q.subject,
@@ -215,217 +159,196 @@ export default function AdminQuestions() {
       rankTier: q.rankTier || '',
       stem: q.stem,
       totalMarks: q.totalMarks,
-      topicTags: topicTagsStr,
-      questionType,
-      steps,
+      topicTags: q.topicTags.join(', '),
+      steps: q.steps.map(s => ({
+        id: s.id,
+        title: s.title,
+        prompt: s.prompt,
+        options: [s.options[0] || '', s.options[1] || '', s.options[2] || '', s.options[3] || ''],
+        correctAnswer: s.correctAnswer,
+        marks: s.marks,
+        timeLimitSeconds: s.timeLimitSeconds,
+        explanation: s.explanation
+      })),
       imageUrl: q.imageUrl || ''
     });
   }
 
-  function handleDeleteClick(id: string) {
-    setQuestionToDelete(id);
-    setDeleteDialogOpen(true);
-  }
-
-  async function handleDeleteConfirm() {
-    if (!questionToDelete) return;
-
-    try {
-      await deleteQuestion.mutateAsync(questionToDelete);
-      toast.success('Question deleted successfully');
-      setDeleteDialogOpen(false);
-      setQuestionToDelete(null);
-      if (selectedQuestionId === questionToDelete) {
-        setMode('idle');
-        setSelectedQuestionId(null);
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete question');
-    }
-  }
-
-  function updateFormField(field: keyof QuestionForm, value: any) {
-    setForm(prev => ({ ...prev, [field]: value }));
-  }
-
-  function updateStepField(stepIndex: number, field: keyof FormStep, value: any) {
-    setForm(prev => {
-      const newSteps = [...prev.steps];
-      newSteps[stepIndex] = { ...newSteps[stepIndex], [field]: value };
-      return { ...prev, steps: newSteps };
-    });
-  }
-
-  function updateStepOption(stepIndex: number, optionIndex: number, value: string) {
-    setForm(prev => {
-      const newSteps = [...prev.steps];
-      const newOptions = [...newSteps[stepIndex].options] as [string, string, string, string];
-      newOptions[optionIndex] = value;
-      newSteps[stepIndex] = { ...newSteps[stepIndex], options: newOptions };
-      return { ...prev, steps: newSteps };
-    });
-  }
-
   function handleAddStep() {
-    setForm(prev => {
-      // Pre-fill options based on question type
-      let options: [string, string, string, string] = ['', '', '', ''];
-      if (prev.questionType === 'true_false') {
-        options = ['True', 'False', '', ''];
-      }
-      
-      return {
-        ...prev,
-        steps: [...prev.steps, {
-          title: `Step ${prev.steps.length + 1}`,
+    setForm({
+      ...form,
+      steps: [
+        ...form.steps,
+        {
+          title: `Step ${form.steps.length + 1}`,
           prompt: '',
-          options,
+          options: ['', '', '', ''],
           correctAnswer: 0,
           marks: 1,
           timeLimitSeconds: 30,
           explanation: ''
-        }]
-      };
+        }
+      ]
     });
   }
 
-  function handleDeleteStep(stepIndex: number) {
+  function handleDeleteStep(index: number) {
     if (form.steps.length <= 1) {
-      toast.error('Question must have at least one step');
+      toast.error('Must have at least 1 step');
       return;
     }
-    setForm(prev => ({
-      ...prev,
-      steps: prev.steps.filter((_, i) => i !== stepIndex)
-    }));
+    const newSteps = form.steps.filter((_, i) => i !== index);
+    setForm({ ...form, steps: newSteps });
   }
 
-  // Auto-detect step type (respects questionType if set)
-  function detectStepType(step: FormStep, forceType?: 'mcq' | 'true_false'): 'mcq' | 'true_false' {
-    // If question type is explicitly set, use it
-    if (forceType) {
-      return forceType;
+  function handleMoveStepUp(index: number) {
+    if (index === 0) return;
+    const newSteps = [...form.steps];
+    [newSteps[index - 1], newSteps[index]] = [newSteps[index], newSteps[index - 1]];
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function handleMoveStepDown(index: number) {
+    if (index === form.steps.length - 1) return;
+    const newSteps = [...form.steps];
+    [newSteps[index], newSteps[index + 1]] = [newSteps[index + 1], newSteps[index]];
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function updateStepField(index: number, field: keyof FormStep, value: any) {
+    const newSteps = [...form.steps];
+    newSteps[index] = { ...newSteps[index], [field]: value };
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function updateStepOption(stepIndex: number, optionIndex: number, value: string) {
+    const newSteps = [...form.steps];
+    const options = [...newSteps[stepIndex].options];
+    options[optionIndex] = value;
+    newSteps[stepIndex] = { ...newSteps[stepIndex], options: options as [string, string, string, string] };
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function validateForm(): boolean {
+    if (!form.title.trim()) {
+      toast.error('Title is required');
+      return false;
     }
-    
-    // If questionType is set to true_false or mcq, use it
-    if (form.questionType === 'true_false') {
-      return 'true_false';
+    if (!form.chapter.trim()) {
+      toast.error('Chapter is required');
+      return false;
     }
-    if (form.questionType === 'mcq') {
-      return 'mcq';
+    if (!form.stem.trim()) {
+      toast.error('Stem (main question text) is required');
+      return false;
     }
-    
-    // Otherwise auto-detect from options
-    const normalize = (s: string) => s.toLowerCase().trim();
-    const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean);
-    const normalized = nonEmptyOptions.map(normalize).sort().join(',');
-    const isTrueFalse = nonEmptyOptions.length === 2 && normalized === 'false,true';
-    return isTrueFalse ? 'true_false' : 'mcq';
+    if (form.steps.length < 1) {
+      toast.error('At least 1 step is required');
+      return false;
+    }
+
+    for (let i = 0; i < form.steps.length; i++) {
+      const step = form.steps[i];
+      if (!step.title.trim() || !step.prompt.trim()) {
+        toast.error(`Step ${i + 1}: title and prompt are required`);
+        return false;
+      }
+      if (step.options.some(opt => !opt.trim())) {
+        toast.error(`Step ${i + 1}: all 4 options must be filled`);
+        return false;
+      }
+      if (step.correctAnswer < 0 || step.correctAnswer > 3) {
+        toast.error(`Step ${i + 1}: correct answer must be 0-3`);
+        return false;
+      }
+    }
+
+    return true;
   }
 
   async function handleSave() {
-    // Validate form
-    if (!form.title.trim()) {
-      toast.error('Title is required');
-      return;
-    }
-    if (!form.stem.trim()) {
-      toast.error('Question stem is required');
-      return;
-    }
-    if (form.steps.length === 0) {
-      toast.error('Question must have at least one step');
-      return;
-    }
-
-    // Validate steps
-    for (let i = 0; i < form.steps.length; i++) {
-      const step = form.steps[i];
-      const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean);
-      
-      if (nonEmptyOptions.length < 2) {
-        toast.error(`Step ${i + 1}: Must have at least 2 options`);
-        return;
-      }
-      
-      if (step.correctAnswer < 0 || step.correctAnswer >= nonEmptyOptions.length) {
-        toast.error(`Step ${i + 1}: Correct answer out of range`);
-        return;
-      }
-    }
+    if (!validateForm()) return;
 
     setSaving(true);
     try {
-      const topicTagsArray: string[] = []; // Topic tags removed from form
+      const topicTagsArray = form.topicTags
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t.length > 0);
 
-      // Build steps payload with auto type detection
-      const stepsPayload = form.steps.map((s, i) => {
-        const nonEmptyOptions = s.options.map(o => o.trim()).filter(Boolean);
-        // Use questionType if set, otherwise auto-detect
-        const forceType = form.questionType === 'auto' 
-          ? undefined 
-          : (form.questionType === 'true_false' ? 'true_false' : 'mcq');
-        const stepType = detectStepType(s, forceType);
+      // Strict type detection with validation
+      const normalize = (s: string) => s.toLowerCase().trim()
+      
+      const stepsPayload: QuestionStep[] = form.steps.map((s, i) => {
+        const nonEmptyOptions = s.options.map(o => o.trim()).filter(Boolean)
+        const normalized = nonEmptyOptions.map(normalize).sort().join(',')
         
-        // Build options array based on type
-        let options: [string, string] | [string, string, string, string];
-        if (stepType === 'true_false' && nonEmptyOptions.length === 2) {
-          options = [nonEmptyOptions[0], nonEmptyOptions[1]] as [string, string];
-        } else if (nonEmptyOptions.length >= 2) {
-          // Pad to 4 for MCQ
-          const padded = [...nonEmptyOptions];
-          while (padded.length < 4) {
-            padded.push('');
-          }
-          options = [padded[0], padded[1], padded[2], padded[3]] as [string, string, string, string];
-        } else {
-          options = ['', '', '', ''] as [string, string, string, string];
+        // Strict TF detection: exactly 2 options, must be True/False
+        const isTrueFalse = nonEmptyOptions.length === 2 && normalized === 'false,true'
+        
+        // Validate correctAnswer range
+        const correct = Number(s.correctAnswer)
+        if (Number.isNaN(correct)) {
+          throw new Error(`Step ${i + 1}: correctAnswer missing`)
+        }
+        if (correct < 0 || correct >= nonEmptyOptions.length) {
+          throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${nonEmptyOptions.length - 1})`)
         }
         
         return {
           id: s.id || `step-${i + 1}`,
-          index: i, // Use 'index' not 'stepIndex'
-          type: stepType,
+          stepIndex: i,
+          type: isTrueFalse ? 'true_false' : 'mcq',
           title: s.title,
-          prompt: '', // Prompt removed from form
-          options,
-          correctAnswer: s.correctAnswer,
+          prompt: s.prompt,
+          options: nonEmptyOptions, // Only non-empty options
+          correctAnswer: correct,
           timeLimitSeconds: s.timeLimitSeconds ?? null,
           marks: s.marks,
-          explanation: s.explanation || null
-        };
+          explanation: s.explanation
+        }
       });
 
-      // Calculate total marks
-      const totalMarks = stepsPayload.reduce((sum, s) => sum + s.marks, 0);
-
-      // Build question payload
-      const questionPayload: StepBasedQuestion = {
-        id: selectedQuestionId || '',
+      const payload = {
         title: form.title,
         subject: form.subject,
         chapter: form.chapter,
         level: form.level,
         difficulty: form.difficulty,
-        rankTier: (form.rankTier || undefined) as any,
+        rank_tier: form.rankTier || null,
         stem: form.stem,
-        totalMarks,
-        topicTags: topicTagsArray,
-        steps: stepsPayload as QuestionStep[],
-        imageUrl: form.imageUrl || undefined
+        total_marks: form.totalMarks,
+        topic_tags: topicTagsArray,
+        steps: stepsPayload,
+        image_url: form.imageUrl || null,
       };
 
       if (mode === 'creating') {
-        await addQuestion.mutateAsync(questionPayload);
+        const { data, error } = await supabase
+          .from('questions_v2')
+          .insert([payload])
+          .select()
+          .single();
+
+        if (error) throw error;
+
         toast.success('Question created successfully!');
-        setMode('idle');
-        setSelectedQuestionId(null);
-        setForm(getEmptyForm());
+        fetchQuestions();
+        const newQuestion = dbRowToQuestion(data);
+        setMode('editing');
+        setSelectedQuestionId(newQuestion.id);
       } else if (mode === 'editing' && selectedQuestionId) {
-        await updateQuestion.mutateAsync({ id: selectedQuestionId, question: questionPayload });
+        const { data, error } = await supabase
+          .from('questions_v2')
+          .update(payload)
+          .eq('id', selectedQuestionId)
+          .select()
+          .single();
+
+        if (error) throw error;
+
         toast.success('Question updated successfully!');
-        setMode('idle');
-        setSelectedQuestionId(null);
+        fetchQuestions();
       }
     } catch (error: any) {
       console.error('[AdminQuestions] Save error:', error);
@@ -435,560 +358,466 @@ export default function AdminQuestions() {
     }
   }
 
+  async function handleDelete() {
+    if (!selectedQuestionId) return;
+    if (!confirm('Are you sure you want to delete this question? This cannot be undone.')) return;
+
+    try {
+      const { error } = await supabase
+        .from('questions_v2')
+        .delete()
+        .eq('id', selectedQuestionId);
+
+      if (error) throw error;
+
+      toast.success('Question deleted successfully!');
+      setMode('idle');
+      setSelectedQuestionId(null);
+      setForm(getEmptyForm());
+      fetchQuestions();
+    } catch (error: any) {
+      console.error('[AdminQuestions] Delete error:', error);
+      toast.error(error.message || 'Failed to delete question');
+    }
+  }
+
+  // Common styles
+  const glassPanel = "bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-xl";
+  const glassInput = "bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-primary/50 focus:ring-primary/20";
+  const labelStyle = "text-white/70 font-medium mb-1.5 block text-sm";
+
+  // Loading state
+  if (authLoading || checkingAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
+        <SpaceBackground />
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+          <p className="text-white/70 font-medium animate-pulse">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not logged in / Not admin
+  if (!user || !isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
+        <SpaceBackground />
+        <div className={`relative z-10 max-w-md w-full p-8 ${glassPanel} text-center`}>
+          <Shield className={`w-16 h-16 mx-auto mb-6 ${!user ? 'text-white/50' : 'text-red-500'}`} />
+          <h2 className="text-2xl font-black text-white mb-2">
+            {!user ? 'Authentication Required' : 'Access Denied'}
+          </h2>
+          <p className="text-white/60 mb-8">
+            {!user ? 'Please login to access the admin panel.' : 'You do not have permission to view this page.'}
+          </p>
+          <Button
+            onClick={() => navigate(!user ? '/auth' : '/')}
+            className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/10 h-12 text-lg font-bold"
+          >
+            {!user ? 'Go to Login' : 'Return Home'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Main UI
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <div className="container mx-auto p-6 max-w-7xl">
+    <div className="min-h-screen text-foreground relative overflow-hidden font-sans">
+      <SpaceBackground />
+
+      <div className="relative z-10 max-w-[1600px] mx-auto p-6">
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-              <p className="text-slate-400 mt-1">Manage questions and content</p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => navigate('/')}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to App
-              </Button>
-              {mode === 'idle' && (
-                <Button onClick={handleNewQuestion}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Question
-                </Button>
-              )}
-            </div>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-black text-white mb-2 tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>
+              ADMIN <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">DASHBOARD</span>
+            </h1>
+            <p className="text-white/60 font-medium">Manage battle questions and content</p>
           </div>
+          <Button
+            onClick={() => navigate('/')}
+            variant="ghost"
+            className="text-white/70 hover:text-white hover:bg-white/10"
+          >
+            Exit to App
+          </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Question List */}
-          <div className={`lg:col-span-2 ${mode !== 'idle' ? 'hidden lg:block' : ''}`}>
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white">Questions</CardTitle>
-                <CardDescription className="text-slate-400">
-                  {filteredQuestions.length} of {questions.length} questions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {/* Filters */}
-                <div className="mb-4 space-y-4">
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <Input
-                          placeholder="Search questions..."
-                          value={filters.search}
-                          onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                          className="pl-10 bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <Select
-                      value={filters.subject}
-                      onValueChange={(v: any) => setFilters(prev => ({ ...prev, subject: v }))}
-                    >
-                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                        <SelectValue placeholder="Subject" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="all" className="text-white">All Subjects</SelectItem>
-                        <SelectItem value="math" className="text-white">Math</SelectItem>
-                        <SelectItem value="physics" className="text-white">Physics</SelectItem>
-                        <SelectItem value="chemistry" className="text-white">Chemistry</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={filters.level}
-                      onValueChange={(v: any) => setFilters(prev => ({ ...prev, level: v }))}
-                    >
-                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                        <SelectValue placeholder="Level" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="all" className="text-white">All Levels</SelectItem>
-                        <SelectItem value="A1" className="text-white">A1</SelectItem>
-                        <SelectItem value="A2" className="text-white">A2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={filters.difficulty}
-                      onValueChange={(v: any) => setFilters(prev => ({ ...prev, difficulty: v }))}
-                    >
-                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                        <SelectValue placeholder="Difficulty" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="all" className="text-white">All</SelectItem>
-                        <SelectItem value="easy" className="text-white">Easy</SelectItem>
-                        <SelectItem value="medium" className="text-white">Medium</SelectItem>
-                        <SelectItem value="hard" className="text-white">Hard</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={filters.type}
-                      onValueChange={(v: any) => setFilters(prev => ({ ...prev, type: v }))}
-                    >
-                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                        <SelectValue placeholder="Type" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="all" className="text-white">All Types</SelectItem>
-                        <SelectItem value="true_false" className="text-white">True/False</SelectItem>
-                        <SelectItem value="mcq" className="text-white">MCQ</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+        {/* Two-column layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8 h-[calc(100vh-140px)]">
 
-                {/* Question Table */}
+          {/* LEFT PANEL: Filters & List */}
+          <div className="flex flex-col gap-6 h-full overflow-hidden">
+
+            {/* Filters */}
+            <div className={`p-5 ${glassPanel} space-y-4`}>
+              <div className="flex items-center gap-2 text-white/90 font-bold uppercase tracking-wider text-sm mb-2">
+                <Filter className="w-4 h-4 text-primary" />
+                Filters
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelStyle}>Subject</label>
+                  <Select value={filters.subject} onValueChange={(v: any) => setFilters({ ...filters, subject: v })}>
+                    <SelectTrigger className={glassInput}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900 border-white/10 text-white">
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="math">Math</SelectItem>
+                      <SelectItem value="physics">Physics</SelectItem>
+                      <SelectItem value="chemistry">Chemistry</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className={labelStyle}>Level</label>
+                  <Select value={filters.level} onValueChange={(v: any) => setFilters({ ...filters, level: v })}>
+                    <SelectTrigger className={glassInput}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900 border-white/10 text-white">
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="A1">A1</SelectItem>
+                      <SelectItem value="A2">A2</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleNewQuestion}
+                className="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-10 shadow-lg shadow-orange-500/20"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create New Question
+              </Button>
+            </div>
+
+            {/* Question List */}
+            <div className={`flex-1 ${glassPanel} flex flex-col min-h-0`}>
+              <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-md flex justify-between items-center">
+                <h3 className="font-bold text-white flex items-center gap-2">
+                  <Search className="w-4 h-4 text-primary" />
+                  Questions <span className="text-white/40 text-sm font-normal">({questions.length})</span>
+                </h3>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
                 {loadingQuestions ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
-                ) : filteredQuestions.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400">
-                    No questions found
+                ) : questions.length === 0 ? (
+                  <div className="text-center py-12 text-white/40">
+                    <p>No questions found</p>
                   </div>
                 ) : (
-                  <div className="border border-slate-700 rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-slate-700 hover:bg-slate-800">
-                          <TableHead className="text-white">Title</TableHead>
-                          <TableHead className="text-white">Subject</TableHead>
-                          <TableHead className="text-white">Level</TableHead>
-                          <TableHead className="text-white">Type</TableHead>
-                          <TableHead className="text-white">Steps</TableHead>
-                          <TableHead className="text-right text-white">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredQuestions.map((q) => {
-                          const firstStepType = q.steps[0]?.type || 'mcq';
-                          return (
-                            <TableRow
-                              key={q.id}
-                              className="cursor-pointer hover:bg-slate-800 border-slate-700"
-                              onClick={() => handleSelectQuestion(q)}
-                            >
-                              <TableCell className="font-medium text-white">{q.title}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{q.subject}</Badge>
-                              </TableCell>
-                              <TableCell>{q.level}</TableCell>
-                              <TableCell>
-                                <Badge variant={firstStepType === 'true_false' ? 'default' : 'secondary'}>
-                                  {firstStepType === 'true_false' ? 'True/False' : 'MCQ'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>{q.steps.length}</TableCell>
-                              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleSelectQuestion(q)}
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteClick(q.id)}
-                                  >
-                                    <Trash2 className="w-4 h-4 text-red-500" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  questions.map((q) => (
+                    <div
+                      key={q.id}
+                      onClick={() => handleSelectQuestion(q)}
+                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border ${selectedQuestionId === q.id
+                          ? 'bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
+                          : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
+                        }`}
+                    >
+                      <div className="font-bold text-white mb-2 line-clamp-2 text-sm">{q.title}</div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
+                            q.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
+                          }`}>
+                          {q.subject}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 text-white/70">{q.level}</Badge>
+                        <Badge variant="outline" className={`text-[10px] border-0 ${q.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
+                            q.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
+                          }`}>
+                          {q.difficulty}
+                        </Badge>
+                      </div>
+                      <div className="text-[10px] text-white/40 font-medium flex justify-between">
+                        <span>{q.steps.length} Steps</span>
+                        <span>{q.totalMarks} Marks</span>
+                      </div>
+                    </div>
+                  ))
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
-          {/* Right: Editor */}
-          <div className={`${mode === 'idle' ? 'hidden lg:block' : ''}`}>
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-white">
-                    {mode === 'creating' ? 'Create Question' : mode === 'editing' ? 'Edit Question' : 'Question Editor'}
-                  </CardTitle>
-                  {mode !== 'idle' && (
-                    <Button variant="ghost" size="sm" onClick={() => {
-                      setMode('idle');
-                      setSelectedQuestionId(null);
-                    }}>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
+          {/* RIGHT PANEL: Editor */}
+          <div className={`${glassPanel} flex flex-col h-full overflow-hidden relative`}>
+            {mode === 'idle' ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-white/30">
+                <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
+                  <Shield className="w-10 h-10" />
                 </div>
-                <CardDescription className="text-slate-400">
-                  {mode === 'idle' ? 'Select a question to edit or create a new one' : 'Fill in the question details'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {mode === 'idle' ? (
-                  <div className="text-center py-12 text-slate-400">
-                    <p>Select a question from the list or create a new one</p>
+                <h3 className="text-xl font-bold text-white/50 mb-2">Ready to Edit</h3>
+                <p>Select a question or create a new one</p>
+              </div>
+            ) : (
+              <>
+                {/* Editor Header */}
+                <div className="p-6 border-b border-white/10 bg-white/5 flex justify-between items-center sticky top-0 z-20 backdrop-blur-xl">
+                  <div>
+                    <h2 className="text-xl font-black text-white tracking-wide">
+                      {mode === 'creating' ? 'NEW QUESTION' : 'EDIT QUESTION'}
+                    </h2>
+                    <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-widest">
+                      {mode === 'creating' ? 'DRAFTING MODE' : `ID: ${selectedQuestionId?.slice(0, 8)}...`}
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-6 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
-                    {/* Basic Info */}
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-white">Title *</Label>
+                  <div className="flex gap-3">
+                    {mode === 'editing' && (
+                      <Button
+                        onClick={handleDelete}
+                        variant="destructive"
+                        className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
+                    )}
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/20 border-0"
+                    >
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                      Save Changes
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Editor Content */}
+                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+
+                  {/* Section: Meta */}
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-white/90 border-b border-white/10 pb-2 flex items-center gap-2">
+                      <div className="w-1 h-5 bg-primary rounded-full"></div>
+                      Meta Information
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Title *</label>
                         <Input
                           value={form.title}
-                          onChange={(e) => updateFormField('title', e.target.value)}
-                          placeholder="Question title"
-                          className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                          onChange={e => setForm({ ...form, title: e.target.value })}
+                          className={glassInput}
+                          placeholder="e.g. Integration by Parts: ln(x)/x³"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-white">Subject *</Label>
-                          <Select
-                            value={form.subject}
-                            onValueChange={(v: any) => updateFormField('subject', v)}
-                          >
-                            <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-800 border-slate-700">
-                              <SelectItem value="math" className="text-white">Math</SelectItem>
-                              <SelectItem value="physics" className="text-white">Physics</SelectItem>
-                              <SelectItem value="chemistry" className="text-white">Chemistry</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-white">Level *</Label>
-                          <Select
-                            value={form.level}
-                            onValueChange={(v: any) => updateFormField('level', v)}
-                          >
-                            <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-800 border-slate-700">
-                              <SelectItem value="A1" className="text-white">A1</SelectItem>
-                              <SelectItem value="A2" className="text-white">A2</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-white">Difficulty *</Label>
-                          <Select
-                            value={form.difficulty}
-                            onValueChange={(v: any) => updateFormField('difficulty', v)}
-                          >
-                            <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-800 border-slate-700">
-                              <SelectItem value="easy" className="text-white">Easy</SelectItem>
-                              <SelectItem value="medium" className="text-white">Medium</SelectItem>
-                              <SelectItem value="hard" className="text-white">Hard</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-white">Chapter</Label>
-                          <Input
-                            value={form.chapter}
-                            onChange={(e) => updateFormField('chapter', e.target.value)}
-                            placeholder="Chapter name"
-                            className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-                          />
-                        </div>
-                      </div>
+
                       <div>
-                        <Label className="text-white">Question Stem *</Label>
-                        <Textarea
-                          value={form.stem}
-                          onChange={(e) => updateFormField('stem', e.target.value)}
-                          placeholder="Main question text"
-                          rows={3}
-                          className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-white">Question Type</Label>
-                        <Select
-                          value={form.questionType}
-                          onValueChange={(v: any) => updateFormField('questionType', v)}
-                        >
-                          <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-slate-800 border-slate-700">
-                            <SelectItem value="auto" className="text-white">Auto-detect from steps</SelectItem>
-                            <SelectItem value="true_false" className="text-white">True/False (all steps)</SelectItem>
-                            <SelectItem value="mcq" className="text-white">MCQ (all steps)</SelectItem>
+                        <label className={labelStyle}>Subject *</label>
+                        <Select value={form.subject} onValueChange={(v: any) => setForm({ ...form, subject: v })}>
+                          <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-white/10 text-white">
+                            <SelectItem value="math">Math</SelectItem>
+                            <SelectItem value="physics">Physics</SelectItem>
+                            <SelectItem value="chemistry">Chemistry</SelectItem>
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-slate-400 mt-1">
-                          {form.questionType === 'auto' 
-                            ? 'Type will be detected from each step\'s options'
-                            : form.questionType === 'true_false'
-                            ? 'All steps will be treated as True/False (use 2 options: True, False)'
-                            : 'All steps will be treated as MCQ (use 4 options)'}
-                        </p>
                       </div>
-                    </div>
 
-                    {/* Steps */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
+                      <div>
+                        <label className={labelStyle}>Chapter *</label>
+                        <Input
+                          value={form.chapter}
+                          onChange={e => setForm({ ...form, chapter: e.target.value })}
+                          className={glassInput}
+                          placeholder="e.g. Integration"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label className="text-lg font-semibold text-white">Steps ({form.steps.length})</Label>
-                          <p className="text-xs text-slate-400 mt-1">
-                            Each step can be True/False or MCQ. Add multiple steps for multi-part questions.
-                          </p>
+                          <label className={labelStyle}>Level *</label>
+                          <Select value={form.level} onValueChange={(v: any) => setForm({ ...form, level: v })}>
+                            <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                            <SelectContent className="bg-gray-900 border-white/10 text-white">
+                              <SelectItem value="A1">A1</SelectItem>
+                              <SelectItem value="A2">A2</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={handleAddStep}
-                          className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Step
-                        </Button>
+                        <div>
+                          <label className={labelStyle}>Difficulty *</label>
+                          <Select value={form.difficulty} onValueChange={(v: any) => setForm({ ...form, difficulty: v })}>
+                            <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                            <SelectContent className="bg-gray-900 border-white/10 text-white">
+                              <SelectItem value="easy">Easy</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="hard">Hard</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                      {form.steps.map((step, stepIndex) => {
-                        // Use questionType if set, otherwise auto-detect
-                        const forceType = form.questionType === 'auto' 
-                          ? undefined 
-                          : (form.questionType === 'true_false' ? 'true_false' : 'mcq');
-                        const stepType = detectStepType(step, forceType);
-                        const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean);
-                        return (
-                          <Card key={stepIndex} className="p-4 bg-slate-700 border-slate-600">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-2">
-                                <Badge className="bg-slate-600 text-white">Step {stepIndex + 1}</Badge>
-                                <Badge variant={stepType === 'true_false' ? 'default' : 'secondary'}>
-                                  {stepType === 'true_false' ? (
-                                    <><CheckCircle2 className="w-3 h-3 mr-1" /> True/False</>
-                                  ) : (
-                                    <>MCQ</>
-                                  )}
-                                </Badge>
-                              </div>
-                              {form.steps.length > 1 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteStep(stepIndex)}
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-500" />
-                                </Button>
-                              )}
-                            </div>
-                            <div className="space-y-4">
-                              <div>
-                                <Label className="text-white">Step Title</Label>
-                                <Input
-                                  value={step.title}
-                                  onChange={(e) => updateStepField(stepIndex, 'title', e.target.value)}
-                                  className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-white">Options</Label>
-                                {stepType === 'true_false' ? (
-                                  // True/False: Show only 2 options
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {[0, 1].map((optIdx) => {
-                                      const defaultValue = optIdx === 0 ? 'True' : 'False';
-                                      const currentValue = step.options[optIdx]?.trim() || '';
-                                      
-                                      return (
-                                        <div key={optIdx} className="flex items-center gap-2">
-                                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                            step.correctAnswer === optIdx 
-                                              ? 'bg-green-500 text-white' 
-                                              : 'bg-slate-700 text-slate-300'
-                                          }`}>
-                                            {optIdx === 0 ? 'T' : 'F'}
-                                          </div>
-                                          <Input
-                                            value={currentValue}
-                                            onChange={(e) => updateStepOption(stepIndex, optIdx, e.target.value)}
-                                            placeholder={defaultValue}
-                                            className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
-                                          />
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  // MCQ: Show all 4 options
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {[0, 1, 2, 3].map((optIdx) => (
-                                      <div key={optIdx} className="flex items-center gap-2">
-                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                          step.correctAnswer === optIdx 
-                                            ? 'bg-green-500 text-white' 
-                                            : 'bg-slate-700 text-slate-300'
-                                        }`}>
-                                          {String.fromCharCode(65 + optIdx)}
-                                        </div>
-                                        <Input
-                                          value={step.options[optIdx]}
-                                          onChange={(e) => updateStepOption(stepIndex, optIdx, e.target.value)}
-                                          placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
-                                          className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                {stepType === 'true_false' && nonEmptyOptions.length === 2 && (
-                                  <p className="text-xs text-green-400 mt-2">
-                                    ✓ True/False question - only 2 options shown
-                                  </p>
-                                )}
-                              </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <Label className="text-white">Correct Answer</Label>
-                                  <Select
-                                    value={step.correctAnswer.toString()}
-                                    onValueChange={(v) => updateStepField(stepIndex, 'correctAnswer', parseInt(v))}
-                                  >
-                                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-slate-800 border-slate-700">
-                                      {stepType === 'true_false' ? (
-                                        // True/False: Show True/False labels
-                                        <>
-                                          <SelectItem value="0" className="text-white">
-                                            True: {step.options[0] || 'True'}
-                                          </SelectItem>
-                                          <SelectItem value="1" className="text-white">
-                                            False: {step.options[1] || 'False'}
-                                          </SelectItem>
-                                        </>
-                                      ) : (
-                                        // MCQ: Show A, B, C, D labels
-                                        nonEmptyOptions.map((opt, idx) => (
-                                          <SelectItem key={idx} value={idx.toString()} className="text-white">
-                                            {String.fromCharCode(65 + idx)}: {opt || `Option ${String.fromCharCode(65 + idx)}`}
-                                          </SelectItem>
-                                        ))
-                                      )}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div>
-                                  <Label className="text-white">Marks</Label>
-                                  <Input
-                                    type="number"
-                                    value={step.marks}
-                                    onChange={(e) => updateStepField(stepIndex, 'marks', parseInt(e.target.value) || 1)}
-                                    min="1"
-                                    className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
-                                  />
-                                </div>
-                              </div>
-                              <div>
-                                <Label className="text-white">Explanation</Label>
-                                <Textarea
-                                  value={step.explanation}
-                                  onChange={(e) => updateStepField(stepIndex, 'explanation', e.target.value)}
-                                  rows={2}
-                                  placeholder="Explanation shown after answering"
-                                  className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
-                                />
-                              </div>
-                            </div>
-                          </Card>
-                        );
-                      })}
-                    </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-4 border-t">
-                      <Button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="flex-1"
-                      >
-                        {saving ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save className="w-4 h-4 mr-2" />
-                            {mode === 'creating' ? 'Create Question' : 'Save Changes'}
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setMode('idle');
-                          setSelectedQuestionId(null);
-                        }}
-                      >
-                        Cancel
-                      </Button>
+                      <div>
+                        <label className={labelStyle}>Total Marks</label>
+                        <Input
+                          type="number"
+                          value={form.totalMarks}
+                          onChange={e => setForm({ ...form, totalMarks: parseInt(e.target.value) || 1 })}
+                          className={glassInput}
+                        />
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Stem (Main Question) *</label>
+                        <Textarea
+                          value={form.stem}
+                          onChange={e => setForm({ ...form, stem: e.target.value })}
+                          className={`${glassInput} min-h-[100px]`}
+                          placeholder="Enter the main question text here..."
+                        />
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Image URL (Optional)</label>
+                        <Input
+                          value={form.imageUrl}
+                          onChange={e => setForm({ ...form, imageUrl: e.target.value })}
+                          className={glassInput}
+                          placeholder="https://..."
+                        />
+                      </div>
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+
+                  {/* Section: Steps */}
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                      <h3 className="text-lg font-bold text-white/90 flex items-center gap-2">
+                        <div className="w-1 h-5 bg-secondary rounded-full"></div>
+                        Steps ({form.steps.length})
+                      </h3>
+                      <Button
+                        onClick={handleAddStep}
+                        size="sm"
+                        className="bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                      >
+                        <Plus className="w-4 h-4 mr-2" /> Add Step
+                      </Button>
+                    </div>
+
+                    <div className="space-y-6">
+                      {form.steps.map((step, index) => (
+                        <div key={index} className="bg-white/5 border border-white/10 rounded-2xl p-6 relative group">
+                          <div className="absolute top-4 right-4 flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepUp(index)} disabled={index === 0}><ArrowUp className="w-4 h-4" /></Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepDown(index)} disabled={index === form.steps.length - 1}><ArrowDown className="w-4 h-4" /></Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:bg-red-500/20" onClick={() => handleDeleteStep(index)} disabled={form.steps.length <= 1}><Trash2 className="w-4 h-4" /></Button>
+                          </div>
+
+                          <div className="mb-4 flex items-center gap-2">
+                            <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0">STEP {index + 1}</Badge>
+                            {(() => {
+                              // Live type detection
+                              const normalize = (s: string) => s.toLowerCase().trim()
+                              const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean)
+                              const normalized = nonEmptyOptions.map(normalize).sort().join(',')
+                              const isTrueFalse = nonEmptyOptions.length === 2 && normalized === 'false,true'
+                              const isValid = nonEmptyOptions.length >= 2 && step.correctAnswer >= 0 && step.correctAnswer < nonEmptyOptions.length
+                              
+                              if (!isValid) {
+                                return <Badge className="bg-red-500/20 text-red-400 border-red-500/50">⚠️ Invalid config</Badge>
+                              }
+                              return isTrueFalse 
+                                ? <Badge className="bg-green-500/20 text-green-400 border-green-500/50">✅ True/False</Badge>
+                                : <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">✅ MCQ</Badge>
+                            })()}
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-4">
+                            <div>
+                              <label className={labelStyle}>Step Title</label>
+                              <Input
+                                value={step.title}
+                                onChange={e => updateStepField(index, 'title', e.target.value)}
+                                className={glassInput}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelStyle}>Prompt</label>
+                              <Textarea
+                                value={step.prompt}
+                                onChange={e => updateStepField(index, 'prompt', e.target.value)}
+                                className={`${glassInput} min-h-[80px]`}
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-xl border border-white/5">
+                              {[0, 1, 2, 3].map((optIdx) => (
+                                <div key={optIdx}>
+                                  <label className="text-xs text-white/50 mb-1 block uppercase tracking-wider">Option {String.fromCharCode(65 + optIdx)}</label>
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step.correctAnswer === optIdx ? 'bg-green-500 text-black' : 'bg-white/10 text-white/50'}`}>
+                                      {String.fromCharCode(65 + optIdx)}
+                                    </div>
+                                    <Input
+                                      value={step.options[optIdx]}
+                                      onChange={e => updateStepOption(index, optIdx, e.target.value)}
+                                      className={`${glassInput} h-9 text-sm`}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4">
+                              <div>
+                                <label className={labelStyle}>Correct Answer</label>
+                                <Select value={step.correctAnswer.toString()} onValueChange={(v) => updateStepField(index, 'correctAnswer', parseInt(v))}>
+                                  <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                                  <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                    <SelectItem value="0">Option A</SelectItem>
+                                    <SelectItem value="1">Option B</SelectItem>
+                                    <SelectItem value="2">Option C</SelectItem>
+                                    <SelectItem value="3">Option D</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <label className={labelStyle}>Marks</label>
+                                <Input type="number" value={step.marks} onChange={e => updateStepField(index, 'marks', parseInt(e.target.value) || 1)} className={glassInput} />
+                              </div>
+                              <div>
+                                <label className={labelStyle}>Time (s)</label>
+                                <Input type="number" value={step.timeLimitSeconds ?? ''} onChange={e => updateStepField(index, 'timeLimitSeconds', e.target.value ? parseInt(e.target.value) : null)} className={glassInput} placeholder="30" />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className={labelStyle}>Explanation</label>
+                              <Textarea
+                                value={step.explanation}
+                                onChange={e => updateStepField(index, 'explanation', e.target.value)}
+                                className={`${glassInput} h-20 text-sm`}
+                                placeholder="Explain why the answer is correct..."
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Question</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this question? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-              disabled={deleteQuestion.isPending}
-            >
-              {deleteQuestion.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

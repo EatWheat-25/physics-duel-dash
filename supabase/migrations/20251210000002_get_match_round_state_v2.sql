@@ -76,3 +76,5 @@ ALTER FUNCTION public.get_match_round_state_v2(UUID) SET search_path = public;
 -- Grant to authenticated users (players can poll their own matches)
 GRANT EXECUTE ON FUNCTION public.get_match_round_state_v2(UUID) TO authenticated;
 
+
+

@@ -120,6 +120,63 @@ export function useGame(match: MatchRow | null) {
   const hasConnectedRef = useRef<boolean>(false)
   const pollingTimeoutRef = useRef<number | null>(null)
   const pollingIntervalRef = useRef<number | null>(null)
+  const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const localResultsVersionRef = useRef<number>(0)
+
+  // Shared function to apply results from payload (used by both Realtime and WS handlers)
+  const applyResults = useCallback((payload: any) => {
+    console.log('[useGame] applyResults called with payload:', payload)
+    
+    // Build results object from payload (handles both simple and multi-step modes)
+    const mode = payload.mode || 'simple'
+    const results = {
+      player1_answer: mode === 'simple' ? payload.p1?.answer ?? null : null,
+      player2_answer: mode === 'simple' ? payload.p2?.answer ?? null : null,
+      correct_answer: payload.correct_answer ?? 0,
+      player1_correct: payload.p1?.correct ?? false,
+      player2_correct: payload.p2?.correct ?? false,
+      round_winner: payload.round_winner ?? null,
+      p1Score: payload.p1?.total ?? 0,
+      p2Score: payload.p2?.total ?? 0,
+      stepResults: mode === 'steps' ? payload.p1?.steps : undefined
+    }
+
+    setState(prev => {
+      // Don't update if already showing results with same or newer version
+      if (prev.status === 'results' && payload.round_number && payload.round_number < prev.currentRoundNumber) {
+        console.log('[useGame] Ignoring older round results')
+        return prev
+      }
+
+      return {
+        ...prev,
+        status: 'results' as const,
+        phase: 'result' as const,
+        results,
+        waitingForOpponent: false,
+        currentRoundNumber: payload.round_number ?? prev.currentRoundNumber,
+        playerRoundWins: {
+          ...prev.playerRoundWins,
+          // Wins are in payload.p1.total and payload.p2.total but we'd need player IDs to map them
+          // For now, keep existing wins - they'll be updated from match state
+        },
+        matchOver: false, // Will be determined from match status
+        matchWinnerId: null
+      }
+    })
+
+    // Clear polling if active
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current)
+      pollingTimeoutRef.current = null
+    }
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+
+    console.log('[useGame] ✅ State updated with results from applyResults')
+  }, [])
 
   // Listen for polling-detected results (fallback if WS message missed)
   useEffect(() => {
@@ -218,11 +275,12 @@ export function useGame(match: MatchRow | null) {
 
   useEffect(() => {
     if (!match) {
-      setState({
-        status: 'connecting',
-        playerRole: null,
-        errorMessage: null
-      })
+        setState(prev => ({
+          ...prev,
+          status: 'connecting',
+          playerRole: null,
+          errorMessage: null
+        }))
       return
     }
 
@@ -231,11 +289,12 @@ export function useGame(match: MatchRow | null) {
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError || !user) {
-          setState({
-            status: 'error',
-            playerRole: null,
-            errorMessage: 'Not authenticated'
-          })
+      setState(prev => ({
+        ...prev,
+        status: 'error' as const,
+        playerRole: null,
+        errorMessage: 'Not authenticated'
+      }))
           return
         }
 
@@ -244,33 +303,36 @@ export function useGame(match: MatchRow | null) {
 
         // Verify user is part of match
         if (match.player1_id !== user.id && match.player2_id !== user.id) {
-          setState({
+          setState(prev => ({
+            ...prev,
             status: 'error',
             playerRole: null,
             errorMessage: 'You are not part of this match'
-          })
+          }))
           return
         }
 
         // Get session token
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         if (sessionError || !session?.access_token) {
-          setState({
-            status: 'error',
+          setState(prev => ({
+            ...prev,
+            status: 'error' as const,
             playerRole: null,
             errorMessage: 'No session token'
-          })
+          }))
           return
         }
 
         // Build WebSocket URL
         if (!SUPABASE_URL) {
           console.error('[useGame] ❌ SUPABASE_URL is not defined')
-          setState({
-            status: 'error',
+          setState(prev => ({
+            ...prev,
+            status: 'error' as const,
             playerRole: null,
             errorMessage: 'Missing SUPABASE_URL'
-          })
+          }))
           return
         }
 
@@ -439,63 +501,50 @@ export function useGame(match: MatchRow | null) {
                 waitingForOpponent: true
               }))
             } else if (message.type === 'RESULTS_RECEIVED') {
-              console.log('[useGame] RESULTS_RECEIVED message received', message)
-              console.log('[useGame] Full message structure:', JSON.stringify(message, null, 2))
+              console.log('[useGame] RESULTS_RECEIVED message received (WebSocket fast-path)', message)
               
-              // Clear polling fallback (WS message arrived)
-              if (pollingTimeoutRef.current) {
-                clearTimeout(pollingTimeoutRef.current)
-                pollingTimeoutRef.current = null
-              }
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current)
-                pollingIntervalRef.current = null
-              }
-              
+              // WebSocket fast-path - but check if we already have results from Realtime
+              // If results_version is provided, check against local version
               const msg = message as any
               
-              // Validate required fields
-              if (msg.player1_answer === undefined && msg.player2_answer === undefined && !msg.stepResults) {
-                console.error('[useGame] ❌ RESULTS_RECEIVED missing required fields:', msg)
+              // If message has results_version, check if we've already processed a newer version
+              if (msg.results_version !== undefined && msg.results_version <= localResultsVersionRef.current) {
+                console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already have newer version via Realtime')
+                return
               }
-              
-              setState(prev => {
-                const newState = {
-                  ...prev,
-                  status: 'results' as const,
-                  phase: 'result' as const,
-                  results: {
-                    player1_answer: msg.player1_answer ?? null,
-                    player2_answer: msg.player2_answer ?? null,
-                    correct_answer: msg.correct_answer ?? 0,
-                    player1_correct: msg.player1_correct ?? false,
-                    player2_correct: msg.player2_correct ?? false,
-                    round_winner: msg.round_winner ?? null,
-                    p1Score: msg.p1Score,
-                    p2Score: msg.p2Score,
-                    stepResults: msg.stepResults
-                  },
-                  waitingForOpponent: false,
-                  // Update match-level state
-                  currentRoundNumber: msg.roundNumber ?? prev.currentRoundNumber,
-                  targetRoundsToWin: msg.targetRoundsToWin ?? prev.targetRoundsToWin,
-                  playerRoundWins: msg.playerRoundWins ?? prev.playerRoundWins,
-                  matchOver: msg.matchOver ?? false,
-                  matchWinnerId: msg.matchWinnerId ?? null,
-                  matchFinished: msg.matchOver ?? false,
-                  matchWinner: msg.matchWinnerId ?? prev.matchWinner
+
+              // Map WS message format to payload format for applyResults
+              // Note: WS message might have different structure, try to map it
+              if (msg.results_payload) {
+                // If message has results_payload, use it directly
+                if (msg.results_version) {
+                  localResultsVersionRef.current = msg.results_version
                 }
-                
-                console.log('[useGame] ✅ State updated with results:', {
-                  status: newState.status,
-                  hasResults: !!newState.results,
-                  player1_answer: newState.results?.player1_answer,
-                  player2_answer: newState.results?.player2_answer,
-                  round_winner: newState.results?.round_winner
-                })
-                
-                return newState
-              })
+                applyResults(msg.results_payload)
+              } else {
+                // Legacy WS format - construct payload manually
+                const payload = {
+                  mode: 'simple',
+                  round_id: null,
+                  round_number: msg.roundNumber ?? state.currentRoundNumber,
+                  correct_answer: msg.correct_answer ?? 0,
+                  p1: {
+                    answer: msg.player1_answer ?? null,
+                    correct: msg.player1_correct ?? false,
+                    score_delta: 0,
+                    total: msg.playerRoundWins?.[Object.keys(msg.playerRoundWins || {})[0]] ?? 0
+                  },
+                  p2: {
+                    answer: msg.player2_answer ?? null,
+                    correct: msg.player2_correct ?? false,
+                    score_delta: 0,
+                    total: msg.playerRoundWins?.[Object.keys(msg.playerRoundWins || {})[1]] ?? 0
+                  },
+                  round_winner: msg.round_winner ?? null,
+                  computed_at: new Date().toISOString()
+                }
+                applyResults(payload)
+              }
             } else if (message.type === 'ROUND_STARTED') {
               console.log('[useGame] ROUND_STARTED message received - new round starting')
               setState(prev => ({
@@ -586,11 +635,12 @@ export function useGame(match: MatchRow | null) {
         }
       } catch (error: any) {
         console.error('[useGame] Connection error:', error)
-        setState({
+        setState(prev => ({
+          ...prev,
           status: 'error',
           playerRole: null,
           errorMessage: error.message || 'Failed to connect'
-        })
+        }))
       }
     }
 
@@ -616,6 +666,112 @@ export function useGame(match: MatchRow | null) {
       }
     }
   }, [match?.id])
+
+  // On mount: Initial SELECT to check for existing results (handles reload/late join)
+  useEffect(() => {
+    if (!match?.id) return
+
+    const checkExistingResults = async () => {
+      try {
+        const { data: matchData, error } = await supabase
+          .from('matches')
+          .select('results_computed_at, results_payload, results_version, results_round_id, current_round_id, status, winner_id')
+          .eq('id', match.id)
+          .single() as { data: any; error: any }
+
+        if (error || !matchData) return
+
+        // If results already computed, show them immediately
+        if (matchData.results_computed_at && matchData.results_payload) {
+          console.log('[useGame] Found existing results on mount, applying...')
+          localResultsVersionRef.current = matchData.results_version || 0
+          
+          // Validate before applying
+          if (
+            matchData.results_payload &&
+            matchData.results_round_id === matchData.current_round_id
+          ) {
+            applyResults(matchData.results_payload)
+          }
+        }
+      } catch (err) {
+        console.error('[useGame] Error checking existing results on mount:', err)
+      }
+    }
+
+    checkExistingResults()
+  }, [match?.id, applyResults])
+
+  // Realtime subscription for matches table (primary results delivery mechanism)
+  useEffect(() => {
+    if (!match?.id) return
+
+    console.log('[useGame] Setting up Realtime subscription for match:', match.id)
+
+    const channel = supabase
+      .channel(`match:${match.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'matches',
+        filter: `id=eq.${match.id}`
+        // Note: Supabase automatically includes old record in UPDATE events
+        // payload.old and payload.new both available
+      }, (payload: any) => {
+        console.log('[useGame] Realtime UPDATE received:', {
+          old: payload.old,
+          new: payload.new
+        })
+
+        // Handle results updates (handles both NULL → NOT NULL and out-of-order events)
+        const newPayload = payload.new
+        const oldVersion = payload.old?.results_version ?? 0
+        const newVersion = newPayload.results_version ?? 0
+
+        // Accept results UPDATE only if ALL true (per plan Section 9):
+        // 1. results_payload != null
+        // 2. results_version > local version (handles out-of-order events)
+        // 3. results_round_id === current_round_id (prevents showing old round results)
+        if (
+          newPayload.results_payload != null &&
+          newVersion > localResultsVersionRef.current &&
+          newPayload.results_round_id === newPayload.current_round_id
+        ) {
+          console.log('[useGame] ✅ Accepting Realtime results (validated):', {
+            version: newVersion,
+            local_version: localResultsVersionRef.current,
+            round_id: newPayload.results_round_id,
+            current_round_id: newPayload.current_round_id
+          })
+          localResultsVersionRef.current = newVersion
+          applyResults(newPayload.results_payload)
+        } else {
+          // Ignore stale/old round/wrong data
+          console.log('[useGame] ⚠️ Ignoring Realtime results (failed validation):', {
+            hasPayload: newPayload.results_payload != null,
+            versionCheck: newVersion > localResultsVersionRef.current,
+            roundMatch: newPayload.results_round_id === newPayload.current_round_id,
+            results_version: newVersion,
+            local_version: localResultsVersionRef.current,
+            results_round_id: newPayload.results_round_id,
+            current_round_id: newPayload.current_round_id
+          })
+        }
+      })
+      .subscribe((status) => {
+        console.log('[useGame] Realtime subscription status:', status)
+      })
+
+    realtimeChannelRef.current = channel
+
+    return () => {
+      console.log('[useGame] Cleaning up Realtime subscription')
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current)
+        realtimeChannelRef.current = null
+      }
+    }
+  }, [match?.id, applyResults])
 
   // Visibility-based lightweight resync
   useEffect(() => {
@@ -719,9 +875,9 @@ export function useGame(match: MatchRow | null) {
             pollingIntervalRef.current = null
           }
           
-          // Start 3s timeout - if RESULTS_RECEIVED doesn't arrive, start polling
+          // Start 3s timeout - if Realtime doesn't deliver, start polling fallback (safety net only)
           pollingTimeoutRef.current = window.setTimeout(() => {
-            console.log('[useGame] RESULTS_RECEIVED not received in 3s, starting polling fallback')
+            console.log('[useGame] Results not received via Realtime in 3s, starting polling fallback (safety net)')
             startPollingForResults(matchIdRef.current!)
           }, 3000)
         }
@@ -736,19 +892,19 @@ export function useGame(match: MatchRow | null) {
     })
   }, [])
   
-  // Polling function for results fallback - queries database if WebSocket message doesn't arrive
+  // Polling function for results fallback - simplified safety net (debugging only)
   const startPollingForResults = useCallback(async (matchId: string) => {
-    console.log('[useGame] 🔄 Polling fallback: Querying database for results')
+    console.log('[useGame] 🔄 Polling fallback: Querying database for results (safety net - Realtime should handle this)')
     
     let pollCount = 0
-    const maxPolls = 30 // Poll for up to 30 seconds (30 attempts at 1s intervals) - increased due to server processing delays
+    const maxPolls = 10 // Poll for up to 20 seconds (10 attempts at 2s intervals) - simplified fallback
     
     const poll = async () => {
       pollCount++
       try {
-        // Try RPC first
+        // Try RPC first (if available)
         let pollData = null
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_match_round_state_v2', {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_match_round_state_v2' as any, {
           p_match_id: matchId
         })
         
@@ -767,9 +923,9 @@ export function useGame(match: MatchRow | null) {
           // Also query timestamps to detect if answers were submitted
           const { data: matchData, error: matchError } = await supabase
             .from('matches')
-            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, player1_answered_at, player2_answered_at, winner_id, status, player1_id, player2_id')
+            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, results_payload, results_version, results_round_id, current_round_id, player1_answered_at, player2_answered_at, winner_id, status, player1_id, player2_id')
             .eq('id', matchId)
-            .single()
+            .single() as { data: any; error: any }
           
           if (matchError) {
             console.error('[useGame] Direct query error:', matchError)
@@ -782,120 +938,27 @@ export function useGame(match: MatchRow | null) {
             return
           }
           
-          // Check if both answered and results are computed
-          // results_computed_at being set means results were computed
-          // Answers might be null if cleared for next round, but if results_computed_at exists, we can still show results
-          // Alternatively, if both answer timestamps exist, results should be ready
-          const bothAnswered = matchData && 
-                               (matchData.player1_answered_at !== null) && 
-                               (matchData.player2_answered_at !== null)
-          
+          // Simplified polling: just check if results_payload exists
           const resultsReady = matchData && 
-                               bothAnswered && 
-                               matchData.results_computed_at !== null
-          
-          console.log('[useGame] Direct query result check:', {
-            hasMatchData: !!matchData,
-            player1_answer: matchData?.player1_answer,
-            player2_answer: matchData?.player2_answer,
-            player1_answered_at: matchData?.player1_answered_at,
-            player2_answered_at: matchData?.player2_answered_at,
-            results_computed_at: matchData?.results_computed_at,
-            bothAnswered,
-            resultsReady
-          })
+                               matchData.results_computed_at !== null && 
+                               matchData.results_payload !== null
           
           if (resultsReady) {
-            // Try to get optional columns if they exist (round_wins, round_number might not be in schema)
-            let player1RoundWins = 0
-            let player2RoundWins = 0
-            let targetRoundsToWin = 4
-            let roundNumber = 1
-            
-            try {
-              const { data: extendedMatchData, error: extendedError } = await supabase
-                .from('matches')
-                .select('player1_round_wins, player2_round_wins, target_rounds_to_win, round_number')
-                .eq('id', matchId)
-                .single()
-              
-              if (!extendedError && extendedMatchData) {
-                player1RoundWins = extendedMatchData.player1_round_wins ?? 0
-                player2RoundWins = extendedMatchData.player2_round_wins ?? 0
-                targetRoundsToWin = extendedMatchData.target_rounds_to_win ?? 4
-                roundNumber = extendedMatchData.round_number ?? 1
-              }
-            } catch (err) {
-              // Optional columns don't exist, use defaults
-              console.log('[useGame] Optional columns (round_wins, round_number) not available, using defaults')
-            }
-            
-            // If answers are null but results_computed_at exists, we need to get them from somewhere
-            // For now, if answers are null, we can't display them - this means results were cleared
-            // But we can still show that results were computed
-            if (matchData.player1_answer === null || matchData.player2_answer === null) {
-              console.warn('[useGame] Results computed but answers are null (likely cleared for next round) - cannot display results')
-              // Results were computed but cleared - we can't show them via polling
-              // Wait for WebSocket message instead
-              if (pollCount >= maxPolls) {
-                if (pollingIntervalRef.current) {
-                  clearInterval(pollingIntervalRef.current)
-                  pollingIntervalRef.current = null
-                }
-              }
-              return
-            }
-            
+            // Use results_payload directly (same as Realtime handler)
             pollData = {
               both_answered: true,
-              result: {
-                player1_answer: matchData.player1_answer,
-                player2_answer: matchData.player2_answer,
-                correct_answer: matchData.correct_answer,
-                player1_correct: matchData.player1_correct,
-                player2_correct: matchData.player2_correct,
-                round_winner: matchData.round_winner,
-                round_number: roundNumber,
-                target_rounds_to_win: targetRoundsToWin,
-                player1_round_wins: player1RoundWins,
-                player2_round_wins: player2RoundWins,
-                player_round_wins: {
-                  [matchData.player1_id]: player1RoundWins,
-                  [matchData.player2_id]: player2RoundWins
-                },
-                match_over: matchData.winner_id !== null || matchData.status === 'finished',
-                match_winner_id: matchData.winner_id
-              }
+              results_payload: matchData.results_payload,
+              results_version: matchData.results_version ?? 0
             }
             
-            console.log('[useGame] ✅ Constructed pollData from direct query:', {
-              both_answered: pollData.both_answered,
-              hasResult: !!pollData.result,
-              round_winner: pollData.result?.round_winner
-            })
+            console.log('[useGame] ✅ Found results_payload via polling (fallback)')
           } else {
-            // Results not ready yet - log why
+            // Results not ready yet
             if (pollCount <= 5 || pollCount % 5 === 0) {
-              console.log('[useGame] Results not ready yet (poll', pollCount, '):', {
-                hasMatchData: !!matchData,
-                p1_answer: matchData?.player1_answer,
-                p2_answer: matchData?.player2_answer,
-                p1_answered_at: matchData?.player1_answered_at,
-                p2_answered_at: matchData?.player2_answered_at,
-                bothAnswered,
-                results_computed: !!matchData?.results_computed_at
-              })
-              
-              // If both answered (timestamps exist) but results not computed, this is a server issue
-              if (bothAnswered && !matchData?.results_computed_at && pollCount >= 10) {
-                console.warn('[useGame] ⚠️ Server delay: Both players answered but results not computed after', pollCount, 'seconds.')
-                console.warn('[useGame] 🔍 Database state - player1_answer:', matchData?.player1_answer, 'player2_answer:', matchData?.player2_answer)
-                console.warn('[useGame] 💡 If player1_answer is NULL, server RPC may not have stored it. Waiting for server to fix...')
-              }
+              console.log('[useGame] Results not ready yet (poll', pollCount, ') - results_computed_at:', matchData?.results_computed_at)
             }
             if (pollCount >= maxPolls) {
-              console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls, 'attempts')
-              console.warn('[useGame] 💡 Polling stopped, but WebSocket listener still active - will receive RESULTS_RECEIVED if server sends it')
+              console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls * 2, 'seconds')
               if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current)
                 pollingIntervalRef.current = null
@@ -921,9 +984,19 @@ export function useGame(match: MatchRow | null) {
           console.log('[useGame] Poll attempt', pollCount, '- pollData:', pollData ? 'has data' : 'null', data ? {both_answered: data.both_answered, hasResult: !!data.result} : 'no data')
         }
         
-        if (data?.both_answered && data.result) {
-          // Results ready - process as RESULTS_RECEIVED message
-          console.log('[useGame] ✅ Polling detected results, processing as RESULTS_RECEIVED')
+        if (data?.both_answered && data.results_payload) {
+          // Results ready - use results_payload directly (same as Realtime handler)
+          console.log('[useGame] ✅ Polling detected results via results_payload (fallback - Realtime should handle this)')
+          
+          // Check version to avoid duplicate processing
+          if (data.results_version && data.results_version <= localResultsVersionRef.current) {
+            console.log('[useGame] Ignoring polled results - already have newer version')
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current)
+              pollingIntervalRef.current = null
+            }
+            return
+          }
           
           // Clear polling
           if (pollingIntervalRef.current) {
@@ -935,45 +1008,11 @@ export function useGame(match: MatchRow | null) {
             pollingTimeoutRef.current = null
           }
           
-          // Update state same as WS RESULTS_RECEIVED handler
-          setState(prev => {
-            // Don't update if already showing results (avoid race condition)
-            if (prev.status === 'results') {
-              console.log('[useGame] Already showing results, ignoring polled results')
-              return prev
-            }
-            
-            const newState = {
-              ...prev,
-              status: 'results' as const,
-              phase: 'result' as const,
-              results: {
-                player1_answer: data.result.player1_answer,
-                player2_answer: data.result.player2_answer,
-                correct_answer: data.result.correct_answer,
-                player1_correct: data.result.player1_correct,
-                player2_correct: data.result.player2_correct,
-                round_winner: data.result.round_winner,
-                p1Score: data.result.player1_round_wins,
-                p2Score: data.result.player2_round_wins
-              },
-              waitingForOpponent: false,
-              currentRoundNumber: data.result.round_number,
-              targetRoundsToWin: data.result.target_rounds_to_win,
-              playerRoundWins: data.result.player_round_wins,
-              matchOver: data.result.match_over,
-              matchWinnerId: data.result.match_winner_id,
-              matchFinished: data.result.match_over,
-              matchWinner: data.result.match_winner_id
-            }
-            
-            console.log('[useGame] ✅ State updated from polling with results:', {
-              status: newState.status,
-              round_winner: newState.results?.round_winner
-            })
-            
-            return newState
-          })
+          // Update version and apply results
+          if (data.results_version) {
+            localResultsVersionRef.current = data.results_version
+          }
+          applyResults(data.results_payload)
         } else if (pollCount >= maxPolls) {
           // Stop polling after max attempts
           console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls, 'attempts')
@@ -992,10 +1031,10 @@ export function useGame(match: MatchRow | null) {
       }
     }
     
-    // Poll immediately, then every 1 second
+    // Poll immediately, then every 2 seconds (simplified - just safety net)
     poll()
-    pollingIntervalRef.current = window.setInterval(poll, 1000)
-  }, [])
+    pollingIntervalRef.current = window.setInterval(poll, 2000)
+  }, [applyResults])
 
   const submitEarlyAnswer = useCallback(() => {
     const ws = wsRef.current

@@ -66,7 +66,10 @@ export function Starfield() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0 opacity-50"
+      className="fixed inset-0 pointer-events-none z-0"
+      style={{
+        background: 'radial-gradient(ellipse at center, #0b1020 0%, #060914 100%)',
+      }}
     />
   );
 }
