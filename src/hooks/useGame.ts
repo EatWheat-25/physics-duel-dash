@@ -736,14 +736,15 @@ export function useGame(match: MatchRow | null) {
     })
   }, [])
   
-  // Polling function for results fallback - DISABLED (RPC doesn't exist, relying on WebSocket only)
+  // Polling function for results fallback - queries database if WebSocket message doesn't arrive
   const startPollingForResults = useCallback(async (matchId: string) => {
-    console.warn('[useGame] ⚠️ Polling fallback triggered but disabled - relying on WebSocket RESULTS_RECEIVED message')
-    // Disabled because get_match_round_state_v2 doesn't exist
-    // Results should come via WebSocket RESULTS_RECEIVED message
-    return
-    /* DISABLED POLLING CODE - RPC doesn't exist
+    console.log('[useGame] 🔄 Polling fallback: Querying database for results')
+    
+    let pollCount = 0
+    const maxPolls = 10 // Poll for up to 10 seconds (10 attempts at 1s intervals)
+    
     const poll = async () => {
+      pollCount++
       try {
         const { data, error } = await supabase.rpc('get_match_round_state_v2', {
           p_match_id: matchId
@@ -751,12 +752,20 @@ export function useGame(match: MatchRow | null) {
         
         if (error) {
           console.error('[useGame] Polling error:', error)
+          // If RPC doesn't exist or other error, stop polling
+          if (error.code === '42883' || error.message?.includes('does not exist')) {
+            console.warn('[useGame] RPC function not found - stopping polling fallback')
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current)
+              pollingIntervalRef.current = null
+            }
+          }
           return
         }
         
         if (data?.both_answered && data.result) {
-          // Results ready - treat as RESULTS_RECEIVED message
-          console.log('[useGame] Polling detected results, processing as RESULTS_RECEIVED')
+          // Results ready - process as RESULTS_RECEIVED message
+          console.log('[useGame] ✅ Polling detected results, processing as RESULTS_RECEIVED')
           
           // Clear polling
           if (pollingIntervalRef.current) {
@@ -768,56 +777,66 @@ export function useGame(match: MatchRow | null) {
             pollingTimeoutRef.current = null
           }
           
-          // Process as RESULTS_RECEIVED (same handler)
-          const resultsEvent = {
-            type: 'RESULTS_RECEIVED',
-            player1_answer: data.result.player1_answer,
-            player2_answer: data.result.player2_answer,
-            correct_answer: data.result.correct_answer,
-            player1_correct: data.result.player1_correct,
-            player2_correct: data.result.player2_correct,
-            round_winner: data.result.round_winner,
-            roundNumber: data.result.round_number,
-            targetRoundsToWin: data.result.target_rounds_to_win,
-            playerRoundWins: data.result.player_round_wins,
-            matchOver: data.result.match_over,
-            matchWinnerId: data.result.match_winner_id
-          }
-          
           // Update state same as WS RESULTS_RECEIVED handler
-          setState(prev => ({
-            ...prev,
-            status: 'results',
-            phase: 'result',
-            results: {
-              player1_answer: data.result.player1_answer,
-              player2_answer: data.result.player2_answer,
-              correct_answer: data.result.correct_answer,
-              player1_correct: data.result.player1_correct,
-              player2_correct: data.result.player2_correct,
-              round_winner: data.result.round_winner
-            },
-            waitingForOpponent: false,
-            currentRoundNumber: data.result.round_number,
-            targetRoundsToWin: data.result.target_rounds_to_win,
-            playerRoundWins: data.result.player_round_wins,
-            matchOver: data.result.match_over,
-            matchWinnerId: data.result.match_winner_id,
-            matchFinished: data.result.match_over,
-            matchWinner: data.result.match_winner_id
-          }))
+          setState(prev => {
+            // Don't update if already showing results (avoid race condition)
+            if (prev.status === 'results') {
+              console.log('[useGame] Already showing results, ignoring polled results')
+              return prev
+            }
+            
+            const newState = {
+              ...prev,
+              status: 'results' as const,
+              phase: 'result' as const,
+              results: {
+                player1_answer: data.result.player1_answer,
+                player2_answer: data.result.player2_answer,
+                correct_answer: data.result.correct_answer,
+                player1_correct: data.result.player1_correct,
+                player2_correct: data.result.player2_correct,
+                round_winner: data.result.round_winner,
+                p1Score: data.result.player1_round_wins,
+                p2Score: data.result.player2_round_wins
+              },
+              waitingForOpponent: false,
+              currentRoundNumber: data.result.round_number,
+              targetRoundsToWin: data.result.target_rounds_to_win,
+              playerRoundWins: data.result.player_round_wins,
+              matchOver: data.result.match_over,
+              matchWinnerId: data.result.match_winner_id,
+              matchFinished: data.result.match_over,
+              matchWinner: data.result.match_winner_id
+            }
+            
+            console.log('[useGame] ✅ State updated from polling with results:', {
+              status: newState.status,
+              round_winner: newState.results?.round_winner
+            })
+            
+            return newState
+          })
+        } else if (pollCount >= maxPolls) {
+          // Stop polling after max attempts
+          console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls, 'attempts')
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
         }
       } catch (err) {
         console.error('[useGame] Polling exception:', err)
+        // Stop polling on error
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current)
+          pollingIntervalRef.current = null
+        }
       }
     }
     
-    // DISABLED: Polling fallback doesn't work because RPC function doesn't exist
-    // Results should come via WebSocket RESULTS_RECEIVED message
-    console.warn('[useGame] ⚠️ Polling fallback disabled - waiting for WebSocket RESULTS_RECEIVED')
-    // poll()
-    // pollingIntervalRef.current = window.setInterval(poll, 1000)
-    */
+    // Poll immediately, then every 1 second
+    poll()
+    pollingIntervalRef.current = window.setInterval(poll, 1000)
   }, [])
 
   const submitEarlyAnswer = useCallback(() => {
