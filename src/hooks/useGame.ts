@@ -754,9 +754,14 @@ export function useGame(match: MatchRow | null) {
         
         if (!rpcError && rpcData) {
           pollData = rpcData
-        } else if (rpcError && (rpcError.code === '42883' || rpcError.message?.includes('does not exist'))) {
+        } else if (rpcError && (
+          rpcError.code === '42883' || 
+          rpcError.code === 'PGRST202' ||
+          rpcError.message?.includes('does not exist') ||
+          rpcError.message?.includes('Could not find the function')
+        )) {
           // RPC doesn't exist - fall back to direct table query
-          console.log('[useGame] RPC not available, using direct table query fallback')
+          console.log('[useGame] RPC not available (error:', rpcError.code, '), using direct table query fallback')
           const { data: matchData, error: matchError } = await supabase
             .from('matches')
             .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, player1_round_wins, player2_round_wins, round_number, target_rounds_to_win, winner_id, status')
