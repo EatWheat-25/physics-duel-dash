@@ -762,9 +762,10 @@ export function useGame(match: MatchRow | null) {
         )) {
           // RPC doesn't exist - fall back to direct table query
           console.log('[useGame] RPC not available (error:', rpcError.code, '), using direct table query fallback')
+          // Query only columns that are guaranteed to exist (basic match columns)
           const { data: matchData, error: matchError } = await supabase
             .from('matches')
-            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, player1_round_wins, player2_round_wins, round_number, target_rounds_to_win, winner_id, status')
+            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, round_number, winner_id, status, player1_id, player2_id')
             .eq('id', matchId)
             .single()
           
@@ -787,12 +788,17 @@ export function useGame(match: MatchRow | null) {
                                matchData.results_computed_at !== null
           
           if (resultsReady) {
-            // Get player IDs for round wins mapping
-            const { data: matchInfo } = await supabase
+            // Try to get optional columns if they exist (round_wins might not be in schema)
+            const { data: extendedMatchData } = await supabase
               .from('matches')
-              .select('player1_id, player2_id')
+              .select('player1_round_wins, player2_round_wins, target_rounds_to_win')
               .eq('id', matchId)
               .single()
+            
+            // Use extended data if available, otherwise defaults
+            const player1RoundWins = extendedMatchData?.player1_round_wins ?? 0
+            const player2RoundWins = extendedMatchData?.player2_round_wins ?? 0
+            const targetRoundsToWin = extendedMatchData?.target_rounds_to_win ?? 4
             
             pollData = {
               both_answered: true,
@@ -804,13 +810,13 @@ export function useGame(match: MatchRow | null) {
                 player2_correct: matchData.player2_correct,
                 round_winner: matchData.round_winner,
                 round_number: matchData.round_number || 1,
-                target_rounds_to_win: matchData.target_rounds_to_win || 4,
-                player1_round_wins: matchData.player1_round_wins || 0,
-                player2_round_wins: matchData.player2_round_wins || 0,
-                player_round_wins: matchInfo ? {
-                  [matchInfo.player1_id]: matchData.player1_round_wins || 0,
-                  [matchInfo.player2_id]: matchData.player2_round_wins || 0
-                } : {},
+                target_rounds_to_win: targetRoundsToWin,
+                player1_round_wins: player1RoundWins,
+                player2_round_wins: player2RoundWins,
+                player_round_wins: {
+                  [matchData.player1_id]: player1RoundWins,
+                  [matchData.player2_id]: player2RoundWins
+                },
                 match_over: matchData.winner_id !== null || matchData.status === 'finished',
                 match_winner_id: matchData.winner_id
               }
