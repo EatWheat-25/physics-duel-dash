@@ -741,20 +741,89 @@ export function useGame(match: MatchRow | null) {
     console.log('[useGame] 🔄 Polling fallback: Querying database for results')
     
     let pollCount = 0
-    const maxPolls = 10 // Poll for up to 10 seconds (10 attempts at 1s intervals)
+    const maxPolls = 15 // Poll for up to 15 seconds (15 attempts at 1s intervals)
     
     const poll = async () => {
       pollCount++
       try {
-        const { data, error } = await supabase.rpc('get_match_round_state_v2', {
+        // Try RPC first
+        let pollData = null
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_match_round_state_v2', {
           p_match_id: matchId
         })
         
-        if (error) {
-          console.error('[useGame] Polling error:', error)
-          // If RPC doesn't exist or other error, stop polling
-          if (error.code === '42883' || error.message?.includes('does not exist')) {
-            console.warn('[useGame] RPC function not found - stopping polling fallback')
+        if (!rpcError && rpcData) {
+          pollData = rpcData
+        } else if (rpcError && (rpcError.code === '42883' || rpcError.message?.includes('does not exist'))) {
+          // RPC doesn't exist - fall back to direct table query
+          console.log('[useGame] RPC not available, using direct table query fallback')
+          const { data: matchData, error: matchError } = await supabase
+            .from('matches')
+            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, player1_round_wins, player2_round_wins, round_number, target_rounds_to_win, winner_id, status')
+            .eq('id', matchId)
+            .single()
+          
+          if (matchError) {
+            console.error('[useGame] Direct query error:', matchError)
+            if (pollCount >= maxPolls) {
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = null
+              }
+            }
+            return
+          }
+          
+          // Check if both answered and results are computed (results_computed_at being set means results exist)
+          // Note: Results might be cleared if next round started, so we check results_computed_at timestamp
+          const resultsReady = matchData && 
+                               matchData.player1_answer !== null && 
+                               matchData.player2_answer !== null && 
+                               matchData.results_computed_at !== null
+          
+          if (resultsReady) {
+            // Get player IDs for round wins mapping
+            const { data: matchInfo } = await supabase
+              .from('matches')
+              .select('player1_id, player2_id')
+              .eq('id', matchId)
+              .single()
+            
+            pollData = {
+              both_answered: true,
+              result: {
+                player1_answer: matchData.player1_answer,
+                player2_answer: matchData.player2_answer,
+                correct_answer: matchData.correct_answer,
+                player1_correct: matchData.player1_correct,
+                player2_correct: matchData.player2_correct,
+                round_winner: matchData.round_winner,
+                round_number: matchData.round_number || 1,
+                target_rounds_to_win: matchData.target_rounds_to_win || 4,
+                player1_round_wins: matchData.player1_round_wins || 0,
+                player2_round_wins: matchData.player2_round_wins || 0,
+                player_round_wins: matchInfo ? {
+                  [matchInfo.player1_id]: matchData.player1_round_wins || 0,
+                  [matchInfo.player2_id]: matchData.player2_round_wins || 0
+                } : {},
+                match_over: matchData.winner_id !== null || matchData.status === 'finished',
+                match_winner_id: matchData.winner_id
+              }
+            }
+          } else {
+            // Results not ready yet
+            if (pollCount >= maxPolls) {
+              console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls, 'attempts')
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = null
+              }
+            }
+            return
+          }
+        } else if (rpcError) {
+          console.error('[useGame] Polling error:', rpcError)
+          if (pollCount >= maxPolls) {
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current)
               pollingIntervalRef.current = null
@@ -762,6 +831,8 @@ export function useGame(match: MatchRow | null) {
           }
           return
         }
+        
+        const data = pollData
         
         if (data?.both_answered && data.result) {
           // Results ready - process as RESULTS_RECEIVED message
