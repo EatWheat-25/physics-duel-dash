@@ -489,6 +489,18 @@ export default function BattleConnected() {
             )}
 
             {/* RESULTS STATE */}
+            {(() => {
+              const shouldShowResults = status === 'results' && results
+              console.log('[BattleConnected] Results render check:', {
+                status,
+                hasResults: !!results,
+                shouldShowResults,
+                resultsPlayer1Answer: results?.player1_answer,
+                resultsPlayer2Answer: results?.player2_answer,
+                resultsRoundWinner: results?.round_winner
+              })
+              return null
+            })()}
             {status === 'results' && results && (
               <motion.div
                 key="results"
@@ -497,6 +509,7 @@ export default function BattleConnected() {
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
                 className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
               >
+                {console.log('[BattleConnected] ✅ Results component is rendering!')}
                 <div className="mb-8">
                   {results.round_winner === currentUser ? (
                     <motion.div 
@@ -582,7 +595,7 @@ export default function BattleConnected() {
                 )}
 
                 {/* Single-step results */}
-                {(!results.stepResults || results.stepResults.length === 0) && (
+                {(!results.stepResults || results.stepResults.length === 0) && results.player1_answer !== undefined && results.player2_answer !== undefined && (
                   <div className="grid grid-cols-2 gap-4 mb-8">
                     <motion.div 
                       initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.1 }}
@@ -635,6 +648,18 @@ export default function BattleConnected() {
                         })()}
                       </div>
                     </motion.div>
+                  </div>
+                )}
+                
+                {/* Fallback: Show basic results if structure is different */}
+                {(!results.stepResults || results.stepResults.length === 0) && (results.player1_answer === undefined || results.player2_answer === undefined) && (
+                  <div className="mb-8 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <div className="text-sm font-mono text-yellow-400 mb-2">⚠️ Results data structure mismatch</div>
+                    <div className="text-xs text-white/60 font-mono">
+                      player1_answer: {results.player1_answer ?? 'null'} | 
+                      player2_answer: {results.player2_answer ?? 'null'} | 
+                      round_winner: {results.round_winner ?? 'null'}
+                    </div>
                   </div>
                 )}
 
