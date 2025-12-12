@@ -764,9 +764,10 @@ export function useGame(match: MatchRow | null) {
           console.log('[useGame] RPC not available (error:', rpcError.code, '), using direct table query fallback')
           // Query only columns that are guaranteed to exist (basic match columns)
           // Note: round_number and round_wins columns might not exist in production schema
+          // Also query timestamps to detect if answers were submitted
           const { data: matchData, error: matchError } = await supabase
             .from('matches')
-            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, winner_id, status, player1_id, player2_id')
+            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, player1_answered_at, player2_answered_at, winner_id, status, player1_id, player2_id')
             .eq('id', matchId)
             .single()
           
@@ -781,18 +782,26 @@ export function useGame(match: MatchRow | null) {
             return
           }
           
-          // Check if both answered and results are computed (results_computed_at being set means results exist)
-          // Note: Results might be cleared if next round started, so we check results_computed_at timestamp
+          // Check if both answered and results are computed
+          // results_computed_at being set means results were computed
+          // Answers might be null if cleared for next round, but if results_computed_at exists, we can still show results
+          // Alternatively, if both answer timestamps exist, results should be ready
+          const bothAnswered = matchData && 
+                               (matchData.player1_answered_at !== null) && 
+                               (matchData.player2_answered_at !== null)
+          
           const resultsReady = matchData && 
-                               matchData.player1_answer !== null && 
-                               matchData.player2_answer !== null && 
+                               bothAnswered && 
                                matchData.results_computed_at !== null
           
           console.log('[useGame] Direct query result check:', {
             hasMatchData: !!matchData,
             player1_answer: matchData?.player1_answer,
             player2_answer: matchData?.player2_answer,
+            player1_answered_at: matchData?.player1_answered_at,
+            player2_answered_at: matchData?.player2_answered_at,
             results_computed_at: matchData?.results_computed_at,
+            bothAnswered,
             resultsReady
           })
           
@@ -819,6 +828,22 @@ export function useGame(match: MatchRow | null) {
             } catch (err) {
               // Optional columns don't exist, use defaults
               console.log('[useGame] Optional columns (round_wins, round_number) not available, using defaults')
+            }
+            
+            // If answers are null but results_computed_at exists, we need to get them from somewhere
+            // For now, if answers are null, we can't display them - this means results were cleared
+            // But we can still show that results were computed
+            if (matchData.player1_answer === null || matchData.player2_answer === null) {
+              console.warn('[useGame] Results computed but answers are null (likely cleared for next round) - cannot display results')
+              // Results were computed but cleared - we can't show them via polling
+              // Wait for WebSocket message instead
+              if (pollCount >= maxPolls) {
+                if (pollingIntervalRef.current) {
+                  clearInterval(pollingIntervalRef.current)
+                  pollingIntervalRef.current = null
+                }
+              }
+              return
             }
             
             pollData = {
