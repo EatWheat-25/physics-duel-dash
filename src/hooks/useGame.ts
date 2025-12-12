@@ -313,17 +313,8 @@ export function useGame(match: MatchRow | null) {
         ws.onmessage = (event) => {
           try {
             console.log('[useGame] Raw message received:', event.data)
-            
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:313',message:'WebSocket message received',data:{rawData:event.data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-            // #endregion
-            
             const message = JSON.parse(event.data)
             console.log('[useGame] Parsed message:', message)
-            
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:318',message:'Message parsed',data:{messageType:message.type,isResultsReceived:message.type === 'RESULTS_RECEIVED'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-            // #endregion
 
             // Handle lowercase "connected" - just ignore it (it's initial connection confirmation)
             if (message.type === 'connected') {
@@ -361,6 +352,7 @@ export function useGame(match: MatchRow | null) {
                 setState(prev => ({
                   ...prev,
                   status: 'playing',
+                  phase: 'question', // Ensure phase is set so question displays
                   question: mappedQuestion,
                   errorMessage: null,
                   timerEndAt: timerEndAt,
@@ -450,10 +442,6 @@ export function useGame(match: MatchRow | null) {
               console.log('[useGame] RESULTS_RECEIVED message received', message)
               console.log('[useGame] Full message structure:', JSON.stringify(message, null, 2))
               
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:443',message:'RESULTS_RECEIVED received',data:{messageType:message.type,hasPlayer1Answer:'player1_answer' in message,hasPlayer2Answer:'player2_answer' in message,hasCorrectAnswer:'correct_answer' in message,hasStepResults:'stepResults' in message,fullMessage:message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-              // #endregion
-              
               // Clear polling fallback (WS message arrived)
               if (pollingTimeoutRef.current) {
                 clearTimeout(pollingTimeoutRef.current)
@@ -465,10 +453,6 @@ export function useGame(match: MatchRow | null) {
               }
               
               const msg = message as any
-              
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:462',message:'Before state update - message fields',data:{player1_answer:msg.player1_answer,player2_answer:msg.player2_answer,correct_answer:msg.correct_answer,player1_correct:msg.player1_correct,player2_correct:msg.player2_correct,round_winner:msg.round_winner,p1Score:msg.p1Score,p2Score:msg.p2Score,stepResults:msg.stepResults},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-              // #endregion
               
               // Validate required fields
               if (msg.player1_answer === undefined && msg.player2_answer === undefined && !msg.stepResults) {
@@ -509,10 +493,6 @@ export function useGame(match: MatchRow | null) {
                   player2_answer: newState.results?.player2_answer,
                   round_winner: newState.results?.round_winner
                 })
-                
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:494',message:'State updated with results',data:{status:newState.status,hasResults:!!newState.results,resultsPlayer1Answer:newState.results?.player1_answer,resultsPlayer2Answer:newState.results?.player2_answer,resultsCorrectAnswer:newState.results?.correct_answer,roundWinner:newState.results?.round_winner},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-                // #endregion
                 
                 return newState
               })
@@ -697,10 +677,6 @@ export function useGame(match: MatchRow | null) {
       }))
       return
     }
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:643',message:'Answer submission started',data:{answerIndex,wsReady:ws.readyState === WebSocket.OPEN},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-    // #endregion
 
     setState(prev => {
       if (prev.answerSubmitted) {

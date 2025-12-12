@@ -489,12 +489,6 @@ export default function BattleConnected() {
             )}
 
             {/* RESULTS STATE */}
-            {(() => {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BattleConnected.tsx:492',message:'Checking results render condition',data:{status,hasResults:!!results,statusIsResults:status === 'results',resultsPlayer1Answer:results?.player1_answer,resultsPlayer2Answer:results?.player2_answer},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-              // #endregion
-              return null;
-            })()}
             {status === 'results' && results && (
               <motion.div
                 key="results"
@@ -503,12 +497,6 @@ export default function BattleConnected() {
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
                 className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
               >
-                {(() => {
-                  // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BattleConnected.tsx:500',message:'Results component rendering',data:{roundWinner:results.round_winner,currentUser,player1Answer:results.player1_answer,player2Answer:results.player2_answer},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-                  // #endregion
-                  return null;
-                })()}
                 <div className="mb-8">
                   {results.round_winner === currentUser ? (
                     <motion.div 
