@@ -763,9 +763,10 @@ export function useGame(match: MatchRow | null) {
           // RPC doesn't exist - fall back to direct table query
           console.log('[useGame] RPC not available (error:', rpcError.code, '), using direct table query fallback')
           // Query only columns that are guaranteed to exist (basic match columns)
+          // Note: round_number and round_wins columns might not exist in production schema
           const { data: matchData, error: matchError } = await supabase
             .from('matches')
-            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, round_number, winner_id, status, player1_id, player2_id')
+            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, winner_id, status, player1_id, player2_id')
             .eq('id', matchId)
             .single()
           
@@ -796,15 +797,16 @@ export function useGame(match: MatchRow | null) {
           })
           
           if (resultsReady) {
-            // Try to get optional columns if they exist (round_wins might not be in schema)
+            // Try to get optional columns if they exist (round_wins, round_number might not be in schema)
             let player1RoundWins = 0
             let player2RoundWins = 0
             let targetRoundsToWin = 4
+            let roundNumber = 1
             
             try {
               const { data: extendedMatchData, error: extendedError } = await supabase
                 .from('matches')
-                .select('player1_round_wins, player2_round_wins, target_rounds_to_win')
+                .select('player1_round_wins, player2_round_wins, target_rounds_to_win, round_number')
                 .eq('id', matchId)
                 .single()
               
@@ -812,10 +814,11 @@ export function useGame(match: MatchRow | null) {
                 player1RoundWins = extendedMatchData.player1_round_wins ?? 0
                 player2RoundWins = extendedMatchData.player2_round_wins ?? 0
                 targetRoundsToWin = extendedMatchData.target_rounds_to_win ?? 4
+                roundNumber = extendedMatchData.round_number ?? 1
               }
             } catch (err) {
               // Optional columns don't exist, use defaults
-              console.log('[useGame] Optional round_wins columns not available, using defaults', err)
+              console.log('[useGame] Optional columns (round_wins, round_number) not available, using defaults')
             }
             
             pollData = {
@@ -827,7 +830,7 @@ export function useGame(match: MatchRow | null) {
                 player1_correct: matchData.player1_correct,
                 player2_correct: matchData.player2_correct,
                 round_winner: matchData.round_winner,
-                round_number: matchData.round_number || 1,
+                round_number: roundNumber,
                 target_rounds_to_win: targetRoundsToWin,
                 player1_round_wins: player1RoundWins,
                 player2_round_wins: player2RoundWins,
