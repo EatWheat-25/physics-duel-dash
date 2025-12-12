@@ -118,6 +118,8 @@ export function useGame(match: MatchRow | null) {
   const userIdRef = useRef<string | null>(null)
   const lastVisibilityChangeRef = useRef<number>(0)
   const hasConnectedRef = useRef<boolean>(false)
+  const pollingTimeoutRef = useRef<number | null>(null)
+  const pollingIntervalRef = useRef<number | null>(null)
 
   // Listen for polling-detected results (fallback if WS message missed)
   useEffect(() => {
@@ -431,6 +433,17 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'RESULTS_RECEIVED') {
               console.log('[useGame] RESULTS_RECEIVED message received', message)
+              
+              // Clear polling fallback (WS message arrived)
+              if (pollingTimeoutRef.current) {
+                clearTimeout(pollingTimeoutRef.current)
+                pollingTimeoutRef.current = null
+              }
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = null
+              }
+              
               const msg = message as any
               setState(prev => ({
                 ...prev,
@@ -521,6 +534,15 @@ export function useGame(match: MatchRow | null) {
         }
 
         ws.onclose = () => {
+          // Clear polling on WebSocket close
+          if (pollingTimeoutRef.current) {
+            clearTimeout(pollingTimeoutRef.current)
+            pollingTimeoutRef.current = null
+          }
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
           console.log('[useGame] WebSocket closed')
           if (heartbeatRef.current) {
             clearInterval(heartbeatRef.current)
@@ -556,6 +578,15 @@ export function useGame(match: MatchRow | null) {
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current)
         heartbeatRef.current = null
+      }
+      // Cleanup polling
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current)
+        pollingTimeoutRef.current = null
+      }
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
       }
     }
   }, [match?.id])
@@ -649,6 +680,25 @@ export function useGame(match: MatchRow | null) {
         }
         console.log('[useGame] Sending SUBMIT_ANSWER:', submitMessage)
         ws.send(JSON.stringify(submitMessage))
+        
+        // V2: Start polling fallback (2s timeout, then poll every 1s)
+        if (matchIdRef.current) {
+          // Clear any existing polling
+          if (pollingTimeoutRef.current) {
+            clearTimeout(pollingTimeoutRef.current)
+            pollingTimeoutRef.current = null
+          }
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+          
+          // Start 2s timeout - if RESULTS_RECEIVED doesn't arrive, start polling
+          pollingTimeoutRef.current = window.setTimeout(() => {
+            console.log('[useGame] RESULTS_RECEIVED not received in 2s, starting polling fallback')
+            startPollingForResults(matchIdRef.current!)
+          }, 2000)
+        }
       }
       
       // Optimistically update UI
@@ -658,6 +708,82 @@ export function useGame(match: MatchRow | null) {
         waitingForOpponent: false
       }
     })
+  }, [])
+  
+  // Polling function for results fallback
+  const startPollingForResults = useCallback(async (matchId: string) => {
+    const poll = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_match_round_state_v2', {
+          p_match_id: matchId
+        })
+        
+        if (error) {
+          console.error('[useGame] Polling error:', error)
+          return
+        }
+        
+        if (data?.both_answered && data.result) {
+          // Results ready - treat as RESULTS_RECEIVED message
+          console.log('[useGame] Polling detected results, processing as RESULTS_RECEIVED')
+          
+          // Clear polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+          if (pollingTimeoutRef.current) {
+            clearTimeout(pollingTimeoutRef.current)
+            pollingTimeoutRef.current = null
+          }
+          
+          // Process as RESULTS_RECEIVED (same handler)
+          const resultsEvent = {
+            type: 'RESULTS_RECEIVED',
+            player1_answer: data.result.player1_answer,
+            player2_answer: data.result.player2_answer,
+            correct_answer: data.result.correct_answer,
+            player1_correct: data.result.player1_correct,
+            player2_correct: data.result.player2_correct,
+            round_winner: data.result.round_winner,
+            roundNumber: data.result.round_number,
+            targetRoundsToWin: data.result.target_rounds_to_win,
+            playerRoundWins: data.result.player_round_wins,
+            matchOver: data.result.match_over,
+            matchWinnerId: data.result.match_winner_id
+          }
+          
+          // Update state same as WS RESULTS_RECEIVED handler
+          setState(prev => ({
+            ...prev,
+            status: 'results',
+            phase: 'result',
+            results: {
+              player1_answer: data.result.player1_answer,
+              player2_answer: data.result.player2_answer,
+              correct_answer: data.result.correct_answer,
+              player1_correct: data.result.player1_correct,
+              player2_correct: data.result.player2_correct,
+              round_winner: data.result.round_winner
+            },
+            waitingForOpponent: false,
+            currentRoundNumber: data.result.round_number,
+            targetRoundsToWin: data.result.target_rounds_to_win,
+            playerRoundWins: data.result.player_round_wins,
+            matchOver: data.result.match_over,
+            matchWinnerId: data.result.match_winner_id,
+            matchFinished: data.result.match_over,
+            matchWinner: data.result.match_winner_id
+          }))
+        }
+      } catch (err) {
+        console.error('[useGame] Polling exception:', err)
+      }
+    }
+    
+    // Poll immediately, then every 1 second
+    poll()
+    pollingIntervalRef.current = window.setInterval(poll, 1000)
   }, [])
 
   const submitEarlyAnswer = useCallback(() => {
