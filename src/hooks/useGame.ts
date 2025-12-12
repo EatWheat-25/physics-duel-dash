@@ -787,18 +787,36 @@ export function useGame(match: MatchRow | null) {
                                matchData.player2_answer !== null && 
                                matchData.results_computed_at !== null
           
+          console.log('[useGame] Direct query result check:', {
+            hasMatchData: !!matchData,
+            player1_answer: matchData?.player1_answer,
+            player2_answer: matchData?.player2_answer,
+            results_computed_at: matchData?.results_computed_at,
+            resultsReady
+          })
+          
           if (resultsReady) {
             // Try to get optional columns if they exist (round_wins might not be in schema)
-            const { data: extendedMatchData } = await supabase
-              .from('matches')
-              .select('player1_round_wins, player2_round_wins, target_rounds_to_win')
-              .eq('id', matchId)
-              .single()
+            let player1RoundWins = 0
+            let player2RoundWins = 0
+            let targetRoundsToWin = 4
             
-            // Use extended data if available, otherwise defaults
-            const player1RoundWins = extendedMatchData?.player1_round_wins ?? 0
-            const player2RoundWins = extendedMatchData?.player2_round_wins ?? 0
-            const targetRoundsToWin = extendedMatchData?.target_rounds_to_win ?? 4
+            try {
+              const { data: extendedMatchData, error: extendedError } = await supabase
+                .from('matches')
+                .select('player1_round_wins, player2_round_wins, target_rounds_to_win')
+                .eq('id', matchId)
+                .single()
+              
+              if (!extendedError && extendedMatchData) {
+                player1RoundWins = extendedMatchData.player1_round_wins ?? 0
+                player2RoundWins = extendedMatchData.player2_round_wins ?? 0
+                targetRoundsToWin = extendedMatchData.target_rounds_to_win ?? 4
+              }
+            } catch (err) {
+              // Optional columns don't exist, use defaults
+              console.log('[useGame] Optional round_wins columns not available, using defaults')
+            }
             
             pollData = {
               both_answered: true,
@@ -821,6 +839,12 @@ export function useGame(match: MatchRow | null) {
                 match_winner_id: matchData.winner_id
               }
             }
+            
+            console.log('[useGame] ✅ Constructed pollData from direct query:', {
+              both_answered: pollData.both_answered,
+              hasResult: !!pollData.result,
+              round_winner: pollData.result?.round_winner
+            })
           } else {
             // Results not ready yet
             if (pollCount >= maxPolls) {
