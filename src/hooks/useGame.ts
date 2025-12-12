@@ -815,7 +815,7 @@ export function useGame(match: MatchRow | null) {
               }
             } catch (err) {
               // Optional columns don't exist, use defaults
-              console.log('[useGame] Optional round_wins columns not available, using defaults')
+              console.log('[useGame] Optional round_wins columns not available, using defaults', err)
             }
             
             pollData = {
@@ -846,7 +846,15 @@ export function useGame(match: MatchRow | null) {
               round_winner: pollData.result?.round_winner
             })
           } else {
-            // Results not ready yet
+            // Results not ready yet - log why
+            if (pollCount <= 3) {
+              console.log('[useGame] Results not ready yet (poll', pollCount, '):', {
+                hasMatchData: !!matchData,
+                p1_answer: matchData?.player1_answer,
+                p2_answer: matchData?.player2_answer,
+                results_computed: !!matchData?.results_computed_at
+              })
+            }
             if (pollCount >= maxPolls) {
               console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls, 'attempts')
               if (pollingIntervalRef.current) {
@@ -868,6 +876,11 @@ export function useGame(match: MatchRow | null) {
         }
         
         const data = pollData
+        
+        // Debug: log pollData state before processing
+        if (pollCount <= 3) {
+          console.log('[useGame] Poll attempt', pollCount, '- pollData:', pollData ? 'has data' : 'null', data ? {both_answered: data.both_answered, hasResult: !!data.result} : 'no data')
+        }
         
         if (data?.both_answered && data.result) {
           // Results ready - process as RESULTS_RECEIVED message
