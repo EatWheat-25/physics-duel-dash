@@ -719,11 +719,11 @@ export function useGame(match: MatchRow | null) {
             pollingIntervalRef.current = null
           }
           
-          // Start 2s timeout - if RESULTS_RECEIVED doesn't arrive, start polling
+          // Start 3s timeout - if RESULTS_RECEIVED doesn't arrive, start polling
           pollingTimeoutRef.current = window.setTimeout(() => {
-            console.log('[useGame] RESULTS_RECEIVED not received in 2s, starting polling fallback')
+            console.log('[useGame] RESULTS_RECEIVED not received in 3s, starting polling fallback')
             startPollingForResults(matchIdRef.current!)
-          }, 2000)
+          }, 3000)
         }
       }
       
@@ -741,7 +741,7 @@ export function useGame(match: MatchRow | null) {
     console.log('[useGame] 🔄 Polling fallback: Querying database for results')
     
     let pollCount = 0
-    const maxPolls = 15 // Poll for up to 15 seconds (15 attempts at 1s intervals)
+    const maxPolls = 30 // Poll for up to 30 seconds (30 attempts at 1s intervals) - increased due to server processing delays
     
     const poll = async () => {
       pollCount++
@@ -875,13 +875,21 @@ export function useGame(match: MatchRow | null) {
             })
           } else {
             // Results not ready yet - log why
-            if (pollCount <= 3) {
+            if (pollCount <= 5 || pollCount % 5 === 0) {
               console.log('[useGame] Results not ready yet (poll', pollCount, '):', {
                 hasMatchData: !!matchData,
                 p1_answer: matchData?.player1_answer,
                 p2_answer: matchData?.player2_answer,
+                p1_answered_at: matchData?.player1_answered_at,
+                p2_answered_at: matchData?.player2_answered_at,
+                bothAnswered,
                 results_computed: !!matchData?.results_computed_at
               })
+              
+              // If both answered (timestamps exist) but results not computed, this is a server issue
+              if (bothAnswered && !matchData?.results_computed_at && pollCount >= 10) {
+                console.warn('[useGame] ⚠️ Server delay: Both players answered but results not computed after', pollCount, 'seconds. Waiting for server...')
+              }
             }
             if (pollCount >= maxPolls) {
               console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls, 'attempts')
