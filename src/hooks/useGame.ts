@@ -888,11 +888,14 @@ export function useGame(match: MatchRow | null) {
               
               // If both answered (timestamps exist) but results not computed, this is a server issue
               if (bothAnswered && !matchData?.results_computed_at && pollCount >= 10) {
-                console.warn('[useGame] ⚠️ Server delay: Both players answered but results not computed after', pollCount, 'seconds. Waiting for server...')
+                console.warn('[useGame] ⚠️ Server delay: Both players answered but results not computed after', pollCount, 'seconds.')
+                console.warn('[useGame] 🔍 Database state - player1_answer:', matchData?.player1_answer, 'player2_answer:', matchData?.player2_answer)
+                console.warn('[useGame] 💡 If player1_answer is NULL, server RPC may not have stored it. Waiting for server to fix...')
               }
             }
             if (pollCount >= maxPolls) {
               console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls, 'attempts')
+              console.warn('[useGame] 💡 Polling stopped, but WebSocket listener still active - will receive RESULTS_RECEIVED if server sends it')
               if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current)
                 pollingIntervalRef.current = null
