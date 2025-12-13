@@ -201,14 +201,14 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-gray-900" />
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg">
+                <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h1 className="text-4xl font-black text-white tracking-tight">
-                  ADMIN <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">2.0</span>
+                  ADMIN <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">2.0</span>
                 </h1>
-                <p className="text-white/60 font-medium text-sm">Enhanced question management dashboard</p>
+                <p className="text-slate-300 font-medium text-sm">Enhanced question management dashboard</p>
               </div>
             </div>
           </div>
@@ -239,61 +239,61 @@ export default function AdminDashboard() {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 flex-shrink-0">
-          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 shadow-lg">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 flex-shrink-0">
+          <div className="bg-gradient-to-br from-cyan-500/20 to-blue-500/20 backdrop-blur-xl border border-cyan-400/30 rounded-xl p-4 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/80 text-sm font-semibold mb-1">Total Questions</p>
-                <p className="text-4xl font-black text-white mt-1">{stats.total}</p>
+                <p className="text-slate-300 text-xs font-semibold mb-1">Total Questions</p>
+                <p className="text-3xl font-black text-white mt-1">{stats.total}</p>
               </div>
-              <BookOpen className="w-10 h-10 text-amber-400" />
+              <BookOpen className="w-8 h-8 text-cyan-400" />
             </div>
           </div>
-          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 shadow-lg">
+          <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-xl border border-purple-400/30 rounded-xl p-4 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/80 text-sm font-semibold mb-1">Total Steps</p>
-                <p className="text-4xl font-black text-white mt-1">{stats.totalSteps}</p>
-                <p className="text-xs text-white/60 mt-1 font-medium">Avg: {stats.avgSteps} per question</p>
+                <p className="text-slate-300 text-xs font-semibold mb-1">Total Steps</p>
+                <p className="text-3xl font-black text-white mt-1">{stats.totalSteps}</p>
+                <p className="text-xs text-slate-400 mt-1 font-medium">Avg: {stats.avgSteps} per question</p>
               </div>
-              <BarChart3 className="w-10 h-10 text-blue-400" />
+              <BarChart3 className="w-8 h-8 text-purple-400" />
             </div>
           </div>
-          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 shadow-lg">
+          <div className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 backdrop-blur-xl border border-blue-400/30 rounded-xl p-4 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/80 text-sm font-semibold mb-1">By Subject</p>
-                <div className="flex gap-2 mt-2">
-                  <Badge className="bg-blue-500/30 text-blue-200 border border-blue-400/50 text-xs font-semibold px-2 py-0.5">Math: {stats.bySubject.math}</Badge>
-                  <Badge className="bg-purple-500/30 text-purple-200 border border-purple-400/50 text-xs font-semibold px-2 py-0.5">Physics: {stats.bySubject.physics}</Badge>
+                <p className="text-slate-300 text-xs font-semibold mb-1">By Subject</p>
+                <div className="flex gap-1.5 mt-2">
+                  <Badge className="bg-blue-500/40 text-blue-100 border border-blue-400/60 text-[10px] font-semibold px-1.5 py-0.5">Math: {stats.bySubject.math}</Badge>
+                  <Badge className="bg-purple-500/40 text-purple-100 border border-purple-400/60 text-[10px] font-semibold px-1.5 py-0.5">Physics: {stats.bySubject.physics}</Badge>
                 </div>
               </div>
-              <TrendingUp className="w-10 h-10 text-purple-400" />
+              <TrendingUp className="w-8 h-8 text-blue-400" />
             </div>
           </div>
-          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 shadow-lg">
+          <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-xl border border-green-400/30 rounded-xl p-4 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/80 text-sm font-semibold mb-1">By Level</p>
-                <div className="flex gap-2 mt-2">
-                  <Badge className="bg-green-500/30 text-green-200 border border-green-400/50 text-xs font-semibold px-2 py-0.5">A1: {stats.byLevel.A1}</Badge>
-                  <Badge className="bg-orange-500/30 text-orange-200 border border-orange-400/50 text-xs font-semibold px-2 py-0.5">A2: {stats.byLevel.A2}</Badge>
+                <p className="text-slate-300 text-xs font-semibold mb-1">By Level</p>
+                <div className="flex gap-1.5 mt-2">
+                  <Badge className="bg-green-500/40 text-green-100 border border-green-400/60 text-[10px] font-semibold px-1.5 py-0.5">A1: {stats.byLevel.A1}</Badge>
+                  <Badge className="bg-orange-500/40 text-orange-100 border border-orange-400/60 text-[10px] font-semibold px-1.5 py-0.5">A2: {stats.byLevel.A2}</Badge>
                 </div>
               </div>
-              <BarChart3 className="w-10 h-10 text-green-400" />
+              <BarChart3 className="w-8 h-8 text-green-400" />
             </div>
           </div>
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 flex-1 min-h-0">
-          {/* LEFT PANEL: Filters & Question List */}
+        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4 flex-1 min-h-0">
+          {/* LEFT PANEL: Filters - Very Compact */}
           <div className="flex flex-col gap-3 h-full overflow-hidden">
-            {/* Filters - Compact */}
-            <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-4 space-y-3 shadow-lg flex-shrink-0">
+            {/* Filters - Ultra Compact */}
+            <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-xl p-3 space-y-2 shadow-xl flex-shrink-0">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-white font-bold uppercase tracking-wider text-xs">
-                  <Filter className="w-4 h-4 text-amber-400" />
+                <div className="flex items-center gap-1.5 text-slate-300 font-semibold uppercase tracking-wider text-[10px]">
+                  <Filter className="w-3 h-3 text-cyan-400" />
                   Filters
                 </div>
                 {(filters.subject !== 'all' || filters.level !== 'all' || filters.difficulty !== 'all' || searchTerm) && (
@@ -304,22 +304,21 @@ export default function AdminDashboard() {
                       setFilters({ subject: 'all', level: 'all', difficulty: 'all' });
                       setSearchTerm('');
                     }}
-                    className="text-white/60 hover:text-white h-5 px-2 text-xs"
+                    className="text-slate-400 hover:text-white h-4 px-1.5 text-[10px]"
                   >
-                    <X className="w-3 h-3 mr-1" />
-                    Clear
+                    <X className="w-2.5 h-2.5" />
                   </Button>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-1.5">
                 <div>
-                  <label className="text-white font-medium mb-1 block text-xs">Subject</label>
+                  <label className="text-slate-300 font-medium mb-0.5 block text-[10px]">Subject</label>
                   <Select value={filters.subject} onValueChange={(v: any) => setFilters({ ...filters, subject: v })}>
-                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-9 font-medium text-xs">
+                    <SelectTrigger className="bg-slate-700/50 border border-slate-600 text-white h-7 font-medium text-[10px]">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-900 border-white/10 text-white">
+                    <SelectContent className="bg-slate-800 border-slate-700 text-white">
                       <SelectItem value="all">All</SelectItem>
                       <SelectItem value="math">Math</SelectItem>
                       <SelectItem value="physics">Physics</SelectItem>
@@ -328,12 +327,12 @@ export default function AdminDashboard() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-white font-medium mb-1 block text-xs">Level</label>
+                  <label className="text-slate-300 font-medium mb-0.5 block text-[10px]">Level</label>
                   <Select value={filters.level} onValueChange={(v: any) => setFilters({ ...filters, level: v })}>
-                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-9 font-medium text-xs">
+                    <SelectTrigger className="bg-slate-700/50 border border-slate-600 text-white h-7 font-medium text-[10px]">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-900 border-white/10 text-white">
+                    <SelectContent className="bg-slate-800 border-slate-700 text-white">
                       <SelectItem value="all">All</SelectItem>
                       <SelectItem value="A1">A1</SelectItem>
                       <SelectItem value="A2">A2</SelectItem>
@@ -343,12 +342,12 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="text-white font-medium mb-1 block text-xs">Difficulty</label>
+                <label className="text-slate-300 font-medium mb-0.5 block text-[10px]">Difficulty</label>
                 <Select value={filters.difficulty} onValueChange={(v: any) => setFilters({ ...filters, difficulty: v })}>
-                  <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-9 font-medium text-xs">
+                  <SelectTrigger className="bg-slate-700/50 border border-slate-600 text-white h-7 font-medium text-[10px]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-white/10 text-white">
+                  <SelectContent className="bg-slate-800 border-slate-700 text-white">
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="easy">Easy</SelectItem>
                     <SelectItem value="medium">Medium</SelectItem>
@@ -357,129 +356,144 @@ export default function AdminDashboard() {
                 </Select>
               </div>
 
-              <div className="pt-2 border-t-2 border-white/20">
-                <label className="text-white font-medium mb-1 block text-xs">Search</label>
+              <div className="pt-1.5 border-t border-slate-700/50">
+                <label className="text-slate-300 font-medium mb-0.5 block text-[10px]">Search</label>
                 <div className="relative">
-                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-amber-400" />
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-cyan-400" />
                   <Input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search..."
-                    className="bg-white/10 border-2 border-white/30 text-white placeholder:text-white/50 pl-8 h-9 font-medium text-xs"
+                    className="bg-slate-700/50 border border-slate-600 text-white placeholder:text-slate-500 pl-7 h-7 font-medium text-[10px]"
                   />
                 </div>
               </div>
 
               <Button
                 onClick={() => navigate('/admin/questions')}
-                className="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-9 shadow-lg shadow-orange-500/20 text-xs"
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold h-7 shadow-lg shadow-cyan-500/20 text-[10px] mt-1"
               >
-                <Plus className="w-3 h-3 mr-2" />
-                Create New
+                <Plus className="w-3 h-3 mr-1" />
+                Create
               </Button>
             </div>
+          </div>
 
-            {/* Question List - Takes most space */}
-            <div className="flex-1 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-lg">
-              <div className="p-5 border-b-2 border-white/20 bg-white/10 backdrop-blur-md flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <BookOpen className="w-6 h-6 text-amber-400" />
-                  <h3 className="font-bold text-white text-lg">Questions</h3>
-                </div>
-                <span className="text-white font-bold text-base bg-white/10 px-3 py-1 rounded-lg border border-white/20">
-                  {filteredQuestions.length} / {questions.length}
-                </span>
+          {/* RIGHT PANEL: Questions List - Takes most of screen */}
+          <div className="flex-1 bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl flex flex-col min-h-0 overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-slate-700/50 bg-slate-800/50 backdrop-blur-md flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-cyan-400" />
+                <h3 className="font-bold text-white text-lg">Questions</h3>
               </div>
+              <span className="text-slate-300 font-semibold text-sm bg-slate-700/50 px-3 py-1 rounded-md border border-slate-600">
+                {filteredQuestions.length} / {questions.length}
+              </span>
+            </div>
 
-              <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
-                {loadingQuestions ? (
-                  <div className="flex justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
-                  </div>
-                ) : filteredQuestions.length === 0 ? (
-                  <div className="text-center py-12 text-white/60">
-                    <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-40" />
-                    <p className="text-base font-semibold">No questions found</p>
-                    {searchTerm && (
-                      <p className="text-sm mt-2 text-white/50">Try adjusting your search or filters</p>
-                    )}
-                  </div>
-                ) : (
-                  filteredQuestions.map((q) => (
-                    <div
-                      key={q.id}
-                      className={`p-5 rounded-2xl cursor-pointer transition-all duration-200 border-2 relative group ${
-                        selectedQuestionId === q.id
-                          ? 'bg-amber-500/40 border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.5)] scale-[1.02]'
-                          : 'bg-white/15 border-white/30 hover:bg-white/20 hover:border-white/40 hover:shadow-xl hover:scale-[1.01]'
-                      }`}
-                    >
-                      {/* Delete Button */}
-                      <button
-                        onClick={(e) => handleDeleteQuestion(q.id, e)}
-                        disabled={deletingId === q.id}
-                        className="absolute top-3 right-3 p-2 rounded-lg bg-red-500/30 hover:bg-red-500/40 text-red-200 opacity-0 group-hover:opacity-100 transition-opacity border-2 border-red-400/50 z-10 disabled:opacity-50 shadow-lg"
-                        title="Delete question"
-                      >
-                        {deletingId === q.id ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-5 h-5" />
-                        )}
-                      </button>
-
-                      <div
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              {loadingQuestions ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+                </div>
+              ) : filteredQuestions.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-40" />
+                  <p className="text-base font-semibold">No questions found</p>
+                  {searchTerm && (
+                    <p className="text-sm mt-2 text-slate-500">Try adjusting your search or filters</p>
+                  )}
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead className="sticky top-0 bg-slate-800/95 backdrop-blur-md border-b border-slate-700/50 z-10">
+                    <tr>
+                      <th className="text-left p-4 text-slate-300 font-semibold text-xs uppercase tracking-wider">Title</th>
+                      <th className="text-left p-4 text-slate-300 font-semibold text-xs uppercase tracking-wider">Subject</th>
+                      <th className="text-left p-4 text-slate-300 font-semibold text-xs uppercase tracking-wider">Level</th>
+                      <th className="text-left p-4 text-slate-300 font-semibold text-xs uppercase tracking-wider">Difficulty</th>
+                      <th className="text-left p-4 text-slate-300 font-semibold text-xs uppercase tracking-wider">Steps</th>
+                      <th className="text-left p-4 text-slate-300 font-semibold text-xs uppercase tracking-wider">Marks</th>
+                      <th className="text-left p-4 text-slate-300 font-semibold text-xs uppercase tracking-wider">ID</th>
+                      <th className="text-left p-4 text-slate-300 font-semibold text-xs uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredQuestions.map((q, idx) => (
+                      <tr
+                        key={q.id}
                         onClick={() => {
                           setSelectedQuestionId(q.id);
                           navigate(`/admin/questions?edit=${q.id}`);
                         }}
-                        className="pr-10"
+                        className={`border-b border-slate-700/30 cursor-pointer transition-all duration-150 group ${
+                          selectedQuestionId === q.id
+                            ? 'bg-cyan-500/20 hover:bg-cyan-500/25'
+                            : 'bg-slate-800/30 hover:bg-slate-700/40'
+                        } ${idx % 2 === 0 ? 'bg-slate-800/20' : 'bg-slate-800/10'}`}
                       >
-                        <div className="font-bold text-white mb-3 line-clamp-2 text-base leading-snug">{q.title}</div>
-                        <div className="flex flex-wrap gap-2 mb-3">
+                        <td className="p-4">
+                          <div className="font-semibold text-white text-sm">{q.title}</div>
+                        </td>
+                        <td className="p-4">
                           <Badge
-                            variant="outline"
-                            className={`text-sm uppercase tracking-wider font-bold border-2 px-2.5 py-1 ${
+                            className={`text-xs font-semibold border ${
                               q.subject === 'math'
-                                ? 'bg-blue-500/40 text-blue-100 border-blue-400/60'
+                                ? 'bg-blue-500/30 text-blue-200 border-blue-400/50'
                                 : q.subject === 'physics'
-                                ? 'bg-purple-500/40 text-purple-100 border-purple-400/60'
-                                : 'bg-green-500/40 text-green-100 border-green-400/60'
+                                ? 'bg-purple-500/30 text-purple-200 border-purple-400/50'
+                                : 'bg-green-500/30 text-green-200 border-green-400/50'
                             }`}
                           >
                             {q.subject}
                           </Badge>
-                          <Badge variant="outline" className="text-sm border-2 border-white/40 bg-white/15 text-white font-bold px-2.5 py-1">
+                        </td>
+                        <td className="p-4">
+                          <Badge className="text-xs font-semibold border border-slate-600 bg-slate-700/50 text-slate-200">
                             {q.level}
                           </Badge>
+                        </td>
+                        <td className="p-4">
                           <Badge
-                            variant="outline"
-                            className={`text-sm border-2 font-bold px-2.5 py-1 ${
+                            className={`text-xs font-semibold border ${
                               q.difficulty === 'hard'
-                                ? 'bg-red-500/40 text-red-100 border-red-400/60'
+                                ? 'bg-red-500/30 text-red-200 border-red-400/50'
                                 : q.difficulty === 'medium'
-                                ? 'bg-yellow-500/40 text-yellow-100 border-yellow-400/60'
-                                : 'bg-green-500/40 text-green-100 border-green-400/60'
+                                ? 'bg-yellow-500/30 text-yellow-200 border-yellow-400/50'
+                                : 'bg-green-500/30 text-green-200 border-green-400/50'
                             }`}
                           >
                             {q.difficulty}
                           </Badge>
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-white font-bold mt-3 pt-3 border-t border-white/20">
-                          <span className="flex items-center gap-1">
-                            <BarChart3 className="w-4 h-4 text-amber-400" />
-                            {q.steps.length} Steps
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <TrendingUp className="w-4 h-4 text-blue-400" />
-                            {q.totalMarks} Marks
-                          </span>
-                          <span className="font-mono text-white/70 text-xs">#{q.id.slice(0, 8)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
+                        </td>
+                        <td className="p-4">
+                          <span className="text-slate-300 font-medium text-sm">{q.steps.length}</span>
+                        </td>
+                        <td className="p-4">
+                          <span className="text-slate-300 font-medium text-sm">{q.totalMarks}</span>
+                        </td>
+                        <td className="p-4">
+                          <span className="font-mono text-slate-400 text-xs">#{q.id.slice(0, 8)}</span>
+                        </td>
+                        <td className="p-4">
+                          <button
+                            onClick={(e) => handleDeleteQuestion(q.id, e)}
+                            disabled={deletingId === q.id}
+                            className="p-1.5 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-300 opacity-0 group-hover:opacity-100 transition-opacity border border-red-500/30 disabled:opacity-50"
+                            title="Delete question"
+                          >
+                            {deletingId === q.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
               </div>
             </div>
 
@@ -500,37 +514,37 @@ export default function AdminDashboard() {
           </div>
 
           {/* RIGHT PANEL: Info/Editor Redirect */}
-          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl flex flex-col h-full overflow-hidden relative shadow-lg">
+          <div className="bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl flex flex-col h-full overflow-hidden relative shadow-2xl">
             {selectedQuestionId ? (
               <div className="flex-1 flex flex-col items-center justify-center text-white p-8">
-                <CheckCircle2 className="w-20 h-20 mb-6 text-amber-400" />
+                <CheckCircle2 className="w-20 h-20 mb-6 text-cyan-400" />
                 <h3 className="text-2xl font-bold text-white mb-3">Question Selected</h3>
-                <p className="text-center text-base mb-8 text-white/80">
+                <p className="text-center text-base mb-8 text-slate-300">
                   Click "Edit in Legacy Panel" to modify this question
                 </p>
                 <Button
                   onClick={() => navigate(`/admin/questions?edit=${selectedQuestionId}`)}
-                  className="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-12 px-8 text-base shadow-lg"
+                  className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold h-12 px-8 text-base shadow-lg"
                 >
                   Edit in Legacy Panel
                 </Button>
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-white p-8">
-                <div className="w-28 h-28 rounded-full bg-gradient-to-br from-white/20 to-white/5 border-2 border-white/30 flex items-center justify-center mb-8 shadow-lg">
-                  <Shield className="w-14 h-14 text-amber-400" />
+                <div className="w-28 h-28 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 flex items-center justify-center mb-8 shadow-lg">
+                  <Shield className="w-14 h-14 text-cyan-400" />
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-3">Admin Dashboard 2.0</h3>
-                <p className="text-center text-base mb-2 text-white/90">
+                <p className="text-center text-base mb-2 text-slate-300">
                   Select a question from the list to view details
                 </p>
-                <p className="text-center text-sm text-white/60 mb-8">
+                <p className="text-center text-sm text-slate-400 mb-8">
                   Or use the Legacy Panel for full editing capabilities
                 </p>
                 <Button
                   onClick={() => navigate('/admin/questions')}
                   variant="outline"
-                  className="border-2 border-white/30 text-white hover:text-white hover:bg-white/15 hover:border-white/40 h-11 px-6 font-semibold"
+                  className="border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700/50 hover:border-slate-500 h-11 px-6 font-semibold"
                 >
                   Open Legacy Panel
                 </Button>
