@@ -46,7 +46,7 @@ export function HeaderUserMenu() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/admin/questions')}
+          onClick={() => navigate('/admin/dashboard')}
           className="gap-2 font-medium text-white hover:bg-white/10"
           style={{
             background: 'rgba(220, 38, 38, 0.2)',

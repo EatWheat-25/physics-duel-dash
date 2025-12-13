@@ -227,7 +227,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             
             {isAdmin && (
               <Button
-                onClick={() => navigate('/admin/questions')}
+                onClick={() => navigate('/admin/dashboard')}
                 variant="default"
                 size="sm"
                 className="ml-2 text-white"

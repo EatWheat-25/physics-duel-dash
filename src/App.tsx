@@ -29,6 +29,7 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import AdminQuestions from "./pages/AdminQuestions";
 import AdminLogin from "./pages/AdminLogin";
+import AdminDashboard from "./pages/AdminDashboard";
 import OnlineBattlePage from "./pages/OnlineBattlePage";
 import BattleConnected from "./pages/BattleConnected";
 import DebugQuestions from "./pages/DebugQuestions";
@@ -74,6 +75,7 @@ const App = () => {
                 <Route path="/modes" element={<ModeSelection />} />
                 <Route path="/game-modes" element={<GameModes />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route path="/admin/questions" element={<AdminQuestions />} />
                 <Route path="/debug/questions" element={<DebugQuestions />} />
                 <Route path="/dev/match-sandbox" element={<MatchSandbox />} />

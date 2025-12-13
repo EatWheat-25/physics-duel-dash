@@ -37,7 +37,7 @@ export default function AdminLogin() {
       if (data?.success) {
         toast.success(data.message || 'Admin access granted!');
         setTimeout(() => {
-          navigate('/admin/questions');
+          navigate('/admin/dashboard');
         }, 1000);
       } else {
         toast.error('Invalid admin code');
