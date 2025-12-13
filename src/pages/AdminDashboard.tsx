@@ -196,7 +196,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen text-foreground relative overflow-hidden font-sans">
       <SpaceBackground />
 
-      <div className="relative z-10 max-w-[1800px] mx-auto p-6">
+      <div className="relative z-10 w-full h-screen flex flex-col p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -239,7 +239,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 flex-shrink-0">
           <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
@@ -286,14 +286,14 @@ export default function AdminDashboard() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 h-[calc(100vh-320px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 flex-1 min-h-0">
           {/* LEFT PANEL: Filters & Question List */}
-          <div className="flex flex-col gap-4 h-full overflow-hidden">
-            {/* Filters */}
-            <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 space-y-4 shadow-lg">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-white font-bold uppercase tracking-wider text-sm">
-                  <Filter className="w-5 h-5 text-amber-400" />
+          <div className="flex flex-col gap-3 h-full overflow-hidden">
+            {/* Filters - Compact */}
+            <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-4 space-y-3 shadow-lg flex-shrink-0">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-white font-bold uppercase tracking-wider text-xs">
+                  <Filter className="w-4 h-4 text-amber-400" />
                   Filters
                 </div>
                 {(filters.subject !== 'all' || filters.level !== 'all' || filters.difficulty !== 'all' || searchTerm) && (
@@ -304,7 +304,7 @@ export default function AdminDashboard() {
                       setFilters({ subject: 'all', level: 'all', difficulty: 'all' });
                       setSearchTerm('');
                     }}
-                    className="text-white/60 hover:text-white h-6 px-2 text-xs"
+                    className="text-white/60 hover:text-white h-5 px-2 text-xs"
                   >
                     <X className="w-3 h-3 mr-1" />
                     Clear
@@ -312,11 +312,11 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-white font-semibold mb-2 block text-sm">Subject</label>
+                  <label className="text-white font-medium mb-1 block text-xs">Subject</label>
                   <Select value={filters.subject} onValueChange={(v: any) => setFilters({ ...filters, subject: v })}>
-                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-10 font-medium">
+                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-9 font-medium text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-900 border-white/10 text-white">
@@ -328,9 +328,9 @@ export default function AdminDashboard() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-white font-semibold mb-2 block text-sm">Level</label>
+                  <label className="text-white font-medium mb-1 block text-xs">Level</label>
                   <Select value={filters.level} onValueChange={(v: any) => setFilters({ ...filters, level: v })}>
-                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-10 font-medium">
+                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-9 font-medium text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-900 border-white/10 text-white">
@@ -340,57 +340,58 @@ export default function AdminDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <label className="text-white font-semibold mb-2 block text-sm">Difficulty</label>
-                  <Select value={filters.difficulty} onValueChange={(v: any) => setFilters({ ...filters, difficulty: v })}>
-                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-10 font-medium">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-900 border-white/10 text-white">
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
-              <div className="pt-3 border-t-2 border-white/20">
-                <label className="text-white font-semibold mb-2 block text-sm">Search</label>
+              <div>
+                <label className="text-white font-medium mb-1 block text-xs">Difficulty</label>
+                <Select value={filters.difficulty} onValueChange={(v: any) => setFilters({ ...filters, difficulty: v })}>
+                  <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-9 font-medium text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-white/10 text-white">
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="easy">Easy</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="hard">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="pt-2 border-t-2 border-white/20">
+                <label className="text-white font-medium mb-1 block text-xs">Search</label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-amber-400" />
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-amber-400" />
                   <Input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by title, chapter..."
-                    className="bg-white/10 border-2 border-white/30 text-white placeholder:text-white/50 pl-10 h-10 font-medium"
+                    placeholder="Search..."
+                    className="bg-white/10 border-2 border-white/30 text-white placeholder:text-white/50 pl-8 h-9 font-medium text-xs"
                   />
                 </div>
               </div>
 
               <Button
                 onClick={() => navigate('/admin/questions')}
-                className="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-10 shadow-lg shadow-orange-500/20 mt-4"
+                className="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-9 shadow-lg shadow-orange-500/20 text-xs"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Create New Question
+                <Plus className="w-3 h-3 mr-2" />
+                Create New
               </Button>
             </div>
 
-            {/* Question List */}
+            {/* Question List - Takes most space */}
             <div className="flex-1 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-lg">
-              <div className="p-4 border-b-2 border-white/20 bg-white/10 backdrop-blur-md flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Search className="w-5 h-5 text-amber-400" />
-                  <h3 className="font-bold text-white text-base">Questions</h3>
+              <div className="p-5 border-b-2 border-white/20 bg-white/10 backdrop-blur-md flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-6 h-6 text-amber-400" />
+                  <h3 className="font-bold text-white text-lg">Questions</h3>
                 </div>
-                <span className="text-white font-semibold text-sm">
+                <span className="text-white font-bold text-base bg-white/10 px-3 py-1 rounded-lg border border-white/20">
                   {filteredQuestions.length} / {questions.length}
                 </span>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
                 {loadingQuestions ? (
                   <div className="flex justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
