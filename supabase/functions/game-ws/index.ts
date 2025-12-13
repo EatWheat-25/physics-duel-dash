@@ -860,110 +860,6 @@ async function checkAndBroadcastBothConnected(
   
   return success
 }
-      console.log(`[${matchId}] ⏰ Timeout triggered after ${TIMEOUT_SECONDS}s`)
-      
-      const { data: match } = await supabase
-        .from('matches')
-        .select('player1_answer, player2_answer, results_computed_at')
-        .eq('id', matchId)
-        .single()
-      
-      if (!match) {
-        console.error(`[${matchId}] ❌ Match not found during timeout`)
-        matchTimeouts.delete(matchId)
-        return
-      }
-      
-      // If results not computed and one player hasn't answered
-      if (!match.results_computed_at && 
-          (match.player1_answer == null || match.player2_answer == null)) {
-        console.log(`[${matchId}] ⏰ Applying timeout - marking unanswered player as wrong`)
-        
-        // Try force_timeout_stage3 first (Stage 3), fallback to force_timeout_stage2 (Stage 2)
-        let timeoutError = null
-        let timeoutResult = null
-        
-        const { data: stage3Result, error: stage3Error } = await supabase.rpc('force_timeout_stage3', {
-          p_match_id: matchId
-        })
-        
-        if (stage3Error) {
-          // Check if RPC function doesn't exist (Stage 3 migration not applied)
-          if (stage3Error.code === '42883' || stage3Error.message?.includes('does not exist') || stage3Error.message?.includes('function')) {
-            console.log(`[${matchId}] ⚠️ force_timeout_stage3 not found - falling back to force_timeout_stage2`)
-            const { data: stage2Result, error: stage2Error } = await supabase.rpc('force_timeout_stage2', {
-              p_match_id: matchId
-            })
-            timeoutError = stage2Error
-            timeoutResult = stage2Result
-          } else {
-            timeoutError = stage3Error
-            timeoutResult = stage3Result
-          }
-        } else {
-          timeoutResult = stage3Result
-        }
-        
-        if (timeoutError) {
-          console.error(`[${matchId}] ❌ Error applying timeout:`, timeoutError)
-          matchTimeouts.delete(matchId)
-          return
-        }
-        
-        // Fetch and broadcast results after timeout
-        const { data: matchResults } = await supabase
-          .from('matches')
-          .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
-          .eq('id', matchId)
-          .single()
-        
-        if (matchResults) {
-          const resultsEvent: ResultsReceivedEvent = {
-            type: 'RESULTS_RECEIVED',
-            player1_answer: matchResults.player1_answer,
-            player2_answer: matchResults.player2_answer,
-            correct_answer: matchResults.correct_answer!,
-            player1_correct: matchResults.player1_correct!,
-            player2_correct: matchResults.player2_correct!,
-            round_winner: matchResults.round_winner
-          }
-          
-          broadcastToMatch(matchId, resultsEvent)
-          
-          // Stage 3: After RESULTS_RECEIVED, check match state and transition
-          await handleRoundTransition(matchId, supabase)
-        }
-      }
-      
-      // Clean up timeout reference
-      matchTimeouts.delete(matchId)
-    }, TIMEOUT_SECONDS * 1000)
-    
-    matchTimeouts.set(matchId, timeoutId)
-    console.log(`[${matchId}] ⏰ Started ${TIMEOUT_SECONDS}s timeout for answer submission`)
-    }
-  } catch (error) {
-    console.error(`[${matchId}] ❌ Error in atomic question selection:`, error)
-    
-    // Send error to all sockets
-    const matchSockets = sockets.get(matchId)
-    if (matchSockets) {
-      const errorEvent: GameErrorEvent = {
-        type: 'GAME_ERROR',
-        message: 'Failed to select question'
-      }
-      matchSockets.forEach(socket => {
-        if (socket.readyState === WebSocket.OPEN) {
-          try {
-            socket.send(JSON.stringify(errorEvent))
-          } catch (err) {
-            console.error(`[${matchId}] Failed to send error event:`, err)
-          }
-        }
-      })
-    }
-  }
-}
 
 /**
  * Check if both players are connected and broadcast BOTH_CONNECTED if so
@@ -1701,7 +1597,7 @@ async function handleSubmitAnswerV2(
   }))
 
   // Realtime will deliver results to all clients (primary mechanism)
-  // WebSocket broadcast removed per v2 architecture - Realtime is the only delivery mechanism
+  // WebSocket broadcast as fallback in case Realtime is delayed/fails
   if (data.both_answered && data.results_payload) {
     // Clear timeout since both answered early
     const existingTimeout = matchTimeouts.get(matchId)
@@ -1711,9 +1607,17 @@ async function handleSubmitAnswerV2(
       console.log(`[${matchId}] ✅ [V2] Cleared timeout - both players answered early`)
     }
 
-    // Results will be delivered via Realtime UPDATE event on matches table
-    // No WebSocket broadcast needed - Realtime works across all Edge instances
-    console.log(`[${matchId}] ✅ [V2] Results computed - Realtime will deliver to all clients`)
+    // PRIMARY: Realtime will deliver results (works across Edge instances)
+    // FALLBACK: Also send WebSocket message in case Realtime is delayed/fails
+    console.log(`[${matchId}] ✅ [V2] Results computed - sending via WebSocket (Realtime fallback)`)
+    
+    const resultsEvent = {
+      type: 'RESULTS_RECEIVED',
+      results_payload: data.results_payload,
+      results_version: data.results_version || 0,
+      round_number: data.results_payload?.round_number || 0
+    }
+    broadcastToMatch(matchId, resultsEvent)
 
     // Note: Next round will be started by server after delay or client signal
     // Don't start it here to avoid double-firing
@@ -2023,49 +1927,63 @@ async function handleJoinMatch(
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  try {
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders })
+    }
 
-  const url = new URL(req.url)
-  const token = url.searchParams.get('token')
-  const matchId = url.searchParams.get('match_id')
+    const url = new URL(req.url)
+    const token = url.searchParams.get('token')
+    const matchId = url.searchParams.get('match_id')
 
-  if (!token || !matchId) {
-    return new Response('Missing token or match_id', { 
-      status: 400,
-      headers: corsHeaders 
-    })
-  }
+    if (!token || !matchId) {
+      return new Response('Missing token or match_id', { 
+        status: 400,
+        headers: corsHeaders 
+      })
+    }
 
-  // Verify JWT and get user
-  const supabaseUser = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  )
+    // Verify JWT and get user
+    const supabaseUser = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: `Bearer ${token}` } } }
+    )
 
-  const { data: { user }, error: userError } = await supabaseUser.auth.getUser()
-  if (userError || !user) {
-    return new Response('Unauthorized', { 
-      status: 401,
-      headers: corsHeaders 
-    })
-  }
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser()
+    if (userError || !user) {
+      console.error(`[${matchId || 'unknown'}] Auth error:`, userError)
+      return new Response('Unauthorized', { 
+        status: 401,
+        headers: corsHeaders 
+      })
+    }
 
-  console.log(`[${matchId}] WebSocket connection request from user ${user.id}`)
+    console.log(`[${matchId}] WebSocket connection request from user ${user.id}`)
 
-  // Upgrade to WebSocket
-  const upgrade = req.headers.get('upgrade') || ''
-  if (upgrade.toLowerCase() !== 'websocket') {
-    return new Response('Expected websocket', { 
-      status: 426,
-      headers: corsHeaders 
-    })
-  }
+    // Upgrade to WebSocket
+    const upgrade = req.headers.get('upgrade') || ''
+    if (upgrade.toLowerCase() !== 'websocket') {
+      return new Response('Expected websocket', { 
+        status: 426,
+        headers: corsHeaders 
+      })
+    }
 
-  const { socket, response } = Deno.upgradeWebSocket(req)
+    let socket: WebSocket
+    let response: Response
+    try {
+      const upgradeResult = Deno.upgradeWebSocket(req)
+      socket = upgradeResult.socket
+      response = upgradeResult.response
+    } catch (upgradeError) {
+      console.error(`[${matchId}] Failed to upgrade WebSocket:`, upgradeError)
+      return new Response('WebSocket upgrade failed', { 
+        status: 500,
+        headers: corsHeaders 
+      })
+    }
 
   // Track socket
   if (!sockets.has(matchId)) {
@@ -2183,8 +2101,20 @@ Deno.serve(async (req) => {
 
   socket.onerror = (error) => {
     console.error(`[${matchId}] WebSocket error:`, error)
+    console.error(`[${matchId}] WebSocket error details:`, {
+      type: error?.type,
+      target: error?.target,
+      error: String(error)
+    })
   }
 
   return response
+  } catch (error) {
+    console.error('Edge Function error:', error)
+    return new Response(`Internal server error: ${error instanceof Error ? error.message : String(error)}`, {
+      status: 500,
+      headers: corsHeaders
+    })
+  }
 })
 

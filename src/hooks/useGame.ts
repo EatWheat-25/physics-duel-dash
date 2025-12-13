@@ -728,33 +728,35 @@ export function useGame(match: MatchRow | null) {
         const oldVersion = payload.old?.results_version ?? 0
         const newVersion = newPayload.results_version ?? 0
 
-        // Accept results UPDATE only if ALL true (per plan Section 9):
+        // Accept results UPDATE if:
         // 1. results_payload != null
-        // 2. results_version > local version (handles out-of-order events)
-        // 3. results_round_id === current_round_id (prevents showing old round results)
+        // 2. results_version >= local version (changed from > to >= to allow same version)
+        // 3. results_round_id === current_round_id OR current_round_id is null (allow first round)
         if (
           newPayload.results_payload != null &&
-          newVersion > localResultsVersionRef.current &&
-          newPayload.results_round_id === newPayload.current_round_id
+          newVersion >= localResultsVersionRef.current &&
+          (newPayload.results_round_id === newPayload.current_round_id || newPayload.current_round_id === null)
         ) {
           console.log('[useGame] ✅ Accepting Realtime results (validated):', {
             version: newVersion,
             local_version: localResultsVersionRef.current,
             round_id: newPayload.results_round_id,
-            current_round_id: newPayload.current_round_id
+            current_round_id: newPayload.current_round_id,
+            payload: newPayload.results_payload
           })
           localResultsVersionRef.current = newVersion
           applyResults(newPayload.results_payload)
         } else {
-          // Ignore stale/old round/wrong data
-          console.log('[useGame] ⚠️ Ignoring Realtime results (failed validation):', {
+          // Log detailed rejection reason
+          console.warn('[useGame] ⚠️ Ignoring Realtime results:', {
             hasPayload: newPayload.results_payload != null,
-            versionCheck: newVersion > localResultsVersionRef.current,
-            roundMatch: newPayload.results_round_id === newPayload.current_round_id,
+            versionCheck: `${newVersion} >= ${localResultsVersionRef.current}`,
+            roundMatch: `${newPayload.results_round_id} === ${newPayload.current_round_id} || ${newPayload.current_round_id} === null`,
             results_version: newVersion,
             local_version: localResultsVersionRef.current,
             results_round_id: newPayload.results_round_id,
-            current_round_id: newPayload.current_round_id
+            current_round_id: newPayload.current_round_id,
+            payload: newPayload.results_payload
           })
         }
       })
