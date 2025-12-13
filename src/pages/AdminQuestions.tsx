@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Filter } from 'lucide-react';
+import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Filter, Eye, CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import SpaceBackground from '@/components/SpaceBackground';
 import { useIsAdmin } from '@/hooks/useUserRole';
@@ -26,6 +26,7 @@ type EditorMode = 'idle' | 'creating' | 'editing';
 
 type FormStep = {
   id?: string;
+  type: 'mcq' | 'true_false';
   title: string;
   prompt: string;
   options: [string, string, string, string];
@@ -69,6 +70,7 @@ export default function AdminQuestions() {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [form, setForm] = useState<QuestionForm>(getEmptyForm());
   const [saving, setSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Load questions on mount and filter changes
   useEffect(() => {
@@ -89,6 +91,7 @@ export default function AdminQuestions() {
       totalMarks: 1,
       topicTags: '',
       steps: [{
+        type: 'mcq',
         title: 'Step 1',
         prompt: '',
         options: ['', '', '', ''],
@@ -149,13 +152,14 @@ export default function AdminQuestions() {
       topicTags: q.topicTags.join(', '),
       steps: q.steps.map(s => ({
         id: s.id,
+        type: s.type || 'mcq',
         title: s.title,
         prompt: s.prompt,
         options: [s.options[0] || '', s.options[1] || '', s.options[2] || '', s.options[3] || ''],
         correctAnswer: s.correctAnswer,
         marks: s.marks,
         timeLimitSeconds: s.timeLimitSeconds,
-        explanation: s.explanation
+        explanation: s.explanation || ''
       })),
       imageUrl: q.imageUrl || ''
     });
@@ -167,6 +171,7 @@ export default function AdminQuestions() {
       steps: [
         ...form.steps,
         {
+          type: 'mcq',
           title: `Step ${form.steps.length + 1}`,
           prompt: '',
           options: ['', '', '', ''],
@@ -204,8 +209,27 @@ export default function AdminQuestions() {
 
   function updateStepField(index: number, field: keyof FormStep, value: any) {
     const newSteps = [...form.steps];
-    newSteps[index] = { ...newSteps[index], [field]: value };
-    setForm({ ...form, steps: newSteps });
+    const updatedStep = { ...newSteps[index], [field]: value };
+    
+    // When changing type to true_false, set default options and limit correctAnswer
+    if (field === 'type' && value === 'true_false') {
+      updatedStep.options = ['True', 'False', '', ''];
+      if (updatedStep.correctAnswer > 1) {
+        updatedStep.correctAnswer = 0;
+      }
+    } else if (field === 'type' && value === 'mcq') {
+      // When changing to MCQ, ensure we have 4 options
+      if (!updatedStep.options[2] && !updatedStep.options[3]) {
+        updatedStep.options = [updatedStep.options[0] || '', updatedStep.options[1] || '', '', ''];
+      }
+    }
+    
+    newSteps[index] = updatedStep;
+    
+    // Auto-calculate total marks when step marks change
+    const totalMarks = newSteps.reduce((sum, s) => sum + (s.marks || 0), 0);
+    
+    setForm({ ...form, steps: newSteps, totalMarks });
   }
 
   function updateStepOption(stepIndex: number, optionIndex: number, value: string) {
@@ -240,13 +264,29 @@ export default function AdminQuestions() {
         toast.error(`Step ${i + 1}: title and prompt are required`);
         return false;
       }
-      if (step.options.some(opt => !opt.trim())) {
-        toast.error(`Step ${i + 1}: all 4 options must be filled`);
-        return false;
-      }
-      if (step.correctAnswer < 0 || step.correctAnswer > 3) {
-        toast.error(`Step ${i + 1}: correct answer must be 0-3`);
-        return false;
+      
+      if (step.type === 'true_false') {
+        // True/False: need exactly 2 non-empty options
+        const nonEmptyOptions = step.options.slice(0, 2).filter(opt => opt.trim());
+        if (nonEmptyOptions.length !== 2) {
+          toast.error(`Step ${i + 1}: True/False questions need exactly 2 options (True and False)`);
+          return false;
+        }
+        if (step.correctAnswer < 0 || step.correctAnswer > 1) {
+          toast.error(`Step ${i + 1}: True/False correct answer must be 0 (True) or 1 (False)`);
+          return false;
+        }
+      } else {
+        // MCQ: need at least 2 non-empty options
+        const nonEmptyOptions = step.options.filter(opt => opt.trim());
+        if (nonEmptyOptions.length < 2) {
+          toast.error(`Step ${i + 1}: MCQ questions need at least 2 options`);
+          return false;
+        }
+        if (step.correctAnswer < 0 || step.correctAnswer >= nonEmptyOptions.length) {
+          toast.error(`Step ${i + 1}: correct answer must be between 0 and ${nonEmptyOptions.length - 1}`);
+          return false;
+        }
       }
     }
 
@@ -263,36 +303,52 @@ export default function AdminQuestions() {
         .map(t => t.trim())
         .filter(t => t.length > 0);
 
-      // Strict type detection with validation
-      const normalize = (s: string) => s.toLowerCase().trim()
-      
       const stepsPayload: QuestionStep[] = form.steps.map((s, i) => {
-        const nonEmptyOptions = s.options.map(o => o.trim()).filter(Boolean)
-        const normalized = nonEmptyOptions.map(normalize).sort().join(',')
-        
-        // Strict TF detection: exactly 2 options, must be True/False
-        const isTrueFalse = nonEmptyOptions.length === 2 && normalized === 'false,true'
+        // Get non-empty options based on type
+        let nonEmptyOptions: string[];
+        if (s.type === 'true_false') {
+          nonEmptyOptions = s.options.slice(0, 2).map(o => o.trim()).filter(Boolean);
+          if (nonEmptyOptions.length !== 2) {
+            throw new Error(`Step ${i + 1}: True/False questions must have exactly 2 options`);
+          }
+        } else {
+          nonEmptyOptions = s.options.map(o => o.trim()).filter(Boolean);
+          if (nonEmptyOptions.length < 2) {
+            throw new Error(`Step ${i + 1}: MCQ questions must have at least 2 options`);
+          }
+        }
         
         // Validate correctAnswer range
-        const correct = Number(s.correctAnswer)
+        const correct = Number(s.correctAnswer);
         if (Number.isNaN(correct)) {
-          throw new Error(`Step ${i + 1}: correctAnswer missing`)
+          throw new Error(`Step ${i + 1}: correctAnswer missing`);
         }
-        if (correct < 0 || correct >= nonEmptyOptions.length) {
-          throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${nonEmptyOptions.length - 1})`)
+        if (s.type === 'true_false' && (correct < 0 || correct > 1)) {
+          throw new Error(`Step ${i + 1}: True/False correct answer must be 0 or 1`);
         }
+        if (s.type === 'mcq' && (correct < 0 || correct >= nonEmptyOptions.length)) {
+          throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${nonEmptyOptions.length - 1})`);
+        }
+        
+        // Pad options to exactly 4 for storage (True/False will have empty C and D)
+        const paddedOptions: [string, string, string, string] = [
+          nonEmptyOptions[0] || '',
+          nonEmptyOptions[1] || '',
+          nonEmptyOptions[2] || '',
+          nonEmptyOptions[3] || ''
+        ];
         
         return {
           id: s.id || `step-${i + 1}`,
-          stepIndex: i,
-          type: isTrueFalse ? 'true_false' : 'mcq',
+          index: i,
+          type: s.type,
           title: s.title,
           prompt: s.prompt,
-          options: nonEmptyOptions, // Only non-empty options
-          correctAnswer: correct,
+          options: paddedOptions,
+          correctAnswer: correct as 0 | 1 | 2 | 3,
           timeLimitSeconds: s.timeLimitSeconds ?? null,
           marks: s.marks,
-          explanation: s.explanation
+          explanation: s.explanation || null
         }
       });
 
@@ -601,6 +657,14 @@ export default function AdminQuestions() {
                     </p>
                   </div>
                   <div className="flex gap-3">
+                    <Button
+                      onClick={() => setShowPreview(!showPreview)}
+                      variant="outline"
+                      className="bg-white/5 hover:bg-white/10 text-white border-white/10"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      {showPreview ? 'Hide' : 'Show'} Preview
+                    </Button>
                     {mode === 'editing' && (
                       <Button
                         onClick={handleDelete}
@@ -623,7 +687,9 @@ export default function AdminQuestions() {
                 </div>
 
                 {/* Editor Content */}
-                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                <div className="flex-1 overflow-hidden flex">
+                  {/* Main Editor */}
+                  <div className={`flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar transition-all ${showPreview ? 'w-1/2 pr-4' : 'w-full'}`}>
 
                   {/* Section: Meta */}
                   <div className="space-y-6">
@@ -694,9 +760,15 @@ export default function AdminQuestions() {
                         <Input
                           type="number"
                           value={form.totalMarks}
-                          onChange={e => setForm({ ...form, totalMarks: parseInt(e.target.value) || 1 })}
+                          onChange={e => {
+                            const marks = parseInt(e.target.value) || 1;
+                            setForm({ ...form, totalMarks: marks });
+                          }}
                           className={glassInput}
                         />
+                        <p className="text-xs text-white/40 mt-1">
+                          Auto-calculated: {form.steps.reduce((sum, s) => sum + s.marks, 0)} marks
+                        </p>
                       </div>
 
                       <div className="col-span-2">
@@ -704,9 +776,25 @@ export default function AdminQuestions() {
                         <Textarea
                           value={form.stem}
                           onChange={e => setForm({ ...form, stem: e.target.value })}
-                          className={`${glassInput} min-h-[100px]`}
-                          placeholder="Enter the main question text here..."
+                          className={`${glassInput} min-h-[120px]`}
+                          placeholder="Enter the main question text/context here. This appears before all steps..."
                         />
+                        <p className="text-xs text-white/40 mt-1">
+                          This is the main question context that appears before all steps
+                        </p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Topic Tags (Comma-separated)</label>
+                        <Input
+                          value={form.topicTags}
+                          onChange={e => setForm({ ...form, topicTags: e.target.value })}
+                          className={glassInput}
+                          placeholder="e.g. integration, by-parts, calculus"
+                        />
+                        <p className="text-xs text-white/40 mt-1">
+                          Separate tags with commas for better searchability
+                        </p>
                       </div>
 
                       <div className="col-span-2">
@@ -717,21 +805,29 @@ export default function AdminQuestions() {
                           className={glassInput}
                           placeholder="https://..."
                         />
+                        {form.imageUrl && (
+                          <img src={form.imageUrl} alt="Preview" className="mt-2 rounded-lg max-w-xs border border-white/10" onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }} />
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Section: Steps */}
                   <div className="space-y-6">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                      <h3 className="text-lg font-bold text-white/90 flex items-center gap-2">
-                        <div className="w-1 h-5 bg-secondary rounded-full"></div>
-                        Steps ({form.steps.length})
-                      </h3>
+                    <div className="flex items-center justify-between border-b-2 border-white/20 pb-3">
+                      <div>
+                        <h3 className="text-xl font-bold text-white/90 flex items-center gap-3 mb-1">
+                          <div className="w-2 h-6 bg-gradient-to-b from-primary to-secondary rounded-full"></div>
+                          Question Steps
+                        </h3>
+                        <p className="text-sm text-white/50 ml-5">Create multi-step questions with different types</p>
+                      </div>
                       <Button
                         onClick={handleAddStep}
                         size="sm"
-                        className="bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                        className="bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 text-white font-semibold shadow-lg"
                       >
                         <Plus className="w-4 h-4 mr-2" /> Add Step
                       </Button>
@@ -739,30 +835,48 @@ export default function AdminQuestions() {
 
                     <div className="space-y-6">
                       {form.steps.map((step, index) => (
-                        <div key={index} className="bg-white/5 border border-white/10 rounded-2xl p-6 relative group">
-                          <div className="absolute top-4 right-4 flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepUp(index)} disabled={index === 0}><ArrowUp className="w-4 h-4" /></Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepDown(index)} disabled={index === form.steps.length - 1}><ArrowDown className="w-4 h-4" /></Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:bg-red-500/20" onClick={() => handleDeleteStep(index)} disabled={form.steps.length <= 1}><Trash2 className="w-4 h-4" /></Button>
-                          </div>
-
-                          <div className="mb-4 flex items-center gap-2">
-                            <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0">STEP {index + 1}</Badge>
-                            {(() => {
-                              // Live type detection
-                              const normalize = (s: string) => s.toLowerCase().trim()
-                              const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean)
-                              const normalized = nonEmptyOptions.map(normalize).sort().join(',')
-                              const isTrueFalse = nonEmptyOptions.length === 2 && normalized === 'false,true'
-                              const isValid = nonEmptyOptions.length >= 2 && step.correctAnswer >= 0 && step.correctAnswer < nonEmptyOptions.length
-                              
-                              if (!isValid) {
-                                return <Badge className="bg-red-500/20 text-red-400 border-red-500/50">⚠️ Invalid config</Badge>
-                              }
-                              return isTrueFalse 
-                                ? <Badge className="bg-green-500/20 text-green-400 border-green-500/50">✅ True/False</Badge>
-                                : <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">✅ MCQ</Badge>
-                            })()}
+                        <div key={index} className="bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 rounded-2xl p-6 relative group hover:border-primary/30 transition-all shadow-lg">
+                          {/* Step Header with Controls */}
+                          <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary/50">
+                                <span className="text-primary font-bold text-lg">{index + 1}</span>
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0 font-semibold">STEP {index + 1}</Badge>
+                                  <Badge className={step.type === 'true_false' 
+                                    ? 'bg-green-500/20 text-green-400 border-green-500/50' 
+                                    : 'bg-blue-500/20 text-blue-400 border-blue-500/50'}>
+                                    {step.type === 'true_false' ? '✓ True/False' : '✓ MCQ'}
+                                  </Badge>
+                                  {step.marks > 0 && (
+                                    <Badge className="bg-amber-500/20 text-amber-300 border-0">
+                                      {step.marks} mark{step.marks !== 1 ? 's' : ''}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Select 
+                                value={step.type} 
+                                onValueChange={(v: 'mcq' | 'true_false') => updateStepField(index, 'type', v)}
+                              >
+                                <SelectTrigger className="w-32 h-8 bg-white/5 border-white/10 text-white text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                  <SelectItem value="mcq">MCQ</SelectItem>
+                                  <SelectItem value="true_false">True/False</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepUp(index)} disabled={index === 0} title="Move up"><ArrowUp className="w-4 h-4" /></Button>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepDown(index)} disabled={index === form.steps.length - 1} title="Move down"><ArrowDown className="w-4 h-4" /></Button>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:bg-red-500/20" onClick={() => handleDeleteStep(index)} disabled={form.steps.length <= 1} title="Delete step"><Trash2 className="w-4 h-4" /></Button>
+                              </div>
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-1 gap-4">
@@ -783,18 +897,34 @@ export default function AdminQuestions() {
                               />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-xl border border-white/5">
-                              {[0, 1, 2, 3].map((optIdx) => (
-                                <div key={optIdx}>
-                                  <label className="text-xs text-white/50 mb-1 block uppercase tracking-wider">Option {String.fromCharCode(65 + optIdx)}</label>
+                            <div className={`grid gap-4 bg-gradient-to-br from-black/30 to-black/10 p-5 rounded-xl border-2 ${step.type === 'true_false' ? 'grid-cols-2 border-green-500/20' : 'grid-cols-2 border-blue-500/20'}`}>
+                              {(step.type === 'true_false' ? [0, 1] : [0, 1, 2, 3]).map((optIdx) => (
+                                <div key={optIdx} className={`p-3 rounded-lg border-2 transition-all ${
+                                  step.correctAnswer === optIdx
+                                    ? 'bg-green-500/20 border-green-500/50'
+                                    : 'bg-white/5 border-white/10 hover:border-white/20'
+                                }`}>
+                                  <label className="text-xs text-white/70 mb-2 block uppercase tracking-wider font-semibold">
+                                    Option {String.fromCharCode(65 + optIdx)}
+                                    {step.type === 'true_false' && optIdx === 0 && ' (True)'}
+                                    {step.type === 'true_false' && optIdx === 1 && ' (False)'}
+                                    {step.correctAnswer === optIdx && (
+                                      <span className="ml-2 text-green-400">✓ Correct</span>
+                                    )}
+                                  </label>
                                   <div className="flex items-center gap-2">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step.correctAnswer === optIdx ? 'bg-green-500 text-black' : 'bg-white/10 text-white/50'}`}>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                                      step.correctAnswer === optIdx 
+                                        ? 'bg-green-500 text-black shadow-lg shadow-green-500/50' 
+                                        : 'bg-white/10 text-white/70'
+                                    }`}>
                                       {String.fromCharCode(65 + optIdx)}
                                     </div>
                                     <Input
                                       value={step.options[optIdx]}
                                       onChange={e => updateStepOption(index, optIdx, e.target.value)}
-                                      className={`${glassInput} h-9 text-sm`}
+                                      className={`${glassInput} h-10 text-sm flex-1`}
+                                      placeholder={step.type === 'true_false' && optIdx === 0 ? 'True' : step.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
                                     />
                                   </div>
                                 </div>
@@ -807,10 +937,14 @@ export default function AdminQuestions() {
                                 <Select value={step.correctAnswer.toString()} onValueChange={(v) => updateStepField(index, 'correctAnswer', parseInt(v))}>
                                   <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                                   <SelectContent className="bg-gray-900 border-white/10 text-white">
-                                    <SelectItem value="0">Option A</SelectItem>
-                                    <SelectItem value="1">Option B</SelectItem>
-                                    <SelectItem value="2">Option C</SelectItem>
-                                    <SelectItem value="3">Option D</SelectItem>
+                                    <SelectItem value="0">Option A{step.type === 'true_false' ? ' (True)' : ''}</SelectItem>
+                                    <SelectItem value="1">Option B{step.type === 'true_false' ? ' (False)' : ''}</SelectItem>
+                                    {step.type === 'mcq' && (
+                                      <>
+                                        <SelectItem value="2">Option C</SelectItem>
+                                        <SelectItem value="3">Option D</SelectItem>
+                                      </>
+                                    )}
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -838,7 +972,127 @@ export default function AdminQuestions() {
                       ))}
                     </div>
                   </div>
+                  </div>
 
+                  {/* Preview Panel */}
+                  {showPreview && (
+                    <div className="w-1/2 border-l border-white/10 bg-white/5 overflow-y-auto p-6 custom-scrollbar">
+                      <div className="sticky top-0 bg-white/5 backdrop-blur-xl pb-4 mb-4 border-b border-white/10">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          <Eye className="w-5 h-5 text-primary" />
+                          Question Preview
+                        </h3>
+                        <p className="text-xs text-white/50 mt-1">How this question will appear to students</p>
+                      </div>
+                      
+                      <div className="space-y-6">
+                        {/* Question Header */}
+                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge className={`${form.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
+                                form.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
+                              } border-0`}>
+                              {form.subject}
+                            </Badge>
+                            <Badge className="bg-white/10 text-white/70 border-0">{form.level}</Badge>
+                            <Badge className={`border-0 ${form.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
+                                form.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
+                              }`}>
+                              {form.difficulty}
+                            </Badge>
+                          </div>
+                          <h2 className="text-xl font-bold text-white mb-2">{form.title || 'Untitled Question'}</h2>
+                          <p className="text-sm text-white/70">{form.chapter}</p>
+                        </div>
+
+                        {/* Stem */}
+                        {form.stem && (
+                          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                            <p className="text-white/90 whitespace-pre-wrap">{form.stem}</p>
+                            {form.imageUrl && (
+                              <img src={form.imageUrl} alt="Question" className="mt-4 rounded-lg max-w-full" />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Steps Preview */}
+                        <div className="space-y-4">
+                          {form.steps.map((step, idx) => (
+                            <div key={idx} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Badge className="bg-primary/20 text-primary border-0">Step {idx + 1}</Badge>
+                                <Badge className={step.type === 'true_false' 
+                                  ? 'bg-green-500/20 text-green-400 border-green-500/50' 
+                                  : 'bg-blue-500/20 text-blue-400 border-blue-500/50'}>
+                                  {step.type === 'true_false' ? 'True/False' : 'MCQ'}
+                                </Badge>
+                                {step.marks > 0 && (
+                                  <Badge className="bg-amber-500/20 text-amber-300 border-0">{step.marks} mark{step.marks !== 1 ? 's' : ''}</Badge>
+                                )}
+                              </div>
+                              
+                              <h3 className="text-white font-semibold mb-2">{step.title || `Step ${idx + 1}`}</h3>
+                              <p className="text-white/80 mb-4 whitespace-pre-wrap">{step.prompt || 'No prompt provided'}</p>
+                              
+                              <div className="space-y-2">
+                                {(step.type === 'true_false' ? [0, 1] : [0, 1, 2, 3].filter(i => step.options[i]?.trim())).map((optIdx) => (
+                                  <div
+                                    key={optIdx}
+                                    className={`p-3 rounded-lg border-2 transition-all ${
+                                      step.correctAnswer === optIdx
+                                        ? 'bg-green-500/20 border-green-500/50'
+                                        : 'bg-white/5 border-white/10'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                        step.correctAnswer === optIdx
+                                          ? 'bg-green-500 text-black'
+                                          : 'bg-white/10 text-white/70'
+                                      }`}>
+                                        {String.fromCharCode(65 + optIdx)}
+                                      </div>
+                                      <span className="text-white flex-1">{step.options[optIdx] || 'Empty option'}</span>
+                                      {step.correctAnswer === optIdx && (
+                                        <CheckCircle2 className="w-5 h-5 text-green-400" />
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {step.explanation && (
+                                <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                  <p className="text-xs text-blue-300 font-semibold mb-1">Explanation:</p>
+                                  <p className="text-sm text-white/80 whitespace-pre-wrap">{step.explanation}</p>
+                                </div>
+                              )}
+
+                              {step.timeLimitSeconds && (
+                                <div className="mt-2 text-xs text-white/50">
+                                  ⏱️ Time limit: {step.timeLimitSeconds}s
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Summary */}
+                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-white/50">Total Steps:</span>
+                              <span className="text-white ml-2 font-semibold">{form.steps.length}</span>
+                            </div>
+                            <div>
+                              <span className="text-white/50">Total Marks:</span>
+                              <span className="text-white ml-2 font-semibold">{form.totalMarks}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
