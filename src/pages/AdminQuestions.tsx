@@ -381,6 +381,37 @@ export default function AdminQuestions() {
     }
   }
 
+  async function handleDeleteFromList(questionId: string, event: React.MouseEvent) {
+    event.stopPropagation(); // Prevent selecting the question when clicking delete
+    
+    if (!confirm('Are you sure you want to delete this question? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('questions_v2')
+        .delete()
+        .eq('id', questionId);
+
+      if (error) throw error;
+
+      toast.success('Question deleted successfully!');
+      
+      // If deleted question was selected, clear selection
+      if (selectedQuestionId === questionId) {
+        setMode('idle');
+        setSelectedQuestionId(null);
+        setForm(getEmptyForm());
+      }
+      
+      fetchQuestions();
+    } catch (error: any) {
+      console.error('[AdminQuestions] Delete error:', error);
+      toast.error(error.message || 'Failed to delete question');
+    }
+  }
+
   // Common styles
   const glassPanel = "bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-xl";
   const glassInput = "bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-primary/50 focus:ring-primary/20";
@@ -521,12 +552,21 @@ export default function AdminQuestions() {
                     <div
                       key={q.id}
                       onClick={() => handleSelectQuestion(q)}
-                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border ${selectedQuestionId === q.id
+                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border relative group ${selectedQuestionId === q.id
                           ? 'bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
                           : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
                         }`}
                     >
-                      <div className="font-bold text-white mb-2 line-clamp-2 text-sm">{q.title}</div>
+                      {/* Delete button - appears on hover */}
+                      <button
+                        onClick={(e) => handleDeleteFromList(q.id, e)}
+                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity border border-red-500/20 z-10"
+                        title="Delete question"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      
+                      <div className="font-bold text-white mb-2 line-clamp-2 text-sm pr-8">{q.title}</div>
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
                             q.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
