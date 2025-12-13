@@ -36,6 +36,7 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [mappingErrors, setMappingErrors] = useState<string[]>([]);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Load questions on mount and filter changes
   useEffect(() => {
@@ -90,6 +91,39 @@ export default function AdminDashboard() {
       setQuestions([]);
     } finally {
       setLoadingQuestions(false);
+    }
+  }
+
+  async function handleDeleteQuestion(questionId: string, event: React.MouseEvent) {
+    event.stopPropagation(); // Prevent selecting the question when clicking delete
+    
+    if (!confirm(`Are you sure you want to delete this question? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(questionId);
+    try {
+      const { error } = await supabase
+        .from('questions_v2')
+        .delete()
+        .eq('id', questionId);
+
+      if (error) throw error;
+
+      toast.success('Question deleted successfully!');
+      
+      // Remove from local state
+      setQuestions(prev => prev.filter(q => q.id !== questionId));
+      
+      // Clear selection if deleted question was selected
+      if (selectedQuestionId === questionId) {
+        setSelectedQuestionId(null);
+      }
+    } catch (error: any) {
+      console.error('[AdminDashboard] Delete error:', error);
+      toast.error(error.message || 'Failed to delete question');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -206,47 +240,47 @@ export default function AdminDashboard() {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4">
+          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/60 text-sm font-medium">Total Questions</p>
-                <p className="text-3xl font-black text-white mt-1">{stats.total}</p>
+                <p className="text-white/80 text-sm font-semibold mb-1">Total Questions</p>
+                <p className="text-4xl font-black text-white mt-1">{stats.total}</p>
               </div>
-              <BookOpen className="w-8 h-8 text-amber-400/60" />
+              <BookOpen className="w-10 h-10 text-amber-400" />
             </div>
           </div>
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4">
+          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/60 text-sm font-medium">Total Steps</p>
-                <p className="text-3xl font-black text-white mt-1">{stats.totalSteps}</p>
-                <p className="text-xs text-white/40 mt-1">Avg: {stats.avgSteps} per question</p>
+                <p className="text-white/80 text-sm font-semibold mb-1">Total Steps</p>
+                <p className="text-4xl font-black text-white mt-1">{stats.totalSteps}</p>
+                <p className="text-xs text-white/60 mt-1 font-medium">Avg: {stats.avgSteps} per question</p>
               </div>
-              <BarChart3 className="w-8 h-8 text-blue-400/60" />
+              <BarChart3 className="w-10 h-10 text-blue-400" />
             </div>
           </div>
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4">
+          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/60 text-sm font-medium">By Subject</p>
-                <div className="flex gap-2 mt-1">
-                  <Badge className="bg-blue-500/20 text-blue-300 border-0 text-xs">Math: {stats.bySubject.math}</Badge>
-                  <Badge className="bg-purple-500/20 text-purple-300 border-0 text-xs">Physics: {stats.bySubject.physics}</Badge>
+                <p className="text-white/80 text-sm font-semibold mb-1">By Subject</p>
+                <div className="flex gap-2 mt-2">
+                  <Badge className="bg-blue-500/30 text-blue-200 border border-blue-400/50 text-xs font-semibold px-2 py-0.5">Math: {stats.bySubject.math}</Badge>
+                  <Badge className="bg-purple-500/30 text-purple-200 border border-purple-400/50 text-xs font-semibold px-2 py-0.5">Physics: {stats.bySubject.physics}</Badge>
                 </div>
               </div>
-              <TrendingUp className="w-8 h-8 text-purple-400/60" />
+              <TrendingUp className="w-10 h-10 text-purple-400" />
             </div>
           </div>
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4">
+          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/60 text-sm font-medium">By Level</p>
-                <div className="flex gap-2 mt-1">
-                  <Badge className="bg-green-500/20 text-green-300 border-0 text-xs">A1: {stats.byLevel.A1}</Badge>
-                  <Badge className="bg-orange-500/20 text-orange-300 border-0 text-xs">A2: {stats.byLevel.A2}</Badge>
+                <p className="text-white/80 text-sm font-semibold mb-1">By Level</p>
+                <div className="flex gap-2 mt-2">
+                  <Badge className="bg-green-500/30 text-green-200 border border-green-400/50 text-xs font-semibold px-2 py-0.5">A1: {stats.byLevel.A1}</Badge>
+                  <Badge className="bg-orange-500/30 text-orange-200 border border-orange-400/50 text-xs font-semibold px-2 py-0.5">A2: {stats.byLevel.A2}</Badge>
                 </div>
               </div>
-              <BarChart3 className="w-8 h-8 text-green-400/60" />
+              <BarChart3 className="w-10 h-10 text-green-400" />
             </div>
           </div>
         </div>
@@ -256,10 +290,10 @@ export default function AdminDashboard() {
           {/* LEFT PANEL: Filters & Question List */}
           <div className="flex flex-col gap-4 h-full overflow-hidden">
             {/* Filters */}
-            <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-5 space-y-4">
+            <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl p-5 space-y-4 shadow-lg">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-white/90 font-bold uppercase tracking-wider text-sm">
-                  <Filter className="w-4 h-4 text-amber-400" />
+                <div className="flex items-center gap-2 text-white font-bold uppercase tracking-wider text-sm">
+                  <Filter className="w-5 h-5 text-amber-400" />
                   Filters
                 </div>
                 {(filters.subject !== 'all' || filters.level !== 'all' || filters.difficulty !== 'all' || searchTerm) && (
@@ -280,9 +314,9 @@ export default function AdminDashboard() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-white/70 font-medium mb-1.5 block text-xs">Subject</label>
+                  <label className="text-white font-semibold mb-2 block text-sm">Subject</label>
                   <Select value={filters.subject} onValueChange={(v: any) => setFilters({ ...filters, subject: v })}>
-                    <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
+                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-10 font-medium">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-900 border-white/10 text-white">
@@ -294,9 +328,9 @@ export default function AdminDashboard() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-white/70 font-medium mb-1.5 block text-xs">Level</label>
+                  <label className="text-white font-semibold mb-2 block text-sm">Level</label>
                   <Select value={filters.level} onValueChange={(v: any) => setFilters({ ...filters, level: v })}>
-                    <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
+                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-10 font-medium">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-900 border-white/10 text-white">
@@ -307,9 +341,9 @@ export default function AdminDashboard() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-white/70 font-medium mb-1.5 block text-xs">Difficulty</label>
+                  <label className="text-white font-semibold mb-2 block text-sm">Difficulty</label>
                   <Select value={filters.difficulty} onValueChange={(v: any) => setFilters({ ...filters, difficulty: v })}>
-                    <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
+                    <SelectTrigger className="bg-white/10 border-2 border-white/30 text-white h-10 font-medium">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-900 border-white/10 text-white">
@@ -322,15 +356,15 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-white/10">
-                <label className="text-white/70 font-medium mb-1.5 block text-xs">Search</label>
+              <div className="pt-3 border-t-2 border-white/20">
+                <label className="text-white font-semibold mb-2 block text-sm">Search</label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/40" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-amber-400" />
                   <Input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search by title, chapter..."
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 pl-9 h-9"
+                    className="bg-white/10 border-2 border-white/30 text-white placeholder:text-white/50 pl-10 h-10 font-medium"
                   />
                 </div>
               </div>
@@ -345,13 +379,13 @@ export default function AdminDashboard() {
             </div>
 
             {/* Question List */}
-            <div className="flex-1 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex flex-col min-h-0 overflow-hidden">
-              <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-md flex justify-between items-center">
+            <div className="flex-1 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-lg">
+              <div className="p-4 border-b-2 border-white/20 bg-white/10 backdrop-blur-md flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <Search className="w-4 h-4 text-amber-400" />
-                  <h3 className="font-bold text-white">Questions</h3>
+                  <Search className="w-5 h-5 text-amber-400" />
+                  <h3 className="font-bold text-white text-base">Questions</h3>
                 </div>
-                <span className="text-white/70 text-xs font-medium">
+                <span className="text-white font-semibold text-sm">
                   {filteredQuestions.length} / {questions.length}
                 </span>
               </div>
@@ -373,50 +407,68 @@ export default function AdminDashboard() {
                   filteredQuestions.map((q) => (
                     <div
                       key={q.id}
-                      onClick={() => {
-                        setSelectedQuestionId(q.id);
-                        navigate(`/admin/questions?edit=${q.id}`);
-                      }}
-                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border relative group ${
+                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border-2 relative group ${
                         selectedQuestionId === q.id
-                          ? 'bg-amber-500/20 border-amber-500/50 shadow-[0_0_15px_rgba(251,191,36,0.3)]'
-                          : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
+                          ? 'bg-amber-500/30 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.4)]'
+                          : 'bg-white/10 border-white/20 hover:bg-white/15 hover:border-white/30 hover:shadow-lg'
                       }`}
                     >
-                      <div className="font-bold text-white mb-2 line-clamp-2 text-sm">{q.title}</div>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] uppercase tracking-wider border-0 ${
-                            q.subject === 'math'
-                              ? 'bg-blue-500/20 text-blue-300'
-                              : q.subject === 'physics'
-                              ? 'bg-purple-500/20 text-purple-300'
-                              : 'bg-green-500/20 text-green-300'
-                          }`}
-                        >
-                          {q.subject}
-                        </Badge>
-                        <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 text-white/70">
-                          {q.level}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] border-0 ${
-                            q.difficulty === 'hard'
-                              ? 'bg-red-500/20 text-red-300'
-                              : q.difficulty === 'medium'
-                              ? 'bg-yellow-500/20 text-yellow-300'
-                              : 'bg-green-500/20 text-green-300'
-                          }`}
-                        >
-                          {q.difficulty}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-white/40 font-medium">
-                        <span>{q.steps.length} Steps</span>
-                        <span>{q.totalMarks} Marks</span>
-                        <span className="font-mono">#{q.id.slice(0, 6)}</span>
+                      {/* Delete Button */}
+                      <button
+                        onClick={(e) => handleDeleteQuestion(q.id, e)}
+                        disabled={deletingId === q.id}
+                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 opacity-0 group-hover:opacity-100 transition-opacity border border-red-500/30 z-10 disabled:opacity-50"
+                        title="Delete question"
+                      >
+                        {deletingId === q.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
+
+                      <div
+                        onClick={() => {
+                          setSelectedQuestionId(q.id);
+                          navigate(`/admin/questions?edit=${q.id}`);
+                        }}
+                        className="pr-8"
+                      >
+                        <div className="font-bold text-white mb-2 line-clamp-2 text-sm leading-tight">{q.title}</div>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs uppercase tracking-wider font-semibold border ${
+                              q.subject === 'math'
+                                ? 'bg-blue-500/30 text-blue-200 border-blue-400/50'
+                                : q.subject === 'physics'
+                                ? 'bg-purple-500/30 text-purple-200 border-purple-400/50'
+                                : 'bg-green-500/30 text-green-200 border-green-400/50'
+                            }`}
+                          >
+                            {q.subject}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs border-white/30 bg-white/10 text-white font-semibold">
+                            {q.level}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs border font-semibold ${
+                              q.difficulty === 'hard'
+                                ? 'bg-red-500/30 text-red-200 border-red-400/50'
+                                : q.difficulty === 'medium'
+                                ? 'bg-yellow-500/30 text-yellow-200 border-yellow-400/50'
+                                : 'bg-green-500/30 text-green-200 border-green-400/50'
+                            }`}
+                          >
+                            {q.difficulty}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-white/70 font-semibold mt-2">
+                          <span>{q.steps.length} Steps</span>
+                          <span>{q.totalMarks} Marks</span>
+                          <span className="font-mono text-white/50">#{q.id.slice(0, 6)}</span>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -426,14 +478,14 @@ export default function AdminDashboard() {
 
             {/* Error Display */}
             {mappingErrors.length > 0 && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+              <div className="bg-red-500/20 border-2 border-red-400/50 rounded-xl p-4 shadow-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-300 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="text-red-300 text-xs font-semibold mb-1">
+                    <p className="text-red-200 text-sm font-bold mb-1">
                       {mappingErrors.length} question(s) failed to load
                     </p>
-                    <p className="text-red-400/70 text-[10px]">Check browser console for details</p>
+                    <p className="text-red-300/80 text-xs">Check browser console for details</p>
                   </div>
                 </div>
               </div>
@@ -441,37 +493,37 @@ export default function AdminDashboard() {
           </div>
 
           {/* RIGHT PANEL: Info/Editor Redirect */}
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex flex-col h-full overflow-hidden relative">
+          <div className="bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl border-2 border-white/30 rounded-2xl flex flex-col h-full overflow-hidden relative shadow-lg">
             {selectedQuestionId ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-white/30 p-8">
-                <CheckCircle2 className="w-16 h-16 mb-4 text-amber-400/40" />
-                <h3 className="text-xl font-bold text-white/50 mb-2">Question Selected</h3>
-                <p className="text-center text-sm mb-6">
+              <div className="flex-1 flex flex-col items-center justify-center text-white p-8">
+                <CheckCircle2 className="w-20 h-20 mb-6 text-amber-400" />
+                <h3 className="text-2xl font-bold text-white mb-3">Question Selected</h3>
+                <p className="text-center text-base mb-8 text-white/80">
                   Click "Edit in Legacy Panel" to modify this question
                 </p>
                 <Button
                   onClick={() => navigate(`/admin/questions?edit=${selectedQuestionId}`)}
-                  className="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold"
+                  className="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-12 px-8 text-base shadow-lg"
                 >
                   Edit in Legacy Panel
                 </Button>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-white/30 p-8">
-                <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
-                  <Shield className="w-10 h-10 text-white/20" />
+              <div className="flex-1 flex flex-col items-center justify-center text-white p-8">
+                <div className="w-28 h-28 rounded-full bg-gradient-to-br from-white/20 to-white/5 border-2 border-white/30 flex items-center justify-center mb-8 shadow-lg">
+                  <Shield className="w-14 h-14 text-amber-400" />
                 </div>
-                <h3 className="text-xl font-bold text-white/50 mb-2">Admin Dashboard 2.0</h3>
-                <p className="text-center text-sm mb-4">
+                <h3 className="text-2xl font-bold text-white mb-3">Admin Dashboard 2.0</h3>
+                <p className="text-center text-base mb-2 text-white/90">
                   Select a question from the list to view details
                 </p>
-                <p className="text-center text-xs text-white/30">
+                <p className="text-center text-sm text-white/60 mb-8">
                   Or use the Legacy Panel for full editing capabilities
                 </p>
                 <Button
                   onClick={() => navigate('/admin/questions')}
                   variant="outline"
-                  className="mt-6 border-white/20 text-white/70 hover:text-white hover:bg-white/10"
+                  className="border-2 border-white/30 text-white hover:text-white hover:bg-white/15 hover:border-white/40 h-11 px-6 font-semibold"
                 >
                   Open Legacy Panel
                 </Button>
