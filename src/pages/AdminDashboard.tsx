@@ -390,40 +390,40 @@ export default function AdminDashboard() {
                 </span>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                 {loadingQuestions ? (
                   <div className="flex justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
                   </div>
                 ) : filteredQuestions.length === 0 ? (
-                  <div className="text-center py-12 text-white/40">
-                    <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">No questions found</p>
+                  <div className="text-center py-12 text-white/60">
+                    <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-40" />
+                    <p className="text-base font-semibold">No questions found</p>
                     {searchTerm && (
-                      <p className="text-xs mt-2 text-white/30">Try adjusting your search or filters</p>
+                      <p className="text-sm mt-2 text-white/50">Try adjusting your search or filters</p>
                     )}
                   </div>
                 ) : (
                   filteredQuestions.map((q) => (
                     <div
                       key={q.id}
-                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border-2 relative group ${
+                      className={`p-5 rounded-2xl cursor-pointer transition-all duration-200 border-2 relative group ${
                         selectedQuestionId === q.id
-                          ? 'bg-amber-500/30 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.4)]'
-                          : 'bg-white/10 border-white/20 hover:bg-white/15 hover:border-white/30 hover:shadow-lg'
+                          ? 'bg-amber-500/40 border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.5)] scale-[1.02]'
+                          : 'bg-white/15 border-white/30 hover:bg-white/20 hover:border-white/40 hover:shadow-xl hover:scale-[1.01]'
                       }`}
                     >
                       {/* Delete Button */}
                       <button
                         onClick={(e) => handleDeleteQuestion(q.id, e)}
                         disabled={deletingId === q.id}
-                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 opacity-0 group-hover:opacity-100 transition-opacity border border-red-500/30 z-10 disabled:opacity-50"
+                        className="absolute top-3 right-3 p-2 rounded-lg bg-red-500/30 hover:bg-red-500/40 text-red-200 opacity-0 group-hover:opacity-100 transition-opacity border-2 border-red-400/50 z-10 disabled:opacity-50 shadow-lg"
                         title="Delete question"
                       >
                         {deletingId === q.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-5 h-5" />
                         )}
                       </button>
 
@@ -432,42 +432,48 @@ export default function AdminDashboard() {
                           setSelectedQuestionId(q.id);
                           navigate(`/admin/questions?edit=${q.id}`);
                         }}
-                        className="pr-8"
+                        className="pr-10"
                       >
-                        <div className="font-bold text-white mb-2 line-clamp-2 text-sm leading-tight">{q.title}</div>
-                        <div className="flex flex-wrap gap-1.5 mb-2">
+                        <div className="font-bold text-white mb-3 line-clamp-2 text-base leading-snug">{q.title}</div>
+                        <div className="flex flex-wrap gap-2 mb-3">
                           <Badge
                             variant="outline"
-                            className={`text-xs uppercase tracking-wider font-semibold border ${
+                            className={`text-sm uppercase tracking-wider font-bold border-2 px-2.5 py-1 ${
                               q.subject === 'math'
-                                ? 'bg-blue-500/30 text-blue-200 border-blue-400/50'
+                                ? 'bg-blue-500/40 text-blue-100 border-blue-400/60'
                                 : q.subject === 'physics'
-                                ? 'bg-purple-500/30 text-purple-200 border-purple-400/50'
-                                : 'bg-green-500/30 text-green-200 border-green-400/50'
+                                ? 'bg-purple-500/40 text-purple-100 border-purple-400/60'
+                                : 'bg-green-500/40 text-green-100 border-green-400/60'
                             }`}
                           >
                             {q.subject}
                           </Badge>
-                          <Badge variant="outline" className="text-xs border-white/30 bg-white/10 text-white font-semibold">
+                          <Badge variant="outline" className="text-sm border-2 border-white/40 bg-white/15 text-white font-bold px-2.5 py-1">
                             {q.level}
                           </Badge>
                           <Badge
                             variant="outline"
-                            className={`text-xs border font-semibold ${
+                            className={`text-sm border-2 font-bold px-2.5 py-1 ${
                               q.difficulty === 'hard'
-                                ? 'bg-red-500/30 text-red-200 border-red-400/50'
+                                ? 'bg-red-500/40 text-red-100 border-red-400/60'
                                 : q.difficulty === 'medium'
-                                ? 'bg-yellow-500/30 text-yellow-200 border-yellow-400/50'
-                                : 'bg-green-500/30 text-green-200 border-green-400/50'
+                                ? 'bg-yellow-500/40 text-yellow-100 border-yellow-400/60'
+                                : 'bg-green-500/40 text-green-100 border-green-400/60'
                             }`}
                           >
                             {q.difficulty}
                           </Badge>
                         </div>
-                        <div className="flex items-center justify-between text-xs text-white/70 font-semibold mt-2">
-                          <span>{q.steps.length} Steps</span>
-                          <span>{q.totalMarks} Marks</span>
-                          <span className="font-mono text-white/50">#{q.id.slice(0, 6)}</span>
+                        <div className="flex items-center justify-between text-sm text-white font-bold mt-3 pt-3 border-t border-white/20">
+                          <span className="flex items-center gap-1">
+                            <BarChart3 className="w-4 h-4 text-amber-400" />
+                            {q.steps.length} Steps
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <TrendingUp className="w-4 h-4 text-blue-400" />
+                            {q.totalMarks} Marks
+                          </span>
+                          <span className="font-mono text-white/70 text-xs">#{q.id.slice(0, 8)}</span>
                         </div>
                       </div>
                     </div>
