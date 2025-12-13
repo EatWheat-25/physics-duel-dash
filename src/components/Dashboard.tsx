@@ -226,14 +226,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
             </DropdownMenu>
             
             {isAdmin && (
-              <Button
-                onClick={() => navigate('/admin/dashboard')}
-                variant="default"
-                size="sm"
-                className="ml-2 text-white"
-              >
-                Admin Dashboard
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => navigate('/admin/questions')}
+                  variant="default"
+                  size="sm"
+                  className="ml-2 text-white"
+                >
+                  Admin
+                </Button>
+                <Button
+                  onClick={() => navigate('/admin/dashboard')}
+                  variant="destructive"
+                  size="sm"
+                  className="text-white"
+                >
+                  Admin 2.0
+                </Button>
+              </div>
             )}
           </div>
         </div>

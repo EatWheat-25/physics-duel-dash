@@ -41,23 +41,41 @@ export function HeaderUserMenu() {
         <span className="hidden sm:inline text-sm">Profile</span>
       </Button>
 
-      {/* Admin Button - Only show for users with admin role */}
+      {/* Admin Buttons - Only show for users with admin role */}
       {!isLoading && isAdmin && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/admin/dashboard')}
-          className="gap-2 font-medium text-white hover:bg-white/10"
-          style={{
-            background: 'rgba(220, 38, 38, 0.2)',
-            border: '1px solid rgba(220, 38, 38, 0.4)',
-            color: 'rgb(254, 202, 202)',
-          }}
-          aria-label="Admin Panel"
-        >
-          <Shield className="w-4 h-4" />
-          <span className="hidden sm:inline text-sm">Admin</span>
-        </Button>
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/admin/questions')}
+            className="gap-2 font-medium text-white hover:bg-white/10"
+            style={{
+              background: 'rgba(220, 38, 38, 0.2)',
+              border: '1px solid rgba(220, 38, 38, 0.4)',
+              color: 'rgb(254, 202, 202)',
+            }}
+            aria-label="Admin Panel (legacy)"
+          >
+            <Shield className="w-4 h-4" />
+            <span className="hidden sm:inline text-sm">Admin</span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/admin/dashboard')}
+            className="gap-2 font-medium text-white hover:bg-white/10"
+            style={{
+              background: 'rgba(234, 179, 8, 0.2)',
+              border: '1px solid rgba(234, 179, 8, 0.5)',
+              color: 'rgb(255, 237, 213)',
+            }}
+            aria-label="Admin Panel 2.0"
+          >
+            <Shield className="w-4 h-4" />
+            <span className="hidden sm:inline text-sm">Admin 2.0</span>
+          </Button>
+        </>
       )}
 
       <Button
