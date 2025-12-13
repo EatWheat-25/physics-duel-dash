@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import SpaceBackground from '@/components/SpaceBackground';
+import { useIsAdmin } from '@/hooks/useUserRole';
 
 type QuestionFilter = {
   subject: 'all' | 'math' | 'physics' | 'chemistry';
@@ -51,10 +52,7 @@ type QuestionForm = {
 export default function AdminQuestions() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-
-  // Access control
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checkingAdmin, setCheckingAdmin] = useState(true);
+  const { isAdmin, isLoading: checkingAdmin } = useIsAdmin();
 
   // Question list state
   const [questions, setQuestions] = useState<StepBasedQuestion[]>([]);
@@ -71,17 +69,6 @@ export default function AdminQuestions() {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [form, setForm] = useState<QuestionForm>(getEmptyForm());
   const [saving, setSaving] = useState(false);
-
-  // Check admin access
-  useEffect(() => {
-    if (!authLoading && user) {
-      const role = user.user_metadata?.role;
-      setIsAdmin(role === 'admin');
-      setCheckingAdmin(false);
-    } else if (!authLoading && !user) {
-      setCheckingAdmin(false);
-    }
-  }, [user, authLoading]);
 
   // Load questions on mount and filter changes
   useEffect(() => {
