@@ -138,16 +138,30 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
             ? rawStep.step_index
             : fallbackIndex;
 
-    let type = typeof rawStep.type === 'string' ? rawStep.type : rawStep.step_type;
-    if (typeof type !== 'string') {
-        warn('Missing type; defaulting to mcq');
+    // Extract and normalize type - handle all edge cases
+    let typeRaw = rawStep.type ?? rawStep.step_type;
+    if (typeof typeRaw !== 'string') {
+        typeRaw = String(typeRaw ?? 'mcq');
+    }
+    
+    // Robust normalization: trim, remove quotes, normalize spaces/dashes, lowercase
+    let type = typeRaw
+        .trim()
+        .toLowerCase()
+        .replace(/^["']|["']$/g, '')  // Remove surrounding quotes
+        .replace(/\s+/g, '_')          // Spaces to underscores
+        .replace(/-/g, '_');           // Dashes to underscores
+    
+    // Handle common variations
+    if (type === 'true_false' || type === 'truefalse' || type === 'true false') {
+        type = 'true_false';
+    } else if (type === 'mcq' || type === 'multiple_choice' || type === 'multiplechoice') {
         type = 'mcq';
     }
-    if (type === 'true false' || type === 'True False' || type === 'TRUE FALSE') {
-        type = 'true_false';
-    }
+    
+    // Validate - default to mcq if invalid
     if (type !== 'mcq' && type !== 'true_false') {
-        warn(`Invalid type "${type}"; defaulting to mcq`);
+        warn(`Invalid type "${typeRaw}" (normalized: "${type}"); defaulting to mcq`);
         type = 'mcq';
     }
 
