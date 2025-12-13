@@ -5,13 +5,8 @@
  * 
  * Converts raw database/WebSocket payloads to canonical StepBasedQuestion.
  * 
- * ⚠️ CRITICAL RULES:
- * 1. FAIL LOUDLY when data doesn't match contract
- * 2. NO defensive fallbacks or defaults
- * 3. If mapping fails, throw descriptive error
- * 4. Logs show exactly what's wrong
- * 
- * This replaces the old questionMapper.ts defensive programming approach.
+ * Mapper is now tolerant: it normalizes/repairs common issues instead of
+ * failing hard, so admin views can still surface imperfect data.
  * ═══════════════════════════════════════════════════════════════════════
  */
 
@@ -28,99 +23,82 @@ import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
  */
 export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
     const context = '[CONTRACT MAPPER]';
+    const warn = (msg: string) => console.warn(`${context} ⚠️ ${msg}`, payload);
 
-    // Validate payload exists
     if (!payload || typeof payload !== 'object') {
         throw new Error(`${context} Payload is null or not an object`);
     }
 
-    // Extract ID
-    const id = payload.id;
-    if (!id || typeof id !== 'string') {
-        throw new Error(`${context} Missing or invalid question.id`);
+    const id = typeof payload.id === 'string' ? payload.id : String(payload.id || `q-${crypto.randomUUID?.() || Date.now()}`);
+    const title = typeof payload.title === 'string' && payload.title.trim().length > 0
+        ? payload.title
+        : 'Untitled Question';
+
+    const rawSubject = payload.subject?.toLowerCase?.();
+    const subject = (['math', 'physics', 'chemistry'].includes(rawSubject)
+        ? rawSubject
+        : (warn(`Question ${id}: subject "${payload.subject}" invalid, defaulting to math`), 'math')) as 'math' | 'physics' | 'chemistry';
+
+    const chapter = typeof payload.chapter === 'string' && payload.chapter.trim().length > 0
+        ? payload.chapter
+        : (warn(`Question ${id}: missing chapter, defaulting to 'General'`), 'General');
+
+    const rawLevel = typeof payload.level === 'string' ? payload.level.toUpperCase() : '';
+    const level = (rawLevel === 'A1' || rawLevel === 'A2'
+        ? rawLevel
+        : (warn(`Question ${id}: level "${payload.level}" invalid, defaulting to A1`), 'A1')) as 'A1' | 'A2';
+
+    const rawDifficulty = typeof payload.difficulty === 'string' ? payload.difficulty.toLowerCase() : '';
+    const difficulty = (['easy', 'medium', 'hard'].includes(rawDifficulty)
+        ? rawDifficulty
+        : (warn(`Question ${id}: difficulty "${payload.difficulty}" invalid, defaulting to medium`), 'medium')) as 'easy' | 'medium' | 'hard';
+
+    const stem = typeof payload.stem === 'string' && payload.stem.trim().length > 0
+        ? payload.stem
+        : typeof payload.question_text === 'string' && payload.question_text.trim().length > 0
+            ? payload.question_text
+            : (warn(`Question ${id}: missing stem/question_text, using empty string`), '');
+
+    const rawSteps = Array.isArray(payload.steps) ? payload.steps : [];
+    if (!Array.isArray(payload.steps)) {
+        warn(`Question ${id}: steps missing or not array; defaulting to empty`);
     }
 
-    // Extract title
-    const title = payload.title;
-    if (!title || typeof title !== 'string') {
-        throw new Error(`${context} Question ${id}: Missing or invalid title`);
-    }
-
-    // Extract subject
-    const subject = payload.subject;
-    if (!subject || !['math', 'physics', 'chemistry'].includes(subject)) {
-        throw new Error(`${context} Question ${id}: Invalid subject "${subject}". Must be: math, physics, chemistry`);
-    }
-
-    // Extract chapter
-    const chapter = payload.chapter;
-    if (!chapter || typeof chapter !== 'string') {
-        throw new Error(`${context} Question ${id}: Missing or invalid chapter`);
-    }
-
-    // Extract level
-    const level = payload.level;
-    if (!level || !['A1', 'A2'].includes(level)) {
-        throw new Error(`${context} Question ${id}: Invalid level "${level}". Must be: A1, A2`);
-    }
-
-    // Extract difficulty
-    const difficulty = payload.difficulty;
-    if (!difficulty || !['easy', 'medium', 'hard'].includes(difficulty)) {
-        throw new Error(`${context} Question ${id}: Invalid difficulty "${difficulty}". Must be: easy, medium, hard`);
-    }
-
-    // Extract stem (try both snake_case and camelCase)
-    const stem = payload.stem || payload.question_text;
-    if (!stem || typeof stem !== 'string') {
-        throw new Error(`${context} Question ${id}: Missing stem/question_text`);
-    }
-
-    // Extract total marks (try both formats)
-    const totalMarks = payload.totalMarks || payload.total_marks;
-    if (typeof totalMarks !== 'number' || totalMarks <= 0) {
-        throw new Error(`${context} Question ${id}: Invalid totalMarks/total_marks`);
-    }
-
-    // Extract topic tags (try both formats)
-    const topicTags = payload.topicTags || payload.topic_tags;
-    if (!Array.isArray(topicTags)) {
-        throw new Error(`${context} Question ${id}: topicTags/topic_tags must be an array`);
-    }
-
-    // Extract steps - CRITICAL
-    const rawSteps = payload.steps;
-    if (!Array.isArray(rawSteps)) {
-        throw new Error(`${context} Question ${id}: steps must be an array, got ${typeof rawSteps}`);
-    }
-
-    if (rawSteps.length === 0) {
-        throw new Error(`${context} Question ${id}: steps array is empty`);
-    }
-
-    // Map each step
-    const steps: QuestionStep[] = rawSteps.map((rawStep: any, index: number) => {
+    const steps: QuestionStep[] = (rawSteps.length > 0 ? rawSteps : [createPlaceholderStep(id, stem)]).map((rawStep: any, index: number) => {
         return mapToQuestionStep(rawStep, index, id);
     });
 
-    // Sort steps by index
     steps.sort((a, b) => a.index - b.index);
 
-    // Validate indices are contiguous
     steps.forEach((step, i) => {
         if (step.index !== i) {
-            throw new Error(`${context} Question ${id}: Step indices not contiguous. Expected ${i}, got ${step.index}`);
+            warn(`Question ${id}: Step indices not contiguous. Expected ${i}, got ${step.index}. Normalizing.`);
+            step.index = i;
         }
     });
 
-    // Build final question
+    const rawTotalMarks = payload.totalMarks ?? payload.total_marks;
+    const totalMarks = typeof rawTotalMarks === 'number' && rawTotalMarks > 0
+        ? rawTotalMarks
+        : Math.max(steps.reduce((sum, s) => sum + (s.marks || 0), 0), steps.length || 1);
+
+    const rawTopicTags = payload.topicTags ?? payload.topic_tags;
+    let topicTags: string[] = [];
+    if (Array.isArray(rawTopicTags)) {
+        topicTags = rawTopicTags.filter(Boolean).map(String);
+    } else if (typeof rawTopicTags === 'string') {
+        topicTags = rawTopicTags.split(',').map(t => t.trim()).filter(Boolean);
+    } else {
+        topicTags = [];
+    }
+
     const question: StepBasedQuestion = {
         id,
         title,
-        subject: subject as 'math' | 'physics' | 'chemistry',
+        subject,
         chapter,
-        level: level as 'A1' | 'A2',
-        difficulty: difficulty as 'easy' | 'medium' | 'hard',
+        level,
+        difficulty,
         rankTier: payload.rankTier || payload.rank_tier || undefined,
         stem,
         totalMarks,
@@ -129,7 +107,7 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
         imageUrl: payload.imageUrl || payload.image_url || undefined,
     };
 
-    console.log(`${context} ✅ Mapped question ${id}: "${title}" with ${steps.length} steps`);
+    console.log(`${context} ✅ Mapped question ${id}: "${title}" with ${steps.length} steps (marks=${totalMarks})`);
 
     return question;
 }
@@ -141,82 +119,77 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
  */
 function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: string): QuestionStep {
     const context = `[CONTRACT MAPPER] Question ${questionId}, Step ${fallbackIndex}`;
+    const warn = (msg: string) => console.warn(`${context} ⚠️ ${msg}`, rawStep);
 
     if (!rawStep || typeof rawStep !== 'object') {
-        throw new Error(`${context}: Step is null or not an object`);
+        warn('Step is null or not an object; creating placeholder step');
+        rawStep = {};
     }
 
-    // Extract ID
-    const id = rawStep.id || rawStep.step_id;
-    if (!id || typeof id !== 'string') {
-        throw new Error(`${context}: Missing or invalid id/step_id`);
+    const id = typeof rawStep.id === 'string'
+        ? rawStep.id
+        : typeof rawStep.step_id === 'string'
+            ? rawStep.step_id
+            : `step-${fallbackIndex}`;
+
+    const index = typeof rawStep.index === 'number'
+        ? rawStep.index
+        : typeof rawStep.step_index === 'number'
+            ? rawStep.step_index
+            : fallbackIndex;
+
+    let type = typeof rawStep.type === 'string' ? rawStep.type : rawStep.step_type;
+    if (typeof type !== 'string') {
+        warn('Missing type; defaulting to mcq');
+        type = 'mcq';
+    }
+    if (type === 'true false' || type === 'True False' || type === 'TRUE FALSE') {
+        type = 'true_false';
+    }
+    if (type !== 'mcq' && type !== 'true_false') {
+        warn(`Invalid type "${type}"; defaulting to mcq`);
+        type = 'mcq';
     }
 
-    // Extract index
-    const index = typeof rawStep.index === 'number' ? rawStep.index : rawStep.step_index;
-    if (typeof index !== 'number' || index < 0) {
-        throw new Error(`${context}: Invalid index/step_index. Must be number >= 0, got ${index}`);
-    }
+    const title = typeof rawStep.title === 'string' && rawStep.title.trim().length > 0
+        ? rawStep.title
+        : `Step ${fallbackIndex + 1}`;
 
-    // Extract type
-    const type = rawStep.type || rawStep.step_type;
-    if (type !== 'mcq') {
-        throw new Error(`${context}: Invalid type. Must be 'mcq', got "${type}"`);
-    }
+    const prompt = typeof rawStep.prompt === 'string' && rawStep.prompt.trim().length > 0
+        ? rawStep.prompt
+        : typeof rawStep.question === 'string'
+            ? rawStep.question
+            : '';
 
-    // Extract title
-    const title = rawStep.title;
-    if (!title || typeof title !== 'string') {
-        throw new Error(`${context}: Missing or invalid title`);
+    let options = Array.isArray(rawStep.options) ? rawStep.options : [];
+    if (!Array.isArray(rawStep.options)) {
+        warn('Options missing; defaulting to empty array');
     }
+    options = options.map(opt => (opt ?? '').toString());
+    while (options.length < 4) options.push('');
+    if (options.length > 4) options = options.slice(0, 4);
 
-    // Extract prompt
-    const prompt = rawStep.prompt || rawStep.question;
-    if (!prompt || typeof prompt !== 'string') {
-        throw new Error(`${context}: Missing prompt/question text`);
-    }
-
-    // Extract options - MUST be exactly 4
-    const options = rawStep.options;
-    if (!Array.isArray(options)) {
-        throw new Error(`${context}: options must be an array, got ${typeof options}`);
-    }
-    if (options.length !== 4) {
-        throw new Error(`${context}: Must have exactly 4 options, got ${options.length}`);
-    }
-    if (options.some(opt => typeof opt !== 'string')) {
-        throw new Error(`${context}: All options must be strings`);
-    }
-
-    // Extract correctAnswer - try multiple formats
-    let correctAnswer: number;
-
+    let correctAnswer: number | undefined;
     if (typeof rawStep.correctAnswer === 'number') {
         correctAnswer = rawStep.correctAnswer;
     } else if (typeof rawStep.correct_answer === 'number') {
         correctAnswer = rawStep.correct_answer;
     } else if (rawStep.correct_answer && typeof rawStep.correct_answer === 'object') {
-        // JSONB format: { correctIndex: N }
         correctAnswer = rawStep.correct_answer.correctIndex;
-    } else {
-        throw new Error(`${context}: Cannot find correctAnswer in any expected format`);
     }
-
     if (typeof correctAnswer !== 'number' || correctAnswer < 0 || correctAnswer > 3) {
-        throw new Error(`${context}: correctAnswer must be 0-3, got ${correctAnswer}`);
+        warn(`correctAnswer invalid "${correctAnswer}", defaulting to 0`);
+        correctAnswer = 0;
     }
 
-    // Extract marks
-    const marks = rawStep.marks;
-    if (typeof marks !== 'number' || marks <= 0) {
-        throw new Error(`${context}: marks must be positive number, got ${marks}`);
-    }
+    const marks = typeof rawStep.marks === 'number' && rawStep.marks > 0
+        ? rawStep.marks
+        : (warn(`marks invalid "${rawStep.marks}", defaulting to 1`), 1);
 
-    // Build step
     const step: QuestionStep = {
         id,
         index,
-        type: 'mcq',
+        type: type as 'mcq' | 'true_false',
         title,
         prompt,
         options: options as [string, string, string, string],
@@ -227,6 +200,21 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
     };
 
     return step;
+}
+
+function createPlaceholderStep(questionId: string, stem: string): any {
+    return {
+        id: `placeholder-step-${questionId}`,
+        index: 0,
+        type: 'mcq',
+        title: 'Placeholder Step',
+        prompt: stem || 'No prompt provided',
+        options: ['Option A', 'Option B', 'Option C', 'Option D'],
+        correctAnswer: 0,
+        marks: 1,
+        timeLimitSeconds: null,
+        explanation: null,
+    };
 }
 
 /**

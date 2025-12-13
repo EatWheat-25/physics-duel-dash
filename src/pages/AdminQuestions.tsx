@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,6 +64,8 @@ export default function AdminQuestions() {
     difficulty: 'all',
     rankTier: ''
   });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [mappingErrors, setMappingErrors] = useState<string[]>([]);
 
   // Editor state
   const [mode, setMode] = useState<EditorMode>('idle');
@@ -71,6 +73,18 @@ export default function AdminQuestions() {
   const [form, setForm] = useState<QuestionForm>(getEmptyForm());
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  const filteredQuestions = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    return questions.filter((q) => {
+      const matchesSearch = term
+        ? `${q.title} ${q.chapter} ${q.subject} ${q.level} ${q.difficulty}`
+            .toLowerCase()
+            .includes(term)
+        : true;
+      return matchesSearch;
+    });
+  }, [questions, searchTerm]);
 
   // Load questions on mount and filter changes
   useEffect(() => {
@@ -117,11 +131,31 @@ export default function AdminQuestions() {
       if (filters.difficulty !== 'all') query = query.eq('difficulty', filters.difficulty);
       if (filters.rankTier.trim()) query = query.eq('rank_tier', filters.rankTier.trim());
 
+      console.log('[AdminQuestions] Fetching questions with filters:', filters);
       const { data, error } = await query;
+      console.log('[AdminQuestions] Raw result count:', data?.length || 0, 'error:', error);
 
       if (error) throw error;
 
-      const mapped = (data || []).map(dbRowToQuestion);
+      const mapped: StepBasedQuestion[] = [];
+      const rowErrors: string[] = [];
+
+      (data || []).forEach((row, idx) => {
+        try {
+          mapped.push(dbRowToQuestion(row));
+        } catch (err: any) {
+          console.error('[AdminQuestions] Mapping error for row', idx, err, row);
+          rowErrors.push(err?.message || 'Mapping error');
+        }
+      });
+
+      if (rowErrors.length > 0) {
+        setMappingErrors(rowErrors);
+        toast.warning(`Some questions could not be parsed (${rowErrors.length}). Check console logs for details.`);
+      } else {
+        setMappingErrors([]);
+      }
+
       setQuestions(mapped);
     } catch (error: any) {
       console.error('[AdminQuestions] Error fetching:', error);
@@ -563,22 +597,58 @@ export default function AdminQuestions() {
                 </div>
               </div>
 
-              <Button
-                onClick={handleNewQuestion}
-                className="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-10 shadow-lg shadow-orange-500/20"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create New Question
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFilters({ subject: 'all', level: 'all', difficulty: 'all', rankTier: '' });
+                    setSearchTerm('');
+                  }}
+                  className="flex-1 bg-white/5 border-white/15 text-white hover:bg-white/10"
+                >
+                  Reset Filters
+                </Button>
+                <Button
+                  onClick={handleNewQuestion}
+                  className="flex-1 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-10 shadow-lg shadow-orange-500/20"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create New Question
+                </Button>
+              </div>
+
+              <div>
+                <label className={labelStyle}>Quick Search</label>
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search title, chapter, subject..."
+                  className={glassInput}
+                />
+              </div>
+
             </div>
 
             {/* Question List */}
             <div className={`flex-1 ${glassPanel} flex flex-col min-h-0`}>
-              <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-md flex justify-between items-center">
-                <h3 className="font-bold text-white flex items-center gap-2">
-                  <Search className="w-4 h-4 text-primary" />
-                  Questions <span className="text-white/40 text-sm font-normal">({questions.length})</span>
-                </h3>
+              <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-md flex flex-wrap gap-3 justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-bold text-white flex items-center gap-2">
+                    <Search className="w-4 h-4 text-primary" />
+                    Questions
+                  </h3>
+                  <span className="text-white/70 text-sm font-medium">
+                    {filteredQuestions.length} shown / {questions.length} total
+                  </span>
+                  {mappingErrors.length > 0 && (
+                    <Badge variant="outline" className="text-amber-300 border-amber-300/40 bg-amber-500/10 text-xs">
+                      {mappingErrors.length} parsing issues
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-xs text-white/50 flex items-center gap-2">
+                  {searchTerm ? `Searching "${searchTerm}"` : 'Use filters or search to refine'}
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
@@ -586,12 +656,12 @@ export default function AdminQuestions() {
                   <div className="flex justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
-                ) : questions.length === 0 ? (
+                ) : filteredQuestions.length === 0 ? (
                   <div className="text-center py-12 text-white/40">
-                    <p>No questions found</p>
+                    <p>No questions match the current filters/search.</p>
                   </div>
                 ) : (
-                  questions.map((q) => (
+                  filteredQuestions.map((q) => (
                     <div
                       key={q.id}
                       onClick={() => handleSelectQuestion(q)}
@@ -608,24 +678,32 @@ export default function AdminQuestions() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      
-                      <div className="font-bold text-white mb-2 line-clamp-2 text-sm pr-8">{q.title}</div>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
+
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="font-bold text-white line-clamp-2 text-sm pr-2">{q.title}</div>
+                        <span className="text-[10px] text-white/40 font-mono">#{q.id.slice(0, 6)}</span>
+                      </div>
+
+                      <p className="text-xs text-white/60 mb-2 line-clamp-1">{q.chapter}</p>
+
+                      <div className="grid grid-cols-4 gap-2 mb-2 text-[10px] font-semibold">
+                        <Badge variant="outline" className={`uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
                             q.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
                           }`}>
                           {q.subject}
                         </Badge>
-                        <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 text-white/70">{q.level}</Badge>
-                        <Badge variant="outline" className={`text-[10px] border-0 ${q.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
+                        <Badge variant="outline" className="border-white/10 bg-white/5 text-white/70">{q.level}</Badge>
+                        <Badge variant="outline" className={`border-0 ${q.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
                             q.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
                           }`}>
                           {q.difficulty}
                         </Badge>
+                        <Badge variant="outline" className="border-white/10 bg-white/5 text-white/70">{q.rankTier || 'No tier'}</Badge>
                       </div>
-                      <div className="text-[10px] text-white/40 font-medium flex justify-between">
-                        <span>{q.steps.length} Steps</span>
-                        <span>{q.totalMarks} Marks</span>
+
+                      <div className="text-[11px] text-white/60 font-medium flex justify-between">
+                        <span>{q.steps.length} step{q.steps.length === 1 ? '' : 's'}</span>
+                        <span>{q.totalMarks} mark{q.totalMarks === 1 ? '' : 's'}</span>
                       </div>
                     </div>
                   ))
