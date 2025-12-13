@@ -2,18 +2,12 @@ import { Settings, LogOut, User, Shield, Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { useIsAdmin } from '@/hooks/useUserRole';
 
 export function HeaderUserMenu() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-
-  // TEMPORARY: Show admin button for ALL logged-in users (for testing)
-  // TODO: Fix proper admin role check once Supabase metadata is working
-  const isAdmin = !!user; // Show for anyone logged in
-
-  // DEBUG: Log to console
-  console.log('[HeaderUserMenu] User:', user?.email);
-  console.log('[HeaderUserMenu] Showing admin button:', isAdmin);
+  const { isAdmin, isLoading } = useIsAdmin();
 
   return (
     <div className="flex items-center gap-3">
@@ -47,8 +41,8 @@ export function HeaderUserMenu() {
         <span className="hidden sm:inline text-sm">Profile</span>
       </Button>
 
-      {/* Admin Button */}
-      {isAdmin && (
+      {/* Admin Button - Only show for users with admin role */}
+      {!isLoading && isAdmin && (
         <Button
           variant="ghost"
           size="sm"
