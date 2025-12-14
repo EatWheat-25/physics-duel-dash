@@ -846,7 +846,7 @@ export function useGame(match: MatchRow | null) {
             payload: newPayload.results_payload
           })
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:822',message:'REALTIME ACCEPTED - CALLING applyResults',data:{matchId:match?.id,payloadMode:newPayload.results_payload?.mode,roundId:newPayload.results_round_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:844',message:'REALTIME ACCEPTED - CALLING applyResults',data:{matchId:match?.id,payloadMode:newPayload.results_payload?.mode,roundId:newPayload.results_round_id,resultsVersion:newVersion},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
           // #endregion
           localResultsVersionRef.current = newVersion
           applyResults(newPayload.results_payload)

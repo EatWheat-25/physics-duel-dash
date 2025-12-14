@@ -1041,7 +1041,13 @@ async function checkStepTimeout(
     if (p1AllComplete && p2AllComplete) {
       // Both players completed all steps - calculate results
       console.log(`[${matchId}] ✅ Both players completed all steps (timeout) - calculating results`)
-      await calculateStepResults(matchId, supabase)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1044',message:'CALLING calculateStepResults FROM TIMEOUT',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1473',message:'CALLING calculateStepResults FROM handleStepAnswer',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        await calculateStepResults(matchId, supabase)
     } else {
       // One player finished but other hasn't - send waiting state
       console.log(`[${matchId}] ⏳ One player completed all steps (timeout) - waiting for opponent (P1: ${p1AllComplete}, P2: ${p2AllComplete})`)
@@ -1210,6 +1216,10 @@ async function calculateStepResults(
 
   if (matchError || !matchData?.current_round_id) {
     console.error(`[${matchId}] ❌ Failed to get current_round_id:`, matchError)
+    console.error(`[${matchId}] 🔍 DEBUG: NO ROUND_ID - FALLBACK TO WEBSOCKET - error=${matchError?.message}`)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1211',message:'NO ROUND_ID - FALLBACK TO WEBSOCKET',data:{matchId,error:matchError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     // Fallback to WebSocket-only (old behavior)
     const p1Score = stepResultsArray.reduce((sum, r) => sum + r.p1Marks, 0)
     const p2Score = stepResultsArray.reduce((sum, r) => sum + r.p2Marks, 0)
@@ -1237,6 +1247,9 @@ async function calculateStepResults(
       matchOver: false,
       matchWinnerId: null
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1239',message:'FALLBACK WEBSOCKET BROADCAST',data:{matchId,reason:'no_round_id'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     broadcastToMatch(matchId, resultsEvent)
     return
   }
@@ -1257,6 +1270,10 @@ async function calculateStepResults(
 
   if (rpcError) {
     console.error(`[${matchId}] ❌ Error calling compute_multi_step_results_v2:`, rpcError)
+    console.error(`[${matchId}] 🔍 DEBUG: RPC ERROR - FALLBACK TO WEBSOCKET - error=${rpcError.message}`)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1258',message:'RPC ERROR - FALLBACK TO WEBSOCKET',data:{matchId,error:rpcError.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     // Fallback to WebSocket-only (old behavior)
     const p1Score = stepResultsArray.reduce((sum, r) => sum + r.p1Marks, 0)
     const p2Score = stepResultsArray.reduce((sum, r) => sum + r.p2Marks, 0)
@@ -1290,6 +1307,10 @@ async function calculateStepResults(
 
   if (!rpcResult?.success) {
     console.error(`[${matchId}] ❌ RPC returned error:`, rpcResult?.error)
+    console.error(`[${matchId}] 🔍 DEBUG: RPC FAILED - NO SUCCESS - error=${rpcResult?.error}`)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1291',message:'RPC FAILED - NO SUCCESS',data:{matchId,error:rpcResult?.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     return
   }
 
@@ -1297,6 +1318,10 @@ async function calculateStepResults(
   // Realtime subscription will deliver to both players simultaneously
   // Update in-memory state from RPC result
   const payload = rpcResult.results_payload
+  console.log(`[${matchId}] 🔍 DEBUG: RPC SUCCESS - PAYLOAD RECEIVED - hasPayload=${!!payload}, mode=${payload?.mode}, resultsVersion=${rpcResult.results_version}`)
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1295',message:'RPC SUCCESS - PAYLOAD RECEIVED',data:{matchId,hasPayload:!!payload,payloadMode:payload?.mode,resultsVersion:rpcResult.results_version},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
   if (payload) {
     const roundWinner = payload.round_winner
     const matchOver = payload.match_over || false
@@ -1325,6 +1350,10 @@ async function calculateStepResults(
     // RPC has written to database - Realtime will deliver to both players simultaneously
     // DO NOT broadcast via WebSocket - it would arrive before Realtime and cause desynchronization
     console.log(`[${matchId}] ✅ Multi-step results computed and written to database - Realtime will deliver to both players`)
+    console.log(`[${matchId}] 🔍 DEBUG: RPC SUCCESS - NO WEBSOCKET BROADCAST - resultsVersion=${rpcResult.results_version}, roundNumber=${payload.round_number}, matchOver=${matchOver}`)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1327',message:'RPC SUCCESS - NO WEBSOCKET BROADCAST',data:{matchId,resultsVersion:rpcResult.results_version,roundNumber:payload.round_number,matchOver},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
 
     // Initialize readiness tracking for results acknowledgment
     const matchState = matchStates.get(matchId)
@@ -1470,6 +1499,12 @@ async function handleStepAnswer(
       if (p1AllComplete && p2AllComplete) {
         // Both players completed all steps - calculate results
         console.log(`[${matchId}] ✅ Both players completed all steps - calculating results`)
+        // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1044',message:'CALLING calculateStepResults FROM TIMEOUT',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1473',message:'CALLING calculateStepResults FROM handleStepAnswer',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         await calculateStepResults(matchId, supabase)
       } else {
         // One player finished but other hasn't - send waiting state
