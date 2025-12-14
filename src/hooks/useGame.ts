@@ -122,6 +122,7 @@ export function useGame(match: MatchRow | null) {
   const pollingIntervalRef = useRef<number | null>(null)
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const localResultsVersionRef = useRef<number>(0)
+  const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
 
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
   const applyResults = useCallback((payload: any) => {
@@ -345,6 +346,7 @@ export function useGame(match: MatchRow | null) {
         ws.onopen = () => {
           console.log('[useGame] WebSocket connected')
           hasConnectedRef.current = false
+          setIsWebSocketConnected(true)
           setState(prev => ({
             ...prev,
             status: 'connecting',
@@ -610,6 +612,7 @@ export function useGame(match: MatchRow | null) {
 
         ws.onclose = () => {
           // Clear polling on WebSocket close
+          setIsWebSocketConnected(false)
           if (pollingTimeoutRef.current) {
             clearTimeout(pollingTimeoutRef.current)
             pollingTimeoutRef.current = null
@@ -650,6 +653,7 @@ export function useGame(match: MatchRow | null) {
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
+        setIsWebSocketConnected(false)
       }
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current)
@@ -1115,6 +1119,8 @@ export function useGame(match: MatchRow | null) {
     targetRoundsToWin: state.targetRoundsToWin,
     playerRoundWins: state.playerRoundWins,
     matchOver: state.matchOver,
-    matchWinnerId: state.matchWinnerId
+    matchWinnerId: state.matchWinnerId,
+    // WebSocket connection status
+    isWebSocketConnected
   }
 }

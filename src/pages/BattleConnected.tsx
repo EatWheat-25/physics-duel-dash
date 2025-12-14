@@ -75,7 +75,8 @@ export default function BattleConnected() {
     matchFinished, matchWinner, timeRemaining, submitAnswer,
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, currentStep, submitEarlyAnswer, submitStepAnswer,
-    currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId
+    currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
+    isWebSocketConnected
   } = useGame(match);
 
   // Round Intro Effect
@@ -342,10 +343,21 @@ export default function BattleConnected() {
                   </div>
 
                   <button
-                    onClick={submitEarlyAnswer}
-                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-lg transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20"
+                    onClick={() => {
+                      if (!isWebSocketConnected) {
+                        toast.error('Connection lost. Please wait for reconnection...');
+                        return;
+                      }
+                      submitEarlyAnswer();
+                    }}
+                    disabled={!isWebSocketConnected}
+                    className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${
+                      isWebSocketConnected
+                        ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
+                        : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                    }`}
                   >
-                    Answer Now - Start Steps
+                    {isWebSocketConnected ? 'Answer Now - Start Steps' : 'Connecting...'}
                   </button>
                 </div>
               </motion.div>
