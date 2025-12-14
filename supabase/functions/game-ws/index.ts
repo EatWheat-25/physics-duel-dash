@@ -1153,12 +1153,13 @@ async function calculateStepResults(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  console.log(`[${matchId}] *** calculateStepResults CALLED ***`)
   // #region agent log
   fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1137',message:'calculateStepResults ENTRY',data:{matchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
   // #endregion
   const state = gameStates.get(matchId)
   if (!state) {
-    console.warn(`[${matchId}] ⚠️ Cannot calculate results - no game state`)
+    console.error(`[${matchId}] *** ERROR: Cannot calculate results - no game state ***`)
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1142',message:'calculateStepResults NO STATE',data:{matchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
     // #endregion
@@ -1177,6 +1178,11 @@ async function calculateStepResults(
   
   const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
   const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
+
+  console.log(`[${matchId}] 🔍 calculateStepResults: p1Id=${state.p1Id}, p2Id=${state.p2Id}`)
+  console.log(`[${matchId}] 🔍 calculateStepResults: p1Answers.size=${p1Answers.size}, p2Answers.size=${p2Answers.size}`)
+  console.log(`[${matchId}] 🔍 calculateStepResults: p1Answers keys=[${Array.from(p1Answers.keys()).join(', ')}], p2Answers keys=[${Array.from(p2Answers.keys()).join(', ')}]`)
+  console.log(`[${matchId}] 🔍 calculateStepResults: all stored player IDs=[${Array.from(state.playerStepAnswers.keys()).join(', ')}]`)
 
   // Apply elimination penalty: eliminated players get 0 score for all steps
   const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
@@ -1225,41 +1231,8 @@ async function calculateStepResults(
 
   if (matchError || !matchData?.current_round_id) {
     console.error(`[${matchId}] ❌ Failed to get current_round_id:`, matchError)
-    console.error(`[${matchId}] 🔍 DEBUG: NO ROUND_ID - FALLBACK TO WEBSOCKET - error=${matchError?.message}`)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1211',message:'NO ROUND_ID - FALLBACK TO WEBSOCKET',data:{matchId,error:matchError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    // Fallback to WebSocket-only (old behavior)
-    const p1Score = stepResultsArray.reduce((sum, r) => sum + r.p1Marks, 0)
-    const p2Score = stepResultsArray.reduce((sum, r) => sum + r.p2Marks, 0)
-    const winnerId = p1Score > p2Score ? state.p1Id : p2Score > p1Score ? state.p2Id : null
-    
-    const playerRoundWinsObj: { [playerId: string]: number } = {}
-    state.playerRoundWins.forEach((wins, playerId) => {
-      playerRoundWinsObj[playerId] = wins
-    })
-
-    const resultsEvent: ResultsReceivedEvent = {
-      type: 'RESULTS_RECEIVED',
-      player1_answer: null,
-      player2_answer: null,
-      correct_answer: 0,
-      player1_correct: p1Score > p2Score,
-      player2_correct: p2Score > p1Score,
-      round_winner: winnerId,
-      p1Score,
-      p2Score,
-      stepResults: stepResultsArray,
-      roundNumber: state.roundNumber,
-      targetRoundsToWin: state.targetRoundsToWin || 4,
-      playerRoundWins: playerRoundWinsObj,
-      matchOver: false,
-      matchWinnerId: null
-    }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1239',message:'FALLBACK WEBSOCKET BROADCAST',data:{matchId,reason:'no_round_id'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    broadcastToMatch(matchId, resultsEvent)
+    // DO NOT broadcast WS-only results - would break cross-instance sync
+    // If we can't get round_id, we can't write to DB → no canonical state → let client timeout/recover
     return
   }
 
@@ -1279,38 +1252,8 @@ async function calculateStepResults(
 
   if (rpcError) {
     console.error(`[${matchId}] ❌ Error calling compute_multi_step_results_v2:`, rpcError)
-    console.error(`[${matchId}] 🔍 DEBUG: RPC ERROR - FALLBACK TO WEBSOCKET - error=${rpcError.message}`)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1258',message:'RPC ERROR - FALLBACK TO WEBSOCKET',data:{matchId,error:rpcError.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    // Fallback to WebSocket-only (old behavior)
-    const p1Score = stepResultsArray.reduce((sum, r) => sum + r.p1Marks, 0)
-    const p2Score = stepResultsArray.reduce((sum, r) => sum + r.p2Marks, 0)
-    const winnerId = p1Score > p2Score ? state.p1Id : p2Score > p1Score ? state.p2Id : null
-    
-    const playerRoundWinsObj: { [playerId: string]: number } = {}
-    state.playerRoundWins.forEach((wins, playerId) => {
-      playerRoundWinsObj[playerId] = wins
-    })
-
-    const resultsEvent: ResultsReceivedEvent = {
-      type: 'RESULTS_RECEIVED',
-      player1_answer: null,
-      player2_answer: null,
-      correct_answer: 0,
-      player1_correct: p1Score > p2Score,
-      player2_correct: p2Score > p1Score,
-      round_winner: winnerId,
-      p1Score,
-      p2Score,
-      stepResults: stepResultsArray,
-      roundNumber: state.roundNumber,
-      targetRoundsToWin: state.targetRoundsToWin || 4,
-      playerRoundWins: playerRoundWinsObj,
-      matchOver: false,
-      matchWinnerId: null
-    }
-    broadcastToMatch(matchId, resultsEvent)
+    // DO NOT broadcast WS-only results here - would break cross-instance sync
+    // If RPC fails, we don't write to DB → no canonical state → let client timeout/recover
     return
   }
 
@@ -1356,13 +1299,23 @@ async function calculateStepResults(
       playerRoundWinsObj[state.p2Id || ''] = payload.p2.total
     }
 
-    // RPC has written to database - Realtime will deliver to both players simultaneously
-    // DO NOT broadcast via WebSocket - it would arrive before Realtime and cause desynchronization
-    console.log(`[${matchId}] ✅ Multi-step results computed and written to database - Realtime will deliver to both players`)
-    console.log(`[${matchId}] 🔍 DEBUG: RPC SUCCESS - NO WEBSOCKET BROADCAST - resultsVersion=${rpcResult.results_version}, roundNumber=${payload.round_number}, matchOver=${matchOver}`)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1327',message:'RPC SUCCESS - NO WEBSOCKET BROADCAST',data:{matchId,resultsVersion:rpcResult.results_version,roundNumber:payload.round_number,matchOver},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
+    // RPC has written results_payload to database
+    // CANONICAL: Realtime UPDATE delivers to all clients on all instances
+    // FAST-PATH: Also broadcast via WebSocket for same-instance optimization
+    console.log(`[${matchId}] ✅ Results written to DB (results_version=${rpcResult.results_version}) - Realtime delivers to all, WS fast-path for same-instance`)
+
+    // FAST-PATH: Broadcast via WebSocket (only reaches same-instance sockets)
+    // If both players are on this instance, they get instant results
+    // If players are on different instances, Realtime will deliver shortly after
+    const resultsEvent = {
+      type: 'RESULTS_RECEIVED',
+      results_payload: payload,
+      results_version: rpcResult.results_version,
+      round_number: payload.round_number || state.roundNumber,
+      round_id: payload.round_id || matchData.current_round_id
+    }
+    console.log(`[${matchId}] ⚡ WS fast-path: Broadcasting to local sockets`)
+    broadcastToMatch(matchId, resultsEvent)
 
     // Initialize readiness tracking for results acknowledgment
     const matchState = matchStates.get(matchId)
@@ -1435,13 +1388,62 @@ async function handleStepAnswer(
     return
   }
 
-  // Store answer
+  // Store answer in memory (for quick access)
   if (!state.playerStepAnswers.has(playerId)) {
     state.playerStepAnswers.set(playerId, new Map())
   }
   state.playerStepAnswers.get(playerId)!.set(stepIndex, answerIndex)
 
+  // CRITICAL: Also store in database so all Edge Function instances can see it
+  console.log(`[${matchId}] 🔍 ATTEMPTING DB STORE: stepIndex=${stepIndex}, playerId=${playerId}, roundNumber=${state.roundNumber}, questionId=${state.currentQuestion.id}`)
+  const steps = Array.isArray(state.currentQuestion.steps) 
+    ? state.currentQuestion.steps 
+    : JSON.parse(state.currentQuestion.steps ?? '[]')
+  const currentStep = steps[stepIndex]
+  const correctAnswer = currentStep?.correct_answer?.correctIndex ?? currentStep?.correctAnswer ?? 0
+  const isCorrect = answerIndex === correctAnswer
+  
+  try {
+    const upsertData = {
+      match_id: matchId,
+      round_index: state.roundNumber - 1, // round_index is 0-based
+      question_id: state.currentQuestion.id,
+      player_id: playerId,
+      step_index: stepIndex,
+      selected_option: answerIndex,
+      is_correct: isCorrect,
+      response_time_ms: 0 // TODO: track actual response time
+    }
+    console.log(`[${matchId}] 🔍 DB UPSERT DATA:`, JSON.stringify(upsertData))
+    const { data: upsertResult, error: dbError } = await supabase
+      .from('match_step_answers_v2')
+      .upsert(upsertData, {
+        onConflict: 'match_id,round_index,player_id,question_id,step_index'
+      })
+      .select()
+    
+    if (dbError) {
+      console.error(`[${matchId}] ❌❌❌ FAILED to store step answer in database:`, dbError)
+      console.error(`[${matchId}] ❌❌❌ Error code: ${dbError.code}, message: ${dbError.message}`)
+    } else {
+      console.log(`[${matchId}] ✅✅✅ Step ${stepIndex} answer stored in database for player ${playerId}`)
+      console.log(`[${matchId}] ✅✅✅ Upsert result:`, upsertResult)
+    }
+  } catch (error) {
+    console.error(`[${matchId}] ❌❌❌ EXCEPTION storing step answer in database:`, error)
+  }
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1442',message:'ANSWER STORED',data:{matchId,playerId,stepIndex,answerIndex,p1Id:state.p1Id,p2Id:state.p2Id,allPlayerIds:Array.from(state.playerStepAnswers.keys()),p1AnswersKeys:Array.from((state.playerStepAnswers.get(state.p1Id||'')||new Map()).keys()),p2AnswersKeys:Array.from((state.playerStepAnswers.get(state.p2Id||'')||new Map()).keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   console.log(`[${matchId}] ✅ Step ${stepIndex} answer stored for player ${playerId}: ${answerIndex}`)
+  // Log map state after storing
+  const allPlayerIdsAfter = Array.from(state.playerStepAnswers.keys())
+  console.log(`[${matchId}] 🔍 AFTER STORE: map has ${allPlayerIdsAfter.length} player(s): [${allPlayerIdsAfter.join(', ')}]`)
+  for (const pid of allPlayerIdsAfter) {
+    const answers = state.playerStepAnswers.get(pid) || new Map()
+    console.log(`[${matchId}] 🔍 AFTER STORE: player ${pid} has ${answers.size} answers: [${Array.from(answers.keys()).join(', ')}]`)
+  }
 
   // Check if both players have either answered OR are eliminated
   const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
@@ -1472,10 +1474,49 @@ async function handleStepAnswer(
     
     if (isLastStep) {
       // Last step completed - check if both players have completed all steps
-      const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
-      const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
+      // CRITICAL: Query database to get answers from ALL instances, not just local memory
+      console.log(`[${matchId}] 🔍 Querying database for step answers (round_index=${state.roundNumber - 1}, question_id=${state.currentQuestion.id})`)
+      const { data: dbAnswers, error: dbError } = await supabase
+        .from('match_step_answers_v2')
+        .select('player_id, step_index, selected_option')
+        .eq('match_id', matchId)
+        .eq('round_index', state.roundNumber - 1)
+        .eq('question_id', state.currentQuestion.id)
+      
+      if (dbError) {
+        console.error(`[${matchId}] ❌ Failed to query step answers from database:`, dbError)
+      } else {
+        console.log(`[${matchId}] 🔍 Database returned ${dbAnswers?.length || 0} step answers`)
+      }
+      
+      // Build answer maps from database results
+      const p1AnswersFromDb = new Map<number, number>()
+      const p2AnswersFromDb = new Map<number, number>()
+      
+      if (dbAnswers) {
+        for (const answer of dbAnswers) {
+          if (answer.player_id === state.p1Id) {
+            p1AnswersFromDb.set(answer.step_index, answer.selected_option)
+          } else if (answer.player_id === state.p2Id) {
+            p2AnswersFromDb.set(answer.step_index, answer.selected_option)
+          }
+        }
+      }
+      
+      // Also check local memory (fallback)
+      const p1AnswersLocal = state.playerStepAnswers.get(state.p1Id || '') || new Map()
+      const p2AnswersLocal = state.playerStepAnswers.get(state.p2Id || '') || new Map()
+      
+      // Use database answers if available, otherwise fall back to local
+      const p1Answers = p1AnswersFromDb.size > 0 ? p1AnswersFromDb : p1AnswersLocal
+      const p2Answers = p2AnswersFromDb.size > 0 ? p2AnswersFromDb : p2AnswersLocal
+      
+      console.log(`[${matchId}] 🔍 FINAL: p1Answers from DB: [${Array.from(p1Answers.keys()).join(', ')}], p2Answers from DB: [${Array.from(p2Answers.keys()).join(', ')}]`)
       const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
       const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1478',message:'AFTER RETRIEVING ANSWERS',data:{matchId,stepIndex,playerId,p1Id:state.p1Id,p2Id:state.p2Id,p1AnswersSize:p1Answers.size,p2AnswersSize:p2Answers.size,p1AnswersKeys:Array.from(p1Answers.keys()),p2AnswersKeys:Array.from(p2Answers.keys()),p1Eliminated,p2Eliminated},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       
       // Check if each player has answered all steps
       // IMPORTANT: Check actual completion first - if a player answered all steps,
@@ -1520,7 +1561,10 @@ async function handleStepAnswer(
       
       if (p1AllComplete && p2AllComplete) {
         // Both players completed all steps - calculate results
-        console.log(`[${matchId}] ✅ Both players completed all steps - calculating results`)
+        console.log(`[${matchId}] *** BOTH COMPLETE - CALLING calculateStepResults ***`)
+        console.log(`[${matchId}] 🔍 VERIFY: p1Answers.size=${p1Answers.size}, p2Answers.size=${p2Answers.size}`)
+        console.log(`[${matchId}] 🔍 VERIFY: p1Id=${state.p1Id}, p2Id=${state.p2Id}`)
+        console.log(`[${matchId}] 🔍 VERIFY: all stored player IDs: [${Array.from(state.playerStepAnswers.keys()).join(', ')}]`)
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1510',message:'BOTH COMPLETE - CALLING calculateStepResults',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
         // #endregion

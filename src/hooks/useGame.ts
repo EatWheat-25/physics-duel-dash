@@ -565,18 +565,26 @@ export function useGame(match: MatchRow | null) {
               // If results_version is provided, check against local version
               const msg = message as any
               
-              // If message has results_version, check if we've already processed a newer version
+              // Strict deduplication: Check version first
               if (msg.results_version !== undefined && msg.results_version <= localResultsVersionRef.current) {
-                console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already have newer version via Realtime')
+                console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already have same/newer version')
                 return
               }
 
-              // Map WS message format to payload format for applyResults
-              // Note: WS message might have different structure, try to map it
+              // Also check round_id deduplication (handles same version from different sources)
+              const roundId = msg.results_payload?.round_id || msg.round_id
+              if (roundId && processedRoundIdsRef.current.has(roundId)) {
+                console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already processed this round_id:', roundId)
+                return
+              }
+
+              // Accept: Update trackers BEFORE applying
               if (msg.results_payload) {
-                // If message has results_payload, use it directly
-                if (msg.results_version) {
+                if (msg.results_version !== undefined) {
                   localResultsVersionRef.current = msg.results_version
+                }
+                if (roundId) {
+                  processedRoundIdsRef.current.add(roundId)
                 }
                 // #region agent log
                 fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:578',message:'WEBSOCKET CALLING applyResults',data:{payloadMode:msg.results_payload?.mode,resultsVersion:msg.results_version},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
@@ -840,10 +848,10 @@ export function useGame(match: MatchRow | null) {
 
         // Accept results UPDATE if:
         // 1. results_payload != null
-        // 2. results_version >= local version (changed from > to >= to allow same version)
+        // 2. results_version > local version (strict > prevents duplicates)
         // 3. results_round_id === current_round_id OR current_round_id is null (allow first round)
         const hasPayload = newPayload.results_payload != null
-        const versionCheck = newVersion >= localResultsVersionRef.current
+        const versionCheck = newVersion > localResultsVersionRef.current
         const roundMatch = newPayload.results_round_id === newPayload.current_round_id || newPayload.current_round_id === null
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:809',message:'REALTIME VALIDATION CHECK',data:{matchId:match?.id,hasPayload,versionCheck,roundMatch,newVersion,localVersion:localResultsVersionRef.current,roundId:newPayload.results_round_id,currentRoundId:newPayload.current_round_id,payloadMode:newPayload.results_payload?.mode},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
