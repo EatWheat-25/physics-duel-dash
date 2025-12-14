@@ -1446,34 +1446,45 @@ async function handleStepAnswer(
   }
 
   // Check if both players have either answered OR are eliminated
-  // CRITICAL: Query database to get answers from ALL instances, not just local memory
-  // This fixes the issue where players on different instances don't see each other's answers
-  const { data: dbStepAnswers, error: dbQueryError } = await supabase
-    .from('match_step_answers_v2')
-    .select('player_id, step_index')
-    .eq('match_id', matchId)
-    .eq('round_index', state.roundNumber - 1)
-    .eq('question_id', state.currentQuestion.id)
-    .eq('step_index', stepIndex)
-  
-  // Build answer sets from database
-  const p1AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p1Id) || false
-  const p2AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p2Id) || false
-  
-  // Also check local memory (fallback for same-instance optimization)
+  // FIRST: Check local memory for same-instance fast path (both answers might already be in memory)
   const p1AnswersLocal = state.playerStepAnswers.get(state.p1Id || '') || new Map()
   const p2AnswersLocal = state.playerStepAnswers.get(state.p2Id || '') || new Map()
   const p1AnsweredLocal = p1AnswersLocal.has(stepIndex)
   const p2AnsweredLocal = p2AnswersLocal.has(stepIndex)
-  
-  // Use database as source of truth, but also check local (for same-instance fast path)
   const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
   const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
+  
+  // Fast path: If both answered locally (same instance), proceed immediately
+  const bothDoneLocal = (p1AnsweredLocal || p1Eliminated) && (p2AnsweredLocal || p2Eliminated)
+  
+  let p1AnsweredInDb = false
+  let p2AnsweredInDb = false
+  let bothDone = bothDoneLocal
+  
+  // If not bothDone locally, query database (cross-instance check)
+  // Add small delay to ensure DB write is committed and visible
+  if (!bothDoneLocal) {
+    await new Promise(resolve => setTimeout(resolve, 100)) // 100ms delay for DB commit visibility
+    
+    const { data: dbStepAnswers, error: dbQueryError } = await supabase
+      .from('match_step_answers_v2')
+      .select('player_id, step_index')
+      .eq('match_id', matchId)
+      .eq('round_index', state.roundNumber - 1)
+      .eq('question_id', state.currentQuestion.id)
+      .eq('step_index', stepIndex)
+    
+    // Build answer sets from database
+    p1AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p1Id) || false
+    p2AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p2Id) || false
+    
+    // Use database as source of truth, but also check local (for same-instance fast path)
+    bothDone = ((p1AnsweredInDb || p1AnsweredLocal) || p1Eliminated) && ((p2AnsweredInDb || p2AnsweredLocal) || p2Eliminated)
+  }
+  
   const p1Done = (p1AnsweredInDb || p1AnsweredLocal) || p1Eliminated
   const p2Done = (p2AnsweredInDb || p2AnsweredLocal) || p2Eliminated
-  const bothDone = p1Done && p2Done
-  
-  console.log(`[${matchId}] 🔍 Step ${stepIndex} completion check: p1Done=${p1Done} (DB=${p1AnsweredInDb}, local=${p1AnsweredLocal}, eliminated=${p1Eliminated}), p2Done=${p2Done} (DB=${p2AnsweredInDb}, local=${p2AnsweredLocal}, eliminated=${p2Eliminated}), bothDone=${bothDone}`)
+  console.log(`[${matchId}] 🔍 Step ${stepIndex} completion check: p1Done=${p1Done} (DB=${p1AnsweredInDb}, local=${p1AnsweredLocal}, eliminated=${p1Eliminated}), p2Done=${p2Done} (DB=${p2AnsweredInDb}, local=${p2AnsweredLocal}, eliminated=${p2Eliminated}), bothDone=${bothDone} (bothDoneLocal=${bothDoneLocal})`)
 
   // Send confirmation
   const stepAnswerEvent: StepAnswerReceivedEvent = {
