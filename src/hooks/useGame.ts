@@ -578,14 +578,13 @@ export function useGame(match: MatchRow | null) {
                 return
               }
 
-              // Accept: Update trackers BEFORE applying
+              // Accept: Update version tracker BEFORE applying (for strict version check)
+              // But let applyResults handle roundId deduplication internally
               if (msg.results_payload) {
                 if (msg.results_version !== undefined) {
                   localResultsVersionRef.current = msg.results_version
                 }
-                if (roundId) {
-                  processedRoundIdsRef.current.add(roundId)
-                }
+                // Don't add roundId here - applyResults will handle it
                 // #region agent log
                 fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:578',message:'WEBSOCKET CALLING applyResults',data:{payloadMode:msg.results_payload?.mode,resultsVersion:msg.results_version},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
                 // #endregion
