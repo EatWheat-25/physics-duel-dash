@@ -1010,9 +1010,10 @@ async function checkStepTimeout(
     const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
     const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
     
-    // Check if each player has answered all steps (or is eliminated)
-    let p1AllComplete = p1Eliminated
-    let p2AllComplete = p2Eliminated
+    // Check if each player has answered all steps
+    // NOTE: Eliminated players are NOT considered "complete" - they failed
+    let p1AllComplete = false
+    let p2AllComplete = false
     
     if (!p1Eliminated) {
       p1AllComplete = true
@@ -1023,6 +1024,7 @@ async function checkStepTimeout(
         }
       }
     }
+    // If p1 is eliminated, p1AllComplete stays false
     
     if (!p2Eliminated) {
       p2AllComplete = true
@@ -1033,10 +1035,13 @@ async function checkStepTimeout(
         }
       }
     }
+    // If p2 is eliminated, p2AllComplete stays false
     
     // Update completion flags
     state.p1AllStepsComplete = p1AllComplete
     state.p2AllStepsComplete = p2AllComplete
+    
+    console.log(`[${matchId}] 🔍 DEBUG: Step ${stepIndex} timeout check - p1AllComplete=${p1AllComplete} (eliminated=${p1Eliminated}), p2AllComplete=${p2AllComplete} (eliminated=${p2Eliminated})`)
     
     if (p1AllComplete && p2AllComplete) {
       // Both players completed all steps - calculate results
@@ -1468,9 +1473,10 @@ async function handleStepAnswer(
       const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
       const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
       
-      // Check if each player has answered all steps (or is eliminated)
-      let p1AllComplete = p1Eliminated
-      let p2AllComplete = p2Eliminated
+      // Check if each player has answered all steps
+      // NOTE: Eliminated players are NOT considered "complete" - they failed
+      let p1AllComplete = false
+      let p2AllComplete = false
       
       if (!p1Eliminated) {
         p1AllComplete = true
@@ -1481,6 +1487,7 @@ async function handleStepAnswer(
           }
         }
       }
+      // If p1 is eliminated, p1AllComplete stays false
       
       if (!p2Eliminated) {
         p2AllComplete = true
@@ -1491,10 +1498,13 @@ async function handleStepAnswer(
           }
         }
       }
+      // If p2 is eliminated, p2AllComplete stays false
       
       // Update completion flags
       state.p1AllStepsComplete = p1AllComplete
       state.p2AllStepsComplete = p2AllComplete
+      
+      console.log(`[${matchId}] 🔍 DEBUG: Last step ${stepIndex} completed - p1AllComplete=${p1AllComplete} (eliminated=${p1Eliminated}), p2AllComplete=${p2AllComplete} (eliminated=${p2Eliminated})`)
       
       if (p1AllComplete && p2AllComplete) {
         // Both players completed all steps - calculate results
