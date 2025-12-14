@@ -569,7 +569,7 @@ async function selectAndBroadcastQuestion(
       console.log(`[${matchId}] ✅ Fetched existing question: ${questionDb.id} - "${questionDb.title}"`)
     } else {
       // No question assigned, try to claim one atomically with tiered filtering
-      console.log(`[${matchId}] 🔍 No question assigned, fetching TF questions with tiered filtering...`)
+      console.log(`[${matchId}] 🔍 No question assigned, fetching questions with tiered filtering...`)
 
       const subject = match.subject ?? null
       const level = match.mode ?? null // mode = level (A1/A2)
@@ -609,27 +609,33 @@ async function selectAndBroadcastQuestion(
         await fetchTier({ subject: false, level: false })
       ]
 
-      // Filter for True/False questions
-      const isTF = (q: any) => {
+      // Filter for valid questions (True/False or MCQ)
+      const isValidQuestion = (q: any) => {
         try {
           const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
-          const first = steps?.[0]
+          if (!Array.isArray(steps) || steps.length === 0) return false
+          
+          const first = steps[0]
           const opts = first?.options ?? []
-          return first?.type === 'true_false' || (Array.isArray(opts) && opts.length === 2)
+          
+          // Accept True/False questions (2 options) or MCQ questions (4 options)
+          // Filter out invalid questions (0, 1, or >4 options)
+          const optionCount = Array.isArray(opts) ? opts.filter((opt: any) => opt && opt.trim()).length : 0
+          return optionCount === 2 || optionCount === 4 || first?.type === 'true_false' || first?.type === 'mcq'
         } catch {
           return false
         }
       }
 
-      const tfPool = tiers.flatMap(list => list.filter(isTF))
+      const questionPool = tiers.flatMap(list => list.filter(isValidQuestion))
 
-      if (tfPool.length === 0) {
-        console.error(`[${matchId}] ❌ No True/False questions available`)
-        throw new Error('No True/False questions available')
+      if (questionPool.length === 0) {
+        console.error(`[${matchId}] ❌ No valid questions available (need True/False or MCQ questions)`)
+        throw new Error('No valid questions available')
       }
 
-      const selectedQuestion = tfPool[Math.floor(Math.random() * tfPool.length)]
-      console.log(`[${matchId}] 🎯 Selected TF question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
+      const selectedQuestion = questionPool[Math.floor(Math.random() * questionPool.length)]
+      console.log(`[${matchId}] 🎯 Selected question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
 
       // Atomic claim: UPDATE only if question_id IS NULL
       const { data: lock, error: lockError } = await supabase
