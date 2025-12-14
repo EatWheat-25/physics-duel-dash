@@ -494,12 +494,11 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               )}
-              </div>
             </div>
 
             {/* Error Display */}
             {mappingErrors.length > 0 && (
-              <div className="bg-red-500/20 border-2 border-red-400/50 rounded-xl p-4 shadow-lg">
+              <div className="bg-red-500/20 border-2 border-red-400/50 rounded-xl p-4 shadow-lg m-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-300 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">

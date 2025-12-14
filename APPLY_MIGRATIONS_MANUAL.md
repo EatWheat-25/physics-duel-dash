@@ -535,3 +535,7 @@ SUPABASE_DB_PASSWORD=your-database-password
 To get your database password: Supabase Dashboard → Project Settings → Database → Database Password (reset if needed).
 
 
+
+
+
+
