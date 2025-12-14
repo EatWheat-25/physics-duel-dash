@@ -103,12 +103,47 @@ export default function AdminDashboard() {
 
     setDeletingId(questionId);
     try {
+      // Delete related records first to avoid foreign key constraint violations
+      // Delete match_answers that reference this question
+      const { error: answersError } = await supabase
+        .from('match_answers')
+        .delete()
+        .eq('question_id', questionId);
+
+      if (answersError) {
+        console.warn('[AdminDashboard] Error deleting match_answers:', answersError);
+      }
+
+      // Delete match_rounds that reference this question
+      const { error: roundsError } = await supabase
+        .from('match_rounds')
+        .delete()
+        .eq('question_id', questionId);
+
+      if (roundsError) {
+        console.warn('[AdminDashboard] Error deleting match_rounds:', roundsError);
+      }
+
+      // Delete match_questions if the table exists
+      const { error: matchQuestionsError } = await supabase
+        .from('match_questions')
+        .delete()
+        .eq('question_id', questionId);
+
+      if (matchQuestionsError) {
+        // Table might not exist, which is fine
+        console.warn('[AdminDashboard] Error deleting match_questions (table may not exist):', matchQuestionsError);
+      }
+
+      // Now delete the question itself
       const { error } = await supabase
         .from('questions_v2')
         .delete()
         .eq('id', questionId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast.success('Question deleted successfully!');
       
