@@ -158,6 +158,8 @@ interface GameState {
   playerRoundWins: Map<string, number> // playerId -> round wins
   p1AllStepsComplete: boolean
   p2AllStepsComplete: boolean
+  stepTransitionInProgress: boolean
+  stepTransitionStepIndex: number | null // Track which step transition is in progress
 }
 
 const gameStates = new Map<string, GameState>() // matchId -> GameState
@@ -285,7 +287,9 @@ async function broadcastQuestion(
         targetRoundsToWin: matchState.targetRoundsToWin,
         playerRoundWins: new Map(matchState.playerRoundWins), // Copy match-level wins
         p1AllStepsComplete: false,
-        p2AllStepsComplete: false
+        p2AllStepsComplete: false,
+        stepTransitionInProgress: false,
+        stepTransitionStepIndex: null
       }
       gameStates.set(matchId, gameState)
     } else {
@@ -304,6 +308,8 @@ async function broadcastQuestion(
       gameState.playerRoundWins = new Map(matchState.playerRoundWins) // Sync with match state
       gameState.p1AllStepsComplete = false
       gameState.p2AllStepsComplete = false
+      gameState.stepTransitionInProgress = false
+      gameState.stepTransitionStepIndex = null
     }
 
     // Read main question timer from metadata or default to 60 seconds
@@ -769,7 +775,9 @@ async function selectAndBroadcastQuestion(
         targetRoundsToWin: match.target_rounds_to_win || 4,
         playerRoundWins: new Map(),
         p1AllStepsComplete: false,
-        p2AllStepsComplete: false
+        p2AllStepsComplete: false,
+        stepTransitionInProgress: false,
+        stepTransitionStepIndex: null
       }
       gameStates.set(matchId, newGameState)
     }
@@ -931,6 +939,8 @@ async function transitionToSteps(
   // Reset step completion flags
   state.p1AllStepsComplete = false
   state.p2AllStepsComplete = false
+  state.stepTransitionInProgress = false
+  state.stepTransitionStepIndex = null
 
   const steps = Array.isArray(state.currentQuestion.steps) 
     ? state.currentQuestion.steps 
@@ -1092,6 +1102,17 @@ async function moveToNextStep(
     return
   }
 
+  // IDEMPOTENCY CHECK: Prevent duplicate calls
+  // If we're already transitioning from this step, skip
+  if (state.stepTransitionInProgress && state.stepTransitionStepIndex === state.currentStepIndex) {
+    console.log(`[${matchId}] ⚠️ Step transition already in progress for step ${state.currentStepIndex} - skipping duplicate call`)
+    return
+  }
+
+  // Mark transition as in progress
+  state.stepTransitionInProgress = true
+  state.stepTransitionStepIndex = state.currentStepIndex
+
   // Clear current step timer
   const currentTimer = state.stepTimers.get(state.currentStepIndex)
   if (currentTimer) {
@@ -1136,6 +1157,10 @@ async function moveToNextStep(
   }
 
   broadcastToMatch(matchId, phaseChangeEvent)
+
+  // Mark transition as complete
+  state.stepTransitionInProgress = false
+  state.stepTransitionStepIndex = null
 
   // Start timer for next step - on timeout, check for eliminations
   const stepTimerId = setTimeout(() => {
@@ -1446,45 +1471,34 @@ async function handleStepAnswer(
   }
 
   // Check if both players have either answered OR are eliminated
-  // FIRST: Check local memory for same-instance fast path (both answers might already be in memory)
+  // CRITICAL: Query database to get answers from ALL instances, not just local memory
+  // This fixes the issue where players on different instances don't see each other's answers
+  const { data: dbStepAnswers, error: dbQueryError } = await supabase
+    .from('match_step_answers_v2')
+    .select('player_id, step_index')
+    .eq('match_id', matchId)
+    .eq('round_index', state.roundNumber - 1)
+    .eq('question_id', state.currentQuestion.id)
+    .eq('step_index', stepIndex)
+  
+  // Build answer sets from database
+  const p1AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p1Id) || false
+  const p2AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p2Id) || false
+  
+  // Also check local memory (fallback for same-instance optimization)
   const p1AnswersLocal = state.playerStepAnswers.get(state.p1Id || '') || new Map()
   const p2AnswersLocal = state.playerStepAnswers.get(state.p2Id || '') || new Map()
   const p1AnsweredLocal = p1AnswersLocal.has(stepIndex)
   const p2AnsweredLocal = p2AnswersLocal.has(stepIndex)
+  
+  // Use database as source of truth, but also check local (for same-instance fast path)
   const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
   const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-  
-  // Fast path: If both answered locally (same instance), proceed immediately
-  const bothDoneLocal = (p1AnsweredLocal || p1Eliminated) && (p2AnsweredLocal || p2Eliminated)
-  
-  let p1AnsweredInDb = false
-  let p2AnsweredInDb = false
-  let bothDone = bothDoneLocal
-  
-  // If not bothDone locally, query database (cross-instance check)
-  // Add small delay to ensure DB write is committed and visible
-  if (!bothDoneLocal) {
-    await new Promise(resolve => setTimeout(resolve, 100)) // 100ms delay for DB commit visibility
-    
-    const { data: dbStepAnswers, error: dbQueryError } = await supabase
-      .from('match_step_answers_v2')
-      .select('player_id, step_index')
-      .eq('match_id', matchId)
-      .eq('round_index', state.roundNumber - 1)
-      .eq('question_id', state.currentQuestion.id)
-      .eq('step_index', stepIndex)
-    
-    // Build answer sets from database
-    p1AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p1Id) || false
-    p2AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p2Id) || false
-    
-    // Use database as source of truth, but also check local (for same-instance fast path)
-    bothDone = ((p1AnsweredInDb || p1AnsweredLocal) || p1Eliminated) && ((p2AnsweredInDb || p2AnsweredLocal) || p2Eliminated)
-  }
-  
   const p1Done = (p1AnsweredInDb || p1AnsweredLocal) || p1Eliminated
   const p2Done = (p2AnsweredInDb || p2AnsweredLocal) || p2Eliminated
-  console.log(`[${matchId}] 🔍 Step ${stepIndex} completion check: p1Done=${p1Done} (DB=${p1AnsweredInDb}, local=${p1AnsweredLocal}, eliminated=${p1Eliminated}), p2Done=${p2Done} (DB=${p2AnsweredInDb}, local=${p2AnsweredLocal}, eliminated=${p2Eliminated}), bothDone=${bothDone} (bothDoneLocal=${bothDoneLocal})`)
+  const bothDone = p1Done && p2Done
+  
+  console.log(`[${matchId}] 🔍 Step ${stepIndex} completion check: p1Done=${p1Done} (DB=${p1AnsweredInDb}, local=${p1AnsweredLocal}, eliminated=${p1Eliminated}), p2Done=${p2Done} (DB=${p2AnsweredInDb}, local=${p2AnsweredLocal}, eliminated=${p2Eliminated}), bothDone=${bothDone}`)
 
   // Send confirmation
   const stepAnswerEvent: StepAnswerReceivedEvent = {
