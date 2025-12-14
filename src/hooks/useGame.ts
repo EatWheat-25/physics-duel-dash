@@ -183,11 +183,12 @@ export function useGame(match: MatchRow | null) {
         allStepsComplete: false,
         waitingForOpponentToCompleteSteps: false,
         currentRoundNumber: payload.round_number ?? prev.currentRoundNumber,
-        playerRoundWins: {
-          ...prev.playerRoundWins,
-          // Wins are in payload.p1.total and payload.p2.total but we'd need player IDs to map them
-          // For now, keep existing wins - they'll be updated from match state
-        },
+        playerRoundWins: payload.player_round_wins 
+          ? { ...prev.playerRoundWins, ...payload.player_round_wins }
+          : {
+              ...prev.playerRoundWins,
+              // Fallback: try to extract from p1.total and p2.total if player IDs available
+            },
         matchOver: payload.match_over ?? false,
         matchWinnerId: payload.match_winner_id ?? null
       }

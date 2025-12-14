@@ -767,7 +767,9 @@ async function selectAndBroadcastQuestion(
         eliminatedPlayers: new Set(),
         roundNumber: newRoundNumber,
         targetRoundsToWin: match.target_rounds_to_win || 4,
-        playerRoundWins: new Map()
+        playerRoundWins: new Map(),
+        p1AllStepsComplete: false,
+        p2AllStepsComplete: false
       }
       gameStates.set(matchId, newGameState)
     }
@@ -1155,9 +1157,12 @@ async function calculateStepResults(
   const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
   const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
 
-  let p1Score = 0
-  let p2Score = 0
-  const stepResults: Array<{
+  // Apply elimination penalty: eliminated players get 0 score for all steps
+  const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
+  const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
+
+  // Format step results for RPC call
+  const stepResultsArray: Array<{
     stepIndex: number
     correctAnswer: number
     p1AnswerIndex: number | null
@@ -1176,13 +1181,11 @@ async function calculateStepResults(
     const p1Correct = p1Answer === correctAnswer
     const p2Correct = p2Answer === correctAnswer
 
-    const p1StepMarks = p1Correct ? marks : 0
-    const p2StepMarks = p2Correct ? marks : 0
+    // If player is eliminated, they get 0 marks for this step
+    const p1StepMarks = (p1Eliminated || !p1Correct) ? 0 : marks
+    const p2StepMarks = (p2Eliminated || !p2Correct) ? 0 : marks
 
-    p1Score += p1StepMarks
-    p2Score += p2StepMarks
-
-    stepResults.push({
+    stepResultsArray.push({
       stepIndex: index,
       correctAnswer,
       p1AnswerIndex: p1Answer,
@@ -1192,90 +1195,152 @@ async function calculateStepResults(
     })
   })
 
-  // Apply elimination penalty: eliminated players get 0 score
-  const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
-  const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-  
-  if (p1Eliminated) {
-    p1Score = 0
-    console.log(`[${matchId}] ⚠️ Player 1 eliminated - score set to 0`)
-  }
-  if (p2Eliminated) {
-    p2Score = 0
-    console.log(`[${matchId}] ⚠️ Player 2 eliminated - score set to 0`)
-  }
+  // Get current round_id from database
+  const { data: matchData, error: matchError } = await supabase
+    .from('matches')
+    .select('current_round_id')
+    .eq('id', matchId)
+    .single()
 
-  // Determine round winner
-  const winnerId = p1Score > p2Score ? state.p1Id : p2Score > p1Score ? state.p2Id : null
-
-  // Update round wins in both game state and match state
-  if (winnerId) {
-    const currentWins = state.playerRoundWins.get(winnerId) || 0
-    state.playerRoundWins.set(winnerId, currentWins + 1)
+  if (matchError || !matchData?.current_round_id) {
+    console.error(`[${matchId}] ❌ Failed to get current_round_id:`, matchError)
+    // Fallback to WebSocket-only (old behavior)
+    const p1Score = stepResultsArray.reduce((sum, r) => sum + r.p1Marks, 0)
+    const p2Score = stepResultsArray.reduce((sum, r) => sum + r.p2Marks, 0)
+    const winnerId = p1Score > p2Score ? state.p1Id : p2Score > p1Score ? state.p2Id : null
     
-    // Also update match-level state
-    const matchState = matchStates.get(matchId)
-    if (matchState) {
-      matchState.playerRoundWins.set(winnerId, currentWins + 1)
+    const playerRoundWinsObj: { [playerId: string]: number } = {}
+    state.playerRoundWins.forEach((wins, playerId) => {
+      playerRoundWinsObj[playerId] = wins
+    })
+
+    const resultsEvent: ResultsReceivedEvent = {
+      type: 'RESULTS_RECEIVED',
+      player1_answer: null,
+      player2_answer: null,
+      correct_answer: 0,
+      player1_correct: p1Score > p2Score,
+      player2_correct: p2Score > p1Score,
+      round_winner: winnerId,
+      p1Score,
+      p2Score,
+      stepResults: stepResultsArray,
+      roundNumber: state.roundNumber,
+      targetRoundsToWin: state.targetRoundsToWin || 4,
+      playerRoundWins: playerRoundWinsObj,
+      matchOver: false,
+      matchWinnerId: null
     }
-    
-    console.log(`[${matchId}] 🏆 Round ${state.roundNumber} won by ${winnerId} (now has ${currentWins + 1} wins)`)
+    broadcastToMatch(matchId, resultsEvent)
+    return
   }
 
-  // Check if match is over
-  const p1Wins = state.playerRoundWins.get(state.p1Id || '') || 0
-  const p2Wins = state.playerRoundWins.get(state.p2Id || '') || 0
-  const targetWins = state.targetRoundsToWin || 4
-  const matchOver = p1Wins >= targetWins || p2Wins >= targetWins
-  const matchWinnerId = matchOver ? (p1Wins >= targetWins ? state.p1Id : state.p2Id) : null
-
-  state.currentPhase = 'result'
-
-  // Convert playerRoundWins Map to object for JSON serialization
-  const playerRoundWinsObj: { [playerId: string]: number } = {}
-  state.playerRoundWins.forEach((wins, playerId) => {
-    playerRoundWinsObj[playerId] = wins
+  // Call database RPC to compute results and write to database
+  console.log(`[${matchId}] 📊 Calling compute_multi_step_results_v2 RPC with ${stepResultsArray.length} steps`)
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('compute_multi_step_results_v2', {
+    p_match_id: matchId,
+    p_round_id: matchData.current_round_id,
+    p_step_results: stepResultsArray as any
   })
 
-  const resultsEvent: ResultsReceivedEvent = {
-    type: 'RESULTS_RECEIVED',
-    player1_answer: null, // Not used for multi-step
-    player2_answer: null, // Not used for multi-step
-    correct_answer: 0, // Not used for multi-step
-    player1_correct: p1Score > p2Score,
-    player2_correct: p2Score > p1Score,
-    round_winner: winnerId,
-    p1Score,
-    p2Score,
-    stepResults,
-    roundNumber: state.roundNumber,
-    targetRoundsToWin: targetWins,
-    playerRoundWins: playerRoundWinsObj,
-    matchOver,
-    matchWinnerId
+  if (rpcError) {
+    console.error(`[${matchId}] ❌ Error calling compute_multi_step_results_v2:`, rpcError)
+    // Fallback to WebSocket-only (old behavior)
+    const p1Score = stepResultsArray.reduce((sum, r) => sum + r.p1Marks, 0)
+    const p2Score = stepResultsArray.reduce((sum, r) => sum + r.p2Marks, 0)
+    const winnerId = p1Score > p2Score ? state.p1Id : p2Score > p1Score ? state.p2Id : null
+    
+    const playerRoundWinsObj: { [playerId: string]: number } = {}
+    state.playerRoundWins.forEach((wins, playerId) => {
+      playerRoundWinsObj[playerId] = wins
+    })
+
+    const resultsEvent: ResultsReceivedEvent = {
+      type: 'RESULTS_RECEIVED',
+      player1_answer: null,
+      player2_answer: null,
+      correct_answer: 0,
+      player1_correct: p1Score > p2Score,
+      player2_correct: p2Score > p1Score,
+      round_winner: winnerId,
+      p1Score,
+      p2Score,
+      stepResults: stepResultsArray,
+      roundNumber: state.roundNumber,
+      targetRoundsToWin: state.targetRoundsToWin || 4,
+      playerRoundWins: playerRoundWinsObj,
+      matchOver: false,
+      matchWinnerId: null
+    }
+    broadcastToMatch(matchId, resultsEvent)
+    return
   }
 
-  broadcastToMatch(matchId, resultsEvent)
-  console.log(`[${matchId}] ✅ Step results calculated - P1: ${p1Score}, P2: ${p2Score}, Round Winner: ${winnerId || 'Tie'}, Match Over: ${matchOver}`)
-
-  // Initialize readiness tracking for results acknowledgment
-  const matchState = matchStates.get(matchId)
-  if (matchState) {
-    matchState.p1ResultsAcknowledged = false
-    matchState.p2ResultsAcknowledged = false
-    matchState.roundTransitionInProgress = false
+  if (!rpcResult?.success) {
+    console.error(`[${matchId}] ❌ RPC returned error:`, rpcResult?.error)
+    return
   }
 
-  if (matchOver) {
-    // Match finished - cleanup and don't start next round
-    console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
-    matchStates.delete(matchId)
-    setTimeout(() => {
-      cleanupGameState(matchId)
-    }, 5000) // Give time for UI to show final results
+  // RPC has written results_payload to database
+  // Realtime subscription will deliver to both players simultaneously
+  // Update in-memory state from RPC result
+  const payload = rpcResult.results_payload
+  if (payload) {
+    const roundWinner = payload.round_winner
+    const matchOver = payload.match_over || false
+    const matchWinnerId = payload.match_winner_id || null
+
+    // Update round wins in memory state
+    if (roundWinner) {
+      const currentWins = state.playerRoundWins.get(roundWinner) || 0
+      state.playerRoundWins.set(roundWinner, currentWins + 1)
+      
+      const matchState = matchStates.get(matchId)
+      if (matchState) {
+        matchState.playerRoundWins.set(roundWinner, currentWins + 1)
+      }
+      
+      console.log(`[${matchId}] 🏆 Round ${state.roundNumber} won by ${roundWinner} (now has ${currentWins + 1} wins)`)
+    }
+
+    // Convert playerRoundWins from payload
+    const playerRoundWinsObj: { [playerId: string]: number } = {}
+    if (payload.p1?.total !== undefined && payload.p2?.total !== undefined) {
+      playerRoundWinsObj[state.p1Id || ''] = payload.p1.total
+      playerRoundWinsObj[state.p2Id || ''] = payload.p2.total
+    }
+
+    // WebSocket broadcast as fallback (Realtime is primary delivery mechanism)
+    const resultsEvent = {
+      type: 'RESULTS_RECEIVED',
+      results_payload: payload,
+      results_version: rpcResult.results_version || 0,
+      round_number: payload.round_number || state.roundNumber
+    }
+    broadcastToMatch(matchId, resultsEvent)
+    console.log(`[${matchId}] ✅ Multi-step results computed and written to database - Realtime will deliver to both players`)
+
+    // Initialize readiness tracking for results acknowledgment
+    const matchState = matchStates.get(matchId)
+    if (matchState) {
+      matchState.p1ResultsAcknowledged = false
+      matchState.p2ResultsAcknowledged = false
+      matchState.roundTransitionInProgress = false
+    }
+
+    if (matchOver) {
+      // Match finished - cleanup and don't start next round
+      console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
+      matchStates.delete(matchId)
+      setTimeout(() => {
+        cleanupGameState(matchId)
+      }, 5000) // Give time for UI to show final results
+    } else {
+      // Don't auto-transition - wait for both players to acknowledge results
+      console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
+    }
   } else {
-    // Don't auto-transition - wait for both players to acknowledge results
-    console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
+    console.error(`[${matchId}] ❌ RPC did not return results_payload`)
   }
 }
 
@@ -1537,7 +1602,10 @@ async function handleSubmitAnswer(
           targetRoundsToWin: 4,
           playerRoundWins: new Map(),
           p1Id: matchData?.player1_id || null,
-          p2Id: matchData?.player2_id || null
+          p2Id: matchData?.player2_id || null,
+          p1ResultsAcknowledged: false,
+          p2ResultsAcknowledged: false,
+          roundTransitionInProgress: false
         }
         matchStates.set(matchId, fallbackState)
         await handleRoundTransition(matchId, supabase)
