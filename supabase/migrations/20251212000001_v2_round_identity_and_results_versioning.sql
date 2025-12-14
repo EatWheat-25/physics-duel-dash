@@ -29,7 +29,8 @@ BEGIN
     ) THEN
       ALTER TABLE public.match_rounds
         ADD CONSTRAINT match_rounds_question_id_fkey 
-        FOREIGN KEY (question_id) REFERENCES public.questions_v2(id);
+        FOREIGN KEY (question_id) REFERENCES public.questions_v2(id)
+        ON DELETE CASCADE;
     END IF;
   END IF;
 END $$;
