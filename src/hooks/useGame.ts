@@ -139,11 +139,17 @@ export function useGame(match: MatchRow | null) {
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
   const applyResults = useCallback((payload: any) => {
     console.log('[useGame] applyResults called with payload:', payload)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:140',message:'applyResults ENTRY',data:{payloadMode:payload?.mode,roundId:payload?.round_id,hasStepResults:!!payload?.p1?.steps},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     
     // Prevent duplicate processing using round_id
     const roundId = payload.round_id || payload.roundId
     if (roundId && processedRoundIdsRef.current.has(roundId)) {
       console.log('[useGame] Ignoring duplicate results for round_id:', roundId)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:145',message:'applyResults DUPLICATE REJECTED',data:{roundId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       return
     }
     if (roundId) {
@@ -152,6 +158,9 @@ export function useGame(match: MatchRow | null) {
     
     // Build results object from payload (handles both simple and multi-step modes)
     const mode = payload.mode || 'simple'
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:154',message:'applyResults BUILDING RESULTS',data:{mode,hasP1Steps:!!payload.p1?.steps,stepResultsLength:payload.p1?.steps?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     const results = {
       player1_answer: mode === 'simple' ? payload.p1?.answer ?? null : null,
       player2_answer: mode === 'simple' ? payload.p2?.answer ?? null : null,
@@ -164,6 +173,9 @@ export function useGame(match: MatchRow | null) {
       stepResults: mode === 'steps' ? payload.p1?.steps : undefined,
       round_id: roundId // Store round_id in results for reference
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:166',message:'applyResults SETTING STATE',data:{mode,hasStepResults:!!results.stepResults,status:'results'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
 
     setState(prev => {
       // Don't update if already showing results with same or newer version
@@ -545,6 +557,9 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'RESULTS_RECEIVED') {
               console.log('[useGame] RESULTS_RECEIVED message received (WebSocket fast-path)', message)
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:558',message:'WEBSOCKET RESULTS_RECEIVED',data:{hasResultsPayload:!!message.results_payload,payloadMode:message.results_payload?.mode,resultsVersion:message.results_version,localVersion:localResultsVersionRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
               
               // WebSocket fast-path - but check if we already have results from Realtime
               // If results_version is provided, check against local version
@@ -563,6 +578,9 @@ export function useGame(match: MatchRow | null) {
                 if (msg.results_version) {
                   localResultsVersionRef.current = msg.results_version
                 }
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:578',message:'WEBSOCKET CALLING applyResults',data:{payloadMode:msg.results_payload?.mode,resultsVersion:msg.results_version},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                // #endregion
                 applyResults(msg.results_payload)
               } else {
                 // Legacy WS format - construct payload manually
@@ -796,6 +814,9 @@ export function useGame(match: MatchRow | null) {
           old: payload.old,
           new: payload.new
         })
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:794',message:'REALTIME UPDATE RECEIVED',data:{matchId:match?.id,hasResultsPayload:!!payload.new?.results_payload,resultsVersion:payload.new?.results_version,oldVersion:payload.old?.results_version,roundId:payload.new?.results_round_id,currentRoundId:payload.new?.current_round_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
 
         // Handle results updates (handles both NULL → NOT NULL and out-of-order events)
         const newPayload = payload.new
@@ -806,10 +827,16 @@ export function useGame(match: MatchRow | null) {
         // 1. results_payload != null
         // 2. results_version >= local version (changed from > to >= to allow same version)
         // 3. results_round_id === current_round_id OR current_round_id is null (allow first round)
+        const hasPayload = newPayload.results_payload != null
+        const versionCheck = newVersion >= localResultsVersionRef.current
+        const roundMatch = newPayload.results_round_id === newPayload.current_round_id || newPayload.current_round_id === null
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:809',message:'REALTIME VALIDATION CHECK',data:{matchId:match?.id,hasPayload,versionCheck,roundMatch,newVersion,localVersion:localResultsVersionRef.current,roundId:newPayload.results_round_id,currentRoundId:newPayload.current_round_id,payloadMode:newPayload.results_payload?.mode},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         if (
-          newPayload.results_payload != null &&
-          newVersion >= localResultsVersionRef.current &&
-          (newPayload.results_round_id === newPayload.current_round_id || newPayload.current_round_id === null)
+          hasPayload &&
+          versionCheck &&
+          roundMatch
         ) {
           console.log('[useGame] ✅ Accepting Realtime results (validated):', {
             version: newVersion,
@@ -818,6 +845,9 @@ export function useGame(match: MatchRow | null) {
             current_round_id: newPayload.current_round_id,
             payload: newPayload.results_payload
           })
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:822',message:'REALTIME ACCEPTED - CALLING applyResults',data:{matchId:match?.id,payloadMode:newPayload.results_payload?.mode,roundId:newPayload.results_round_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           localResultsVersionRef.current = newVersion
           applyResults(newPayload.results_payload)
         } else {
@@ -832,6 +862,9 @@ export function useGame(match: MatchRow | null) {
             current_round_id: newPayload.current_round_id,
             payload: newPayload.results_payload
           })
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:824',message:'REALTIME REJECTED',data:{matchId:match?.id,hasPayload,versionCheck,roundMatch,rejectionReason:!hasPayload?'no_payload':!versionCheck?'version_mismatch':'round_mismatch'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
         }
       })
       .subscribe((status) => {

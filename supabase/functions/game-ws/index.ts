@@ -1138,9 +1138,15 @@ async function calculateStepResults(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1137',message:'calculateStepResults ENTRY',data:{matchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
   const state = gameStates.get(matchId)
   if (!state) {
     console.warn(`[${matchId}] ⚠️ Cannot calculate results - no game state`)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1142',message:'calculateStepResults NO STATE',data:{matchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     return
   }
 
@@ -1237,11 +1243,17 @@ async function calculateStepResults(
 
   // Call database RPC to compute results and write to database
   console.log(`[${matchId}] 📊 Calling compute_multi_step_results_v2 RPC with ${stepResultsArray.length} steps`)
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1239',message:'BEFORE RPC CALL',data:{matchId,roundId:matchData.current_round_id,stepCount:stepResultsArray.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
   const { data: rpcResult, error: rpcError } = await supabase.rpc('compute_multi_step_results_v2', {
     p_match_id: matchId,
     p_round_id: matchData.current_round_id,
     p_step_results: stepResultsArray as any
   })
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1244',message:'AFTER RPC CALL',data:{matchId,hasError:!!rpcError,hasResult:!!rpcResult,success:rpcResult?.success,error:rpcError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
 
   if (rpcError) {
     console.error(`[${matchId}] ❌ Error calling compute_multi_step_results_v2:`, rpcError)
@@ -1310,14 +1322,8 @@ async function calculateStepResults(
       playerRoundWinsObj[state.p2Id || ''] = payload.p2.total
     }
 
-    // WebSocket broadcast as fallback (Realtime is primary delivery mechanism)
-    const resultsEvent = {
-      type: 'RESULTS_RECEIVED',
-      results_payload: payload,
-      results_version: rpcResult.results_version || 0,
-      round_number: payload.round_number || state.roundNumber
-    }
-    broadcastToMatch(matchId, resultsEvent)
+    // RPC has written to database - Realtime will deliver to both players simultaneously
+    // DO NOT broadcast via WebSocket - it would arrive before Realtime and cause desynchronization
     console.log(`[${matchId}] ✅ Multi-step results computed and written to database - Realtime will deliver to both players`)
 
     // Initialize readiness tracking for results acknowledgment
