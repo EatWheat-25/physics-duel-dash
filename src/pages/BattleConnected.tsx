@@ -409,7 +409,7 @@ export default function BattleConnected() {
             )}
 
             {/* STEPS PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && (
+            {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
               <motion.div
                 key="steps"
                 initial={{ opacity: 0, y: 20 }}

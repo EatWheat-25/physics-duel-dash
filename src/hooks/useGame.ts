@@ -609,9 +609,24 @@ export function useGame(match: MatchRow | null) {
             } else if (message.type === 'ALL_STEPS_COMPLETE_WAITING') {
               console.log('[useGame] ALL_STEPS_COMPLETE_WAITING message received', message)
               const msg = message as any
-              const isPlayer1 = state.playerRole === 'player1'
+              // Determine player role from match data (most reliable)
+              const currentUserId = userIdRef.current
+              const isPlayer1 = match?.player1_id === currentUserId
               const myComplete = isPlayer1 ? msg.p1Complete : msg.p2Complete
               const oppComplete = isPlayer1 ? msg.p2Complete : msg.p1Complete
+              
+              console.log('[useGame] 🔍 DEBUG: ALL_STEPS_COMPLETE_WAITING processing', {
+                currentUserId,
+                matchP1Id: match?.player1_id,
+                matchP2Id: match?.player2_id,
+                playerRole: state.playerRole,
+                isPlayer1,
+                p1Complete: msg.p1Complete,
+                p2Complete: msg.p2Complete,
+                myComplete,
+                oppComplete,
+                willSetWaiting: myComplete && !oppComplete
+              })
               
               setState(prev => ({
                 ...prev,
