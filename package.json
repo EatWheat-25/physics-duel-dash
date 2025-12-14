@@ -12,6 +12,7 @@
     "seed:questions": "tsx scripts/seed-questions.ts",
     "seed:real-questions": "tsx scripts/seed-real-questions.ts",
     "seed:delete": "tsx scripts/delete-seeded-questions.ts",
+    "seed:delete-all": "tsx scripts/delete-all-questions.ts",
     "seed:test-v2": "tsx scripts/seed-test-question-v2.ts",
     "seed:4step": "tsx scripts/seed-4step-question.ts",
     "db:matches": "tsx scripts/query-supabase.ts matches",
