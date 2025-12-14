@@ -539,8 +539,8 @@ export function useGame(match: MatchRow | null) {
               console.log('[useGame] STEP_ANSWER_RECEIVED message received', message)
               setState(prev => ({
                 ...prev,
-                answerSubmitted: true,
-                waitingForOpponent: message.waitingForOpponent
+                answerSubmitted: true
+                // Don't set waitingForOpponent during steps - steps should progress without waiting
               }))
             } else if (message.type === 'ANSWER_SUBMITTED') {
               console.log('[useGame] ANSWER_SUBMITTED message received')

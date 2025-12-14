@@ -464,15 +464,16 @@ export default function BattleConnected() {
                       className="mt-6 text-center"
                     >
                       <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-400 rounded-full text-sm font-medium border border-amber-500/20 backdrop-blur-sm">
-                        {waitingForOpponent ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            WAITING FOR OPPONENT...
-                          </>
-                        ) : (
+                        {/* During steps, always show "ANSWER SUBMITTED" - no waiting message */}
+                        {(phase === 'steps' || !waitingForOpponent) ? (
                           <>
                             <Check className="w-4 h-4" />
                             ANSWER SUBMITTED
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            WAITING FOR OPPONENT...
                           </>
                         )}
                       </div>
