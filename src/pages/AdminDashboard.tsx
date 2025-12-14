@@ -370,7 +370,7 @@ export default function AdminDashboard() {
               </div>
 
               <Button
-                onClick={() => navigate('/admin/questions')}
+                onClick={() => navigate('/admin/questions?create')}
                 className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold h-7 shadow-lg shadow-cyan-500/20 text-[10px] mt-1"
               >
                 <Plus className="w-3 h-3 mr-1" />
@@ -508,45 +508,6 @@ export default function AdminDashboard() {
                     <p className="text-red-300/80 text-xs">Check browser console for details</p>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT PANEL: Info/Editor Redirect */}
-          <div className="bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl flex flex-col h-full overflow-hidden relative shadow-2xl">
-            {selectedQuestionId ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-white p-8">
-                <CheckCircle2 className="w-20 h-20 mb-6 text-cyan-400" />
-                <h3 className="text-2xl font-bold text-white mb-3">Question Selected</h3>
-                <p className="text-center text-base mb-8 text-slate-300">
-                  Click "Edit in Legacy Panel" to modify this question
-                </p>
-                <Button
-                  onClick={() => navigate(`/admin/questions?edit=${selectedQuestionId}`)}
-                  className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold h-12 px-8 text-base shadow-lg"
-                >
-                  Edit in Legacy Panel
-                </Button>
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-white p-8">
-                <div className="w-28 h-28 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 flex items-center justify-center mb-8 shadow-lg">
-                  <Shield className="w-14 h-14 text-cyan-400" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-3">Admin Dashboard 2.0</h3>
-                <p className="text-center text-base mb-2 text-slate-300">
-                  Select a question from the list to view details
-                </p>
-                <p className="text-center text-sm text-slate-400 mb-8">
-                  Or use the Legacy Panel for full editing capabilities
-                </p>
-                <Button
-                  onClick={() => navigate('/admin/questions')}
-                  variant="outline"
-                  className="border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700/50 hover:border-slate-500 h-11 px-6 font-semibold"
-                >
-                  Open Legacy Panel
-                </Button>
               </div>
             )}
           </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
@@ -52,6 +52,7 @@ type QuestionForm = {
 
 export default function AdminQuestions() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, isLoading: checkingAdmin } = useIsAdmin();
 
@@ -198,6 +199,27 @@ export default function AdminQuestions() {
       imageUrl: q.imageUrl || ''
     });
   }
+
+  // Handle URL parameters for create/edit mode
+  useEffect(() => {
+    if (!isAdmin || questions.length === 0) return;
+
+    const createParam = searchParams.get('create');
+    const editParam = searchParams.get('edit');
+
+    if (createParam !== null) {
+      handleNewQuestion();
+      // Clean up URL
+      navigate('/admin/questions', { replace: true });
+    } else if (editParam) {
+      const question = questions.find(q => q.id === editParam);
+      if (question) {
+        handleSelectQuestion(question);
+      }
+      // Clean up URL
+      navigate('/admin/questions', { replace: true });
+    }
+  }, [isAdmin, questions, searchParams, navigate]);
 
   function handleAddStep() {
     setForm({
