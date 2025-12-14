@@ -156,6 +156,8 @@ interface GameState {
   roundNumber: number
   targetRoundsToWin: number
   playerRoundWins: Map<string, number> // playerId -> round wins
+  p1AllStepsComplete: boolean
+  p2AllStepsComplete: boolean
 }
 
 const gameStates = new Map<string, GameState>() // matchId -> GameState
@@ -281,7 +283,9 @@ async function broadcastQuestion(
         eliminatedPlayers: new Set(),
         roundNumber: matchState.roundNumber,
         targetRoundsToWin: matchState.targetRoundsToWin,
-        playerRoundWins: new Map(matchState.playerRoundWins) // Copy match-level wins
+        playerRoundWins: new Map(matchState.playerRoundWins), // Copy match-level wins
+        p1AllStepsComplete: false,
+        p2AllStepsComplete: false
       }
       gameStates.set(matchId, gameState)
     } else {
@@ -298,6 +302,8 @@ async function broadcastQuestion(
       gameState.roundNumber = matchState.roundNumber
       gameState.targetRoundsToWin = matchState.targetRoundsToWin
       gameState.playerRoundWins = new Map(matchState.playerRoundWins) // Sync with match state
+      gameState.p1AllStepsComplete = false
+      gameState.p2AllStepsComplete = false
     }
 
     // Read main question timer from metadata or default to 60 seconds
@@ -920,6 +926,9 @@ async function transitionToSteps(
   state.currentStepIndex = 0
   // Reset eliminated players for new round (should already be clear, but ensure it)
   state.eliminatedPlayers.clear()
+  // Reset step completion flags
+  state.p1AllStepsComplete = false
+  state.p2AllStepsComplete = false
 
   const steps = Array.isArray(state.currentQuestion.steps) 
     ? state.currentQuestion.steps 
@@ -987,16 +996,78 @@ async function checkStepTimeout(
     console.log(`[${matchId}] ⚠️ Player 2 eliminated - no answer for step ${stepIndex}`)
   }
 
-  // Move to next step (or results)
-  await moveToNextStep(matchId, supabase)
+  // Check if this was the last step
+  const steps = Array.isArray(state.currentQuestion.steps) 
+    ? state.currentQuestion.steps 
+    : JSON.parse(state.currentQuestion.steps ?? '[]')
+  
+  const isLastStep = stepIndex >= steps.length - 1
+  
+  if (isLastStep) {
+    // Last step timed out - check if both players have completed all steps
+    const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
+    const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
+    
+    // Check if each player has answered all steps (or is eliminated)
+    let p1AllComplete = p1Eliminated
+    let p2AllComplete = p2Eliminated
+    
+    if (!p1Eliminated) {
+      p1AllComplete = true
+      for (let i = 0; i < steps.length; i++) {
+        if (!p1Answers.has(i)) {
+          p1AllComplete = false
+          break
+        }
+      }
+    }
+    
+    if (!p2Eliminated) {
+      p2AllComplete = true
+      for (let i = 0; i < steps.length; i++) {
+        if (!p2Answers.has(i)) {
+          p2AllComplete = false
+          break
+        }
+      }
+    }
+    
+    // Update completion flags
+    state.p1AllStepsComplete = p1AllComplete
+    state.p2AllStepsComplete = p2AllComplete
+    
+    if (p1AllComplete && p2AllComplete) {
+      // Both players completed all steps - calculate results
+      console.log(`[${matchId}] ✅ Both players completed all steps (timeout) - calculating results`)
+      await calculateStepResults(matchId, supabase)
+    } else {
+      // One player finished but other hasn't - send waiting state
+      console.log(`[${matchId}] ⏳ One player completed all steps (timeout) - waiting for opponent (P1: ${p1AllComplete}, P2: ${p2AllComplete})`)
+      
+      // Broadcast waiting state to both players
+      const waitingEvent = {
+        type: 'ALL_STEPS_COMPLETE_WAITING',
+        matchId,
+        p1Complete: p1AllComplete,
+        p2Complete: p2AllComplete,
+        waitingForOpponent: true
+      }
+      broadcastToMatch(matchId, waitingEvent)
+    }
+  } else {
+    // Not last step - move to next step
+    await moveToNextStep(matchId, supabase, null)
+  }
 }
 
 /**
  * Move to next step or calculate results
+ * @param playerId - Optional player ID who triggered this (for completion tracking)
  */
 async function moveToNextStep(
   matchId: string,
-  supabase: ReturnType<typeof createClient>
+  supabase: ReturnType<typeof createClient>,
+  playerId: string | null = null
 ): Promise<void> {
   const state = gameStates.get(matchId)
   if (!state || state.currentPhase !== 'steps') {
@@ -1018,8 +1089,10 @@ async function moveToNextStep(
   const nextStepIndex = state.currentStepIndex + 1
 
   if (nextStepIndex >= steps.length) {
-    // All steps done - calculate results
-    await calculateStepResults(matchId, supabase)
+    // This should not happen here - completion is now handled in handleStepAnswer
+    // But keep as fallback for timeout cases
+    console.warn(`[${matchId}] ⚠️ moveToNextStep reached end of steps - this should be handled in handleStepAnswer`)
+    // Don't calculate results here - let handleStepAnswer handle it
     return
   }
 
@@ -1281,9 +1354,71 @@ async function handleStepAnswer(
   socket.send(JSON.stringify(stepAnswerEvent))
 
   if (bothDone) {
-    // Both players done (answered or eliminated) - move to next step immediately
-    console.log(`[${matchId}] ⚡ Both players done with step ${stepIndex} - moving to next step`)
-    await moveToNextStep(matchId, supabase)
+    // Both players done (answered or eliminated) - check if this was the last step
+    const steps = Array.isArray(state.currentQuestion.steps) 
+      ? state.currentQuestion.steps 
+      : JSON.parse(state.currentQuestion.steps ?? '[]')
+    
+    const isLastStep = stepIndex >= steps.length - 1
+    
+    if (isLastStep) {
+      // Last step completed - check if both players have completed all steps
+      const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
+      const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
+      const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
+      const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
+      
+      // Check if each player has answered all steps (or is eliminated)
+      let p1AllComplete = p1Eliminated
+      let p2AllComplete = p2Eliminated
+      
+      if (!p1Eliminated) {
+        p1AllComplete = true
+        for (let i = 0; i < steps.length; i++) {
+          if (!p1Answers.has(i)) {
+            p1AllComplete = false
+            break
+          }
+        }
+      }
+      
+      if (!p2Eliminated) {
+        p2AllComplete = true
+        for (let i = 0; i < steps.length; i++) {
+          if (!p2Answers.has(i)) {
+            p2AllComplete = false
+            break
+          }
+        }
+      }
+      
+      // Update completion flags
+      state.p1AllStepsComplete = p1AllComplete
+      state.p2AllStepsComplete = p2AllComplete
+      
+      if (p1AllComplete && p2AllComplete) {
+        // Both players completed all steps - calculate results
+        console.log(`[${matchId}] ✅ Both players completed all steps - calculating results`)
+        await calculateStepResults(matchId, supabase)
+      } else {
+        // One player finished but other hasn't - send waiting state
+        console.log(`[${matchId}] ⏳ One player completed all steps - waiting for opponent (P1: ${p1AllComplete}, P2: ${p2AllComplete})`)
+        
+        // Broadcast waiting state to both players
+        const waitingEvent = {
+          type: 'ALL_STEPS_COMPLETE_WAITING',
+          matchId,
+          p1Complete: p1AllComplete,
+          p2Complete: p2AllComplete,
+          waitingForOpponent: true
+        }
+        broadcastToMatch(matchId, waitingEvent)
+      }
+    } else {
+      // Not last step - move to next step immediately
+      console.log(`[${matchId}] ⚡ Both players done with step ${stepIndex} - moving to next step`)
+      await moveToNextStep(matchId, supabase, null) // Pass null since we're moving to next step, not checking completion
+    }
   }
 }
 

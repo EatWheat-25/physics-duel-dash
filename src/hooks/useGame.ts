@@ -12,6 +12,8 @@ interface ConnectionState {
   waitingForOpponent: boolean
   resultsAcknowledged: boolean
   waitingForOpponentToAcknowledge: boolean
+  allStepsComplete: boolean
+  waitingForOpponentToCompleteSteps: boolean
   results: {
     player1_answer: number | null
     player2_answer: number | null
@@ -62,9 +64,12 @@ interface RoundStartEvent {
   matchId: string
   roundId: string
   roundIndex: number
-  phase: 'thinking'
+  phase: 'thinking' | 'main_question'
   question: any
-  thinkingEndsAt: string
+  thinkingEndsAt?: string
+  mainQuestionEndsAt?: string
+  mainQuestionTimerSeconds?: number
+  totalSteps?: number
 }
 
 /**
@@ -88,6 +93,8 @@ export function useGame(match: MatchRow | null) {
     waitingForOpponent: false,
     resultsAcknowledged: false,
     waitingForOpponentToAcknowledge: false,
+    allStepsComplete: false,
+    waitingForOpponentToCompleteSteps: false,
     results: null,
     // Stage 3: Tug-of-war state (deprecated, kept for compatibility)
     roundNumber: 0,
@@ -173,6 +180,8 @@ export function useGame(match: MatchRow | null) {
         waitingForOpponent: false,
         resultsAcknowledged: false,
         waitingForOpponentToAcknowledge: false,
+        allStepsComplete: false,
+        waitingForOpponentToCompleteSteps: false,
         currentRoundNumber: payload.round_number ?? prev.currentRoundNumber,
         playerRoundWins: {
           ...prev.playerRoundWins,
@@ -454,7 +463,7 @@ export function useGame(match: MatchRow | null) {
               console.log('[useGame] ROUND_START message received - game starting!', message)
               // Clear processed round IDs and results when new round starts
               processedRoundIdsRef.current.clear()
-              const roundStartEvent = message as RoundStartEvent
+              const roundStartEvent = message as any as RoundStartEvent
               if (roundStartEvent.phase === 'main_question') {
                 // Multi-step question - main question phase
                 setState(prev => ({
@@ -462,13 +471,15 @@ export function useGame(match: MatchRow | null) {
                   status: 'playing',
                   phase: 'main_question',
                   question: roundStartEvent.question,
-                  mainQuestionEndsAt: roundStartEvent.mainQuestionEndsAt || null,
-                  totalSteps: roundStartEvent.totalSteps || 0,
+                  mainQuestionEndsAt: (roundStartEvent as any).mainQuestionEndsAt || null,
+                  totalSteps: (roundStartEvent as any).totalSteps || 0,
                   currentStepIndex: 0,
                   answerSubmitted: false,
                   waitingForOpponent: false,
                   resultsAcknowledged: false,
                   waitingForOpponentToAcknowledge: false,
+                  allStepsComplete: false,
+                  waitingForOpponentToCompleteSteps: false,
                   results: null, // Clear results when new round starts
                   errorMessage: null
                 }))
@@ -481,6 +492,8 @@ export function useGame(match: MatchRow | null) {
                   question: roundStartEvent.question,
                   resultsAcknowledged: false,
                   waitingForOpponentToAcknowledge: false,
+                  allStepsComplete: false,
+                  waitingForOpponentToCompleteSteps: false,
                   results: null, // Clear results when new round starts
                   errorMessage: null
                 }))
@@ -496,7 +509,9 @@ export function useGame(match: MatchRow | null) {
                   stepEndsAt: message.stepEndsAt || null,
                   currentStep: message.currentStep || null,
                   answerSubmitted: false,
-                  waitingForOpponent: false
+                  waitingForOpponent: false,
+                  allStepsComplete: false,
+                  waitingForOpponentToCompleteSteps: false
                 }))
               } else {
                 // Other phase changes (choosing, result)
@@ -572,6 +587,18 @@ export function useGame(match: MatchRow | null) {
                 }
                 applyResults(payload)
               }
+            } else if (message.type === 'ALL_STEPS_COMPLETE_WAITING') {
+              console.log('[useGame] ALL_STEPS_COMPLETE_WAITING message received', message)
+              const msg = message as any
+              const isPlayer1 = state.playerRole === 'player1'
+              const myComplete = isPlayer1 ? msg.p1Complete : msg.p2Complete
+              const oppComplete = isPlayer1 ? msg.p2Complete : msg.p1Complete
+              
+              setState(prev => ({
+                ...prev,
+                allStepsComplete: myComplete,
+                waitingForOpponentToCompleteSteps: myComplete && !oppComplete
+              }))
             } else if (message.type === 'READY_FOR_NEXT_ROUND') {
               console.log('[useGame] READY_FOR_NEXT_ROUND message received', message)
               setState(prev => ({
@@ -590,6 +617,8 @@ export function useGame(match: MatchRow | null) {
                 waitingForOpponent: false,
                 resultsAcknowledged: false,
                 waitingForOpponentToAcknowledge: false,
+                allStepsComplete: false,
+                waitingForOpponentToCompleteSteps: false,
                 results: null, // Clear results when new round starts
                 roundNumber: message.round_number || 0,
                 lastRoundWinner: message.last_round_winner,
@@ -1160,6 +1189,8 @@ export function useGame(match: MatchRow | null) {
     waitingForOpponent: state.waitingForOpponent,
     resultsAcknowledged: state.resultsAcknowledged,
     waitingForOpponentToAcknowledge: state.waitingForOpponentToAcknowledge,
+    allStepsComplete: state.allStepsComplete,
+    waitingForOpponentToCompleteSteps: state.waitingForOpponentToCompleteSteps,
     results: state.results,
     // Stage 3: Tug-of-war state
     roundNumber: state.roundNumber,

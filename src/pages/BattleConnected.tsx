@@ -81,7 +81,7 @@ export default function BattleConnected() {
     mainQuestionTimeLeft, stepTimeLeft, currentStep, submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
     isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
-    readyForNextRound
+    allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
 
   // Track round wins for animation
@@ -367,7 +367,7 @@ export default function BattleConnected() {
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
                   <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   
-                  <div className="text-center mb-6">
+                  <div className="text-center">
                     <div className="text-sm text-blue-400/60 font-mono mb-4 uppercase tracking-wider">
                       Main Question
                     </div>
@@ -378,7 +378,15 @@ export default function BattleConnected() {
                       {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
                     </div>
                   </div>
-
+                </div>
+                
+                {/* Separate Early Answer Button - OUTSIDE card */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="w-full max-w-3xl mt-6"
+                >
                   <button
                     onClick={() => {
                       if (!isWebSocketConnected) {
@@ -388,15 +396,15 @@ export default function BattleConnected() {
                       submitEarlyAnswer();
                     }}
                     disabled={!isWebSocketConnected}
-                    className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${
+                    className={`w-full py-6 px-8 rounded-xl font-bold text-xl transition-all shadow-lg ${
                       isWebSocketConnected
                         ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
                         : 'bg-gray-600/50 cursor-not-allowed opacity-50'
                     }`}
                   >
-                    {isWebSocketConnected ? 'Answer Now - Start Steps' : 'Connecting...'}
+                    {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
                   </button>
-                </div>
+                </motion.div>
               </motion.div>
             )}
 
@@ -470,6 +478,31 @@ export default function BattleConnected() {
                       </div>
                     </motion.div>
                   )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* WAITING FOR OPPONENT TO COMPLETE ALL STEPS */}
+            {status === 'playing' && phase === 'steps' && allStepsComplete && waitingForOpponentToCompleteSteps && (
+              <motion.div
+                key="waiting-steps"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+              >
+                <div className="mb-6">
+                  <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto mb-4" />
+                  <h2 className="text-3xl font-bold mb-2 tracking-tight">
+                    ALL PARTS COMPLETE
+                  </h2>
+                  <p className="text-white/60 font-mono text-sm mb-4">
+                    You have finished all {totalSteps} part{totalSteps !== 1 ? 's' : ''}
+                  </p>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    WAITING FOR OPPONENT TO FINISH ALL PARTS...
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -556,9 +589,8 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
               >
-                {console.log('[BattleConnected] ✅ Results component is rendering!')}
                 <div className="mb-8">
                   {results.round_winner === currentUser ? (
                     <motion.div 

@@ -150,6 +150,14 @@ export interface StepAnswerReceivedEvent {
   waitingForOpponent: boolean;
 }
 
+export interface AllStepsCompleteWaitingEvent {
+  type: 'ALL_STEPS_COMPLETE_WAITING';
+  matchId: string;
+  p1Complete: boolean;
+  p2Complete: boolean;
+  waitingForOpponent: boolean;
+}
+
 export interface ReadyForNextRoundEvent {
   type: 'READY_FOR_NEXT_ROUND';
   playerId: string;
@@ -163,6 +171,7 @@ export type ServerGameEvent =
   | RoundResultEvent
   | MatchEndEvent
   | StepAnswerReceivedEvent
+  | AllStepsCompleteWaitingEvent
   | ReadyForNextRoundEvent;
 
 // Client → Server Messages
