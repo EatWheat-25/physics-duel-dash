@@ -150,13 +150,25 @@ export interface StepAnswerReceivedEvent {
   waitingForOpponent: boolean;
 }
 
+export interface ReadyForNextRoundEvent {
+  type: 'READY_FOR_NEXT_ROUND';
+  playerId: string;
+  waitingForOpponent: boolean;
+}
+
 // Union type for all server events
 export type ServerGameEvent =
   | RoundStartEvent
   | PhaseChangeEvent
   | RoundResultEvent
   | MatchEndEvent
-  | StepAnswerReceivedEvent;
+  | StepAnswerReceivedEvent
+  | ReadyForNextRoundEvent;
+
+// Client → Server Messages
+export interface ReadyForNextRoundMessage {
+  type: 'READY_FOR_NEXT_ROUND';
+}
 
 // Union type for all client messages
-export type ClientGameMessage = AnswerSubmitMessage | ReadyForOptionsMessage | EarlyAnswerMessage | SubmitStepAnswerMessage;
+export type ClientGameMessage = AnswerSubmitMessage | ReadyForOptionsMessage | EarlyAnswerMessage | SubmitStepAnswerMessage | ReadyForNextRoundMessage;

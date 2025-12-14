@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -15,6 +15,10 @@ export default function BattleConnected() {
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
+  const [shouldAnimateMyWins, setShouldAnimateMyWins] = useState<boolean>(false);
+  const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
+  const prevMyWinsRef = useRef<number>(0);
+  const prevOppWinsRef = useRef<number>(0);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -76,8 +80,31 @@ export default function BattleConnected() {
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, currentStep, submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
-    isWebSocketConnected
+    isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
+    readyForNextRound
   } = useGame(match);
+
+  // Track round wins for animation
+  useEffect(() => {
+    const isPlayer1 = match?.player1_id === currentUser;
+    const opponentId = isPlayer1 ? match?.player2_id : match?.player1_id;
+    const myWins = playerRoundWins?.[currentUser || ''] || 0;
+    const oppWins = playerRoundWins?.[opponentId || ''] || 0;
+    
+    // Check if my wins increased
+    if (myWins > prevMyWinsRef.current) {
+      setShouldAnimateMyWins(true);
+      setTimeout(() => setShouldAnimateMyWins(false), 600);
+    }
+    prevMyWinsRef.current = myWins;
+    
+    // Check if opponent wins increased
+    if (oppWins > prevOppWinsRef.current) {
+      setShouldAnimateOppWins(true);
+      setTimeout(() => setShouldAnimateOppWins(false), 600);
+    }
+    prevOppWinsRef.current = oppWins;
+  }, [playerRoundWins, currentUser, match]);
 
   // Round Intro Effect
   useEffect(() => {
@@ -202,31 +229,36 @@ export default function BattleConnected() {
         <div className="grid grid-cols-3 gap-4 mb-8 items-end">
           {/* Player Stats */}
           <div className="flex flex-col items-start">
-            <div className="flex items-center gap-3 mb-2">
+            {/* Round Win Counter - Large and Prominent */}
+            <div className="mb-3">
+              <motion.div
+                key={`my-wins-${playerRoundWins?.[currentUser || ''] || 0}`}
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ 
+                  scale: shouldAnimateMyWins ? [1, 1.4, 1] : 1,
+                  opacity: 1,
+                }}
+                transition={{ 
+                  duration: 0.6,
+                  ease: "easeOut",
+                  scale: shouldAnimateMyWins ? {
+                    times: [0, 0.3, 1],
+                    duration: 0.6
+                  } : { duration: 0.3 }
+                }}
+                className="text-6xl md:text-7xl font-black text-blue-400 drop-shadow-[0_0_20px_rgba(96,165,250,0.6)]"
+              >
+                {playerRoundWins?.[currentUser || ''] || 0}
+              </motion.div>
+            </div>
+            <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-blue-400/30">
                 <span className="font-bold text-lg">Y</span>
               </div>
               <div>
                 <div className="text-xs text-blue-200/50 font-mono mb-0.5">OPERATOR</div>
-                <div className="font-bold text-shadow-glow">YOU</div>
+                <div className="font-bold text-shadow-glow text-lg">YOU</div>
               </div>
-            </div>
-            {/* Round Wins Display */}
-            <div className="flex items-center gap-1.5 mt-2">
-              <span className="text-xs text-white/40 font-mono">Wins:</span>
-              {Array.from({ length: targetRoundsToWin || 4 }).map((_, idx) => {
-                const myWins = playerRoundWins?.[currentUser || ''] || 0
-                return (
-                  <div
-                    key={idx}
-                    className={`w-3 h-3 rounded-full transition-all ${
-                      idx < myWins
-                        ? 'bg-blue-500 ring-1 ring-blue-400'
-                        : 'bg-white/10 ring-1 ring-white/20'
-                    }`}
-                  />
-                )
-              })}
             </div>
           </div>
 
@@ -254,7 +286,29 @@ export default function BattleConnected() {
 
           {/* Opponent Stats */}
           <div className="flex flex-col items-end">
-            <div className="flex items-center gap-3 mb-2 flex-row-reverse text-right">
+            {/* Round Win Counter - Large and Prominent */}
+            <div className="mb-3">
+              <motion.div
+                key={`opp-wins-${playerRoundWins?.[opponentId || ''] || 0}`}
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ 
+                  scale: shouldAnimateOppWins ? [1, 1.4, 1] : 1,
+                  opacity: 1,
+                }}
+                transition={{ 
+                  duration: 0.6,
+                  ease: "easeOut",
+                  scale: shouldAnimateOppWins ? {
+                    times: [0, 0.3, 1],
+                    duration: 0.6
+                  } : { duration: 0.3 }
+                }}
+                className="text-6xl md:text-7xl font-black text-red-400 drop-shadow-[0_0_20px_rgba(248,113,113,0.6)]"
+              >
+                {playerRoundWins?.[opponentId || ''] || 0}
+              </motion.div>
+            </div>
+            <div className="flex items-center gap-3 flex-row-reverse text-right">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-colors ring-1 ${
                 status === 'playing' || status === 'results' 
                   ? 'bg-gradient-to-br from-red-600 to-red-800 shadow-red-500/20 ring-red-400/30' 
@@ -264,25 +318,8 @@ export default function BattleConnected() {
               </div>
               <div>
                 <div className="text-xs text-red-200/50 font-mono mb-0.5">TARGET</div>
-                <div className="font-bold text-shadow-glow">OPPONENT</div>
+                <div className="font-bold text-shadow-glow text-lg">OPPONENT</div>
               </div>
-            </div>
-            {/* Round Wins Display */}
-            <div className="flex items-center gap-1.5 mt-2">
-              {Array.from({ length: targetRoundsToWin || 4 }).map((_, idx) => {
-                const oppWins = playerRoundWins?.[opponentId || ''] || 0
-                return (
-                  <div
-                    key={idx}
-                    className={`w-3 h-3 rounded-full transition-all ${
-                      idx < oppWins
-                        ? 'bg-red-500 ring-1 ring-red-400'
-                        : 'bg-white/10 ring-1 ring-white/20'
-                    }`}
-                  />
-                )
-              })}
-              <span className="text-xs text-white/40 font-mono ml-1">Wins</span>
             </div>
           </div>
         </div>
@@ -575,34 +612,128 @@ export default function BattleConnected() {
                   )}
                 </div>
 
-                {/* Step-by-step breakdown for multi-step questions */}
+                {/* Step-by-step results with "X out of 4" format */}
                 {results.stepResults && results.stepResults.length > 0 && (
-                  <div className="mb-8 space-y-3">
-                    <div className="text-sm font-mono text-white/60 mb-4 uppercase tracking-wider">Step Breakdown</div>
-                    {results.stepResults.map((stepResult, idx) => {
-                      const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
-                      const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
-                      const myCorrect = myAnswer === stepResult.correctAnswer
+                  <div className="mb-8">
+                    {/* Calculate parts correct for each player */}
+                    {(() => {
+                      const myPartsCorrect = results.stepResults.filter((stepResult) => {
+                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
+                        return myAnswer === stepResult.correctAnswer;
+                      }).length;
+                      
+                      const oppPartsCorrect = results.stepResults.filter((stepResult) => {
+                        const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
+                        return oppAnswer === stepResult.correctAnswer;
+                      }).length;
+                      
+                      const totalSteps = results.stepResults.length;
+                      const iWon = myPartsCorrect > oppPartsCorrect;
+                      const isTie = myPartsCorrect === oppPartsCorrect;
+                      
                       return (
-                        <div
-                          key={idx}
-                          className={`p-3 rounded-lg border text-left ${
-                            myCorrect ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-bold">Step {stepResult.stepIndex + 1}</span>
-                            <span className="text-xs font-mono">
-                              {myCorrect ? '✓' : '✗'} {myMarks} pts
-                            </span>
+                        <>
+                          {/* Main "X out of 4" Display */}
+                          <div className="grid grid-cols-2 gap-6 mb-6">
+                            {/* Player Section */}
+                            <motion.div
+                              initial={{ x: -20, opacity: 0 }}
+                              animate={{ x: 0, opacity: 1 }}
+                              transition={{ delay: 0.1 }}
+                              className={`p-6 rounded-2xl border-2 ${
+                                iWon 
+                                  ? 'bg-green-500/20 border-green-500/40' 
+                                  : isTie
+                                  ? 'bg-blue-500/20 border-blue-500/40'
+                                  : 'bg-red-500/20 border-red-500/40'
+                              }`}
+                            >
+                              <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">YOU</div>
+                              <div className={`text-5xl md:text-6xl font-black mb-2 ${
+                                iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
+                              }`}>
+                                {myPartsCorrect} out of {totalSteps}
+                              </div>
+                              <div className="text-sm text-white/60 font-mono">
+                                {myPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - myPartsCorrect} incorrect`}
+                              </div>
+                            </motion.div>
+                            
+                            {/* Opponent Section */}
+                            <motion.div
+                              initial={{ x: 20, opacity: 0 }}
+                              animate={{ x: 0, opacity: 1 }}
+                              transition={{ delay: 0.2 }}
+                              className={`p-6 rounded-2xl border-2 ${
+                                !iWon && !isTie
+                                  ? 'bg-green-500/20 border-green-500/40' 
+                                  : isTie
+                                  ? 'bg-blue-500/20 border-blue-500/40'
+                                  : 'bg-red-500/20 border-red-500/40'
+                              }`}
+                            >
+                              <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">OPPONENT</div>
+                              <div className={`text-5xl md:text-6xl font-black mb-2 ${
+                                !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
+                              }`}>
+                                {oppPartsCorrect} out of {totalSteps}
+                              </div>
+                              <div className="text-sm text-white/60 font-mono">
+                                {oppPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - oppPartsCorrect} incorrect`}
+                              </div>
+                            </motion.div>
                           </div>
-                          <div className="text-xs text-white/60">
-                            Your answer: {myAnswer !== null ? String.fromCharCode(65 + myAnswer) : 'None'} | 
-                            Correct: {String.fromCharCode(65 + stepResult.correctAnswer)}
-                          </div>
-                        </div>
-                      )
-                    })}
+                          
+                          {/* Divider */}
+                          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent mb-6" />
+                          
+                          {/* Winner Announcement */}
+                          <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: 0.3 }}
+                            className="text-center mb-6"
+                          >
+                            {isTie ? (
+                              <div className="text-2xl font-bold text-blue-400">STALEMATE</div>
+                            ) : iWon ? (
+                              <div className="text-2xl font-bold text-green-400">YOU WON THIS ROUND</div>
+                            ) : (
+                              <div className="text-2xl font-bold text-red-400">OPPONENT WON THIS ROUND</div>
+                            )}
+                          </motion.div>
+                          
+                          {/* Step-by-step breakdown (optional, smaller) */}
+                          <details className="mt-4">
+                            <summary className="text-sm font-mono text-white/60 mb-3 uppercase tracking-wider cursor-pointer hover:text-white/80 transition-colors">
+                              Step Breakdown
+                            </summary>
+                            <div className="space-y-2 mt-3">
+                              {results.stepResults.map((stepResult, idx) => {
+                                const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
+                                const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
+                                const myCorrect = myAnswer === stepResult.correctAnswer
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`p-2 rounded-lg border text-left text-xs ${
+                                      myCorrect ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-bold">Step {stepResult.stepIndex + 1}</span>
+                                      <span className="font-mono">
+                                        {myCorrect ? '✓' : '✗'} {myMarks} pts
+                                      </span>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </details>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -676,17 +807,32 @@ export default function BattleConnected() {
                 )}
 
                 {!matchOver && (
-                  <>
-                    <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                      <motion.div 
-                        className="h-full bg-white/20"
-                        initial={{ width: '0%' }}
-                        animate={{ width: '100%' }}
-                        transition={{ duration: 3, ease: "linear" }}
-                      />
-                    </div>
-                    <div className="mt-2 text-xs font-mono text-white/30">NEXT ROUND STARTING...</div>
-                  </>
+                  <div className="mt-6">
+                    {!resultsAcknowledged ? (
+                      <button
+                        onClick={readyForNextRound}
+                        disabled={!isWebSocketConnected}
+                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-all shadow-lg ${
+                          isWebSocketConnected
+                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
+                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                        }`}
+                      >
+                        {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
+                      </button>
+                    ) : waitingForOpponentToAcknowledge ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                        <div className="text-sm font-mono text-white/60">
+                          WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm font-mono text-white/60 text-center">
+                        BOTH PLAYERS READY - STARTING NEXT ROUND...
+                      </div>
+                    )}
+                  </div>
                 )}
                 {matchOver && (
                   <div className="mt-4">

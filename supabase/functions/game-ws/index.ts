@@ -167,6 +167,9 @@ interface MatchState {
   playerRoundWins: Map<string, number> // playerId -> round wins
   p1Id: string | null
   p2Id: string | null
+  p1ResultsAcknowledged: boolean
+  p2ResultsAcknowledged: boolean
+  roundTransitionInProgress: boolean
 }
 
 const matchStates = new Map<string, MatchState>() // matchId -> MatchState
@@ -247,12 +250,18 @@ async function broadcastQuestion(
         targetRoundsToWin: 4,
         playerRoundWins: new Map(),
         p1Id: matchData?.player1_id || null,
-        p2Id: matchData?.player2_id || null
+        p2Id: matchData?.player2_id || null,
+        p1ResultsAcknowledged: false,
+        p2ResultsAcknowledged: false,
+        roundTransitionInProgress: false
       }
       matchStates.set(matchId, matchState)
     } else {
-      // New round - increment round number
+      // New round - increment round number and reset readiness
       matchState.roundNumber = (matchState.roundNumber || 0) + 1
+      matchState.p1ResultsAcknowledged = false
+      matchState.p2ResultsAcknowledged = false
+      matchState.roundTransitionInProgress = false
     }
 
     // Initialize or reset game state for this round
@@ -361,7 +370,10 @@ async function broadcastQuestion(
         targetRoundsToWin: 4,
         playerRoundWins: new Map(),
         p1Id: matchData?.player1_id || null,
-        p2Id: matchData?.player2_id || null
+        p2Id: matchData?.player2_id || null,
+        p1ResultsAcknowledged: false,
+        p2ResultsAcknowledged: false,
+        roundTransitionInProgress: false
       }
       matchStates.set(matchId, matchState)
     }
@@ -1173,6 +1185,14 @@ async function calculateStepResults(
   broadcastToMatch(matchId, resultsEvent)
   console.log(`[${matchId}] ✅ Step results calculated - P1: ${p1Score}, P2: ${p2Score}, Round Winner: ${winnerId || 'Tie'}, Match Over: ${matchOver}`)
 
+  // Initialize readiness tracking for results acknowledgment
+  const matchState = matchStates.get(matchId)
+  if (matchState) {
+    matchState.p1ResultsAcknowledged = false
+    matchState.p2ResultsAcknowledged = false
+    matchState.roundTransitionInProgress = false
+  }
+
   if (matchOver) {
     // Match finished - cleanup and don't start next round
     console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
@@ -1181,11 +1201,8 @@ async function calculateStepResults(
       cleanupGameState(matchId)
     }, 5000) // Give time for UI to show final results
   } else {
-    // Transition to next round after delay
-    setTimeout(async () => {
-      await handleRoundTransition(matchId, supabase)
-      // Don't cleanup game state - we need it for next round
-    }, 3000)
+    // Don't auto-transition - wait for both players to acknowledge results
+    console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
   }
 }
 
@@ -1433,6 +1450,11 @@ async function handleSubmitAnswer(
 
       broadcastToMatch(matchId, resultsEvent)
       
+      // Initialize readiness tracking for results acknowledgment
+      matchState.p1ResultsAcknowledged = false
+      matchState.p2ResultsAcknowledged = false
+      matchState.roundTransitionInProgress = false
+
       if (matchOver) {
         // Match finished - cleanup and don't start next round
         console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
@@ -1440,8 +1462,8 @@ async function handleSubmitAnswer(
       } else {
         // Increment round number for next round
         matchState.roundNumber = currentRoundNum + 1
-        // Stage 3: After RESULTS_RECEIVED, check match state and transition
-        await handleRoundTransition(matchId, supabase)
+        // Don't auto-transition - wait for both players to acknowledge results
+        console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
       }
     }
   } else {
@@ -1537,8 +1559,16 @@ async function handleSubmitAnswerV2(
     }
     broadcastToMatch(matchId, resultsEvent)
 
-    // Note: Next round will be started by server after delay or client signal
-    // Don't start it here to avoid double-firing
+    // Initialize readiness tracking for results acknowledgment
+    const matchState = matchStates.get(matchId)
+    if (matchState) {
+      matchState.p1ResultsAcknowledged = false
+      matchState.p2ResultsAcknowledged = false
+      matchState.roundTransitionInProgress = false
+    }
+
+    // Don't auto-transition - wait for both players to acknowledge results
+    console.log(`[${matchId}] ⏳ [V2] Waiting for both players to acknowledge results before starting next round`)
   } else {
     // Only one answered - get match to determine player role for broadcast
     const { data: matchData } = await supabase
@@ -1559,16 +1589,39 @@ async function handleSubmitAnswerV2(
 }
 
 /**
- * Handle round transition after RESULTS_RECEIVED
+ * Handle round transition after both players acknowledge results
+ * - Checks if both players are ready
  * - Fetches fresh match state from database
  * - If match finished, broadcasts MATCH_FINISHED
  * - If match continues, starts next round
+ * - Includes idempotency checks to prevent double-firing
  */
 async function handleRoundTransition(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   console.log(`[${matchId}] 🔄 Checking match state for round transition...`)
+  
+  const matchState = matchStates.get(matchId)
+  if (!matchState) {
+    console.error(`[${matchId}] ❌ No match state found for round transition`)
+    return
+  }
+
+  // Idempotency check: prevent double-firing
+  if (matchState.roundTransitionInProgress) {
+    console.log(`[${matchId}] ⚠️ Round transition already in progress - skipping`)
+    return
+  }
+
+  // Check if both players have acknowledged results
+  if (!matchState.p1ResultsAcknowledged || !matchState.p2ResultsAcknowledged) {
+    console.log(`[${matchId}] ⏳ Not all players ready - P1: ${matchState.p1ResultsAcknowledged}, P2: ${matchState.p2ResultsAcknowledged}`)
+    return
+  }
+
+  // Mark transition as in progress
+  matchState.roundTransitionInProgress = true
   
   // Fetch fresh match state from database (don't use cached state)
   const { data: dbMatchState, error: stateError } = await supabase
@@ -1579,6 +1632,7 @@ async function handleRoundTransition(
   
   if (stateError || !dbMatchState) {
     console.error(`[${matchId}] ❌ Failed to fetch match state:`, stateError)
+    matchState.roundTransitionInProgress = false
     return
   }
   
@@ -1586,9 +1640,7 @@ async function handleRoundTransition(
   if (dbMatchState.winner_id !== null) {
     console.log(`[${matchId}] 🏆 Match finished - winner: ${dbMatchState.winner_id}`)
     
-    // Get round number from in-memory state
-    const inMemoryState = matchStates.get(matchId)
-    const totalRounds = inMemoryState?.roundNumber || 0
+    const totalRounds = matchState.roundNumber || 0
     
     const matchFinishedEvent: MatchFinishedEvent = {
       type: 'MATCH_FINISHED',
@@ -1597,6 +1649,7 @@ async function handleRoundTransition(
     }
     
     broadcastToMatch(matchId, matchFinishedEvent)
+    matchStates.delete(matchId)
     return
   }
   
@@ -1619,24 +1672,31 @@ async function handleRoundTransition(
     // Check if RPC function doesn't exist (migration not applied)
     if (resetError.code === '42883' || resetError.message?.includes('does not exist') || resetError.message?.includes('function')) {
       console.warn(`[${matchId}] ⚠️ RPC function start_next_round_stage3 not found - Stage 3 migrations may not be applied`)
+      matchState.roundTransitionInProgress = false
       return
     }
     console.error(`[${matchId}] ❌ Error starting next round:`, resetError)
+    matchState.roundTransitionInProgress = false
     return
   }
   
   if (!resetResult?.success) {
     console.error(`[${matchId}] ❌ Failed to start next round:`, resetResult?.error)
+    matchState.roundTransitionInProgress = false
     return
   }
   
   console.log(`[${matchId}] ✅ Round reset successful - selecting next question...`)
   
+  // Reset readiness flags for next round
+  matchState.p1ResultsAcknowledged = false
+  matchState.p2ResultsAcknowledged = false
+  matchState.roundTransitionInProgress = false
+  
   // Select and broadcast next question
   await selectAndBroadcastQuestion(matchId, supabase)
   
   // Optionally broadcast ROUND_STARTED event (using in-memory state instead of DB columns)
-  const matchState = matchStates.get(matchId)
   if (matchState) {
     const roundStartedEvent: RoundStartedEvent = {
       type: 'ROUND_STARTED',
@@ -1646,6 +1706,80 @@ async function handleRoundTransition(
     }
     
     broadcastToMatch(matchId, roundStartedEvent)
+  }
+}
+
+/**
+ * Handle READY_FOR_NEXT_ROUND message
+ * - Marks player as ready for next round
+ * - Checks if both players are ready
+ * - Starts next round if both are ready
+ */
+async function handleReadyForNextRound(
+  matchId: string,
+  playerId: string,
+  socket: WebSocket,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  console.log(`[${matchId}] ✅ READY_FOR_NEXT_ROUND from player ${playerId}`)
+  
+  const matchState = matchStates.get(matchId)
+  if (!matchState) {
+    console.error(`[${matchId}] ❌ No match state found`)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'Match state not found'
+    } as GameErrorEvent))
+    return
+  }
+
+  // Determine which player this is
+  const isP1 = matchState.p1Id === playerId
+  const isP2 = matchState.p2Id === playerId
+
+  if (!isP1 && !isP2) {
+    console.error(`[${matchId}] ❌ Player ${playerId} not in match`)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'You are not part of this match'
+    } as GameErrorEvent))
+    return
+  }
+
+  // Mark player as ready
+  if (isP1) {
+    matchState.p1ResultsAcknowledged = true
+  } else {
+    matchState.p2ResultsAcknowledged = true
+  }
+
+  // Check if both players are ready
+  const bothReady = matchState.p1ResultsAcknowledged && matchState.p2ResultsAcknowledged
+
+  // Send acknowledgment to this player
+  const readyEvent = {
+    type: 'READY_FOR_NEXT_ROUND',
+    playerId,
+    waitingForOpponent: !bothReady
+  }
+  socket.send(JSON.stringify(readyEvent))
+
+  // Broadcast to opponent if they're waiting
+  if (!bothReady) {
+    const opponentId = isP1 ? matchState.p2Id : matchState.p1Id
+    const matchSockets = sockets.get(matchId)
+    if (matchSockets) {
+      matchSockets.forEach((s) => {
+        if (s !== socket && s.readyState === WebSocket.OPEN) {
+          s.send(JSON.stringify(readyEvent))
+        }
+      })
+    }
+    console.log(`[${matchId}] ⏳ Waiting for opponent - P1: ${matchState.p1ResultsAcknowledged}, P2: ${matchState.p2ResultsAcknowledged}`)
+  } else {
+    // Both players ready - start next round
+    console.log(`[${matchId}] ✅ Both players ready - starting next round`)
+    await handleRoundTransition(matchId, supabase)
   }
 }
 
@@ -1958,6 +2092,9 @@ Deno.serve(async (req) => {
           // V2: Always use handleSubmitAnswerV2 (migrations must be deployed first)
           await handleSubmitAnswerV2(matchId, user.id, message.answer, socket, supabase)
         }
+      } else if (message.type === 'READY_FOR_NEXT_ROUND') {
+        console.log(`[${matchId}] Processing READY_FOR_NEXT_ROUND from user ${user.id}`)
+        await handleReadyForNextRound(matchId, user.id, socket, supabase)
       } else {
         console.warn(`[${matchId}] Unknown message type: ${message.type}`)
         socket.send(JSON.stringify({

@@ -10,6 +10,8 @@ interface ConnectionState {
   question: any | null
   answerSubmitted: boolean
   waitingForOpponent: boolean
+  resultsAcknowledged: boolean
+  waitingForOpponentToAcknowledge: boolean
   results: {
     player1_answer: number | null
     player2_answer: number | null
@@ -84,6 +86,8 @@ export function useGame(match: MatchRow | null) {
     question: null,
     answerSubmitted: false,
     waitingForOpponent: false,
+    resultsAcknowledged: false,
+    waitingForOpponentToAcknowledge: false,
     results: null,
     // Stage 3: Tug-of-war state (deprecated, kept for compatibility)
     roundNumber: 0,
@@ -122,11 +126,22 @@ export function useGame(match: MatchRow | null) {
   const pollingIntervalRef = useRef<number | null>(null)
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const localResultsVersionRef = useRef<number>(0)
+  const processedRoundIdsRef = useRef<Set<string>>(new Set())
   const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
 
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
   const applyResults = useCallback((payload: any) => {
     console.log('[useGame] applyResults called with payload:', payload)
+    
+    // Prevent duplicate processing using round_id
+    const roundId = payload.round_id || payload.roundId
+    if (roundId && processedRoundIdsRef.current.has(roundId)) {
+      console.log('[useGame] Ignoring duplicate results for round_id:', roundId)
+      return
+    }
+    if (roundId) {
+      processedRoundIdsRef.current.add(roundId)
+    }
     
     // Build results object from payload (handles both simple and multi-step modes)
     const mode = payload.mode || 'simple'
@@ -139,7 +154,8 @@ export function useGame(match: MatchRow | null) {
       round_winner: payload.round_winner ?? null,
       p1Score: payload.p1?.total ?? 0,
       p2Score: payload.p2?.total ?? 0,
-      stepResults: mode === 'steps' ? payload.p1?.steps : undefined
+      stepResults: mode === 'steps' ? payload.p1?.steps : undefined,
+      round_id: roundId // Store round_id in results for reference
     }
 
     setState(prev => {
@@ -155,14 +171,16 @@ export function useGame(match: MatchRow | null) {
         phase: 'result' as const,
         results,
         waitingForOpponent: false,
+        resultsAcknowledged: false,
+        waitingForOpponentToAcknowledge: false,
         currentRoundNumber: payload.round_number ?? prev.currentRoundNumber,
         playerRoundWins: {
           ...prev.playerRoundWins,
           // Wins are in payload.p1.total and payload.p2.total but we'd need player IDs to map them
           // For now, keep existing wins - they'll be updated from match state
         },
-        matchOver: false, // Will be determined from match status
-        matchWinnerId: null
+        matchOver: payload.match_over ?? false,
+        matchWinnerId: payload.match_winner_id ?? null
       }
     })
 
@@ -434,6 +452,8 @@ export function useGame(match: MatchRow | null) {
               }
             } else if (message.type === 'ROUND_START') {
               console.log('[useGame] ROUND_START message received - game starting!', message)
+              // Clear processed round IDs and results when new round starts
+              processedRoundIdsRef.current.clear()
               const roundStartEvent = message as RoundStartEvent
               if (roundStartEvent.phase === 'main_question') {
                 // Multi-step question - main question phase
@@ -447,7 +467,9 @@ export function useGame(match: MatchRow | null) {
                   currentStepIndex: 0,
                   answerSubmitted: false,
                   waitingForOpponent: false,
-                  results: null,
+                  resultsAcknowledged: false,
+                  waitingForOpponentToAcknowledge: false,
+                  results: null, // Clear results when new round starts
                   errorMessage: null
                 }))
               } else {
@@ -457,6 +479,9 @@ export function useGame(match: MatchRow | null) {
                   status: 'playing',
                   phase: 'question',
                   question: roundStartEvent.question,
+                  resultsAcknowledged: false,
+                  waitingForOpponentToAcknowledge: false,
+                  results: null, // Clear results when new round starts
                   errorMessage: null
                 }))
               }
@@ -547,15 +572,25 @@ export function useGame(match: MatchRow | null) {
                 }
                 applyResults(payload)
               }
+            } else if (message.type === 'READY_FOR_NEXT_ROUND') {
+              console.log('[useGame] READY_FOR_NEXT_ROUND message received', message)
+              setState(prev => ({
+                ...prev,
+                waitingForOpponentToAcknowledge: message.waitingForOpponent ?? false
+              }))
             } else if (message.type === 'ROUND_STARTED') {
               console.log('[useGame] ROUND_STARTED message received - new round starting')
+              // Clear processed round IDs to allow new round results
+              processedRoundIdsRef.current.clear()
               setState(prev => ({
                 ...prev,
                 status: 'playing',
                 phase: 'question',
                 answerSubmitted: false,
                 waitingForOpponent: false,
-                results: null,
+                resultsAcknowledged: false,
+                waitingForOpponentToAcknowledge: false,
+                results: null, // Clear results when new round starts
                 roundNumber: message.round_number || 0,
                 lastRoundWinner: message.last_round_winner,
                 consecutiveWinsCount: message.consecutive_wins_count || 0,
@@ -572,6 +607,8 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'MATCH_FINISHED') {
               console.log('[useGame] MATCH_FINISHED message received')
+              // Clear processed round IDs and results when match ends
+              processedRoundIdsRef.current.clear()
               setState(prev => ({
                 ...prev,
                 status: 'match_finished',
@@ -579,7 +616,10 @@ export function useGame(match: MatchRow | null) {
                 matchWinner: message.winner_id,
                 totalRounds: message.total_rounds || 0,
                 answerSubmitted: false,
-                waitingForOpponent: false
+                waitingForOpponent: false,
+                resultsAcknowledged: false,
+                waitingForOpponentToAcknowledge: false,
+                results: null // Clear results when match ends
               }))
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
@@ -1085,6 +1125,32 @@ export function useGame(match: MatchRow | null) {
     })
   }, [])
 
+  const readyForNextRound = useCallback(() => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.error('[useGame] WebSocket not connected')
+      return
+    }
+
+    setState(prev => {
+      if (prev.resultsAcknowledged) {
+        console.warn('[useGame] Already acknowledged results')
+        return prev
+      }
+
+      const readyMessage = {
+        type: 'READY_FOR_NEXT_ROUND'
+      }
+      console.log('[useGame] Sending READY_FOR_NEXT_ROUND:', readyMessage)
+      ws.send(JSON.stringify(readyMessage))
+      
+      return {
+        ...prev,
+        resultsAcknowledged: true
+      }
+    })
+  }, [])
+
   return {
     status: state.status,
     playerRole: state.playerRole,
@@ -1092,6 +1158,8 @@ export function useGame(match: MatchRow | null) {
     question: state.question,
     answerSubmitted: state.answerSubmitted,
     waitingForOpponent: state.waitingForOpponent,
+    resultsAcknowledged: state.resultsAcknowledged,
+    waitingForOpponentToAcknowledge: state.waitingForOpponentToAcknowledge,
     results: state.results,
     // Stage 3: Tug-of-war state
     roundNumber: state.roundNumber,
@@ -1114,6 +1182,7 @@ export function useGame(match: MatchRow | null) {
     currentStep: state.currentStep,
     submitEarlyAnswer,
     submitStepAnswer,
+    readyForNextRound,
     // Match-level state (rounds system)
     currentRoundNumber: state.currentRoundNumber,
     targetRoundsToWin: state.targetRoundsToWin,
