@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -202,16 +202,20 @@ export default function AdminQuestions() {
 
   // Handle URL parameters for create/edit mode
   useEffect(() => {
-    if (!isAdmin || questions.length === 0) return;
+    if (!isAdmin) return;
 
     const createParam = searchParams.get('create');
     const editParam = searchParams.get('edit');
 
     if (createParam !== null) {
-      handleNewQuestion();
+      // Trigger create mode immediately
+      setMode('creating');
+      setSelectedQuestionId(null);
+      setForm(getEmptyForm());
       // Clean up URL
       navigate('/admin/questions', { replace: true });
-    } else if (editParam) {
+    } else if (editParam && questions.length > 0) {
+      // Only handle edit if questions are loaded
       const question = questions.find(q => q.id === editParam);
       if (question) {
         handleSelectQuestion(question);
