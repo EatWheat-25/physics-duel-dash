@@ -93,7 +93,39 @@ BEGIN
   END IF;
 END $$;
 
--- 4. Check for any other foreign keys referencing questions_v2
+-- 4. Fix matches.question_id foreign key (if it exists)
+DO $$
+BEGIN
+  -- Check if matches table has question_id column and constraint
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'matches' 
+    AND column_name = 'question_id'
+  ) THEN
+    -- Drop existing constraint if it exists
+    IF EXISTS (
+      SELECT 1 FROM information_schema.table_constraints 
+      WHERE constraint_name = 'matches_question_id_fkey' 
+      AND table_name = 'matches'
+      AND table_schema = 'public'
+    ) THEN
+      ALTER TABLE public.matches 
+        DROP CONSTRAINT matches_question_id_fkey;
+    END IF;
+
+    -- Recreate with ON DELETE CASCADE
+    ALTER TABLE public.matches
+      ADD CONSTRAINT matches_question_id_fkey
+      FOREIGN KEY (question_id)
+      REFERENCES public.questions_v2(id)
+      ON DELETE CASCADE;
+    
+    RAISE NOTICE 'Fixed matches.question_id foreign key with CASCADE';
+  END IF;
+END $$;
+
+-- 5. Check for any other foreign keys referencing questions_v2
 DO $$
 DECLARE
   constraint_record RECORD;
@@ -117,7 +149,8 @@ BEGIN
       AND tc.constraint_name NOT IN (
         'match_rounds_question_id_fkey',
         'match_answers_question_id_fkey',
-        'match_questions_question_id_fkey'
+        'match_questions_question_id_fkey',
+        'matches_question_id_fkey'
       )
   LOOP
     -- Log any other foreign keys found

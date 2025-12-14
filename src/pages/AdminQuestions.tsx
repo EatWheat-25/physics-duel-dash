@@ -468,9 +468,9 @@ export default function AdminQuestions() {
     try {
       // Try using the RPC function first (more reliable, handles everything in a transaction)
       const { data: rpcResult, error: rpcError } = await supabase
-        .rpc('delete_question_cascade', { p_question_id: selectedQuestionId });
+        .rpc('delete_question_cascade' as any, { p_question_id: selectedQuestionId });
 
-      if (!rpcError && rpcResult && rpcResult.success) {
+      if (!rpcError && rpcResult && typeof rpcResult === 'object' && rpcResult !== null && 'success' in rpcResult && (rpcResult as any).success) {
         // RPC function succeeded
         toast.success('Question deleted successfully!');
         setMode('idle');
@@ -515,6 +515,25 @@ export default function AdminQuestions() {
         console.warn('[AdminQuestions] Error deleting match_questions (table may not exist):', matchQuestionsError);
       }
 
+      // Handle matches table if it has question_id column
+      // Try to update to NULL first, then delete if that fails
+      const { error: matchesUpdateError } = await supabase
+        .from('matches')
+        .update({ question_id: null } as any)
+        .eq('question_id' as any, selectedQuestionId);
+
+      if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
+        // If update to NULL fails (column not nullable), try deleting matches
+        const { error: matchesDeleteError } = await supabase
+          .from('matches')
+          .delete()
+          .eq('question_id' as any, selectedQuestionId);
+        
+        if (matchesDeleteError && !matchesDeleteError.message.includes('does not exist')) {
+          console.warn('[AdminQuestions] Error handling matches:', matchesDeleteError);
+        }
+      }
+
       // Now delete the question itself
       const { error } = await supabase
         .from('questions_v2')
@@ -526,9 +545,9 @@ export default function AdminQuestions() {
         // Try one more time with the RPC if it was just a timing issue
         if (error.message?.includes('foreign key constraint') || error.message?.includes('violates')) {
           const { data: retryResult, error: retryError } = await supabase
-            .rpc('delete_question_cascade', { p_question_id: selectedQuestionId });
+            .rpc('delete_question_cascade' as any, { p_question_id: selectedQuestionId });
           
-          if (!retryError && retryResult && retryResult.success) {
+          if (!retryError && retryResult && typeof retryResult === 'object' && retryResult !== null && 'success' in retryResult && (retryResult as any).success) {
             toast.success('Question deleted successfully!');
             setMode('idle');
             setSelectedQuestionId(null);
@@ -561,9 +580,9 @@ export default function AdminQuestions() {
     try {
       // Try using the RPC function first (more reliable, handles everything in a transaction)
       const { data: rpcResult, error: rpcError } = await supabase
-        .rpc('delete_question_cascade', { p_question_id: questionId });
+        .rpc('delete_question_cascade' as any, { p_question_id: questionId });
 
-      if (!rpcError && rpcResult && rpcResult.success) {
+      if (!rpcError && rpcResult && typeof rpcResult === 'object' && rpcResult !== null && 'success' in rpcResult && (rpcResult as any).success) {
         // RPC function succeeded
         toast.success('Question deleted successfully!');
         
@@ -613,6 +632,25 @@ export default function AdminQuestions() {
         console.warn('[AdminQuestions] Error deleting match_questions (table may not exist):', matchQuestionsError);
       }
 
+      // Handle matches table if it has question_id column
+      // Try to update to NULL first, then delete if that fails
+      const { error: matchesUpdateError } = await supabase
+        .from('matches')
+        .update({ question_id: null } as any)
+        .eq('question_id' as any, questionId);
+
+      if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
+        // If update to NULL fails (column not nullable), try deleting matches
+        const { error: matchesDeleteError } = await supabase
+          .from('matches')
+          .delete()
+          .eq('question_id' as any, questionId);
+        
+        if (matchesDeleteError && !matchesDeleteError.message.includes('does not exist')) {
+          console.warn('[AdminQuestions] Error handling matches:', matchesDeleteError);
+        }
+      }
+
       // Now delete the question itself
       const { error } = await supabase
         .from('questions_v2')
@@ -624,9 +662,9 @@ export default function AdminQuestions() {
         // Try one more time with the RPC if it was just a timing issue
         if (error.message?.includes('foreign key constraint') || error.message?.includes('violates')) {
           const { data: retryResult, error: retryError } = await supabase
-            .rpc('delete_question_cascade', { p_question_id: questionId });
+            .rpc('delete_question_cascade' as any, { p_question_id: questionId });
           
-          if (!retryError && retryResult && retryResult.success) {
+          if (!retryError && retryResult && typeof retryResult === 'object' && retryResult !== null && 'success' in retryResult && (retryResult as any).success) {
             toast.success('Question deleted successfully!');
             if (selectedQuestionId === questionId) {
               setMode('idle');

@@ -35,6 +35,34 @@ BEGIN
     RAISE NOTICE 'Deleted % match_questions', v_deleted_count;
   END IF;
 
+  -- Handle matches table if it has question_id column
+  -- Try to set to NULL first (if column allows NULL), otherwise delete matches
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'matches' 
+    AND column_name = 'question_id'
+  ) THEN
+    -- Check if column allows NULL
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'matches' 
+      AND column_name = 'question_id'
+      AND is_nullable = 'YES'
+    ) THEN
+      -- Set to NULL if allowed
+      UPDATE public.matches SET question_id = NULL WHERE question_id = p_question_id;
+      GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+      RAISE NOTICE 'Set question_id to NULL in % matches', v_deleted_count;
+    ELSE
+      -- Column doesn't allow NULL, so we need to delete the matches
+      DELETE FROM public.matches WHERE question_id = p_question_id;
+      GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+      RAISE NOTICE 'Deleted % matches (question_id not nullable)', v_deleted_count;
+    END IF;
+  END IF;
+
   -- Finally, delete the question itself
   DELETE FROM public.questions_v2 WHERE id = p_question_id;
   
@@ -70,5 +98,5 @@ GRANT EXECUTE ON FUNCTION public.delete_question_cascade(UUID) TO authenticated;
 
 -- Add comment
 COMMENT ON FUNCTION public.delete_question_cascade(UUID) IS 
-  'Safely deletes a question and all related records (match_answers, match_rounds, match_questions) in a transaction. Returns JSONB with success status.';
+  'Safely deletes a question and all related records (match_answers, match_rounds, match_questions, matches) in a transaction. Returns JSONB with success status.';
 
