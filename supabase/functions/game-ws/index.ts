@@ -1011,31 +1011,35 @@ async function checkStepTimeout(
     const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
     
     // Check if each player has answered all steps
-    // NOTE: Eliminated players are NOT considered "complete" - they failed
-    let p1AllComplete = false
-    let p2AllComplete = false
+    // IMPORTANT: Check actual completion first - if a player answered all steps,
+    // they are complete regardless of elimination status (elimination might be from a race condition)
+    let p1AllComplete = true
+    let p2AllComplete = true
     
-    if (!p1Eliminated) {
-      p1AllComplete = true
-      for (let i = 0; i < steps.length; i++) {
-        if (!p1Answers.has(i)) {
-          p1AllComplete = false
-          break
-        }
+    // Check if p1 answered all steps
+    for (let i = 0; i < steps.length; i++) {
+      if (!p1Answers.has(i)) {
+        p1AllComplete = false
+        break
       }
     }
-    // If p1 is eliminated, p1AllComplete stays false
     
-    if (!p2Eliminated) {
-      p2AllComplete = true
-      for (let i = 0; i < steps.length; i++) {
-        if (!p2Answers.has(i)) {
-          p2AllComplete = false
-          break
-        }
+    // Check if p2 answered all steps
+    for (let i = 0; i < steps.length; i++) {
+      if (!p2Answers.has(i)) {
+        p2AllComplete = false
+        break
       }
     }
-    // If p2 is eliminated, p2AllComplete stays false
+    
+    // If a player is eliminated AND didn't answer all steps, they're not complete
+    // But if they answered all steps, they ARE complete (even if marked eliminated due to race condition)
+    if (p1Eliminated && !p1AllComplete) {
+      p1AllComplete = false
+    }
+    if (p2Eliminated && !p2AllComplete) {
+      p2AllComplete = false
+    }
     
     // Update completion flags
     state.p1AllStepsComplete = p1AllComplete
@@ -1474,41 +1478,52 @@ async function handleStepAnswer(
       const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
       
       // Check if each player has answered all steps
-      // NOTE: Eliminated players are NOT considered "complete" - they failed
-      let p1AllComplete = false
-      let p2AllComplete = false
+      // IMPORTANT: Check actual completion first - if a player answered all steps,
+      // they are complete regardless of elimination status (elimination might be from a race condition)
+      let p1AllComplete = true
+      let p2AllComplete = true
       
-      if (!p1Eliminated) {
-        p1AllComplete = true
-        for (let i = 0; i < steps.length; i++) {
-          if (!p1Answers.has(i)) {
-            p1AllComplete = false
-            break
-          }
+      // Check if p1 answered all steps
+      for (let i = 0; i < steps.length; i++) {
+        if (!p1Answers.has(i)) {
+          p1AllComplete = false
+          break
         }
       }
-      // If p1 is eliminated, p1AllComplete stays false
       
-      if (!p2Eliminated) {
-        p2AllComplete = true
-        for (let i = 0; i < steps.length; i++) {
-          if (!p2Answers.has(i)) {
-            p2AllComplete = false
-            break
-          }
+      // Check if p2 answered all steps
+      for (let i = 0; i < steps.length; i++) {
+        if (!p2Answers.has(i)) {
+          p2AllComplete = false
+          break
         }
       }
-      // If p2 is eliminated, p2AllComplete stays false
+      
+      // If a player is eliminated AND didn't answer all steps, they're not complete
+      // But if they answered all steps, they ARE complete (even if marked eliminated due to race condition)
+      if (p1Eliminated && !p1AllComplete) {
+        p1AllComplete = false
+      }
+      if (p2Eliminated && !p2AllComplete) {
+        p2AllComplete = false
+      }
       
       // Update completion flags
       state.p1AllStepsComplete = p1AllComplete
       state.p2AllStepsComplete = p2AllComplete
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1507',message:'LAST STEP COMPLETION CHECK',data:{matchId,stepIndex,p1Id:state.p1Id,p2Id:state.p2Id,p1Eliminated,p2Eliminated,p1AnswersCount:p1Answers.size,p2AnswersCount:p2Answers.size,p1AllComplete,p2AllComplete,stepsLength:steps.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       console.log(`[${matchId}] 🔍 DEBUG: Last step ${stepIndex} completed - p1AllComplete=${p1AllComplete} (eliminated=${p1Eliminated}), p2AllComplete=${p2AllComplete} (eliminated=${p2Eliminated})`)
+      console.log(`[${matchId}] 🔍 DEBUG: p1Answers keys: [${Array.from(p1Answers.keys()).join(', ')}], p2Answers keys: [${Array.from(p2Answers.keys()).join(', ')}]`)
       
       if (p1AllComplete && p2AllComplete) {
         // Both players completed all steps - calculate results
         console.log(`[${matchId}] ✅ Both players completed all steps - calculating results`)
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1510',message:'BOTH COMPLETE - CALLING calculateStepResults',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         // #region agent log
       fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1044',message:'CALLING calculateStepResults FROM TIMEOUT',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
@@ -1519,6 +1534,9 @@ async function handleStepAnswer(
       } else {
         // One player finished but other hasn't - send waiting state
         console.log(`[${matchId}] ⏳ One player completed all steps - waiting for opponent (P1: ${p1AllComplete}, P2: ${p2AllComplete})`)
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1520',message:'NOT BOTH COMPLETE - BROADCASTING WAITING',data:{matchId,stepIndex,p1AllComplete,p2AllComplete,p1Eliminated,p2Eliminated},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         
         // Broadcast waiting state to both players
         const waitingEvent = {
