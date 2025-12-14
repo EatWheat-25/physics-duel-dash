@@ -466,6 +466,23 @@ export default function AdminQuestions() {
     if (!confirm('Are you sure you want to delete this question? This cannot be undone.')) return;
 
     try {
+      // Try using the RPC function first (more reliable, handles everything in a transaction)
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('delete_question_cascade', { p_question_id: selectedQuestionId });
+
+      if (!rpcError && rpcResult && rpcResult.success) {
+        // RPC function succeeded
+        toast.success('Question deleted successfully!');
+        setMode('idle');
+        setSelectedQuestionId(null);
+        setForm(getEmptyForm());
+        fetchQuestions();
+        return;
+      }
+
+      // If RPC function doesn't exist or failed, fall back to manual deletion
+      console.log('[AdminQuestions] RPC function not available or failed, using manual deletion');
+      
       // Delete related records first to avoid foreign key constraint violations
       // Delete match_answers that reference this question
       const { error: answersError } = await supabase
@@ -473,7 +490,7 @@ export default function AdminQuestions() {
         .delete()
         .eq('question_id', selectedQuestionId);
 
-      if (answersError) {
+      if (answersError && !answersError.message.includes('does not exist')) {
         console.warn('[AdminQuestions] Error deleting match_answers:', answersError);
       }
 
@@ -483,7 +500,7 @@ export default function AdminQuestions() {
         .delete()
         .eq('question_id', selectedQuestionId);
 
-      if (roundsError) {
+      if (roundsError && !roundsError.message.includes('does not exist')) {
         console.warn('[AdminQuestions] Error deleting match_rounds:', roundsError);
       }
 
@@ -493,7 +510,7 @@ export default function AdminQuestions() {
         .delete()
         .eq('question_id', selectedQuestionId);
 
-      if (matchQuestionsError) {
+      if (matchQuestionsError && !matchQuestionsError.message.includes('does not exist')) {
         // Table might not exist, which is fine
         console.warn('[AdminQuestions] Error deleting match_questions (table may not exist):', matchQuestionsError);
       }
@@ -505,6 +522,21 @@ export default function AdminQuestions() {
         .eq('id', selectedQuestionId);
 
       if (error) {
+        // If we still get a foreign key error, it means CASCADE isn't working
+        // Try one more time with the RPC if it was just a timing issue
+        if (error.message?.includes('foreign key constraint') || error.message?.includes('violates')) {
+          const { data: retryResult, error: retryError } = await supabase
+            .rpc('delete_question_cascade', { p_question_id: selectedQuestionId });
+          
+          if (!retryError && retryResult && retryResult.success) {
+            toast.success('Question deleted successfully!');
+            setMode('idle');
+            setSelectedQuestionId(null);
+            setForm(getEmptyForm());
+            fetchQuestions();
+            return;
+          }
+        }
         throw error;
       }
 
@@ -527,6 +559,28 @@ export default function AdminQuestions() {
     }
 
     try {
+      // Try using the RPC function first (more reliable, handles everything in a transaction)
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('delete_question_cascade', { p_question_id: questionId });
+
+      if (!rpcError && rpcResult && rpcResult.success) {
+        // RPC function succeeded
+        toast.success('Question deleted successfully!');
+        
+        // If deleted question was selected, clear selection
+        if (selectedQuestionId === questionId) {
+          setMode('idle');
+          setSelectedQuestionId(null);
+          setForm(getEmptyForm());
+        }
+        
+        fetchQuestions();
+        return;
+      }
+
+      // If RPC function doesn't exist or failed, fall back to manual deletion
+      console.log('[AdminQuestions] RPC function not available or failed, using manual deletion');
+      
       // Delete related records first to avoid foreign key constraint violations
       // Delete match_answers that reference this question
       const { error: answersError } = await supabase
@@ -534,7 +588,7 @@ export default function AdminQuestions() {
         .delete()
         .eq('question_id', questionId);
 
-      if (answersError) {
+      if (answersError && !answersError.message.includes('does not exist')) {
         console.warn('[AdminQuestions] Error deleting match_answers:', answersError);
       }
 
@@ -544,7 +598,7 @@ export default function AdminQuestions() {
         .delete()
         .eq('question_id', questionId);
 
-      if (roundsError) {
+      if (roundsError && !roundsError.message.includes('does not exist')) {
         console.warn('[AdminQuestions] Error deleting match_rounds:', roundsError);
       }
 
@@ -554,7 +608,7 @@ export default function AdminQuestions() {
         .delete()
         .eq('question_id', questionId);
 
-      if (matchQuestionsError) {
+      if (matchQuestionsError && !matchQuestionsError.message.includes('does not exist')) {
         // Table might not exist, which is fine
         console.warn('[AdminQuestions] Error deleting match_questions (table may not exist):', matchQuestionsError);
       }
@@ -566,6 +620,23 @@ export default function AdminQuestions() {
         .eq('id', questionId);
 
       if (error) {
+        // If we still get a foreign key error, it means CASCADE isn't working
+        // Try one more time with the RPC if it was just a timing issue
+        if (error.message?.includes('foreign key constraint') || error.message?.includes('violates')) {
+          const { data: retryResult, error: retryError } = await supabase
+            .rpc('delete_question_cascade', { p_question_id: questionId });
+          
+          if (!retryError && retryResult && retryResult.success) {
+            toast.success('Question deleted successfully!');
+            if (selectedQuestionId === questionId) {
+              setMode('idle');
+              setSelectedQuestionId(null);
+              setForm(getEmptyForm());
+            }
+            fetchQuestions();
+            return;
+          }
+        }
         throw error;
       }
 

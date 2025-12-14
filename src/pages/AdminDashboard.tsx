@@ -103,6 +103,27 @@ export default function AdminDashboard() {
 
     setDeletingId(questionId);
     try {
+      // Try using the RPC function first (more reliable, handles everything in a transaction)
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('delete_question_cascade', { p_question_id: questionId });
+
+      if (!rpcError && rpcResult && rpcResult.success) {
+        // RPC function succeeded
+        toast.success('Question deleted successfully!');
+        
+        // Remove from local state
+        setQuestions(prev => prev.filter(q => q.id !== questionId));
+        
+        // Clear selection if deleted question was selected
+        if (selectedQuestionId === questionId) {
+          setSelectedQuestionId(null);
+        }
+        return;
+      }
+
+      // If RPC function doesn't exist or failed, fall back to manual deletion
+      console.log('[AdminDashboard] RPC function not available or failed, using manual deletion');
+      
       // Delete related records first to avoid foreign key constraint violations
       // Delete match_answers that reference this question
       const { error: answersError } = await supabase
@@ -110,7 +131,7 @@ export default function AdminDashboard() {
         .delete()
         .eq('question_id', questionId);
 
-      if (answersError) {
+      if (answersError && !answersError.message.includes('does not exist')) {
         console.warn('[AdminDashboard] Error deleting match_answers:', answersError);
       }
 
@@ -120,7 +141,7 @@ export default function AdminDashboard() {
         .delete()
         .eq('question_id', questionId);
 
-      if (roundsError) {
+      if (roundsError && !roundsError.message.includes('does not exist')) {
         console.warn('[AdminDashboard] Error deleting match_rounds:', roundsError);
       }
 
@@ -130,7 +151,7 @@ export default function AdminDashboard() {
         .delete()
         .eq('question_id', questionId);
 
-      if (matchQuestionsError) {
+      if (matchQuestionsError && !matchQuestionsError.message.includes('does not exist')) {
         // Table might not exist, which is fine
         console.warn('[AdminDashboard] Error deleting match_questions (table may not exist):', matchQuestionsError);
       }
@@ -142,6 +163,21 @@ export default function AdminDashboard() {
         .eq('id', questionId);
 
       if (error) {
+        // If we still get a foreign key error, it means CASCADE isn't working
+        // Try one more time with the RPC if it was just a timing issue
+        if (error.message?.includes('foreign key constraint') || error.message?.includes('violates')) {
+          const { data: retryResult, error: retryError } = await supabase
+            .rpc('delete_question_cascade', { p_question_id: questionId });
+          
+          if (!retryError && retryResult && retryResult.success) {
+            toast.success('Question deleted successfully!');
+            setQuestions(prev => prev.filter(q => q.id !== questionId));
+            if (selectedQuestionId === questionId) {
+              setSelectedQuestionId(null);
+            }
+            return;
+          }
+        }
         throw error;
       }
 
