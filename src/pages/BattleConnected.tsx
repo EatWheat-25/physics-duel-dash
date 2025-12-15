@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -15,13 +15,6 @@ export default function BattleConnected() {
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
-  const [shouldAnimateMyWins, setShouldAnimateMyWins] = useState<boolean>(false);
-  const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
-  const prevMyWinsRef = useRef<number>(0);
-  const prevOppWinsRef = useRef<number>(0);
-  const [selectedStepAnswer, setSelectedStepAnswer] = useState<number | null>(null);
-  const [isStepTransitioning, setIsStepTransitioning] = useState(false);
-  const prevStepIndexRef = useRef<number>(0);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -82,32 +75,8 @@ export default function BattleConnected() {
     matchFinished, matchWinner, timeRemaining, submitAnswer,
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, currentStep, submitEarlyAnswer, submitStepAnswer,
-    currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
-    isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
-    allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
+    currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId
   } = useGame(match);
-
-  // Track round wins for animation
-  useEffect(() => {
-    const isPlayer1 = match?.player1_id === currentUser;
-    const opponentId = isPlayer1 ? match?.player2_id : match?.player1_id;
-    const myWins = playerRoundWins?.[currentUser || ''] || 0;
-    const oppWins = playerRoundWins?.[opponentId || ''] || 0;
-    
-    // Check if my wins increased
-    if (myWins > prevMyWinsRef.current) {
-      setShouldAnimateMyWins(true);
-      setTimeout(() => setShouldAnimateMyWins(false), 600);
-    }
-    prevMyWinsRef.current = myWins;
-    
-    // Check if opponent wins increased
-    if (oppWins > prevOppWinsRef.current) {
-      setShouldAnimateOppWins(true);
-      setTimeout(() => setShouldAnimateOppWins(false), 600);
-    }
-    prevOppWinsRef.current = oppWins;
-  }, [playerRoundWins, currentUser, match]);
 
   // Round Intro Effect
   useEffect(() => {
@@ -117,27 +86,6 @@ export default function BattleConnected() {
       return () => clearTimeout(timer);
     }
   }, [roundNumber, status]);
-
-  // Auto-submit when timer expires (if option is selected)
-  useEffect(() => {
-    if (stepTimeLeft === 0 && selectedStepAnswer !== null && !answerSubmitted && phase === 'steps') {
-      console.log('[BattleConnected] Auto-submitting step answer due to timer expiration')
-      submitStepAnswer(currentStepIndex, selectedStepAnswer)
-    }
-  }, [stepTimeLeft, selectedStepAnswer, answerSubmitted, phase, currentStepIndex, submitStepAnswer])
-
-  // Reset selected answer when step changes
-  useEffect(() => {
-    if (prevStepIndexRef.current !== currentStepIndex && phase === 'steps') {
-      setSelectedStepAnswer(null)
-      setIsStepTransitioning(true)
-      const timer = setTimeout(() => {
-        setIsStepTransitioning(false)
-      }, 1000) // 1 second delay
-      prevStepIndexRef.current = currentStepIndex
-      return () => clearTimeout(timer)
-    }
-  }, [currentStepIndex, phase])
 
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
@@ -253,36 +201,31 @@ export default function BattleConnected() {
         <div className="grid grid-cols-3 gap-4 mb-8 items-end">
           {/* Player Stats */}
           <div className="flex flex-col items-start">
-            {/* Round Win Counter - Large and Prominent */}
-            <div className="mb-3">
-              <motion.div
-                key={`my-wins-${playerRoundWins?.[currentUser || ''] || 0}`}
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ 
-                  scale: shouldAnimateMyWins ? [1, 1.4, 1] : 1,
-                  opacity: 1,
-                }}
-                transition={{ 
-                  duration: 0.6,
-                  ease: "easeOut",
-                  scale: shouldAnimateMyWins ? {
-                    times: [0, 0.3, 1],
-                    duration: 0.6
-                  } : { duration: 0.3 }
-                }}
-                className="text-6xl md:text-7xl font-black text-blue-400 drop-shadow-[0_0_20px_rgba(96,165,250,0.6)]"
-              >
-                {playerRoundWins?.[currentUser || ''] || 0}
-              </motion.div>
-            </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-blue-400/30">
                 <span className="font-bold text-lg">Y</span>
               </div>
               <div>
                 <div className="text-xs text-blue-200/50 font-mono mb-0.5">OPERATOR</div>
-                <div className="font-bold text-shadow-glow text-lg">YOU</div>
+                <div className="font-bold text-shadow-glow">YOU</div>
               </div>
+            </div>
+            {/* Round Wins Display */}
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="text-xs text-white/40 font-mono">Wins:</span>
+              {Array.from({ length: targetRoundsToWin || 4 }).map((_, idx) => {
+                const myWins = playerRoundWins?.[currentUser || ''] || 0
+                return (
+                  <div
+                    key={idx}
+                    className={`w-3 h-3 rounded-full transition-all ${
+                      idx < myWins
+                        ? 'bg-blue-500 ring-1 ring-blue-400'
+                        : 'bg-white/10 ring-1 ring-white/20'
+                    }`}
+                  />
+                )
+              })}
             </div>
           </div>
 
@@ -310,29 +253,7 @@ export default function BattleConnected() {
 
           {/* Opponent Stats */}
           <div className="flex flex-col items-end">
-            {/* Round Win Counter - Large and Prominent */}
-            <div className="mb-3">
-              <motion.div
-                key={`opp-wins-${playerRoundWins?.[opponentId || ''] || 0}`}
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ 
-                  scale: shouldAnimateOppWins ? [1, 1.4, 1] : 1,
-                  opacity: 1,
-                }}
-                transition={{ 
-                  duration: 0.6,
-                  ease: "easeOut",
-                  scale: shouldAnimateOppWins ? {
-                    times: [0, 0.3, 1],
-                    duration: 0.6
-                  } : { duration: 0.3 }
-                }}
-                className="text-6xl md:text-7xl font-black text-red-400 drop-shadow-[0_0_20px_rgba(248,113,113,0.6)]"
-              >
-                {playerRoundWins?.[opponentId || ''] || 0}
-              </motion.div>
-            </div>
-            <div className="flex items-center gap-3 flex-row-reverse text-right">
+            <div className="flex items-center gap-3 mb-2 flex-row-reverse text-right">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-colors ring-1 ${
                 status === 'playing' || status === 'results' 
                   ? 'bg-gradient-to-br from-red-600 to-red-800 shadow-red-500/20 ring-red-400/30' 
@@ -342,8 +263,25 @@ export default function BattleConnected() {
               </div>
               <div>
                 <div className="text-xs text-red-200/50 font-mono mb-0.5">TARGET</div>
-                <div className="font-bold text-shadow-glow text-lg">OPPONENT</div>
+                <div className="font-bold text-shadow-glow">OPPONENT</div>
               </div>
+            </div>
+            {/* Round Wins Display */}
+            <div className="flex items-center gap-1.5 mt-2">
+              {Array.from({ length: targetRoundsToWin || 4 }).map((_, idx) => {
+                const oppWins = playerRoundWins?.[opponentId || ''] || 0
+                return (
+                  <div
+                    key={idx}
+                    className={`w-3 h-3 rounded-full transition-all ${
+                      idx < oppWins
+                        ? 'bg-red-500 ring-1 ring-red-400'
+                        : 'bg-white/10 ring-1 ring-white/20'
+                    }`}
+                  />
+                )
+              })}
+              <span className="text-xs text-white/40 font-mono ml-1">Wins</span>
             </div>
           </div>
         </div>
@@ -391,7 +329,7 @@ export default function BattleConnected() {
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
                   <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   
-                  <div className="text-center">
+                  <div className="text-center mb-6">
                     <div className="text-sm text-blue-400/60 font-mono mb-4 uppercase tracking-wider">
                       Main Question
                     </div>
@@ -402,38 +340,19 @@ export default function BattleConnected() {
                       {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
                     </div>
                   </div>
-                </div>
-                
-                {/* Separate Early Answer Button - OUTSIDE card */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="w-full max-w-3xl mt-6"
-                >
+
                   <button
-                    onClick={() => {
-                      if (!isWebSocketConnected) {
-                        toast.error('Connection lost. Please wait for reconnection...');
-                        return;
-                      }
-                      submitEarlyAnswer();
-                    }}
-                    disabled={!isWebSocketConnected}
-                    className={`w-full py-6 px-8 rounded-xl font-bold text-xl transition-all shadow-lg ${
-                      isWebSocketConnected
-                        ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
-                        : 'bg-gray-600/50 cursor-not-allowed opacity-50'
-                    }`}
+                    onClick={submitEarlyAnswer}
+                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-lg transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20"
                   >
-                    {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
+                    Answer Now - Start Steps
                   </button>
-                </motion.div>
+                </div>
               </motion.div>
             )}
 
             {/* STEPS PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
+            {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && (
               <motion.div
                 key="steps"
                 initial={{ opacity: 0, y: 20 }}
@@ -441,17 +360,7 @@ export default function BattleConnected() {
                 exit={{ opacity: 0, y: -20 }}
                 className="w-full max-w-3xl"
               >
-                {isStepTransitioning ? (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="w-full max-w-3xl text-center py-12"
-                  >
-                    <Loader2 className="w-8 h-8 animate-spin text-amber-400 mx-auto mb-4" />
-                    <p className="text-white/60">Loading next step...</p>
-                  </motion.div>
-                ) : (
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50" />
                   
                   <div className="text-center mb-6">
@@ -464,61 +373,32 @@ export default function BattleConnected() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => {
-                      const isSelected = selectedStepAnswer === idx;
-                      const isDisabled = answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0);
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => !answerSubmitted && stepTimeLeft !== null && stepTimeLeft > 0 && setSelectedStepAnswer(idx)}
-                          disabled={isDisabled}
-                          className={`
-                            relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
-                            ${isDisabled
-                              ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
-                              : isSelected
-                              ? 'border-amber-500 bg-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.3)]'
-                              : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
-                            }
-                          `}
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="flex items-center gap-4 relative z-10">
-                            <div className={`
-                              w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
-                              ${isDisabled 
-                                ? 'bg-white/10 text-white/40' 
-                                : isSelected
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'
-                              }
-                            `}>
-                              {String.fromCharCode(65 + idx)}
-                            </div>
-                            <span className="text-lg font-medium">{option}</span>
-                            {isSelected && !isDisabled && (
-                              <Check className="w-5 h-5 text-amber-400 ml-auto" />
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {selectedStepAnswer !== null && !answerSubmitted && stepTimeLeft !== null && stepTimeLeft > 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }} 
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mt-6 text-center"
-                    >
+                    {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
                       <button
-                        onClick={() => submitStepAnswer(currentStepIndex, selectedStepAnswer)}
-                        className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl active:scale-95"
+                        key={idx}
+                        onClick={() => !answerSubmitted && submitStepAnswer(currentStepIndex, idx)}
+                        disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)}
+                        className={`
+                          relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
+                          ${answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)
+                            ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
+                            : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
+                          }
+                        `}
                       >
-                        Submit Answer
+                        <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center gap-4 relative z-10">
+                          <div className={`
+                            w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
+                            ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'}
+                          `}>
+                            {String.fromCharCode(65 + idx)}
+                          </div>
+                          <span className="text-lg font-medium">{option}</span>
+                        </div>
                       </button>
-                    </motion.div>
-                  )}
+                    ))}
+                  </div>
 
                   {answerSubmitted && (
                     <motion.div 
@@ -527,47 +407,20 @@ export default function BattleConnected() {
                       className="mt-6 text-center"
                     >
                       <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-400 rounded-full text-sm font-medium border border-amber-500/20 backdrop-blur-sm">
-                        {/* During steps, always show "ANSWER SUBMITTED" - no waiting message */}
-                        {(phase === 'steps' || !waitingForOpponent) ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            ANSWER SUBMITTED
-                          </>
-                        ) : (
+                        {waitingForOpponent ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin" />
                             WAITING FOR OPPONENT...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-4 h-4" />
+                            ANSWER SUBMITTED
                           </>
                         )}
                       </div>
                     </motion.div>
                   )}
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {/* WAITING FOR OPPONENT TO COMPLETE ALL STEPS */}
-            {status === 'playing' && phase === 'steps' && allStepsComplete && waitingForOpponentToCompleteSteps && (
-              <motion.div
-                key="waiting-steps"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.05 }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
-              >
-                <div className="mb-6">
-                  <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto mb-4" />
-                  <h2 className="text-3xl font-bold mb-2 tracking-tight">
-                    ALL PARTS COMPLETE
-                  </h2>
-                  <p className="text-white/60 font-mono text-sm mb-4">
-                    You have finished all {totalSteps} part{totalSteps !== 1 ? 's' : ''}
-                  </p>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    WAITING FOR OPPONENT TO FINISH ALL PARTS...
-                  </div>
                 </div>
               </motion.div>
             )}
@@ -654,8 +507,9 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
               >
+                {console.log('[BattleConnected] ✅ Results component is rendering!')}
                 <div className="mb-8">
                   {results.round_winner === currentUser ? (
                     <motion.div 
@@ -709,128 +563,34 @@ export default function BattleConnected() {
                   )}
                 </div>
 
-                {/* Step-by-step results with "X out of 4" format */}
+                {/* Step-by-step breakdown for multi-step questions */}
                 {results.stepResults && results.stepResults.length > 0 && (
-                  <div className="mb-8">
-                    {/* Calculate parts correct for each player */}
-                    {(() => {
-                      const myPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
-                        return myAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
-                      const oppPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
-                        return oppAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
-                      const totalSteps = results.stepResults.length;
-                      const iWon = myPartsCorrect > oppPartsCorrect;
-                      const isTie = myPartsCorrect === oppPartsCorrect;
-                      
+                  <div className="mb-8 space-y-3">
+                    <div className="text-sm font-mono text-white/60 mb-4 uppercase tracking-wider">Step Breakdown</div>
+                    {results.stepResults.map((stepResult, idx) => {
+                      const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
+                      const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
+                      const myCorrect = myAnswer === stepResult.correctAnswer
                       return (
-                        <>
-                          {/* Main "X out of 4" Display */}
-                          <div className="grid grid-cols-2 gap-6 mb-6">
-                            {/* Player Section */}
-                            <motion.div
-                              initial={{ x: -20, opacity: 0 }}
-                              animate={{ x: 0, opacity: 1 }}
-                              transition={{ delay: 0.1 }}
-                              className={`p-6 rounded-2xl border-2 ${
-                                iWon 
-                                  ? 'bg-green-500/20 border-green-500/40' 
-                                  : isTie
-                                  ? 'bg-blue-500/20 border-blue-500/40'
-                                  : 'bg-red-500/20 border-red-500/40'
-                              }`}
-                            >
-                              <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">YOU</div>
-                              <div className={`text-5xl md:text-6xl font-black mb-2 ${
-                                iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
-                              }`}>
-                                {myPartsCorrect} out of {totalSteps}
-                              </div>
-                              <div className="text-sm text-white/60 font-mono">
-                                {myPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - myPartsCorrect} incorrect`}
-                              </div>
-                            </motion.div>
-                            
-                            {/* Opponent Section */}
-                            <motion.div
-                              initial={{ x: 20, opacity: 0 }}
-                              animate={{ x: 0, opacity: 1 }}
-                              transition={{ delay: 0.2 }}
-                              className={`p-6 rounded-2xl border-2 ${
-                                !iWon && !isTie
-                                  ? 'bg-green-500/20 border-green-500/40' 
-                                  : isTie
-                                  ? 'bg-blue-500/20 border-blue-500/40'
-                                  : 'bg-red-500/20 border-red-500/40'
-                              }`}
-                            >
-                              <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">OPPONENT</div>
-                              <div className={`text-5xl md:text-6xl font-black mb-2 ${
-                                !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
-                              }`}>
-                                {oppPartsCorrect} out of {totalSteps}
-                              </div>
-                              <div className="text-sm text-white/60 font-mono">
-                                {oppPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - oppPartsCorrect} incorrect`}
-                              </div>
-                            </motion.div>
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-lg border text-left ${
+                            myCorrect ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-bold">Step {stepResult.stepIndex + 1}</span>
+                            <span className="text-xs font-mono">
+                              {myCorrect ? '✓' : '✗'} {myMarks} pts
+                            </span>
                           </div>
-                          
-                          {/* Divider */}
-                          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent mb-6" />
-                          
-                          {/* Winner Announcement */}
-                          <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ delay: 0.3 }}
-                            className="text-center mb-6"
-                          >
-                            {isTie ? (
-                              <div className="text-2xl font-bold text-blue-400">STALEMATE</div>
-                            ) : iWon ? (
-                              <div className="text-2xl font-bold text-green-400">YOU WON THIS ROUND</div>
-                            ) : (
-                              <div className="text-2xl font-bold text-red-400">OPPONENT WON THIS ROUND</div>
-                            )}
-                          </motion.div>
-                          
-                          {/* Step-by-step breakdown (optional, smaller) */}
-                          <details className="mt-4">
-                            <summary className="text-sm font-mono text-white/60 mb-3 uppercase tracking-wider cursor-pointer hover:text-white/80 transition-colors">
-                              Step Breakdown
-                            </summary>
-                            <div className="space-y-2 mt-3">
-                              {results.stepResults.map((stepResult, idx) => {
-                                const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
-                                const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
-                                const myCorrect = myAnswer === stepResult.correctAnswer
-                                return (
-                                  <div
-                                    key={idx}
-                                    className={`p-2 rounded-lg border text-left text-xs ${
-                                      myCorrect ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-bold">Step {stepResult.stepIndex + 1}</span>
-                                      <span className="font-mono">
-                                        {myCorrect ? '✓' : '✗'} {myMarks} pts
-                                      </span>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </details>
-                        </>
-                      );
-                    })()}
+                          <div className="text-xs text-white/60">
+                            Your answer: {myAnswer !== null ? String.fromCharCode(65 + myAnswer) : 'None'} | 
+                            Correct: {String.fromCharCode(65 + stepResult.correctAnswer)}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
 
@@ -904,32 +664,17 @@ export default function BattleConnected() {
                 )}
 
                 {!matchOver && (
-                  <div className="mt-6">
-                    {!resultsAcknowledged ? (
-                      <button
-                        onClick={readyForNextRound}
-                        disabled={!isWebSocketConnected}
-                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-all shadow-lg ${
-                          isWebSocketConnected
-                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
-                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
-                      </button>
-                    ) : waitingForOpponentToAcknowledge ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                        <div className="text-sm font-mono text-white/60">
-                          WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-sm font-mono text-white/60 text-center">
-                        BOTH PLAYERS READY - STARTING NEXT ROUND...
-                      </div>
-                    )}
-                  </div>
+                  <>
+                    <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                      <motion.div 
+                        className="h-full bg-white/20"
+                        initial={{ width: '0%' }}
+                        animate={{ width: '100%' }}
+                        transition={{ duration: 3, ease: "linear" }}
+                      />
+                    </div>
+                    <div className="mt-2 text-xs font-mono text-white/30">NEXT ROUND STARTING...</div>
+                  </>
                 )}
                 {matchOver && (
                   <div className="mt-4">
