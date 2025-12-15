@@ -15,6 +15,7 @@ export default function BattleConnected() {
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
+  const [selectedStepOption, setSelectedStepOption] = useState<number | null>(null);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -86,6 +87,11 @@ export default function BattleConnected() {
       return () => clearTimeout(timer);
     }
   }, [roundNumber, status]);
+
+  // Reset selected option when step changes
+  useEffect(() => {
+    setSelectedStepOption(null);
+  }, [currentStepIndex]);
 
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
@@ -372,32 +378,56 @@ export default function BattleConnected() {
                     </h3>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => {
+                        const isSelected = selectedStepOption === idx;
+                        const isDisabled = answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0);
+                        
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => !isDisabled && setSelectedStepOption(idx)}
+                            disabled={isDisabled}
+                            className={`
+                              relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
+                              ${isDisabled
+                                ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
+                                : isSelected
+                                  ? 'border-amber-500 bg-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.3)]'
+                                  : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
+                              }
+                            `}
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="flex items-center gap-4 relative z-10">
+                              <div className={`
+                                w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
+                                ${isDisabled ? 'bg-white/10 text-white/40' : isSelected ? 'bg-amber-500 text-white' : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'}
+                              `}>
+                                {String.fromCharCode(65 + idx)}
+                              </div>
+                              <span className="text-lg font-medium">{option}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Submit button */}
+                    {!answerSubmitted && (
                       <button
-                        key={idx}
-                        onClick={() => !answerSubmitted && submitStepAnswer(currentStepIndex, idx)}
-                        disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)}
-                        className={`
-                          relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
-                          ${answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)
-                            ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
-                            : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
+                        onClick={() => {
+                          if (selectedStepOption !== null) {
+                            submitStepAnswer(currentStepIndex, selectedStepOption);
                           }
-                        `}
+                        }}
+                        disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0) || selectedStepOption === null}
+                        className="w-full py-4 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold rounded-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl disabled:hover:shadow-lg"
                       >
-                        <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="flex items-center gap-4 relative z-10">
-                          <div className={`
-                            w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
-                            ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'}
-                          `}>
-                            {String.fromCharCode(65 + idx)}
-                          </div>
-                          <span className="text-lg font-medium">{option}</span>
-                        </div>
+                        Submit Answer
                       </button>
-                    ))}
+                    )}
                   </div>
 
                   {answerSubmitted && (

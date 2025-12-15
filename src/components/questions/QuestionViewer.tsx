@@ -122,10 +122,19 @@ export function QuestionViewer({
     const actualIdx = displayIdx; // because we show all options
     console.log('[QuestionViewer] Option selected', { displayIdx, actualIdx, currentStepIndex, totalSteps });
     setSelectedOptionIndex(actualIdx);
-    if (isOnlineMode && onSubmitAnswer && !isSubmitting) {
-      console.log('[QuestionViewer] Instant submit triggered');
-      onSubmitAnswer(currentQuestion!.id, currentStep!.id, actualIdx);
+    // Don't auto-submit - user must click submit button
+  };
+
+  const handleSubmit = () => {
+    if (selectedOptionIndex === null || !onSubmitAnswer || isSubmitting) {
+      return;
     }
+    console.log('[QuestionViewer] Submit button clicked', { 
+      questionId: currentQuestion!.id, 
+      stepId: currentStep!.id, 
+      answerIndex: selectedOptionIndex 
+    });
+    onSubmitAnswer(currentQuestion!.id, currentStep!.id, selectedOptionIndex);
   };
 
   // Options to display
@@ -256,6 +265,46 @@ export function QuestionViewer({
                     );
                   })}
                 </div>
+                
+                {/* Submit button for online mode */}
+                {isOnlineMode && !showResult && onSubmitAnswer && (
+                  <div className="pt-4">
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={selectedOptionIndex === null || isSubmitting || locked || (currentPhase === 'thinking')}
+                      className="w-full py-6 text-lg font-semibold"
+                      size="lg"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        'Submit Answer'
+                      )}
+                    </Button>
+                  </div>
+                )}
+                
+                {/* Result state message */}
+                {isOnlineMode && showResult && (
+                  <div className="pt-4 text-center">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Waiting for next question...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Answer submitted
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
