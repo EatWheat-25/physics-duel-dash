@@ -52,19 +52,18 @@ type QuestionForm = {
   imageUrl: string;
 };
 
-// A1 Chemistry Chapters - Placeholder list
-const A1_CHEMISTRY_CHAPTERS = [
-  { id: 'atomic-structure', title: 'Atomic Structure', level: 'A1' as const },
-  { id: 'bonding', title: 'Bonding', level: 'A1' as const },
-  { id: 'stoichiometry', title: 'Stoichiometry', level: 'A1' as const },
-  { id: 'energetics', title: 'Energetics', level: 'A1' as const },
-  { id: 'kinetics', title: 'Kinetics', level: 'A1' as const },
-  { id: 'equilibria', title: 'Equilibria', level: 'A1' as const },
-  { id: 'redox', title: 'Redox Reactions', level: 'A1' as const },
-  { id: 'organic-chemistry', title: 'Organic Chemistry Basics', level: 'A1' as const }
-];
-
 export default function AdminQuestions() {
+  // A1 Chemistry Chapters - Placeholder list
+  const A1_CHEMISTRY_CHAPTERS = [
+    { id: 'atomic-structure', title: 'Atomic Structure', level: 'A1' as const },
+    { id: 'bonding', title: 'Bonding', level: 'A1' as const },
+    { id: 'stoichiometry', title: 'Stoichiometry', level: 'A1' as const },
+    { id: 'energetics', title: 'Energetics', level: 'A1' as const },
+    { id: 'kinetics', title: 'Kinetics', level: 'A1' as const },
+    { id: 'equilibria', title: 'Equilibria', level: 'A1' as const },
+    { id: 'redox', title: 'Redox Reactions', level: 'A1' as const },
+    { id: 'organic-chemistry', title: 'Organic Chemistry Basics', level: 'A1' as const }
+  ];
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
@@ -82,14 +81,8 @@ export default function AdminQuestions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [mappingErrors, setMappingErrors] = useState<string[]>([]);
 
-  // Editor state
-  const [mode, setMode] = useState<EditorMode>('idle');
-  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
-  const [form, setForm] = useState<QuestionForm>(getEmptyForm());
-  const [saving, setSaving] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-
   // Session settings - persist Subject/Level/Difficulty when creating multiple questions
+  // MUST be defined before form state since getEmptyForm() uses it
   const [sessionSettings, setSessionSettings] = useState<{
     subject: 'math' | 'physics' | 'chemistry';
     level: 'A1' | 'A2';
@@ -99,6 +92,13 @@ export default function AdminQuestions() {
     level: 'A1',
     difficulty: 'medium'
   });
+
+  // Editor state
+  const [mode, setMode] = useState<EditorMode>('idle');
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+  const [form, setForm] = useState<QuestionForm>(getEmptyForm());
+  const [saving, setSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const filteredQuestions = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -125,7 +125,7 @@ export default function AdminQuestions() {
       case 'physics':
         return A1_PHYSICS_CHAPTERS.map(ch => ({ id: ch.id, title: ch.title }));
       case 'chemistry':
-        return A1_CHEMISTRY_CHAPTERS;
+        return A1_CHEMISTRY_CHAPTERS.map(ch => ({ id: ch.id, title: ch.title }));
       default:
         return [];
     }
