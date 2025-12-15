@@ -117,105 +117,16 @@ export default function LobbyNew() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      {/* Premium dark base */}
-      <div className="absolute inset-0 bg-[#0a0a0f]" />
-      
-      {/* Rich gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1a0a2e] via-[#16213e] to-[#0f0c29]" />
-      
-      {/* Animated mesh gradient with vibrant colors */}
-      <motion.div
-        className="absolute inset-0"
-        style={{
-          background: `
-            radial-gradient(circle at 15% 25%, rgba(99, 102, 241, 0.4) 0%, transparent 40%),
-            radial-gradient(circle at 85% 75%, rgba(139, 92, 246, 0.4) 0%, transparent 40%),
-            radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.25) 0%, transparent 50%),
-            radial-gradient(circle at 25% 75%, rgba(168, 85, 247, 0.3) 0%, transparent 40%)
-          `,
-        }}
-        animate={{
-          background: [
-            `
-              radial-gradient(circle at 15% 25%, rgba(99, 102, 241, 0.4) 0%, transparent 40%),
-              radial-gradient(circle at 85% 75%, rgba(139, 92, 246, 0.4) 0%, transparent 40%),
-              radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.25) 0%, transparent 50%),
-              radial-gradient(circle at 25% 75%, rgba(168, 85, 247, 0.3) 0%, transparent 40%)
-            `,
-            `
-              radial-gradient(circle at 25% 35%, rgba(139, 92, 246, 0.4) 0%, transparent 40%),
-              radial-gradient(circle at 75% 65%, rgba(99, 102, 241, 0.4) 0%, transparent 40%),
-              radial-gradient(circle at 60% 40%, rgba(59, 130, 246, 0.25) 0%, transparent 50%),
-              radial-gradient(circle at 35% 65%, rgba(168, 85, 247, 0.3) 0%, transparent 40%)
-            `,
-            `
-              radial-gradient(circle at 15% 25%, rgba(99, 102, 241, 0.4) 0%, transparent 40%),
-              radial-gradient(circle at 85% 75%, rgba(139, 92, 246, 0.4) 0%, transparent 40%),
-              radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.25) 0%, transparent 50%),
-              radial-gradient(circle at 25% 75%, rgba(168, 85, 247, 0.3) 0%, transparent 40%)
-            `,
-          ],
-        }}
-        transition={{
-          duration: 10,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-      
-      {/* Large animated glowing orbs */}
-      <motion.div
-        className="absolute top-0 left-0 w-[600px] h-[600px] bg-indigo-600/30 rounded-full blur-[120px]"
-        animate={{
-          x: [0, 100, 0],
-          y: [0, 80, 0],
-          scale: [1, 1.3, 1],
-        }}
-        transition={{
-          duration: 15,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-      <motion.div
-        className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-purple-600/30 rounded-full blur-[120px]"
-        animate={{
-          x: [0, -100, 0],
-          y: [0, -80, 0],
-          scale: [1, 1.3, 1],
-        }}
-        transition={{
-          duration: 18,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-      <motion.div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px]"
-        animate={{
-          scale: [1, 1.4, 1],
-          opacity: [0.3, 0.5, 0.3],
-        }}
-        transition={{
-          duration: 12,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-      
-      {/* Subtle geometric pattern overlay */}
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      {/* Grid overlay for game aesthetic */}
       <div 
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0 opacity-20"
         style={{
           backgroundImage: `
-            linear-gradient(30deg, rgba(255, 255, 255, 0.1) 12%, transparent 12.5%, transparent 87%, rgba(255, 255, 255, 0.1) 87.5%, rgba(255, 255, 255, 0.1)),
-            linear-gradient(150deg, rgba(255, 255, 255, 0.1) 12%, transparent 12.5%, transparent 87%, rgba(255, 255, 255, 0.1) 87.5%, rgba(255, 255, 255, 0.1)),
-            linear-gradient(30deg, rgba(255, 255, 255, 0.1) 12%, transparent 12.5%, transparent 87%, rgba(255, 255, 255, 0.1) 87.5%, rgba(255, 255, 255, 0.1)),
-            linear-gradient(150deg, rgba(255, 255, 255, 0.1) 12%, transparent 12.5%, transparent 87%, rgba(255, 255, 255, 0.1) 87.5%, rgba(255, 255, 255, 0.1))
+            linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px)
           `,
-          backgroundSize: '80px 140px',
-          backgroundPosition: '0 0, 0 0, 40px 70px, 40px 70px',
+          backgroundSize: '50px 50px',
         }}
       />
       
