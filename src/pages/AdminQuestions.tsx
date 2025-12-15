@@ -14,6 +14,8 @@ import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Fil
 import { Badge } from '@/components/ui/badge';
 import SpaceBackground from '@/components/SpaceBackground';
 import { useIsAdmin } from '@/hooks/useUserRole';
+import { A1_MATH_CHAPTERS } from '@/types/math';
+import { A1_CHAPTERS as A1_PHYSICS_CHAPTERS } from '@/types/physics';
 
 type QuestionFilter = {
   subject: 'all' | 'math' | 'physics' | 'chemistry';
@@ -50,6 +52,18 @@ type QuestionForm = {
   imageUrl: string;
 };
 
+// A1 Chemistry Chapters - Placeholder list
+const A1_CHEMISTRY_CHAPTERS = [
+  { id: 'atomic-structure', title: 'Atomic Structure', level: 'A1' as const },
+  { id: 'bonding', title: 'Bonding', level: 'A1' as const },
+  { id: 'stoichiometry', title: 'Stoichiometry', level: 'A1' as const },
+  { id: 'energetics', title: 'Energetics', level: 'A1' as const },
+  { id: 'kinetics', title: 'Kinetics', level: 'A1' as const },
+  { id: 'equilibria', title: 'Equilibria', level: 'A1' as const },
+  { id: 'redox', title: 'Redox Reactions', level: 'A1' as const },
+  { id: 'organic-chemistry', title: 'Organic Chemistry Basics', level: 'A1' as const }
+];
+
 export default function AdminQuestions() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -75,6 +89,17 @@ export default function AdminQuestions() {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
+  // Session settings - persist Subject/Level/Difficulty when creating multiple questions
+  const [sessionSettings, setSessionSettings] = useState<{
+    subject: 'math' | 'physics' | 'chemistry';
+    level: 'A1' | 'A2';
+    difficulty: 'easy' | 'medium' | 'hard';
+  }>({
+    subject: 'math',
+    level: 'A1',
+    difficulty: 'medium'
+  });
+
   const filteredQuestions = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
     return questions.filter((q) => {
@@ -87,6 +112,25 @@ export default function AdminQuestions() {
     });
   }, [questions, searchTerm]);
 
+  // Get chapters based on subject and level
+  const getChaptersForSubjectLevel = useMemo(() => {
+    if (form.level !== 'A1') {
+      // For now, only A1 is supported - return empty array for A2
+      return [];
+    }
+    
+    switch (form.subject) {
+      case 'math':
+        return A1_MATH_CHAPTERS.map(ch => ({ id: ch.id, title: ch.title }));
+      case 'physics':
+        return A1_PHYSICS_CHAPTERS.map(ch => ({ id: ch.id, title: ch.title }));
+      case 'chemistry':
+        return A1_CHEMISTRY_CHAPTERS;
+      default:
+        return [];
+    }
+  }, [form.subject, form.level]);
+
   // Load questions on mount and filter changes
   useEffect(() => {
     if (isAdmin) {
@@ -97,10 +141,10 @@ export default function AdminQuestions() {
   function getEmptyForm(): QuestionForm {
     return {
       title: '',
-      subject: 'math',
+      subject: sessionSettings.subject,
       chapter: '',
-      level: 'A1',
-      difficulty: 'medium',
+      level: sessionSettings.level,
+      difficulty: sessionSettings.difficulty,
       rankTier: '',
       stem: '',
       totalMarks: 1,
@@ -434,6 +478,13 @@ export default function AdminQuestions() {
           .single();
 
         if (error) throw error;
+
+        // Update session settings with current form values for next question
+        setSessionSettings({
+          subject: form.subject,
+          level: form.level,
+          difficulty: form.difficulty
+        });
 
         toast.success('Question created successfully!');
         fetchQuestions();
@@ -994,7 +1045,10 @@ export default function AdminQuestions() {
 
                       <div>
                         <label className={labelStyle}>Subject *</label>
-                        <Select value={form.subject} onValueChange={(v: any) => setForm({ ...form, subject: v })}>
+                        <Select value={form.subject} onValueChange={(v: any) => {
+                          setSessionSettings({ ...sessionSettings, subject: v });
+                          setForm({ ...form, subject: v, chapter: '' });
+                        }}>
                           <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                           <SelectContent className="bg-gray-900 border-white/10 text-white">
                             <SelectItem value="math">Math</SelectItem>
@@ -1006,18 +1060,41 @@ export default function AdminQuestions() {
 
                       <div>
                         <label className={labelStyle}>Chapter *</label>
-                        <Input
-                          value={form.chapter}
-                          onChange={e => setForm({ ...form, chapter: e.target.value })}
-                          className={glassInput}
-                          placeholder="e.g. Integration"
-                        />
+                        <Select 
+                          value={form.chapter} 
+                          onValueChange={(value) => setForm({ ...form, chapter: value })}
+                        >
+                          <SelectTrigger className={glassInput}>
+                            <SelectValue placeholder="Select a chapter..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-white/10 text-white">
+                            {getChaptersForSubjectLevel.length === 0 ? (
+                              <SelectItem value="" disabled>
+                                {form.level !== 'A1' ? 'A1 chapters only supported currently' : 'No chapters available'}
+                              </SelectItem>
+                            ) : (
+                              getChaptersForSubjectLevel.map((chapter) => (
+                                <SelectItem key={chapter.id} value={chapter.title}>
+                                  {chapter.title}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {form.subject === 'chemistry' && form.level === 'A1' && (
+                          <p className="text-xs text-white/40 mt-1">
+                            Chemistry chapters are placeholder - update as needed
+                          </p>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className={labelStyle}>Level *</label>
-                          <Select value={form.level} onValueChange={(v: any) => setForm({ ...form, level: v })}>
+                          <Select value={form.level} onValueChange={(v: any) => {
+                            setSessionSettings({ ...sessionSettings, level: v });
+                            setForm({ ...form, level: v, chapter: '' });
+                          }}>
                             <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                             <SelectContent className="bg-gray-900 border-white/10 text-white">
                               <SelectItem value="A1">A1</SelectItem>
@@ -1027,7 +1104,10 @@ export default function AdminQuestions() {
                         </div>
                         <div>
                           <label className={labelStyle}>Difficulty *</label>
-                          <Select value={form.difficulty} onValueChange={(v: any) => setForm({ ...form, difficulty: v })}>
+                          <Select value={form.difficulty} onValueChange={(v: any) => {
+                            setSessionSettings({ ...sessionSettings, difficulty: v });
+                            setForm({ ...form, difficulty: v });
+                          }}>
                             <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                             <SelectContent className="bg-gray-900 border-white/10 text-white">
                               <SelectItem value="easy">Easy</SelectItem>
@@ -1064,19 +1144,6 @@ export default function AdminQuestions() {
                         />
                         <p className="text-xs text-white/40 mt-1">
                           This is the main question context that appears before all steps
-                        </p>
-                      </div>
-
-                      <div className="col-span-2">
-                        <label className={labelStyle}>Topic Tags (Comma-separated)</label>
-                        <Input
-                          value={form.topicTags}
-                          onChange={e => setForm({ ...form, topicTags: e.target.value })}
-                          className={glassInput}
-                          placeholder="e.g. integration, by-parts, calculus"
-                        />
-                        <p className="text-xs text-white/40 mt-1">
-                          Separate tags with commas for better searchability
                         </p>
                       </div>
 
