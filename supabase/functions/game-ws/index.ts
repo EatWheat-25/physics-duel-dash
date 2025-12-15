@@ -156,7 +156,6 @@ interface GameState {
   roundNumber: number
   targetRoundsToWin: number
   playerRoundWins: Map<string, number> // playerId -> round wins
-  isTransitioning: boolean // Guard to prevent double transitions
 }
 
 const gameStates = new Map<string, GameState>() // matchId -> GameState
@@ -273,8 +272,7 @@ async function broadcastQuestion(
         eliminatedPlayers: new Set(),
         roundNumber: matchState.roundNumber,
         targetRoundsToWin: matchState.targetRoundsToWin,
-        playerRoundWins: new Map(matchState.playerRoundWins), // Copy match-level wins
-        isTransitioning: false
+        playerRoundWins: new Map(matchState.playerRoundWins) // Copy match-level wins
       }
       gameStates.set(matchId, gameState)
     } else {
@@ -373,9 +371,14 @@ async function broadcastQuestion(
 
     // Timeout for answer submission (60 seconds / 1 minute)
     const TIMEOUT_SECONDS = 60
+    const questionSentTime = Date.now()
     
     // Calculate timer end time (60 seconds from now)
     const timerEndAt = new Date(Date.now() + TIMEOUT_SECONDS * 1000).toISOString()
+    
+    console.log(`[${matchId}] ⏰ [TIMER] Setting up ${TIMEOUT_SECONDS}s timer for answer submission`)
+    console.log(`[${matchId}] ⏰ [TIMER] Timer will expire at: ${timerEndAt}`)
+    console.log(`[${matchId}] ⏰ [TIMER] Current time: ${new Date().toISOString()}`)
     
     const questionReceivedEvent: QuestionReceivedEvent = {
       type: 'QUESTION_RECEIVED',
@@ -385,54 +388,91 @@ async function broadcastQuestion(
     
     console.log(`[${matchId}] 📤 [WS] Broadcasting single-step question`, {
       questionId: questionDb.id,
-      timer_end_at: timerEndAt
+      timer_end_at: timerEndAt,
+      timestamp: new Date().toISOString()
     })
     
     let sentCount = 0
+    let failedCount = 0
     matchSockets.forEach((socket, index) => {
       if (socket.readyState === WebSocket.OPEN) {
         try {
           socket.send(JSON.stringify(questionReceivedEvent))
           sentCount++
-          console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
+          console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1} at ${new Date().toISOString()}`)
         } catch (error) {
+          failedCount++
           console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
         }
+      } else {
+        failedCount++
+        console.warn(`[${matchId}] ⚠️ Socket ${index + 1} not ready (readyState: ${socket.readyState})`)
       }
     })
     
     console.log(`[${matchId}] 📊 [WS] QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
-    console.log(`[${matchId}] ✅ [WS] QUESTION_RECEIVED broadcast completed`)
+    console.log(`[${matchId}] 📊 [WS] Failed sends: ${failedCount}`)
+    console.log(`[${matchId}] ✅ [WS] QUESTION_RECEIVED broadcast completed at ${new Date().toISOString()}`)
     
     // Update match status
-    await supabase
+    const { error: statusUpdateError } = await supabase
       .from('matches')
       .update({ status: 'in_progress' })
       .eq('id', matchId)
       .neq('status', 'in_progress')
 
+    if (statusUpdateError) {
+      console.error(`[${matchId}] ❌ Failed to update match status:`, statusUpdateError)
+    } else {
+      console.log(`[${matchId}] ✅ Match status updated to in_progress`)
+    }
+
     console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
 
     // Start timeout for answer submission (60 seconds / 1 minute)
     const timeoutId = setTimeout(async () => {
-      console.log(`[${matchId}] ⏰ Timeout triggered after ${TIMEOUT_SECONDS}s`)
+      const timeoutTriggerTime = Date.now()
+      const actualElapsed = Math.floor((timeoutTriggerTime - questionSentTime) / 1000)
+      console.log(`[${matchId}] ⏰ [TIMER] Timeout triggered at ${new Date().toISOString()}`)
+      console.log(`[${matchId}] ⏰ [TIMER] Expected duration: ${TIMEOUT_SECONDS}s, Actual elapsed: ${actualElapsed}s`)
+      console.log(`[${matchId}] ⏰ [TIMER] Time difference: ${actualElapsed - TIMEOUT_SECONDS}s`)
       
-      const { data: match } = await supabase
+      console.log(`[${matchId}] ⏰ [TIMER] Fetching match state for timeout handling...`)
+      const { data: match, error: matchError } = await supabase
         .from('matches')
-        .select('player1_answer, player2_answer, results_computed_at')
+        .select('player1_answer, player2_answer, results_computed_at, question_sent_at')
         .eq('id', matchId)
         .single()
       
-      if (!match) {
-        console.error(`[${matchId}] ❌ Match not found during timeout`)
+      if (matchError) {
+        console.error(`[${matchId}] ❌ [TIMER] Error fetching match during timeout:`, matchError)
         matchTimeouts.delete(matchId)
         return
       }
       
+      if (!match) {
+        console.error(`[${matchId}] ❌ [TIMER] Match not found during timeout`)
+        matchTimeouts.delete(matchId)
+        return
+      }
+      
+      const timeSinceQuestion = match.question_sent_at 
+        ? Math.floor((Date.now() - new Date(match.question_sent_at).getTime()) / 1000)
+        : null
+      
+      console.log(`[${matchId}] ⏰ [TIMER] Match state at timeout:`)
+      console.log(`[${matchId}] ⏰ [TIMER]   - Player1 answer: ${match.player1_answer ?? 'null'}`)
+      console.log(`[${matchId}] ⏰ [TIMER]   - Player2 answer: ${match.player2_answer ?? 'null'}`)
+      console.log(`[${matchId}] ⏰ [TIMER]   - Results computed: ${match.results_computed_at ? 'YES' : 'NO'}`)
+      console.log(`[${matchId}] ⏰ [TIMER]   - Time since question sent: ${timeSinceQuestion ? `${timeSinceQuestion}s` : 'N/A'}`)
+      
       // If results not computed and one player hasn't answered
       if (!match.results_computed_at && 
           (match.player1_answer == null || match.player2_answer == null)) {
-        console.log(`[${matchId}] ⏰ Applying timeout - marking unanswered player as wrong`)
+        const unansweredPlayers = []
+        if (match.player1_answer == null) unansweredPlayers.push('player1')
+        if (match.player2_answer == null) unansweredPlayers.push('player2')
+        console.log(`[${matchId}] ⏰ [TIMER] Applying timeout - unanswered players: ${unansweredPlayers.join(', ')}`)
         
         // Try force_timeout_stage3 first (Stage 3), fallback to force_timeout_stage2 (Stage 2)
         let timeoutError = null
@@ -490,7 +530,10 @@ async function broadcastQuestion(
     }, TIMEOUT_SECONDS * 1000) as unknown as number
     
     matchTimeouts.set(matchId, timeoutId)
-    console.log(`[${matchId}] ⏰ Started timeout timer (${TIMEOUT_SECONDS}s)`)
+    console.log(`[${matchId}] ⏰ [TIMER] Started timeout timer (${TIMEOUT_SECONDS}s)`)
+    console.log(`[${matchId}] ⏰ [TIMER] Timer ID: ${timeoutId}`)
+    console.log(`[${matchId}] ⏰ [TIMER] Timer will expire at: ${timerEndAt}`)
+    console.log(`[${matchId}] ⏰ [TIMER] Timer stored in matchTimeouts map`)
   }
 }
 
@@ -745,8 +788,7 @@ async function selectAndBroadcastQuestion(
         eliminatedPlayers: new Set(),
         roundNumber: newRoundNumber,
         targetRoundsToWin: match.target_rounds_to_win || 4,
-        playerRoundWins: new Map(),
-        isTransitioning: false
+        playerRoundWins: new Map()
       }
       gameStates.set(matchId, newGameState)
     }
@@ -1146,41 +1188,25 @@ async function checkStepTimeout(
   stepIndex: number,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  const timestamp = new Date().toISOString()
-  console.log(`[${matchId}] [${timestamp}] [checkStepTimeout] [TIMEOUT_FIRED] step=${stepIndex}`)
-  
   const state = gameStates.get(matchId)
   if (!state || state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
-    console.log(`[${matchId}] [${timestamp}] [checkStepTimeout] [INVALID_STATE] phase=${state?.currentPhase} currentStepIndex=${state?.currentStepIndex} expectedStepIndex=${stepIndex} - ignoring timeout`)
     return
   }
 
   const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
   const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
 
-  const p1Answered = p1Answers.has(stepIndex)
-  const p2Answered = p2Answers.has(stepIndex)
-  const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
-  const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-
-  console.log(`[${matchId}] [${timestamp}] [checkStepTimeout] [ELIMINATION_CHECK] step=${stepIndex} p1Answered=${p1Answered} p2Answered=${p2Answered} p1Eliminated=${p1Eliminated} p2Eliminated=${p2Eliminated}`)
-
   // Eliminate players who didn't answer this step
-  if (!p1Answers.has(stepIndex) && state.p1Id && !p1Eliminated) {
+  if (!p1Answers.has(stepIndex) && state.p1Id) {
     state.eliminatedPlayers.add(state.p1Id)
-    console.log(`[${matchId}] [${timestamp}] [checkStepTimeout] [PLAYER_ELIMINATED] player=p1 step=${stepIndex} - no answer provided`)
+    console.log(`[${matchId}] ⚠️ Player 1 eliminated - no answer for step ${stepIndex}`)
   }
-  if (!p2Answers.has(stepIndex) && state.p2Id && !p2Eliminated) {
+  if (!p2Answers.has(stepIndex) && state.p2Id) {
     state.eliminatedPlayers.add(state.p2Id)
-    console.log(`[${matchId}] [${timestamp}] [checkStepTimeout] [PLAYER_ELIMINATED] player=p2 step=${stepIndex} - no answer provided`)
+    console.log(`[${matchId}] ⚠️ Player 2 eliminated - no answer for step ${stepIndex}`)
   }
-
-  const finalP1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
-  const finalP2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-  console.log(`[${matchId}] [${timestamp}] [checkStepTimeout] [ELIMINATION_STATUS] p1Eliminated=${finalP1Eliminated} p2Eliminated=${finalP2Eliminated}`)
 
   // Move to next step (or results)
-  console.log(`[${matchId}] [${timestamp}] [checkStepTimeout] [CALLING_MOVE_TO_NEXT_STEP] step=${stepIndex}`)
   await moveToNextStep(matchId, supabase)
 }
 
@@ -1191,47 +1217,27 @@ async function moveToNextStep(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  const timestamp = new Date().toISOString()
   const state = gameStates.get(matchId)
-  
   if (!state || state.currentPhase !== 'steps') {
-    console.warn(`[${matchId}] [${timestamp}] [moveToNextStep] [INVALID_STATE] phase=${state?.currentPhase}`)
+    console.warn(`[${matchId}] ⚠️ Cannot move to next step - invalid state`)
     return
   }
-
-  // Guard against double transitions
-  if (state.isTransitioning) {
-    console.warn(`[${matchId}] [${timestamp}] [moveToNextStep] [ALREADY_TRANSITIONING] currentStepIndex=${state.currentStepIndex} - ignoring duplicate call`)
-    return
-  }
-
-  // Set transition flag
-  state.isTransitioning = true
-
-  const currentStepIndex = state.currentStepIndex
-  console.log(`[${matchId}] [${timestamp}] [moveToNextStep] [ENTRY] currentStepIndex=${currentStepIndex}`)
 
   // Clear current step timer
-  const currentTimer = state.stepTimers.get(currentStepIndex)
+  const currentTimer = state.stepTimers.get(state.currentStepIndex)
   if (currentTimer) {
     clearTimeout(currentTimer)
-    state.stepTimers.delete(currentStepIndex)
-    console.log(`[${matchId}] [${timestamp}] [moveToNextStep] [TIMER_CLEARED] step=${currentStepIndex} timerId=${currentTimer}`)
-  } else {
-    console.log(`[${matchId}] [${timestamp}] [moveToNextStep] [NO_TIMER_TO_CLEAR] step=${currentStepIndex}`)
+    state.stepTimers.delete(state.currentStepIndex)
   }
 
   const steps = Array.isArray(state.currentQuestion.steps) 
     ? state.currentQuestion.steps 
     : JSON.parse(state.currentQuestion.steps ?? '[]')
   
-  const nextStepIndex = currentStepIndex + 1
-  console.log(`[${matchId}] [${timestamp}] [moveToNextStep] [TRANSITION] from=${currentStepIndex} to=${nextStepIndex} totalSteps=${steps.length}`)
+  const nextStepIndex = state.currentStepIndex + 1
 
   if (nextStepIndex >= steps.length) {
     // All steps done - calculate results
-    console.log(`[${matchId}] [${timestamp}] [moveToNextStep] [ALL_STEPS_DONE] - calculating results`)
-    state.isTransitioning = false
     await calculateStepResults(matchId, supabase)
     return
   }
@@ -1258,10 +1264,7 @@ async function moveToNextStep(
     }
   }
 
-  console.log(`[${matchId}] [${timestamp}] [moveToNextStep] [PHASE_CHANGE_CREATED] step=${nextStepIndex} stepEndsAt=${stepEndsAt} prompt="${phaseChangeEvent.currentStep.prompt.substring(0, 50)}..." options=${phaseChangeEvent.currentStep.options.length}`)
-
   broadcastToMatch(matchId, phaseChangeEvent)
-  console.log(`[${matchId}] [${timestamp}] [moveToNextStep] [PHASE_CHANGE_SENT] step=${nextStepIndex} - broadcasted to all sockets`)
 
   // Start timer for next step - on timeout, check for eliminations
   const stepTimerId = setTimeout(() => {
@@ -1269,11 +1272,7 @@ async function moveToNextStep(
   }, 15 * 1000) as unknown as number
   
   state.stepTimers.set(nextStepIndex, stepTimerId)
-  console.log(`[${matchId}] [${timestamp}] [moveToNextStep] [TIMER_STARTED] step=${nextStepIndex} timerId=${stepTimerId} duration=15s`)
-
-  // Clear transition flag
-  state.isTransitioning = false
-  console.log(`[${matchId}] [${timestamp}] [moveToNextStep] [COMPLETE] transitioned to step=${nextStepIndex}`)
+  console.log(`[${matchId}] ⏰ Started step ${nextStepIndex} timer (15s)`)
 }
 
 /**
@@ -1449,12 +1448,8 @@ async function handleStepAnswer(
   socket: WebSocket,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  const timestamp = new Date().toISOString()
-  console.log(`[${matchId}] [${timestamp}] [handleStepAnswer] [ANSWER_RECEIVED] player=${playerId} step=${stepIndex} answer=${answerIndex}`)
-  
   const state = gameStates.get(matchId)
   if (!state || state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
-    console.log(`[${matchId}] [${timestamp}] [handleStepAnswer] [INVALID_STATE] phase=${state?.currentPhase} currentStepIndex=${state?.currentStepIndex} expectedStepIndex=${stepIndex}`)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: 'Invalid step answer submission'
@@ -1462,14 +1457,9 @@ async function handleStepAnswer(
     return
   }
 
-  // Log current state
-  const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
-  const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
-  console.log(`[${matchId}] [${timestamp}] [handleStepAnswer] [STATE_CHECK] phase=${state.currentPhase} currentStepIndex=${state.currentStepIndex} p1Answered=${p1Answers.has(stepIndex)} p2Answered=${p2Answers.has(stepIndex)}`)
-
   // Check if player is eliminated - ignore their answer
   if (state.eliminatedPlayers.has(playerId)) {
-    console.log(`[${matchId}] [${timestamp}] [handleStepAnswer] [ELIMINATED_PLAYER] player=${playerId} - ignoring answer`)
+    console.log(`[${matchId}] ⚠️ Ignoring answer from eliminated player ${playerId}`)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: 'You have been eliminated from this round'
@@ -1483,18 +1473,16 @@ async function handleStepAnswer(
   }
   state.playerStepAnswers.get(playerId)!.set(stepIndex, answerIndex)
 
-  console.log(`[${matchId}] [${timestamp}] [handleStepAnswer] [ANSWER_STORED] player=${playerId} step=${stepIndex} answer=${answerIndex}`)
+  console.log(`[${matchId}] ✅ Step ${stepIndex} answer stored for player ${playerId}: ${answerIndex}`)
 
   // Check if both players have either answered OR are eliminated
-  const updatedP1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
-  const updatedP2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
+  const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
+  const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
   const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
   const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-  const p1Done = updatedP1Answers.has(stepIndex) || p1Eliminated
-  const p2Done = updatedP2Answers.has(stepIndex) || p2Eliminated
+  const p1Done = p1Answers.has(stepIndex) || p1Eliminated
+  const p2Done = p2Answers.has(stepIndex) || p2Eliminated
   const bothDone = p1Done && p2Done
-
-  console.log(`[${matchId}] [${timestamp}] [handleStepAnswer] [BOTH_DONE_CHECK] step=${stepIndex} p1Done=${p1Done} p2Done=${p2Done} p1Eliminated=${p1Eliminated} p2Eliminated=${p2Eliminated} bothDone=${bothDone}`)
 
   // Send confirmation
   const stepAnswerEvent: StepAnswerReceivedEvent = {
@@ -1505,19 +1493,10 @@ async function handleStepAnswer(
   }
 
   socket.send(JSON.stringify(stepAnswerEvent))
-  console.log(`[${matchId}] [${timestamp}] [handleStepAnswer] [STEP_ANSWER_RECEIVED_SENT] step=${stepIndex} player=${playerId} waitingForOpponent=${!bothDone}`)
 
   if (bothDone) {
-    // Clear timer BEFORE moving to next step to prevent race conditions
-    const currentTimer = state.stepTimers.get(stepIndex)
-    if (currentTimer) {
-      clearTimeout(currentTimer)
-      state.stepTimers.delete(stepIndex)
-      console.log(`[${matchId}] [${timestamp}] [handleStepAnswer] [TIMER_CLEARED] step=${stepIndex} timerId=${currentTimer}`)
-    }
-
     // Both players done (answered or eliminated) - move to next step immediately
-    console.log(`[${matchId}] [${timestamp}] [handleStepAnswer] [BOTH_DONE] step=${stepIndex} - calling moveToNextStep`)
+    console.log(`[${matchId}] ⚡ Both players done with step ${stepIndex} - moving to next step`)
     await moveToNextStep(matchId, supabase)
   }
 }
@@ -1724,16 +1703,52 @@ async function handleSubmitAnswerV2(
   socket: WebSocket,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  console.log(`[${matchId}] [V2] SUBMIT_ANSWER from player ${playerId}, answer: ${answer}`)
+  const submitStartTime = Date.now()
+  console.log(`[${matchId}] 🎯 [V2] SUBMIT_ANSWER received at ${new Date().toISOString()}`)
+  console.log(`[${matchId}] 🎯 [V2] Player: ${playerId}, Answer: ${answer}`)
+  console.log(`[${matchId}] 🎯 [V2] Socket readyState: ${socket.readyState} (OPEN=1)`)
+
+  // Check current match state before submission
+  const { data: matchBefore, error: matchBeforeError } = await supabase
+    .from('matches')
+    .select('player1_id, player2_id, player1_answer, player2_answer, question_sent_at, results_computed_at, current_round_id')
+    .eq('id', matchId)
+    .single()
+
+  if (matchBeforeError) {
+    console.error(`[${matchId}] ❌ [V2] Failed to fetch match state before submission:`, matchBeforeError)
+  } else if (matchBefore) {
+    const timeSinceQuestionSent = matchBefore.question_sent_at 
+      ? Date.now() - new Date(matchBefore.question_sent_at).getTime()
+      : null
+    console.log(`[${matchId}] 📊 [V2] Match state BEFORE submission:`)
+    console.log(`[${matchId}] 📊 [V2]   - Player1 answer: ${matchBefore.player1_answer ?? 'null'}`)
+    console.log(`[${matchId}] 📊 [V2]   - Player2 answer: ${matchBefore.player2_answer ?? 'null'}`)
+    console.log(`[${matchId}] 📊 [V2]   - Results computed: ${matchBefore.results_computed_at ? 'YES' : 'NO'}`)
+    console.log(`[${matchId}] 📊 [V2]   - Question sent at: ${matchBefore.question_sent_at ?? 'null'}`)
+    console.log(`[${matchId}] 📊 [V2]   - Time since question sent: ${timeSinceQuestionSent ? `${Math.floor(timeSinceQuestionSent / 1000)}s` : 'N/A'}`)
+    console.log(`[${matchId}] 📊 [V2]   - Current round ID: ${matchBefore.current_round_id ?? 'null'}`)
+  }
+
+  // Check timer status
+  const existingTimeout = matchTimeouts.get(matchId)
+  console.log(`[${matchId}] ⏰ [V2] Timer status: ${existingTimeout ? 'ACTIVE' : 'INACTIVE'}`)
+  if (existingTimeout) {
+    console.log(`[${matchId}] ⏰ [V2] Timer ID: ${existingTimeout}`)
+  }
 
   // Validate answer index
   if (answer !== 0 && answer !== 1) {
+    console.error(`[${matchId}] ❌ [V2] Invalid answer validation: ${answer} (must be 0 or 1)`)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: 'Invalid answer: must be 0 or 1'
     } as GameErrorEvent))
     return
   }
+
+  console.log(`[${matchId}] 🔄 [V2] Calling submit_round_answer_v2 RPC...`)
+  const rpcStartTime = Date.now()
 
   // Call v2 RPC (single source of truth)
   const { data, error } = await supabase.rpc('submit_round_answer_v2', {
@@ -1742,8 +1757,12 @@ async function handleSubmitAnswerV2(
     p_answer: answer
   })
 
+  const rpcDuration = Date.now() - rpcStartTime
+  console.log(`[${matchId}] ⏱️ [V2] RPC call duration: ${rpcDuration}ms`)
+
   if (error) {
-    console.error(`[${matchId}] ❌ [V2] Error submitting answer:`, error)
+    console.error(`[${matchId}] ❌ [V2] RPC error after ${rpcDuration}ms:`, error)
+    console.error(`[${matchId}] ❌ [V2] Error code: ${error.code}, message: ${error.message}`)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: error.message || 'Failed to submit answer'
@@ -1751,8 +1770,16 @@ async function handleSubmitAnswerV2(
     return
   }
 
+  console.log(`[${matchId}] 📦 [V2] RPC response received:`)
+  console.log(`[${matchId}] 📦 [V2]   - Success: ${data?.success ?? 'undefined'}`)
+  console.log(`[${matchId}] 📦 [V2]   - Both answered: ${data?.both_answered ?? 'undefined'}`)
+  console.log(`[${matchId}] 📦 [V2]   - Error: ${data?.error ?? 'none'}`)
+  console.log(`[${matchId}] 📦 [V2]   - Reason: ${data?.reason ?? 'none'}`)
+  console.log(`[${matchId}] 📦 [V2]   - Has results_payload: ${data?.results_payload ? 'YES' : 'NO'}`)
+
   if (!data?.success) {
-    console.error(`[${matchId}] ❌ [V2] RPC returned error:`, data?.error || data?.reason)
+    console.error(`[${matchId}] ❌ [V2] RPC returned failure after ${rpcDuration}ms`)
+    console.error(`[${matchId}] ❌ [V2] Error: ${data?.error ?? 'unknown'}, Reason: ${data?.reason ?? 'unknown'}`)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: data?.error || data?.reason || 'Failed to submit answer'
@@ -1760,25 +1787,59 @@ async function handleSubmitAnswerV2(
     return
   }
 
+  // Check match state after submission
+  const { data: matchAfter, error: matchAfterError } = await supabase
+    .from('matches')
+    .select('player1_answer, player2_answer, results_computed_at')
+    .eq('id', matchId)
+    .single()
+
+  if (matchAfterError) {
+    console.error(`[${matchId}] ❌ [V2] Failed to fetch match state after submission:`, matchAfterError)
+  } else if (matchAfter) {
+    console.log(`[${matchId}] 📊 [V2] Match state AFTER submission:`)
+    console.log(`[${matchId}] 📊 [V2]   - Player1 answer: ${matchAfter.player1_answer ?? 'null'}`)
+    console.log(`[${matchId}] 📊 [V2]   - Player2 answer: ${matchAfter.player2_answer ?? 'null'}`)
+    console.log(`[${matchId}] 📊 [V2]   - Results computed: ${matchAfter.results_computed_at ? 'YES' : 'NO'}`)
+  }
+
+  const totalDuration = Date.now() - submitStartTime
+  console.log(`[${matchId}] ⏱️ [V2] Total submission duration: ${totalDuration}ms`)
+
   // Send confirmation to submitter
-  socket.send(JSON.stringify({
-    type: 'ANSWER_SUBMITTED',
-    both_answered: data.both_answered
-  }))
+  console.log(`[${matchId}] 📤 [V2] Sending ANSWER_SUBMITTED confirmation to player ${playerId}`)
+  console.log(`[${matchId}] 📤 [V2] Both answered: ${data.both_answered}`)
+  
+  try {
+    socket.send(JSON.stringify({
+      type: 'ANSWER_SUBMITTED',
+      both_answered: data.both_answered
+    }))
+    console.log(`[${matchId}] ✅ [V2] ANSWER_SUBMITTED sent successfully`)
+  } catch (sendError) {
+    console.error(`[${matchId}] ❌ [V2] Failed to send ANSWER_SUBMITTED:`, sendError)
+  }
 
   // Realtime will deliver results to all clients (primary mechanism)
   // Optional: Send WS RESULTS_RECEIVED as fast-path if both answered (but don't rely on it)
   if (data.both_answered && data.results_payload) {
+    console.log(`[${matchId}] 🎉 [V2] Both players answered! Processing results...`)
+    
     // Clear timeout since both answered early
-    const existingTimeout = matchTimeouts.get(matchId)
-    if (existingTimeout) {
-      clearTimeout(existingTimeout)
+    const timeoutToClear = matchTimeouts.get(matchId)
+    if (timeoutToClear) {
+      clearTimeout(timeoutToClear)
       matchTimeouts.delete(matchId)
-      console.log(`[${matchId}] ✅ [V2] Cleared timeout - both players answered early`)
+      console.log(`[${matchId}] ✅ [V2] Cleared timeout (ID: ${timeoutToClear}) - both players answered early`)
+    } else {
+      console.log(`[${matchId}] ⚠️ [V2] No active timeout to clear (may have already been cleared or never set)`)
     }
 
     // Optional fast-path: Broadcast via WebSocket (same instance optimization)
     // Realtime is the reliable source, this is just optimization
+    console.log(`[${matchId}] 📤 [V2] Preparing RESULTS_RECEIVED event...`)
+    console.log(`[${matchId}] 📤 [V2] Results payload:`, JSON.stringify(data.results_payload, null, 2))
+    
     const resultsEvent: ResultsReceivedEvent = {
       type: 'RESULTS_RECEIVED',
       player1_answer: data.results_payload.p1?.answer ?? null,
@@ -1796,13 +1857,18 @@ async function handleSubmitAnswerV2(
       matchOver: false, // Will be determined from match status
       matchWinnerId: null
     }
+    
+    console.log(`[${matchId}] 📤 [V2] Broadcasting RESULTS_RECEIVED event...`)
     broadcastToMatch(matchId, resultsEvent)
-    console.log(`[${matchId}] ✅ [V2] Broadcast RESULTS_RECEIVED (fast-path, Realtime is primary)`)
+    console.log(`[${matchId}] ✅ [V2] RESULTS_RECEIVED broadcast completed (fast-path, Realtime is primary)`)
 
     // Note: Next round will be started by server after delay or client signal
     // Don't start it here to avoid double-firing
   } else {
     // Only one answered - get match to determine player role for broadcast
+    console.log(`[${matchId}] ⏳ [V2] Only one player answered - waiting for opponent`)
+    console.log(`[${matchId}] ⏳ [V2] Current player: ${playerId}`)
+    
     const { data: matchData } = await supabase
       .from('matches')
       .select('player1_id, player2_id')
@@ -1810,14 +1876,23 @@ async function handleSubmitAnswerV2(
       .single()
     
     if (matchData) {
+      const playerRole = matchData.player1_id === playerId ? 'player1' : 'player2'
+      console.log(`[${matchId}] 📤 [V2] Broadcasting ANSWER_RECEIVED for ${playerRole}`)
+      
       const answerReceivedEvent: AnswerReceivedEvent = {
         type: 'ANSWER_RECEIVED',
-        player: matchData.player1_id === playerId ? 'player1' : 'player2',
+        player: playerRole,
         waiting_for_opponent: true
       }
       broadcastToMatch(matchId, answerReceivedEvent)
+      console.log(`[${matchId}] ✅ [V2] ANSWER_RECEIVED broadcast completed`)
+    } else {
+      console.error(`[${matchId}] ❌ [V2] Failed to fetch match data for ANSWER_RECEIVED broadcast`)
     }
   }
+  
+  const finalDuration = Date.now() - submitStartTime
+  console.log(`[${matchId}] ✅ [V2] handleSubmitAnswerV2 completed in ${finalDuration}ms`)
 }
 
 /**
@@ -2175,10 +2250,13 @@ Deno.serve(async (req) => {
   }
 
   socket.onmessage = async (event) => {
+    const messageReceivedTimestamp = Date.now()
     try {
-      console.log(`[${matchId}] 📨 Raw message received:`, event.data)
+      console.log(`[${matchId}] 📨 [RAW] Raw message received at ${new Date().toISOString()}`)
+      console.log(`[${matchId}] 📨 [RAW] Message data:`, event.data)
       const message = JSON.parse(event.data)
-      console.log(`[${matchId}] 📨 Parsed message:`, message)
+      console.log(`[${matchId}] 📨 [RAW] Parsed message type: ${message.type}`)
+      console.log(`[${matchId}] 📨 [RAW] Parsed message:`, JSON.stringify(message, null, 2))
 
       if (message.type === 'PING') {
         // Lightweight heartbeat - respond with PONG (no game logic)
@@ -2197,15 +2275,26 @@ Deno.serve(async (req) => {
         console.log(`[${matchId}] Processing SUBMIT_STEP_ANSWER from user ${user.id}`)
         await handleStepAnswer(matchId, user.id, message.stepIndex, message.answerIndex, socket, supabase)
       } else if (message.type === 'SUBMIT_ANSWER') {
-        console.log(`[${matchId}] Processing SUBMIT_ANSWER from user ${user.id}`)
+        const messageReceivedTime = Date.now()
+        console.log(`[${matchId}] 📨 [MESSAGE] SUBMIT_ANSWER received at ${new Date().toISOString()}`)
+        console.log(`[${matchId}] 📨 [MESSAGE] From user: ${user.id}`)
+        console.log(`[${matchId}] 📨 [MESSAGE] Answer value: ${message.answer}`)
+        console.log(`[${matchId}] 📨 [MESSAGE] Socket readyState: ${socket.readyState}`)
+        
         // Check if we're in step phase - if so, route to step handler
         const state = gameStates.get(matchId)
         if (state && state.currentPhase === 'steps') {
+          console.log(`[${matchId}] 📨 [MESSAGE] Routing to step handler (currentPhase: ${state.currentPhase})`)
           await handleStepAnswer(matchId, user.id, state.currentStepIndex, message.answer, socket, supabase)
         } else {
+          console.log(`[${matchId}] 📨 [MESSAGE] Routing to handleSubmitAnswerV2 (currentPhase: ${state?.currentPhase ?? 'none'})`)
           // V2: Always use handleSubmitAnswerV2 (migrations must be deployed first)
           await handleSubmitAnswerV2(matchId, user.id, message.answer, socket, supabase)
         }
+        
+        const messageProcessedTime = Date.now()
+        const messageProcessingDuration = messageProcessedTime - messageReceivedTime
+        console.log(`[${matchId}] 📨 [MESSAGE] SUBMIT_ANSWER processing completed in ${messageProcessingDuration}ms`)
       } else {
         console.warn(`[${matchId}] Unknown message type: ${message.type}`)
         socket.send(JSON.stringify({
