@@ -539,7 +539,3 @@ To get your database password: Supabase Dashboard → Project Settings → Datab
 
 
 
-
-
-
-

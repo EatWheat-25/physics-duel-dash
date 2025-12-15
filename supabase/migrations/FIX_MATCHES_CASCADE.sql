@@ -56,7 +56,3 @@ WHERE tc.constraint_name = 'matches_question_id_fkey'
 
 -- Should show delete_rule = 'CASCADE'
 
-
-
-
-
