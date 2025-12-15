@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
@@ -10,9 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Filter } from 'lucide-react';
+import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Filter, Eye, CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import SpaceBackground from '@/components/SpaceBackground';
+import { useIsAdmin } from '@/hooks/useUserRole';
+import { A1_MATH_CHAPTERS } from '@/types/math';
+import { A1_CHAPTERS as A1_PHYSICS_CHAPTERS } from '@/types/physics';
 
 type QuestionFilter = {
   subject: 'all' | 'math' | 'physics' | 'chemistry';
@@ -25,6 +28,7 @@ type EditorMode = 'idle' | 'creating' | 'editing';
 
 type FormStep = {
   id?: string;
+  type: 'mcq' | 'true_false';
   title: string;
   prompt: string;
   options: [string, string, string, string];
@@ -48,13 +52,23 @@ type QuestionForm = {
   imageUrl: string;
 };
 
+// A1 Chemistry Chapters - Placeholder list
+const A1_CHEMISTRY_CHAPTERS = [
+  { id: 'atomic-structure', title: 'Atomic Structure', level: 'A1' as const },
+  { id: 'bonding', title: 'Bonding', level: 'A1' as const },
+  { id: 'stoichiometry', title: 'Stoichiometry', level: 'A1' as const },
+  { id: 'energetics', title: 'Energetics', level: 'A1' as const },
+  { id: 'kinetics', title: 'Kinetics', level: 'A1' as const },
+  { id: 'equilibria', title: 'Equilibria', level: 'A1' as const },
+  { id: 'redox', title: 'Redox Reactions', level: 'A1' as const },
+  { id: 'organic-chemistry', title: 'Organic Chemistry Basics', level: 'A1' as const }
+];
+
 export default function AdminQuestions() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
-
-  // Access control
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checkingAdmin, setCheckingAdmin] = useState(true);
+  const { isAdmin, isLoading: checkingAdmin } = useIsAdmin();
 
   // Question list state
   const [questions, setQuestions] = useState<StepBasedQuestion[]>([]);
@@ -65,23 +79,57 @@ export default function AdminQuestions() {
     difficulty: 'all',
     rankTier: ''
   });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [mappingErrors, setMappingErrors] = useState<string[]>([]);
 
   // Editor state
   const [mode, setMode] = useState<EditorMode>('idle');
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [form, setForm] = useState<QuestionForm>(getEmptyForm());
   const [saving, setSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
-  // Check admin access
-  useEffect(() => {
-    if (!authLoading && user) {
-      const role = user.user_metadata?.role;
-      setIsAdmin(role === 'admin');
-      setCheckingAdmin(false);
-    } else if (!authLoading && !user) {
-      setCheckingAdmin(false);
+  // Session settings - persist Subject/Level/Difficulty when creating multiple questions
+  const [sessionSettings, setSessionSettings] = useState<{
+    subject: 'math' | 'physics' | 'chemistry';
+    level: 'A1' | 'A2';
+    difficulty: 'easy' | 'medium' | 'hard';
+  }>({
+    subject: 'math',
+    level: 'A1',
+    difficulty: 'medium'
+  });
+
+  const filteredQuestions = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    return questions.filter((q) => {
+      const matchesSearch = term
+        ? `${q.title} ${q.chapter} ${q.subject} ${q.level} ${q.difficulty}`
+            .toLowerCase()
+            .includes(term)
+        : true;
+      return matchesSearch;
+    });
+  }, [questions, searchTerm]);
+
+  // Get chapters based on subject and level
+  const getChaptersForSubjectLevel = useMemo(() => {
+    if (form.level !== 'A1') {
+      // For now, only A1 is supported - return empty array for A2
+      return [];
     }
-  }, [user, authLoading]);
+    
+    switch (form.subject) {
+      case 'math':
+        return A1_MATH_CHAPTERS.map(ch => ({ id: ch.id, title: ch.title }));
+      case 'physics':
+        return A1_PHYSICS_CHAPTERS.map(ch => ({ id: ch.id, title: ch.title }));
+      case 'chemistry':
+        return A1_CHEMISTRY_CHAPTERS;
+      default:
+        return [];
+    }
+  }, [form.subject, form.level]);
 
   // Load questions on mount and filter changes
   useEffect(() => {
@@ -93,15 +141,16 @@ export default function AdminQuestions() {
   function getEmptyForm(): QuestionForm {
     return {
       title: '',
-      subject: 'math',
+      subject: sessionSettings.subject,
       chapter: '',
-      level: 'A1',
-      difficulty: 'medium',
+      level: sessionSettings.level,
+      difficulty: sessionSettings.difficulty,
       rankTier: '',
       stem: '',
       totalMarks: 1,
       topicTags: '',
       steps: [{
+        type: 'mcq',
         title: 'Step 1',
         prompt: '',
         options: ['', '', '', ''],
@@ -127,11 +176,31 @@ export default function AdminQuestions() {
       if (filters.difficulty !== 'all') query = query.eq('difficulty', filters.difficulty);
       if (filters.rankTier.trim()) query = query.eq('rank_tier', filters.rankTier.trim());
 
+      console.log('[AdminQuestions] Fetching questions with filters:', filters);
       const { data, error } = await query;
+      console.log('[AdminQuestions] Raw result count:', data?.length || 0, 'error:', error);
 
       if (error) throw error;
 
-      const mapped = (data || []).map(dbRowToQuestion);
+      const mapped: StepBasedQuestion[] = [];
+      const rowErrors: string[] = [];
+
+      (data || []).forEach((row, idx) => {
+        try {
+          mapped.push(dbRowToQuestion(row));
+        } catch (err: any) {
+          console.error('[AdminQuestions] Mapping error for row', idx, err, row);
+          rowErrors.push(err?.message || 'Mapping error');
+        }
+      });
+
+      if (rowErrors.length > 0) {
+        setMappingErrors(rowErrors);
+        toast.warning(`Some questions could not be parsed (${rowErrors.length}). Check console logs for details.`);
+      } else {
+        setMappingErrors([]);
+      }
+
       setQuestions(mapped);
     } catch (error: any) {
       console.error('[AdminQuestions] Error fetching:', error);
@@ -162,17 +231,43 @@ export default function AdminQuestions() {
       topicTags: q.topicTags.join(', '),
       steps: q.steps.map(s => ({
         id: s.id,
+        type: s.type || 'mcq',
         title: s.title,
         prompt: s.prompt,
         options: [s.options[0] || '', s.options[1] || '', s.options[2] || '', s.options[3] || ''],
         correctAnswer: s.correctAnswer,
         marks: s.marks,
         timeLimitSeconds: s.timeLimitSeconds,
-        explanation: s.explanation
+        explanation: s.explanation || ''
       })),
       imageUrl: q.imageUrl || ''
     });
   }
+
+  // Handle URL parameters for create/edit mode
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const createParam = searchParams.get('create');
+    const editParam = searchParams.get('edit');
+
+    if (createParam !== null) {
+      // Trigger create mode immediately
+      setMode('creating');
+      setSelectedQuestionId(null);
+      setForm(getEmptyForm());
+      // Clean up URL
+      navigate('/admin/questions', { replace: true });
+    } else if (editParam && questions.length > 0) {
+      // Only handle edit if questions are loaded
+      const question = questions.find(q => q.id === editParam);
+      if (question) {
+        handleSelectQuestion(question);
+      }
+      // Clean up URL
+      navigate('/admin/questions', { replace: true });
+    }
+  }, [isAdmin, questions, searchParams, navigate]);
 
   function handleAddStep() {
     setForm({
@@ -180,6 +275,7 @@ export default function AdminQuestions() {
       steps: [
         ...form.steps,
         {
+          type: 'mcq',
           title: `Step ${form.steps.length + 1}`,
           prompt: '',
           options: ['', '', '', ''],
@@ -217,8 +313,27 @@ export default function AdminQuestions() {
 
   function updateStepField(index: number, field: keyof FormStep, value: any) {
     const newSteps = [...form.steps];
-    newSteps[index] = { ...newSteps[index], [field]: value };
-    setForm({ ...form, steps: newSteps });
+    const updatedStep = { ...newSteps[index], [field]: value };
+    
+    // When changing type to true_false, set default options and limit correctAnswer
+    if (field === 'type' && value === 'true_false') {
+      updatedStep.options = ['True', 'False', '', ''];
+      if (updatedStep.correctAnswer > 1) {
+        updatedStep.correctAnswer = 0;
+      }
+    } else if (field === 'type' && value === 'mcq') {
+      // When changing to MCQ, ensure we have 4 options
+      if (!updatedStep.options[2] && !updatedStep.options[3]) {
+        updatedStep.options = [updatedStep.options[0] || '', updatedStep.options[1] || '', '', ''];
+      }
+    }
+    
+    newSteps[index] = updatedStep;
+    
+    // Auto-calculate total marks when step marks change
+    const totalMarks = newSteps.reduce((sum, s) => sum + (s.marks || 0), 0);
+    
+    setForm({ ...form, steps: newSteps, totalMarks });
   }
 
   function updateStepOption(stepIndex: number, optionIndex: number, value: string) {
@@ -253,13 +368,29 @@ export default function AdminQuestions() {
         toast.error(`Step ${i + 1}: title and prompt are required`);
         return false;
       }
-      if (step.options.some(opt => !opt.trim())) {
-        toast.error(`Step ${i + 1}: all 4 options must be filled`);
-        return false;
-      }
-      if (step.correctAnswer < 0 || step.correctAnswer > 3) {
-        toast.error(`Step ${i + 1}: correct answer must be 0-3`);
-        return false;
+      
+      if (step.type === 'true_false') {
+        // True/False: need exactly 2 non-empty options
+        const nonEmptyOptions = step.options.slice(0, 2).filter(opt => opt.trim());
+        if (nonEmptyOptions.length !== 2) {
+          toast.error(`Step ${i + 1}: True/False questions need exactly 2 options (True and False)`);
+          return false;
+        }
+        if (step.correctAnswer < 0 || step.correctAnswer > 1) {
+          toast.error(`Step ${i + 1}: True/False correct answer must be 0 (True) or 1 (False)`);
+          return false;
+        }
+      } else {
+        // MCQ: need at least 2 non-empty options
+        const nonEmptyOptions = step.options.filter(opt => opt.trim());
+        if (nonEmptyOptions.length < 2) {
+          toast.error(`Step ${i + 1}: MCQ questions need at least 2 options`);
+          return false;
+        }
+        if (step.correctAnswer < 0 || step.correctAnswer >= nonEmptyOptions.length) {
+          toast.error(`Step ${i + 1}: correct answer must be between 0 and ${nonEmptyOptions.length - 1}`);
+          return false;
+        }
       }
     }
 
@@ -276,36 +407,52 @@ export default function AdminQuestions() {
         .map(t => t.trim())
         .filter(t => t.length > 0);
 
-      // Strict type detection with validation
-      const normalize = (s: string) => s.toLowerCase().trim()
-      
       const stepsPayload: QuestionStep[] = form.steps.map((s, i) => {
-        const nonEmptyOptions = s.options.map(o => o.trim()).filter(Boolean)
-        const normalized = nonEmptyOptions.map(normalize).sort().join(',')
-        
-        // Strict TF detection: exactly 2 options, must be True/False
-        const isTrueFalse = nonEmptyOptions.length === 2 && normalized === 'false,true'
+        // Get non-empty options based on type
+        let nonEmptyOptions: string[];
+        if (s.type === 'true_false') {
+          nonEmptyOptions = s.options.slice(0, 2).map(o => o.trim()).filter(Boolean);
+          if (nonEmptyOptions.length !== 2) {
+            throw new Error(`Step ${i + 1}: True/False questions must have exactly 2 options`);
+          }
+        } else {
+          nonEmptyOptions = s.options.map(o => o.trim()).filter(Boolean);
+          if (nonEmptyOptions.length < 2) {
+            throw new Error(`Step ${i + 1}: MCQ questions must have at least 2 options`);
+          }
+        }
         
         // Validate correctAnswer range
-        const correct = Number(s.correctAnswer)
+        const correct = Number(s.correctAnswer);
         if (Number.isNaN(correct)) {
-          throw new Error(`Step ${i + 1}: correctAnswer missing`)
+          throw new Error(`Step ${i + 1}: correctAnswer missing`);
         }
-        if (correct < 0 || correct >= nonEmptyOptions.length) {
-          throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${nonEmptyOptions.length - 1})`)
+        if (s.type === 'true_false' && (correct < 0 || correct > 1)) {
+          throw new Error(`Step ${i + 1}: True/False correct answer must be 0 or 1`);
         }
+        if (s.type === 'mcq' && (correct < 0 || correct >= nonEmptyOptions.length)) {
+          throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${nonEmptyOptions.length - 1})`);
+        }
+        
+        // Pad options to exactly 4 for storage (True/False will have empty C and D)
+        const paddedOptions: [string, string, string, string] = [
+          nonEmptyOptions[0] || '',
+          nonEmptyOptions[1] || '',
+          nonEmptyOptions[2] || '',
+          nonEmptyOptions[3] || ''
+        ];
         
         return {
           id: s.id || `step-${i + 1}`,
-          stepIndex: i,
-          type: isTrueFalse ? 'true_false' : 'mcq',
+          index: i,
+          type: s.type,
           title: s.title,
           prompt: s.prompt,
-          options: nonEmptyOptions, // Only non-empty options
-          correctAnswer: correct,
+          options: paddedOptions,
+          correctAnswer: correct as 0 | 1 | 2 | 3,
           timeLimitSeconds: s.timeLimitSeconds ?? null,
           marks: s.marks,
-          explanation: s.explanation
+          explanation: s.explanation || null
         }
       });
 
@@ -331,6 +478,13 @@ export default function AdminQuestions() {
           .single();
 
         if (error) throw error;
+
+        // Update session settings with current form values for next question
+        setSessionSettings({
+          subject: form.subject,
+          level: form.level,
+          difficulty: form.difficulty
+        });
 
         toast.success('Question created successfully!');
         fetchQuestions();
@@ -363,17 +517,227 @@ export default function AdminQuestions() {
     if (!confirm('Are you sure you want to delete this question? This cannot be undone.')) return;
 
     try {
+      // Try using the RPC function first (more reliable, handles everything in a transaction)
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('delete_question_cascade' as any, { p_question_id: selectedQuestionId });
+
+      if (!rpcError && rpcResult && typeof rpcResult === 'object' && rpcResult !== null && 'success' in rpcResult && (rpcResult as any).success) {
+        // RPC function succeeded
+        toast.success('Question deleted successfully!');
+        setMode('idle');
+        setSelectedQuestionId(null);
+        setForm(getEmptyForm());
+        fetchQuestions();
+        return;
+      }
+
+      // If RPC function doesn't exist or failed, fall back to manual deletion
+      console.log('[AdminQuestions] RPC function not available or failed, using manual deletion');
+      
+      // Delete related records first to avoid foreign key constraint violations
+      // Delete match_answers that reference this question
+      const { error: answersError } = await supabase
+        .from('match_answers')
+        .delete()
+        .eq('question_id', selectedQuestionId);
+
+      if (answersError && !answersError.message.includes('does not exist')) {
+        console.warn('[AdminQuestions] Error deleting match_answers:', answersError);
+      }
+
+      // Delete match_rounds that reference this question
+      const { error: roundsError } = await supabase
+        .from('match_rounds')
+        .delete()
+        .eq('question_id', selectedQuestionId);
+
+      if (roundsError && !roundsError.message.includes('does not exist')) {
+        console.warn('[AdminQuestions] Error deleting match_rounds:', roundsError);
+      }
+
+      // Delete match_questions if the table exists
+      const { error: matchQuestionsError } = await supabase
+        .from('match_questions')
+        .delete()
+        .eq('question_id', selectedQuestionId);
+
+      if (matchQuestionsError && !matchQuestionsError.message.includes('does not exist')) {
+        // Table might not exist, which is fine
+        console.warn('[AdminQuestions] Error deleting match_questions (table may not exist):', matchQuestionsError);
+      }
+
+      // Handle matches table if it has question_id column
+      // Try to update to NULL first, then delete if that fails
+      const { error: matchesUpdateError } = await supabase
+        .from('matches')
+        .update({ question_id: null } as any)
+        .eq('question_id' as any, selectedQuestionId);
+
+      if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
+        // If update to NULL fails (column not nullable), try deleting matches
+        const { error: matchesDeleteError } = await supabase
+          .from('matches')
+          .delete()
+          .eq('question_id' as any, selectedQuestionId);
+        
+        if (matchesDeleteError && !matchesDeleteError.message.includes('does not exist')) {
+          console.warn('[AdminQuestions] Error handling matches:', matchesDeleteError);
+        }
+      }
+
+      // Now delete the question itself
       const { error } = await supabase
         .from('questions_v2')
         .delete()
         .eq('id', selectedQuestionId);
 
-      if (error) throw error;
+      if (error) {
+        // If we still get a foreign key error, it means CASCADE isn't working
+        // Try one more time with the RPC if it was just a timing issue
+        if (error.message?.includes('foreign key constraint') || error.message?.includes('violates')) {
+          const { data: retryResult, error: retryError } = await supabase
+            .rpc('delete_question_cascade' as any, { p_question_id: selectedQuestionId });
+          
+          if (!retryError && retryResult && typeof retryResult === 'object' && retryResult !== null && 'success' in retryResult && (retryResult as any).success) {
+            toast.success('Question deleted successfully!');
+            setMode('idle');
+            setSelectedQuestionId(null);
+            setForm(getEmptyForm());
+            fetchQuestions();
+            return;
+          }
+        }
+        throw error;
+      }
 
       toast.success('Question deleted successfully!');
       setMode('idle');
       setSelectedQuestionId(null);
       setForm(getEmptyForm());
+      fetchQuestions();
+    } catch (error: any) {
+      console.error('[AdminQuestions] Delete error:', error);
+      toast.error(error.message || 'Failed to delete question');
+    }
+  }
+
+  async function handleDeleteFromList(questionId: string, event: React.MouseEvent) {
+    event.stopPropagation(); // Prevent selecting the question when clicking delete
+    
+    if (!confirm('Are you sure you want to delete this question? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      // Try using the RPC function first (more reliable, handles everything in a transaction)
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('delete_question_cascade' as any, { p_question_id: questionId });
+
+      if (!rpcError && rpcResult && typeof rpcResult === 'object' && rpcResult !== null && 'success' in rpcResult && (rpcResult as any).success) {
+        // RPC function succeeded
+        toast.success('Question deleted successfully!');
+        
+        // If deleted question was selected, clear selection
+        if (selectedQuestionId === questionId) {
+          setMode('idle');
+          setSelectedQuestionId(null);
+          setForm(getEmptyForm());
+        }
+        
+        fetchQuestions();
+        return;
+      }
+
+      // If RPC function doesn't exist or failed, fall back to manual deletion
+      console.log('[AdminQuestions] RPC function not available or failed, using manual deletion');
+      
+      // Delete related records first to avoid foreign key constraint violations
+      // Delete match_answers that reference this question
+      const { error: answersError } = await supabase
+        .from('match_answers')
+        .delete()
+        .eq('question_id', questionId);
+
+      if (answersError && !answersError.message.includes('does not exist')) {
+        console.warn('[AdminQuestions] Error deleting match_answers:', answersError);
+      }
+
+      // Delete match_rounds that reference this question
+      const { error: roundsError } = await supabase
+        .from('match_rounds')
+        .delete()
+        .eq('question_id', questionId);
+
+      if (roundsError && !roundsError.message.includes('does not exist')) {
+        console.warn('[AdminQuestions] Error deleting match_rounds:', roundsError);
+      }
+
+      // Delete match_questions if the table exists
+      const { error: matchQuestionsError } = await supabase
+        .from('match_questions')
+        .delete()
+        .eq('question_id', questionId);
+
+      if (matchQuestionsError && !matchQuestionsError.message.includes('does not exist')) {
+        // Table might not exist, which is fine
+        console.warn('[AdminQuestions] Error deleting match_questions (table may not exist):', matchQuestionsError);
+      }
+
+      // Handle matches table if it has question_id column
+      // Try to update to NULL first, then delete if that fails
+      const { error: matchesUpdateError } = await supabase
+        .from('matches')
+        .update({ question_id: null } as any)
+        .eq('question_id' as any, questionId);
+
+      if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
+        // If update to NULL fails (column not nullable), try deleting matches
+        const { error: matchesDeleteError } = await supabase
+          .from('matches')
+          .delete()
+          .eq('question_id' as any, questionId);
+        
+        if (matchesDeleteError && !matchesDeleteError.message.includes('does not exist')) {
+          console.warn('[AdminQuestions] Error handling matches:', matchesDeleteError);
+        }
+      }
+
+      // Now delete the question itself
+      const { error } = await supabase
+        .from('questions_v2')
+        .delete()
+        .eq('id', questionId);
+
+      if (error) {
+        // If we still get a foreign key error, it means CASCADE isn't working
+        // Try one more time with the RPC if it was just a timing issue
+        if (error.message?.includes('foreign key constraint') || error.message?.includes('violates')) {
+          const { data: retryResult, error: retryError } = await supabase
+            .rpc('delete_question_cascade' as any, { p_question_id: questionId });
+          
+          if (!retryError && retryResult && typeof retryResult === 'object' && retryResult !== null && 'success' in retryResult && (retryResult as any).success) {
+            toast.success('Question deleted successfully!');
+            if (selectedQuestionId === questionId) {
+              setMode('idle');
+              setSelectedQuestionId(null);
+              setForm(getEmptyForm());
+            }
+            fetchQuestions();
+            return;
+          }
+        }
+        throw error;
+      }
+
+      toast.success('Question deleted successfully!');
+      
+      // If deleted question was selected, clear selection
+      if (selectedQuestionId === questionId) {
+        setMode('idle');
+        setSelectedQuestionId(null);
+        setForm(getEmptyForm());
+      }
+      
       fetchQuestions();
     } catch (error: any) {
       console.error('[AdminQuestions] Delete error:', error);
@@ -489,22 +853,58 @@ export default function AdminQuestions() {
                 </div>
               </div>
 
-              <Button
-                onClick={handleNewQuestion}
-                className="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-10 shadow-lg shadow-orange-500/20"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create New Question
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFilters({ subject: 'all', level: 'all', difficulty: 'all', rankTier: '' });
+                    setSearchTerm('');
+                  }}
+                  className="flex-1 bg-white/5 border-white/15 text-white hover:bg-white/10"
+                >
+                  Reset Filters
+                </Button>
+                <Button
+                  onClick={handleNewQuestion}
+                  className="flex-1 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-10 shadow-lg shadow-orange-500/20"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create New Question
+                </Button>
+              </div>
+
+              <div>
+                <label className={labelStyle}>Quick Search</label>
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search title, chapter, subject..."
+                  className={glassInput}
+                />
+              </div>
+
             </div>
 
             {/* Question List */}
             <div className={`flex-1 ${glassPanel} flex flex-col min-h-0`}>
-              <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-md flex justify-between items-center">
-                <h3 className="font-bold text-white flex items-center gap-2">
-                  <Search className="w-4 h-4 text-primary" />
-                  Questions <span className="text-white/40 text-sm font-normal">({questions.length})</span>
-                </h3>
+              <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-md flex flex-wrap gap-3 justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-bold text-white flex items-center gap-2">
+                    <Search className="w-4 h-4 text-primary" />
+                    Questions
+                  </h3>
+                  <span className="text-white/70 text-sm font-medium">
+                    {filteredQuestions.length} shown / {questions.length} total
+                  </span>
+                  {mappingErrors.length > 0 && (
+                    <Badge variant="outline" className="text-amber-300 border-amber-300/40 bg-amber-500/10 text-xs">
+                      {mappingErrors.length} parsing issues
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-xs text-white/50 flex items-center gap-2">
+                  {searchTerm ? `Searching "${searchTerm}"` : 'Use filters or search to refine'}
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
@@ -512,37 +912,54 @@ export default function AdminQuestions() {
                   <div className="flex justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
-                ) : questions.length === 0 ? (
+                ) : filteredQuestions.length === 0 ? (
                   <div className="text-center py-12 text-white/40">
-                    <p>No questions found</p>
+                    <p>No questions match the current filters/search.</p>
                   </div>
                 ) : (
-                  questions.map((q) => (
+                  filteredQuestions.map((q) => (
                     <div
                       key={q.id}
                       onClick={() => handleSelectQuestion(q)}
-                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border ${selectedQuestionId === q.id
+                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border relative group ${selectedQuestionId === q.id
                           ? 'bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
                           : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
                         }`}
                     >
-                      <div className="font-bold text-white mb-2 line-clamp-2 text-sm">{q.title}</div>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
+                      {/* Delete button - appears on hover */}
+                      <button
+                        onClick={(e) => handleDeleteFromList(q.id, e)}
+                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity border border-red-500/20 z-10"
+                        title="Delete question"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="font-bold text-white line-clamp-2 text-sm pr-2">{q.title}</div>
+                        <span className="text-[10px] text-white/40 font-mono">#{q.id.slice(0, 6)}</span>
+                      </div>
+
+                      <p className="text-xs text-white/60 mb-2 line-clamp-1">{q.chapter}</p>
+
+                      <div className="grid grid-cols-4 gap-2 mb-2 text-[10px] font-semibold">
+                        <Badge variant="outline" className={`uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
                             q.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
                           }`}>
                           {q.subject}
                         </Badge>
-                        <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 text-white/70">{q.level}</Badge>
-                        <Badge variant="outline" className={`text-[10px] border-0 ${q.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
+                        <Badge variant="outline" className="border-white/10 bg-white/5 text-white/70">{q.level}</Badge>
+                        <Badge variant="outline" className={`border-0 ${q.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
                             q.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
                           }`}>
                           {q.difficulty}
                         </Badge>
+                        <Badge variant="outline" className="border-white/10 bg-white/5 text-white/70">{q.rankTier || 'No tier'}</Badge>
                       </div>
-                      <div className="text-[10px] text-white/40 font-medium flex justify-between">
-                        <span>{q.steps.length} Steps</span>
-                        <span>{q.totalMarks} Marks</span>
+
+                      <div className="text-[11px] text-white/60 font-medium flex justify-between">
+                        <span>{q.steps.length} step{q.steps.length === 1 ? '' : 's'}</span>
+                        <span>{q.totalMarks} mark{q.totalMarks === 1 ? '' : 's'}</span>
                       </div>
                     </div>
                   ))
@@ -574,6 +991,14 @@ export default function AdminQuestions() {
                     </p>
                   </div>
                   <div className="flex gap-3">
+                    <Button
+                      onClick={() => setShowPreview(!showPreview)}
+                      variant="outline"
+                      className="bg-white/5 hover:bg-white/10 text-white border-white/10"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      {showPreview ? 'Hide' : 'Show'} Preview
+                    </Button>
                     {mode === 'editing' && (
                       <Button
                         onClick={handleDelete}
@@ -596,7 +1021,9 @@ export default function AdminQuestions() {
                 </div>
 
                 {/* Editor Content */}
-                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                <div className="flex-1 overflow-hidden flex">
+                  {/* Main Editor */}
+                  <div className={`flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar transition-all ${showPreview ? 'w-1/2 pr-4' : 'w-full'}`}>
 
                   {/* Section: Meta */}
                   <div className="space-y-6">
@@ -618,7 +1045,10 @@ export default function AdminQuestions() {
 
                       <div>
                         <label className={labelStyle}>Subject *</label>
-                        <Select value={form.subject} onValueChange={(v: any) => setForm({ ...form, subject: v })}>
+                        <Select value={form.subject} onValueChange={(v: any) => {
+                          setSessionSettings({ ...sessionSettings, subject: v });
+                          setForm({ ...form, subject: v, chapter: '' });
+                        }}>
                           <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                           <SelectContent className="bg-gray-900 border-white/10 text-white">
                             <SelectItem value="math">Math</SelectItem>
@@ -630,18 +1060,41 @@ export default function AdminQuestions() {
 
                       <div>
                         <label className={labelStyle}>Chapter *</label>
-                        <Input
-                          value={form.chapter}
-                          onChange={e => setForm({ ...form, chapter: e.target.value })}
-                          className={glassInput}
-                          placeholder="e.g. Integration"
-                        />
+                        <Select 
+                          value={form.chapter} 
+                          onValueChange={(value) => setForm({ ...form, chapter: value })}
+                        >
+                          <SelectTrigger className={glassInput}>
+                            <SelectValue placeholder="Select a chapter..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-white/10 text-white">
+                            {getChaptersForSubjectLevel.length === 0 ? (
+                              <SelectItem value="" disabled>
+                                {form.level !== 'A1' ? 'A1 chapters only supported currently' : 'No chapters available'}
+                              </SelectItem>
+                            ) : (
+                              getChaptersForSubjectLevel.map((chapter) => (
+                                <SelectItem key={chapter.id} value={chapter.title}>
+                                  {chapter.title}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {form.subject === 'chemistry' && form.level === 'A1' && (
+                          <p className="text-xs text-white/40 mt-1">
+                            Chemistry chapters are placeholder - update as needed
+                          </p>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className={labelStyle}>Level *</label>
-                          <Select value={form.level} onValueChange={(v: any) => setForm({ ...form, level: v })}>
+                          <Select value={form.level} onValueChange={(v: any) => {
+                            setSessionSettings({ ...sessionSettings, level: v });
+                            setForm({ ...form, level: v, chapter: '' });
+                          }}>
                             <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                             <SelectContent className="bg-gray-900 border-white/10 text-white">
                               <SelectItem value="A1">A1</SelectItem>
@@ -651,7 +1104,10 @@ export default function AdminQuestions() {
                         </div>
                         <div>
                           <label className={labelStyle}>Difficulty *</label>
-                          <Select value={form.difficulty} onValueChange={(v: any) => setForm({ ...form, difficulty: v })}>
+                          <Select value={form.difficulty} onValueChange={(v: any) => {
+                            setSessionSettings({ ...sessionSettings, difficulty: v });
+                            setForm({ ...form, difficulty: v });
+                          }}>
                             <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                             <SelectContent className="bg-gray-900 border-white/10 text-white">
                               <SelectItem value="easy">Easy</SelectItem>
@@ -667,9 +1123,15 @@ export default function AdminQuestions() {
                         <Input
                           type="number"
                           value={form.totalMarks}
-                          onChange={e => setForm({ ...form, totalMarks: parseInt(e.target.value) || 1 })}
+                          onChange={e => {
+                            const marks = parseInt(e.target.value) || 1;
+                            setForm({ ...form, totalMarks: marks });
+                          }}
                           className={glassInput}
                         />
+                        <p className="text-xs text-white/40 mt-1">
+                          Auto-calculated: {form.steps.reduce((sum, s) => sum + s.marks, 0)} marks
+                        </p>
                       </div>
 
                       <div className="col-span-2">
@@ -677,9 +1139,12 @@ export default function AdminQuestions() {
                         <Textarea
                           value={form.stem}
                           onChange={e => setForm({ ...form, stem: e.target.value })}
-                          className={`${glassInput} min-h-[100px]`}
-                          placeholder="Enter the main question text here..."
+                          className={`${glassInput} min-h-[120px]`}
+                          placeholder="Enter the main question text/context here. This appears before all steps..."
                         />
+                        <p className="text-xs text-white/40 mt-1">
+                          This is the main question context that appears before all steps
+                        </p>
                       </div>
 
                       <div className="col-span-2">
@@ -690,21 +1155,29 @@ export default function AdminQuestions() {
                           className={glassInput}
                           placeholder="https://..."
                         />
+                        {form.imageUrl && (
+                          <img src={form.imageUrl} alt="Preview" className="mt-2 rounded-lg max-w-xs border border-white/10" onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }} />
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Section: Steps */}
                   <div className="space-y-6">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                      <h3 className="text-lg font-bold text-white/90 flex items-center gap-2">
-                        <div className="w-1 h-5 bg-secondary rounded-full"></div>
-                        Steps ({form.steps.length})
-                      </h3>
+                    <div className="flex items-center justify-between border-b-2 border-white/20 pb-3">
+                      <div>
+                        <h3 className="text-xl font-bold text-white/90 flex items-center gap-3 mb-1">
+                          <div className="w-2 h-6 bg-gradient-to-b from-primary to-secondary rounded-full"></div>
+                          Question Steps
+                        </h3>
+                        <p className="text-sm text-white/50 ml-5">Create multi-step questions with different types</p>
+                      </div>
                       <Button
                         onClick={handleAddStep}
                         size="sm"
-                        className="bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                        className="bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 text-white font-semibold shadow-lg"
                       >
                         <Plus className="w-4 h-4 mr-2" /> Add Step
                       </Button>
@@ -712,30 +1185,48 @@ export default function AdminQuestions() {
 
                     <div className="space-y-6">
                       {form.steps.map((step, index) => (
-                        <div key={index} className="bg-white/5 border border-white/10 rounded-2xl p-6 relative group">
-                          <div className="absolute top-4 right-4 flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepUp(index)} disabled={index === 0}><ArrowUp className="w-4 h-4" /></Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepDown(index)} disabled={index === form.steps.length - 1}><ArrowDown className="w-4 h-4" /></Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:bg-red-500/20" onClick={() => handleDeleteStep(index)} disabled={form.steps.length <= 1}><Trash2 className="w-4 h-4" /></Button>
-                          </div>
-
-                          <div className="mb-4 flex items-center gap-2">
-                            <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0">STEP {index + 1}</Badge>
-                            {(() => {
-                              // Live type detection
-                              const normalize = (s: string) => s.toLowerCase().trim()
-                              const nonEmptyOptions = step.options.map(o => o.trim()).filter(Boolean)
-                              const normalized = nonEmptyOptions.map(normalize).sort().join(',')
-                              const isTrueFalse = nonEmptyOptions.length === 2 && normalized === 'false,true'
-                              const isValid = nonEmptyOptions.length >= 2 && step.correctAnswer >= 0 && step.correctAnswer < nonEmptyOptions.length
-                              
-                              if (!isValid) {
-                                return <Badge className="bg-red-500/20 text-red-400 border-red-500/50">⚠️ Invalid config</Badge>
-                              }
-                              return isTrueFalse 
-                                ? <Badge className="bg-green-500/20 text-green-400 border-green-500/50">✅ True/False</Badge>
-                                : <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">✅ MCQ</Badge>
-                            })()}
+                        <div key={index} className="bg-gradient-to-br from-white/5 to-white/[0.02] border-2 border-white/10 rounded-2xl p-6 relative group hover:border-primary/30 transition-all shadow-lg">
+                          {/* Step Header with Controls */}
+                          <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary/50">
+                                <span className="text-primary font-bold text-lg">{index + 1}</span>
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0 font-semibold">STEP {index + 1}</Badge>
+                                  <Badge className={step.type === 'true_false' 
+                                    ? 'bg-green-500/20 text-green-400 border-green-500/50' 
+                                    : 'bg-blue-500/20 text-blue-400 border-blue-500/50'}>
+                                    {step.type === 'true_false' ? '✓ True/False' : '✓ MCQ'}
+                                  </Badge>
+                                  {step.marks > 0 && (
+                                    <Badge className="bg-amber-500/20 text-amber-300 border-0">
+                                      {step.marks} mark{step.marks !== 1 ? 's' : ''}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Select 
+                                value={step.type} 
+                                onValueChange={(v: 'mcq' | 'true_false') => updateStepField(index, 'type', v)}
+                              >
+                                <SelectTrigger className="w-32 h-8 bg-white/5 border-white/10 text-white text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                  <SelectItem value="mcq">MCQ</SelectItem>
+                                  <SelectItem value="true_false">True/False</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepUp(index)} disabled={index === 0} title="Move up"><ArrowUp className="w-4 h-4" /></Button>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => handleMoveStepDown(index)} disabled={index === form.steps.length - 1} title="Move down"><ArrowDown className="w-4 h-4" /></Button>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:bg-red-500/20" onClick={() => handleDeleteStep(index)} disabled={form.steps.length <= 1} title="Delete step"><Trash2 className="w-4 h-4" /></Button>
+                              </div>
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-1 gap-4">
@@ -756,18 +1247,34 @@ export default function AdminQuestions() {
                               />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-xl border border-white/5">
-                              {[0, 1, 2, 3].map((optIdx) => (
-                                <div key={optIdx}>
-                                  <label className="text-xs text-white/50 mb-1 block uppercase tracking-wider">Option {String.fromCharCode(65 + optIdx)}</label>
+                            <div className={`grid gap-4 bg-gradient-to-br from-black/30 to-black/10 p-5 rounded-xl border-2 ${step.type === 'true_false' ? 'grid-cols-2 border-green-500/20' : 'grid-cols-2 border-blue-500/20'}`}>
+                              {(step.type === 'true_false' ? [0, 1] : [0, 1, 2, 3]).map((optIdx) => (
+                                <div key={optIdx} className={`p-3 rounded-lg border-2 transition-all ${
+                                  step.correctAnswer === optIdx
+                                    ? 'bg-green-500/20 border-green-500/50'
+                                    : 'bg-white/5 border-white/10 hover:border-white/20'
+                                }`}>
+                                  <label className="text-xs text-white/70 mb-2 block uppercase tracking-wider font-semibold">
+                                    Option {String.fromCharCode(65 + optIdx)}
+                                    {step.type === 'true_false' && optIdx === 0 && ' (True)'}
+                                    {step.type === 'true_false' && optIdx === 1 && ' (False)'}
+                                    {step.correctAnswer === optIdx && (
+                                      <span className="ml-2 text-green-400">✓ Correct</span>
+                                    )}
+                                  </label>
                                   <div className="flex items-center gap-2">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step.correctAnswer === optIdx ? 'bg-green-500 text-black' : 'bg-white/10 text-white/50'}`}>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                                      step.correctAnswer === optIdx 
+                                        ? 'bg-green-500 text-black shadow-lg shadow-green-500/50' 
+                                        : 'bg-white/10 text-white/70'
+                                    }`}>
                                       {String.fromCharCode(65 + optIdx)}
                                     </div>
                                     <Input
                                       value={step.options[optIdx]}
                                       onChange={e => updateStepOption(index, optIdx, e.target.value)}
-                                      className={`${glassInput} h-9 text-sm`}
+                                      className={`${glassInput} h-10 text-sm flex-1`}
+                                      placeholder={step.type === 'true_false' && optIdx === 0 ? 'True' : step.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
                                     />
                                   </div>
                                 </div>
@@ -780,10 +1287,14 @@ export default function AdminQuestions() {
                                 <Select value={step.correctAnswer.toString()} onValueChange={(v) => updateStepField(index, 'correctAnswer', parseInt(v))}>
                                   <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                                   <SelectContent className="bg-gray-900 border-white/10 text-white">
-                                    <SelectItem value="0">Option A</SelectItem>
-                                    <SelectItem value="1">Option B</SelectItem>
-                                    <SelectItem value="2">Option C</SelectItem>
-                                    <SelectItem value="3">Option D</SelectItem>
+                                    <SelectItem value="0">Option A{step.type === 'true_false' ? ' (True)' : ''}</SelectItem>
+                                    <SelectItem value="1">Option B{step.type === 'true_false' ? ' (False)' : ''}</SelectItem>
+                                    {step.type === 'mcq' && (
+                                      <>
+                                        <SelectItem value="2">Option C</SelectItem>
+                                        <SelectItem value="3">Option D</SelectItem>
+                                      </>
+                                    )}
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -811,7 +1322,127 @@ export default function AdminQuestions() {
                       ))}
                     </div>
                   </div>
+                  </div>
 
+                  {/* Preview Panel */}
+                  {showPreview && (
+                    <div className="w-1/2 border-l border-white/10 bg-white/5 overflow-y-auto p-6 custom-scrollbar">
+                      <div className="sticky top-0 bg-white/5 backdrop-blur-xl pb-4 mb-4 border-b border-white/10">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          <Eye className="w-5 h-5 text-primary" />
+                          Question Preview
+                        </h3>
+                        <p className="text-xs text-white/50 mt-1">How this question will appear to students</p>
+                      </div>
+                      
+                      <div className="space-y-6">
+                        {/* Question Header */}
+                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge className={`${form.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
+                                form.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
+                              } border-0`}>
+                              {form.subject}
+                            </Badge>
+                            <Badge className="bg-white/10 text-white/70 border-0">{form.level}</Badge>
+                            <Badge className={`border-0 ${form.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
+                                form.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
+                              }`}>
+                              {form.difficulty}
+                            </Badge>
+                          </div>
+                          <h2 className="text-xl font-bold text-white mb-2">{form.title || 'Untitled Question'}</h2>
+                          <p className="text-sm text-white/70">{form.chapter}</p>
+                        </div>
+
+                        {/* Stem */}
+                        {form.stem && (
+                          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                            <p className="text-white/90 whitespace-pre-wrap">{form.stem}</p>
+                            {form.imageUrl && (
+                              <img src={form.imageUrl} alt="Question" className="mt-4 rounded-lg max-w-full" />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Steps Preview */}
+                        <div className="space-y-4">
+                          {form.steps.map((step, idx) => (
+                            <div key={idx} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Badge className="bg-primary/20 text-primary border-0">Step {idx + 1}</Badge>
+                                <Badge className={step.type === 'true_false' 
+                                  ? 'bg-green-500/20 text-green-400 border-green-500/50' 
+                                  : 'bg-blue-500/20 text-blue-400 border-blue-500/50'}>
+                                  {step.type === 'true_false' ? 'True/False' : 'MCQ'}
+                                </Badge>
+                                {step.marks > 0 && (
+                                  <Badge className="bg-amber-500/20 text-amber-300 border-0">{step.marks} mark{step.marks !== 1 ? 's' : ''}</Badge>
+                                )}
+                              </div>
+                              
+                              <h3 className="text-white font-semibold mb-2">{step.title || `Step ${idx + 1}`}</h3>
+                              <p className="text-white/80 mb-4 whitespace-pre-wrap">{step.prompt || 'No prompt provided'}</p>
+                              
+                              <div className="space-y-2">
+                                {(step.type === 'true_false' ? [0, 1] : [0, 1, 2, 3].filter(i => step.options[i]?.trim())).map((optIdx) => (
+                                  <div
+                                    key={optIdx}
+                                    className={`p-3 rounded-lg border-2 transition-all ${
+                                      step.correctAnswer === optIdx
+                                        ? 'bg-green-500/20 border-green-500/50'
+                                        : 'bg-white/5 border-white/10'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                        step.correctAnswer === optIdx
+                                          ? 'bg-green-500 text-black'
+                                          : 'bg-white/10 text-white/70'
+                                      }`}>
+                                        {String.fromCharCode(65 + optIdx)}
+                                      </div>
+                                      <span className="text-white flex-1">{step.options[optIdx] || 'Empty option'}</span>
+                                      {step.correctAnswer === optIdx && (
+                                        <CheckCircle2 className="w-5 h-5 text-green-400" />
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {step.explanation && (
+                                <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                  <p className="text-xs text-blue-300 font-semibold mb-1">Explanation:</p>
+                                  <p className="text-sm text-white/80 whitespace-pre-wrap">{step.explanation}</p>
+                                </div>
+                              )}
+
+                              {step.timeLimitSeconds && (
+                                <div className="mt-2 text-xs text-white/50">
+                                  ⏱️ Time limit: {step.timeLimitSeconds}s
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Summary */}
+                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-white/50">Total Steps:</span>
+                              <span className="text-white ml-2 font-semibold">{form.steps.length}</span>
+                            </div>
+                            <div>
+                              <span className="text-white/50">Total Marks:</span>
+                              <span className="text-white ml-2 font-semibold">{form.totalMarks}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}

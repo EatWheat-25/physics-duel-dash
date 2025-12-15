@@ -39,7 +39,3 @@ UPDATE public.matches
 
 
 
-
-
-
-

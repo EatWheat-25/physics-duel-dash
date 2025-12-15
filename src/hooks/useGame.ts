@@ -10,6 +10,10 @@ interface ConnectionState {
   question: any | null
   answerSubmitted: boolean
   waitingForOpponent: boolean
+  resultsAcknowledged: boolean
+  waitingForOpponentToAcknowledge: boolean
+  allStepsComplete: boolean
+  waitingForOpponentToCompleteSteps: boolean
   results: {
     player1_answer: number | null
     player2_answer: number | null
@@ -60,9 +64,12 @@ interface RoundStartEvent {
   matchId: string
   roundId: string
   roundIndex: number
-  phase: 'thinking'
+  phase: 'thinking' | 'main_question'
   question: any
-  thinkingEndsAt: string
+  thinkingEndsAt?: string
+  mainQuestionEndsAt?: string
+  mainQuestionTimerSeconds?: number
+  totalSteps?: number
 }
 
 /**
@@ -84,6 +91,10 @@ export function useGame(match: MatchRow | null) {
     question: null,
     answerSubmitted: false,
     waitingForOpponent: false,
+    resultsAcknowledged: false,
+    waitingForOpponentToAcknowledge: false,
+    allStepsComplete: false,
+    waitingForOpponentToCompleteSteps: false,
     results: null,
     // Stage 3: Tug-of-war state (deprecated, kept for compatibility)
     roundNumber: 0,
@@ -122,13 +133,34 @@ export function useGame(match: MatchRow | null) {
   const pollingIntervalRef = useRef<number | null>(null)
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const localResultsVersionRef = useRef<number>(0)
+  const processedRoundIdsRef = useRef<Set<string>>(new Set())
+  const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
 
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
   const applyResults = useCallback((payload: any) => {
     console.log('[useGame] applyResults called with payload:', payload)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:140',message:'applyResults ENTRY',data:{payloadMode:payload?.mode,roundId:payload?.round_id,hasStepResults:!!payload?.p1?.steps},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+    
+    // Prevent duplicate processing using round_id
+    const roundId = payload.round_id || payload.roundId
+    if (roundId && processedRoundIdsRef.current.has(roundId)) {
+      console.log('[useGame] Ignoring duplicate results for round_id:', roundId)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:145',message:'applyResults DUPLICATE REJECTED',data:{roundId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      return
+    }
+    if (roundId) {
+      processedRoundIdsRef.current.add(roundId)
+    }
     
     // Build results object from payload (handles both simple and multi-step modes)
     const mode = payload.mode || 'simple'
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:154',message:'applyResults BUILDING RESULTS',data:{mode,hasP1Steps:!!payload.p1?.steps,stepResultsLength:payload.p1?.steps?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     const results = {
       player1_answer: mode === 'simple' ? payload.p1?.answer ?? null : null,
       player2_answer: mode === 'simple' ? payload.p2?.answer ?? null : null,
@@ -138,8 +170,12 @@ export function useGame(match: MatchRow | null) {
       round_winner: payload.round_winner ?? null,
       p1Score: payload.p1?.total ?? 0,
       p2Score: payload.p2?.total ?? 0,
-      stepResults: mode === 'steps' ? payload.p1?.steps : undefined
+      stepResults: mode === 'steps' ? payload.p1?.steps : undefined,
+      round_id: roundId // Store round_id in results for reference
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:166',message:'applyResults SETTING STATE',data:{mode,hasStepResults:!!results.stepResults,status:'results'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
 
     setState(prev => {
       // Don't update if already showing results with same or newer version
@@ -154,14 +190,19 @@ export function useGame(match: MatchRow | null) {
         phase: 'result' as const,
         results,
         waitingForOpponent: false,
+        resultsAcknowledged: false,
+        waitingForOpponentToAcknowledge: false,
+        allStepsComplete: false,
+        waitingForOpponentToCompleteSteps: false,
         currentRoundNumber: payload.round_number ?? prev.currentRoundNumber,
-        playerRoundWins: {
-          ...prev.playerRoundWins,
-          // Wins are in payload.p1.total and payload.p2.total but we'd need player IDs to map them
-          // For now, keep existing wins - they'll be updated from match state
-        },
-        matchOver: false, // Will be determined from match status
-        matchWinnerId: null
+        playerRoundWins: payload.player_round_wins 
+          ? { ...prev.playerRoundWins, ...payload.player_round_wins }
+          : {
+              ...prev.playerRoundWins,
+              // Fallback: try to extract from p1.total and p2.total if player IDs available
+            },
+        matchOver: payload.match_over ?? false,
+        matchWinnerId: payload.match_winner_id ?? null
       }
     })
 
@@ -255,45 +296,23 @@ export function useGame(match: MatchRow | null) {
 
   // Step timer countdown effect
   useEffect(() => {
-    const timestamp = new Date().toISOString()
-    
     if (!state.stepEndsAt || state.phase !== 'steps') {
-      if (state.stepTimeLeft !== null) {
-        console.log(`[useGame] [${timestamp}] [STEP_TIMER] [STOPPED] stepEndsAt=${state.stepEndsAt} phase=${state.phase} - clearing timer`)
-      }
       setState(prev => ({ ...prev, stepTimeLeft: null }))
       return
     }
-
-    console.log(`[useGame] [${timestamp}] [STEP_TIMER] [STARTED] stepIndex=${state.currentStepIndex} stepEndsAt=${state.stepEndsAt} phase=${state.phase}`)
 
     const updateTimer = () => {
       const now = Date.now()
       const endTime = new Date(state.stepEndsAt!).getTime()
       const remaining = Math.max(0, Math.round((endTime - now) / 1000))
       
-      setState(prev => {
-        // Only log every 5 seconds or when time is critical (<= 5 seconds)
-        if (remaining % 5 === 0 || remaining <= 5) {
-          console.log(`[useGame] [${new Date().toISOString()}] [STEP_TIMER] [UPDATE] stepIndex=${prev.currentStepIndex} timeLeft=${remaining}s`)
-        }
-        
-        if (remaining === 0 && prev.stepTimeLeft !== null) {
-          console.log(`[useGame] [${new Date().toISOString()}] [STEP_TIMER] [EXPIRED] stepIndex=${prev.currentStepIndex} - timer reached 0`)
-        }
-        
-        return { ...prev, stepTimeLeft: remaining }
-      })
+      setState(prev => ({ ...prev, stepTimeLeft: remaining }))
     }
 
     updateTimer()
     const interval = setInterval(updateTimer, 1000)
-    
-    return () => {
-      console.log(`[useGame] [${new Date().toISOString()}] [STEP_TIMER] [CLEANUP] stepIndex=${state.currentStepIndex} - clearing interval`)
-      clearInterval(interval)
-    }
-  }, [state.stepEndsAt, state.phase, state.currentStepIndex])
+    return () => clearInterval(interval)
+  }, [state.stepEndsAt, state.phase])
 
   useEffect(() => {
     if (!match) {
@@ -367,6 +386,7 @@ export function useGame(match: MatchRow | null) {
         ws.onopen = () => {
           console.log('[useGame] WebSocket connected')
           hasConnectedRef.current = false
+          setIsWebSocketConnected(true)
           setState(prev => ({
             ...prev,
             status: 'connecting',
@@ -454,7 +474,9 @@ export function useGame(match: MatchRow | null) {
               }
             } else if (message.type === 'ROUND_START') {
               console.log('[useGame] ROUND_START message received - game starting!', message)
-              const roundStartEvent = message as RoundStartEvent
+              // Clear processed round IDs and results when new round starts
+              processedRoundIdsRef.current.clear()
+              const roundStartEvent = message as any as RoundStartEvent
               if (roundStartEvent.phase === 'main_question') {
                 // Multi-step question - main question phase
                 setState(prev => ({
@@ -462,12 +484,16 @@ export function useGame(match: MatchRow | null) {
                   status: 'playing',
                   phase: 'main_question',
                   question: roundStartEvent.question,
-                  mainQuestionEndsAt: roundStartEvent.mainQuestionEndsAt || null,
-                  totalSteps: roundStartEvent.totalSteps || 0,
+                  mainQuestionEndsAt: (roundStartEvent as any).mainQuestionEndsAt || null,
+                  totalSteps: (roundStartEvent as any).totalSteps || 0,
                   currentStepIndex: 0,
                   answerSubmitted: false,
                   waitingForOpponent: false,
-                  results: null,
+                  resultsAcknowledged: false,
+                  waitingForOpponentToAcknowledge: false,
+                  allStepsComplete: false,
+                  waitingForOpponentToCompleteSteps: false,
+                  results: null, // Clear results when new round starts
                   errorMessage: null
                 }))
               } else {
@@ -477,64 +503,45 @@ export function useGame(match: MatchRow | null) {
                   status: 'playing',
                   phase: 'question',
                   question: roundStartEvent.question,
+                  resultsAcknowledged: false,
+                  waitingForOpponentToAcknowledge: false,
+                  allStepsComplete: false,
+                  waitingForOpponentToCompleteSteps: false,
+                  results: null, // Clear results when new round starts
                   errorMessage: null
                 }))
               }
             } else if (message.type === 'PHASE_CHANGE') {
-              const timestamp = new Date().toISOString()
-              console.log(`[useGame] [${timestamp}] [PHASE_CHANGE] [MESSAGE_RECEIVED]`, message)
-              
+              console.log('[useGame] PHASE_CHANGE message received', message)
               if (message.phase === 'steps') {
-                setState(prev => {
-                  const oldStepIndex = prev.currentStepIndex
-                  const newStepIndex = message.stepIndex ?? message.currentStepIndex ?? 0
-                  const stepChanged = oldStepIndex !== newStepIndex
-                  
-                  console.log(`[useGame] [${timestamp}] [PHASE_CHANGE] [STATE_BEFORE] phase=${prev.phase} currentStepIndex=${prev.currentStepIndex} totalSteps=${prev.totalSteps} answerSubmitted=${prev.answerSubmitted} stepEndsAt=${prev.stepEndsAt}`)
-                  console.log(`[useGame] [${timestamp}] [PHASE_CHANGE] [STEP_TRANSITION] oldStepIndex=${oldStepIndex} newStepIndex=${newStepIndex} stepChanged=${stepChanged}`)
-                  
-                  const newState = {
-                    ...prev,
-                    phase: 'steps',
-                    currentStepIndex: newStepIndex,
-                    totalSteps: message.totalSteps ?? prev.totalSteps,
-                    stepEndsAt: message.stepEndsAt || null,
-                    currentStep: message.currentStep || null,
-                    answerSubmitted: false,
-                    waitingForOpponent: false
-                  }
-                  
-                  console.log(`[useGame] [${timestamp}] [PHASE_CHANGE] [STATE_AFTER] phase=${newState.phase} currentStepIndex=${newState.currentStepIndex} totalSteps=${newState.totalSteps} answerSubmitted=${newState.answerSubmitted} stepEndsAt=${newState.stepEndsAt}`)
-                  console.log(`[useGame] [${timestamp}] [PHASE_CHANGE] [STEP_INFO] stepId=${message.currentStep?.id} prompt="${message.currentStep?.prompt?.substring(0, 50)}..." options=${message.currentStep?.options?.length}`)
-                  
-                  return newState
-                })
+                setState(prev => ({
+                  ...prev,
+                  phase: 'steps',
+                  currentStepIndex: message.stepIndex ?? message.currentStepIndex ?? 0,
+                  totalSteps: message.totalSteps ?? prev.totalSteps,
+                  stepEndsAt: message.stepEndsAt || null,
+                  currentStep: message.currentStep || null,
+                  answerSubmitted: false,
+                  waitingForOpponent: false,
+                  allStepsComplete: false,
+                  waitingForOpponentToCompleteSteps: false
+                }))
               } else {
                 // Other phase changes (choosing, result)
-                setState(prev => {
-                  console.log(`[useGame] [${timestamp}] [PHASE_CHANGE] [OTHER_PHASE] phase=${message.phase} currentStepIndex=${message.currentStepIndex ?? prev.currentStepIndex}`)
-                  return {
-                    ...prev,
-                    phase: message.phase === 'choosing' ? 'question' : 'result',
-                    currentStepIndex: message.currentStepIndex ?? prev.currentStepIndex,
-                    totalSteps: message.totalSteps ?? prev.totalSteps
-                  }
-                })
+                setState(prev => ({
+                  ...prev,
+                  phase: message.phase === 'choosing' ? 'question' : 'result',
+                  currentStepIndex: message.currentStepIndex ?? prev.currentStepIndex,
+                  totalSteps: message.totalSteps ?? prev.totalSteps
+                }))
               }
             } else if (message.type === 'STEP_ANSWER_RECEIVED') {
-              const timestamp = new Date().toISOString()
-              console.log(`[useGame] [${timestamp}] [STEP_ANSWER_RECEIVED] [MESSAGE_RECEIVED] stepIndex=${message.stepIndex} playerId=${message.playerId} waitingForOpponent=${message.waitingForOpponent}`)
-              
-              setState(prev => {
-                console.log(`[useGame] [${timestamp}] [STEP_ANSWER_RECEIVED] [STATE_BEFORE] answerSubmitted=${prev.answerSubmitted} waitingForOpponent=${prev.waitingForOpponent}`)
-                const newState = {
-                  ...prev,
-                  answerSubmitted: true,
-                  waitingForOpponent: message.waitingForOpponent
-                }
-                console.log(`[useGame] [${timestamp}] [STEP_ANSWER_RECEIVED] [STATE_AFTER] answerSubmitted=${newState.answerSubmitted} waitingForOpponent=${newState.waitingForOpponent}`)
-                return newState
-              })
+              console.log('[useGame] STEP_ANSWER_RECEIVED message received', message)
+              setState(prev => ({
+                ...prev,
+                answerSubmitted: true
+                // Don't set waitingForOpponent during steps - steps should progress without waiting
+              }))
             } else if (message.type === 'ANSWER_SUBMITTED') {
               console.log('[useGame] ANSWER_SUBMITTED message received')
               setState(prev => ({
@@ -550,24 +557,37 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'RESULTS_RECEIVED') {
               console.log('[useGame] RESULTS_RECEIVED message received (WebSocket fast-path)', message)
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:558',message:'WEBSOCKET RESULTS_RECEIVED',data:{hasResultsPayload:!!message.results_payload,payloadMode:message.results_payload?.mode,resultsVersion:message.results_version,localVersion:localResultsVersionRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
               
               // WebSocket fast-path - but check if we already have results from Realtime
               // If results_version is provided, check against local version
               const msg = message as any
               
-              // If message has results_version, check if we've already processed a newer version
+              // Strict deduplication: Check version first
               if (msg.results_version !== undefined && msg.results_version <= localResultsVersionRef.current) {
-                console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already have newer version via Realtime')
+                console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already have same/newer version')
                 return
               }
 
-              // Map WS message format to payload format for applyResults
-              // Note: WS message might have different structure, try to map it
+              // Also check round_id deduplication (handles same version from different sources)
+              const roundId = msg.results_payload?.round_id || msg.round_id
+              if (roundId && processedRoundIdsRef.current.has(roundId)) {
+                console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already processed this round_id:', roundId)
+                return
+              }
+
+              // Accept: Update version tracker BEFORE applying (for strict version check)
+              // But let applyResults handle roundId deduplication internally
               if (msg.results_payload) {
-                // If message has results_payload, use it directly
-                if (msg.results_version) {
+                if (msg.results_version !== undefined) {
                   localResultsVersionRef.current = msg.results_version
                 }
+                // Don't add roundId here - applyResults will handle it
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:578',message:'WEBSOCKET CALLING applyResults',data:{payloadMode:msg.results_payload?.mode,resultsVersion:msg.results_version},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                // #endregion
                 applyResults(msg.results_payload)
               } else {
                 // Legacy WS format - construct payload manually
@@ -593,15 +613,54 @@ export function useGame(match: MatchRow | null) {
                 }
                 applyResults(payload)
               }
+            } else if (message.type === 'ALL_STEPS_COMPLETE_WAITING') {
+              console.log('[useGame] ALL_STEPS_COMPLETE_WAITING message received', message)
+              const msg = message as any
+              // Determine player role from match data (most reliable)
+              const currentUserId = userIdRef.current
+              const isPlayer1 = match?.player1_id === currentUserId
+              const myComplete = isPlayer1 ? msg.p1Complete : msg.p2Complete
+              const oppComplete = isPlayer1 ? msg.p2Complete : msg.p1Complete
+              
+              console.log('[useGame] 🔍 DEBUG: ALL_STEPS_COMPLETE_WAITING processing', {
+                currentUserId,
+                matchP1Id: match?.player1_id,
+                matchP2Id: match?.player2_id,
+                playerRole: state.playerRole,
+                isPlayer1,
+                p1Complete: msg.p1Complete,
+                p2Complete: msg.p2Complete,
+                myComplete,
+                oppComplete,
+                willSetWaiting: myComplete && !oppComplete
+              })
+              
+              setState(prev => ({
+                ...prev,
+                allStepsComplete: myComplete,
+                waitingForOpponentToCompleteSteps: myComplete && !oppComplete
+              }))
+            } else if (message.type === 'READY_FOR_NEXT_ROUND') {
+              console.log('[useGame] READY_FOR_NEXT_ROUND message received', message)
+              setState(prev => ({
+                ...prev,
+                waitingForOpponentToAcknowledge: message.waitingForOpponent ?? false
+              }))
             } else if (message.type === 'ROUND_STARTED') {
               console.log('[useGame] ROUND_STARTED message received - new round starting')
+              // Clear processed round IDs to allow new round results
+              processedRoundIdsRef.current.clear()
               setState(prev => ({
                 ...prev,
                 status: 'playing',
                 phase: 'question',
                 answerSubmitted: false,
                 waitingForOpponent: false,
-                results: null,
+                resultsAcknowledged: false,
+                waitingForOpponentToAcknowledge: false,
+                allStepsComplete: false,
+                waitingForOpponentToCompleteSteps: false,
+                results: null, // Clear results when new round starts
                 roundNumber: message.round_number || 0,
                 lastRoundWinner: message.last_round_winner,
                 consecutiveWinsCount: message.consecutive_wins_count || 0,
@@ -618,6 +677,8 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'MATCH_FINISHED') {
               console.log('[useGame] MATCH_FINISHED message received')
+              // Clear processed round IDs and results when match ends
+              processedRoundIdsRef.current.clear()
               setState(prev => ({
                 ...prev,
                 status: 'match_finished',
@@ -625,7 +686,10 @@ export function useGame(match: MatchRow | null) {
                 matchWinner: message.winner_id,
                 totalRounds: message.total_rounds || 0,
                 answerSubmitted: false,
-                waitingForOpponent: false
+                waitingForOpponent: false,
+                resultsAcknowledged: false,
+                waitingForOpponentToAcknowledge: false,
+                results: null // Clear results when match ends
               }))
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
@@ -658,6 +722,7 @@ export function useGame(match: MatchRow | null) {
 
         ws.onclose = () => {
           // Clear polling on WebSocket close
+          setIsWebSocketConnected(false)
           if (pollingTimeoutRef.current) {
             clearTimeout(pollingTimeoutRef.current)
             pollingTimeoutRef.current = null
@@ -698,6 +763,7 @@ export function useGame(match: MatchRow | null) {
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
+        setIsWebSocketConnected(false)
       }
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current)
@@ -770,34 +836,57 @@ export function useGame(match: MatchRow | null) {
           old: payload.old,
           new: payload.new
         })
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:794',message:'REALTIME UPDATE RECEIVED',data:{matchId:match?.id,hasResultsPayload:!!payload.new?.results_payload,resultsVersion:payload.new?.results_version,oldVersion:payload.old?.results_version,roundId:payload.new?.results_round_id,currentRoundId:payload.new?.current_round_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
 
-        // Detect results_computed_at NULL → NOT NULL transition
-        const oldResultsComputed = payload.old?.results_computed_at
-        const newResultsComputed = payload.new?.results_computed_at
+        // Handle results updates (handles both NULL → NOT NULL and out-of-order events)
         const newPayload = payload.new
+        const oldVersion = payload.old?.results_version ?? 0
+        const newVersion = newPayload.results_version ?? 0
 
-        if (oldResultsComputed === null && newResultsComputed !== null) {
-          // Results just computed
-          console.log('[useGame] Results computed detected via Realtime')
-
-          // Validate before accepting (prevent ghost updates)
-          if (
-            newPayload.results_payload != null &&
-            newPayload.results_version > localResultsVersionRef.current &&
-            newPayload.results_round_id === newPayload.current_round_id
-          ) {
-            console.log('[useGame] ✅ Accepting Realtime results (validated)')
-            localResultsVersionRef.current = newPayload.results_version
-            applyResults(newPayload.results_payload)
-          } else {
-            console.log('[useGame] ⚠️ Ignoring Realtime results (failed validation):', {
-              hasPayload: newPayload.results_payload != null,
-              versionCheck: newPayload.results_version > localResultsVersionRef.current,
-              roundMatch: newPayload.results_round_id === newPayload.current_round_id,
-              results_version: newPayload.results_version,
-              local_version: localResultsVersionRef.current
-            })
-          }
+        // Accept results UPDATE if:
+        // 1. results_payload != null
+        // 2. results_version > local version (strict > prevents duplicates)
+        // 3. results_round_id === current_round_id OR current_round_id is null (allow first round)
+        const hasPayload = newPayload.results_payload != null
+        const versionCheck = newVersion > localResultsVersionRef.current
+        const roundMatch = newPayload.results_round_id === newPayload.current_round_id || newPayload.current_round_id === null
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:809',message:'REALTIME VALIDATION CHECK',data:{matchId:match?.id,hasPayload,versionCheck,roundMatch,newVersion,localVersion:localResultsVersionRef.current,roundId:newPayload.results_round_id,currentRoundId:newPayload.current_round_id,payloadMode:newPayload.results_payload?.mode},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        if (
+          hasPayload &&
+          versionCheck &&
+          roundMatch
+        ) {
+          console.log('[useGame] ✅ Accepting Realtime results (validated):', {
+            version: newVersion,
+            local_version: localResultsVersionRef.current,
+            round_id: newPayload.results_round_id,
+            current_round_id: newPayload.current_round_id,
+            payload: newPayload.results_payload
+          })
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:844',message:'REALTIME ACCEPTED - CALLING applyResults',data:{matchId:match?.id,payloadMode:newPayload.results_payload?.mode,roundId:newPayload.results_round_id,resultsVersion:newVersion},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+          localResultsVersionRef.current = newVersion
+          applyResults(newPayload.results_payload)
+        } else {
+          // Log detailed rejection reason
+          console.warn('[useGame] ⚠️ Ignoring Realtime results:', {
+            hasPayload: newPayload.results_payload != null,
+            versionCheck: `${newVersion} >= ${localResultsVersionRef.current}`,
+            roundMatch: `${newPayload.results_round_id} === ${newPayload.current_round_id} || ${newPayload.current_round_id} === null`,
+            results_version: newVersion,
+            local_version: localResultsVersionRef.current,
+            results_round_id: newPayload.results_round_id,
+            current_round_id: newPayload.current_round_id,
+            payload: newPayload.results_payload
+          })
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:824',message:'REALTIME REJECTED',data:{matchId:match?.id,hasPayload,versionCheck,roundMatch,rejectionReason:!hasPayload?'no_payload':!versionCheck?'version_mismatch':'round_mismatch'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
         }
       })
       .subscribe((status) => {
@@ -1093,41 +1182,57 @@ export function useGame(match: MatchRow | null) {
   }, [])
 
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number) => {
-    const timestamp = new Date().toISOString()
     const ws = wsRef.current
-    
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.error(`[useGame] [${timestamp}] [submitStepAnswer] [ERROR] WebSocket not connected readyState=${ws?.readyState}`)
+      console.error('[useGame] WebSocket not connected')
       return
     }
 
     setState(prev => {
       if (prev.answerSubmitted) {
-        console.warn(`[useGame] [${timestamp}] [submitStepAnswer] [ALREADY_SUBMITTED] stepIndex=${stepIndex} - answer already submitted for this step`)
+        console.warn('[useGame] Answer already submitted')
         return prev
       }
-
-      console.log(`[useGame] [${timestamp}] [submitStepAnswer] [BEFORE_SEND] stepIndex=${stepIndex} answerIndex=${answerIndex} currentStepIndex=${prev.currentStepIndex} phase=${prev.phase}`)
 
       const submitMessage = {
         type: 'SUBMIT_STEP_ANSWER',
         stepIndex,
         answerIndex
       }
-      
-      console.log(`[useGame] [${timestamp}] [submitStepAnswer] [SENDING]`, submitMessage)
+      console.log('[useGame] Sending SUBMIT_STEP_ANSWER:', submitMessage)
       ws.send(JSON.stringify(submitMessage))
-      console.log(`[useGame] [${timestamp}] [submitStepAnswer] [SENT] stepIndex=${stepIndex} answerIndex=${answerIndex}`)
       
-      const newState = {
+      return {
         ...prev,
         answerSubmitted: true,
         waitingForOpponent: false
       }
+    })
+  }, [])
+
+  const readyForNextRound = useCallback(() => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.error('[useGame] WebSocket not connected')
+      return
+    }
+
+    setState(prev => {
+      if (prev.resultsAcknowledged) {
+        console.warn('[useGame] Already acknowledged results')
+        return prev
+      }
+
+      const readyMessage = {
+        type: 'READY_FOR_NEXT_ROUND'
+      }
+      console.log('[useGame] Sending READY_FOR_NEXT_ROUND:', readyMessage)
+      ws.send(JSON.stringify(readyMessage))
       
-      console.log(`[useGame] [${timestamp}] [submitStepAnswer] [STATE_UPDATED] answerSubmitted=${newState.answerSubmitted} waitingForOpponent=${newState.waitingForOpponent}`)
-      
-      return newState
+      return {
+        ...prev,
+        resultsAcknowledged: true
+      }
     })
   }, [])
 
@@ -1138,6 +1243,10 @@ export function useGame(match: MatchRow | null) {
     question: state.question,
     answerSubmitted: state.answerSubmitted,
     waitingForOpponent: state.waitingForOpponent,
+    resultsAcknowledged: state.resultsAcknowledged,
+    waitingForOpponentToAcknowledge: state.waitingForOpponentToAcknowledge,
+    allStepsComplete: state.allStepsComplete,
+    waitingForOpponentToCompleteSteps: state.waitingForOpponentToCompleteSteps,
     results: state.results,
     // Stage 3: Tug-of-war state
     roundNumber: state.roundNumber,
@@ -1160,11 +1269,14 @@ export function useGame(match: MatchRow | null) {
     currentStep: state.currentStep,
     submitEarlyAnswer,
     submitStepAnswer,
+    readyForNextRound,
     // Match-level state (rounds system)
     currentRoundNumber: state.currentRoundNumber,
     targetRoundsToWin: state.targetRoundsToWin,
     playerRoundWins: state.playerRoundWins,
     matchOver: state.matchOver,
-    matchWinnerId: state.matchWinnerId
+    matchWinnerId: state.matchWinnerId,
+    // WebSocket connection status
+    isWebSocketConnected
   }
 }

@@ -84,7 +84,3 @@ GRANT EXECUTE ON FUNCTION public.get_match_round_state_v2(UUID) TO authenticated
 
 
 
-
-
-
-
