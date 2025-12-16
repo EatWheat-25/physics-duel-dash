@@ -19,9 +19,6 @@ export default function BattleConnected() {
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
-  const [selectedStepAnswer, setSelectedStepAnswer] = useState<number | null>(null);
-  const [isStepTransitioning, setIsStepTransitioning] = useState(false);
-  const prevStepIndexRef = useRef<number>(0);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -117,33 +114,6 @@ export default function BattleConnected() {
       return () => clearTimeout(timer);
     }
   }, [roundNumber, status]);
-
-  // Auto-submit when timer expires (if option is selected OR submit as wrong if no selection)
-  useEffect(() => {
-    if (stepTimeLeft === 0 && !answerSubmitted && phase === 'steps') {
-      if (selectedStepAnswer !== null) {
-        console.log('[BattleConnected] Auto-submitting step answer due to timer expiration')
-        submitStepAnswer(currentStepIndex, selectedStepAnswer)
-      } else {
-        // Timer expired with no selection - submit as wrong (invalid index -1)
-        console.log('[BattleConnected] Timer expired with no selection - submitting as wrong answer')
-        submitStepAnswer(currentStepIndex, -1)
-      }
-    }
-  }, [stepTimeLeft, selectedStepAnswer, answerSubmitted, phase, currentStepIndex, submitStepAnswer])
-
-  // Reset selected answer when step changes
-  useEffect(() => {
-    if (prevStepIndexRef.current !== currentStepIndex && phase === 'steps') {
-      setSelectedStepAnswer(null)
-      setIsStepTransitioning(true)
-      const timer = setTimeout(() => {
-        setIsStepTransitioning(false)
-      }, 1000) // 1 second delay
-      prevStepIndexRef.current = currentStepIndex
-      return () => clearTimeout(timer)
-    }
-  }, [currentStepIndex, phase])
 
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
@@ -447,17 +417,7 @@ export default function BattleConnected() {
                 exit={{ opacity: 0, y: -20 }}
                 className="w-full max-w-3xl"
               >
-                {isStepTransitioning ? (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="w-full max-w-3xl text-center py-12"
-                  >
-                    <Loader2 className="w-8 h-8 animate-spin text-amber-400 mx-auto mb-4" />
-                    <p className="text-white/60">Loading next step...</p>
-                  </motion.div>
-                ) : (
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50" />
                   
                   <div className="text-center mb-6">
@@ -470,66 +430,32 @@ export default function BattleConnected() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => {
-                      const isSelected = selectedStepAnswer === idx;
-                      const isTimeExpired = stepTimeLeft !== null && stepTimeLeft <= 0;
-                      const isDisabled = answerSubmitted || isTimeExpired; // Disable when submitted OR timer expired
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            if (!answerSubmitted && !isTimeExpired) {
-                              setSelectedStepAnswer(idx)
-                            }
-                          }}
-                          disabled={isDisabled}
-                          className={`
-                            relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
-                            ${isDisabled
-                              ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
-                              : isSelected
-                              ? 'border-amber-500 bg-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.3)]'
-                              : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
-                            }
-                          `}
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="flex items-center gap-4 relative z-10">
-                            <div className={`
-                              w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
-                              ${isDisabled 
-                                ? 'bg-white/10 text-white/40' 
-                                : isSelected
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'
-                              }
-                            `}>
-                              {String.fromCharCode(65 + idx)}
-                            </div>
-                            <span className="text-lg font-medium">{option}</span>
-                            {isSelected && !isDisabled && (
-                              <Check className="w-5 h-5 text-amber-400 ml-auto" />
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {selectedStepAnswer !== null && !answerSubmitted && stepTimeLeft !== null && stepTimeLeft > 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }} 
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mt-6 text-center"
-                    >
+                    {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
                       <button
-                        onClick={() => submitStepAnswer(currentStepIndex, selectedStepAnswer)}
-                        className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl active:scale-95"
+                        key={idx}
+                        onClick={() => !answerSubmitted && submitStepAnswer(currentStepIndex, idx)}
+                        disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)}
+                        className={`
+                          relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
+                          ${answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)
+                            ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
+                            : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
+                          }
+                        `}
                       >
-                        Submit Answer
+                        <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center gap-4 relative z-10">
+                          <div className={`
+                            w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
+                            ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'}
+                          `}>
+                            {String.fromCharCode(65 + idx)}
+                          </div>
+                          <span className="text-lg font-medium">{option}</span>
+                        </div>
                       </button>
-                    </motion.div>
-                  )}
+                    ))}
+                  </div>
 
                   {answerSubmitted && (
                     <motion.div 
@@ -553,8 +479,7 @@ export default function BattleConnected() {
                       </div>
                     </motion.div>
                   )}
-                  </div>
-                )}
+                </div>
               </motion.div>
             )}
 

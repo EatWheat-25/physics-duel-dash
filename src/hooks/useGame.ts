@@ -134,7 +134,6 @@ export function useGame(match: MatchRow | null) {
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const localResultsVersionRef = useRef<number>(0)
   const processedRoundIdsRef = useRef<Set<string>>(new Set())
-  const stepResultsPollingStartedRef = useRef<boolean>(false)
   const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
 
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
@@ -614,6 +613,33 @@ export function useGame(match: MatchRow | null) {
                 }
                 applyResults(payload)
               }
+            } else if (message.type === 'ALL_STEPS_COMPLETE_WAITING') {
+              console.log('[useGame] ALL_STEPS_COMPLETE_WAITING message received', message)
+              const msg = message as any
+              // Determine player role from match data (most reliable)
+              const currentUserId = userIdRef.current
+              const isPlayer1 = match?.player1_id === currentUserId
+              const myComplete = isPlayer1 ? msg.p1Complete : msg.p2Complete
+              const oppComplete = isPlayer1 ? msg.p2Complete : msg.p1Complete
+              
+              console.log('[useGame] 🔍 DEBUG: ALL_STEPS_COMPLETE_WAITING processing', {
+                currentUserId,
+                matchP1Id: match?.player1_id,
+                matchP2Id: match?.player2_id,
+                playerRole: state.playerRole,
+                isPlayer1,
+                p1Complete: msg.p1Complete,
+                p2Complete: msg.p2Complete,
+                myComplete,
+                oppComplete,
+                willSetWaiting: myComplete && !oppComplete
+              })
+              
+              setState(prev => ({
+                ...prev,
+                allStepsComplete: myComplete,
+                waitingForOpponentToCompleteSteps: myComplete && !oppComplete
+              }))
             } else if (message.type === 'READY_FOR_NEXT_ROUND') {
               console.log('[useGame] READY_FOR_NEXT_ROUND message received', message)
               setState(prev => ({
@@ -1141,24 +1167,6 @@ export function useGame(match: MatchRow | null) {
     pollingIntervalRef.current = window.setInterval(poll, 2000)
   }, [applyResults])
 
-  // Fallback: if we're stuck waiting for opponent to complete steps, poll for results
-  useEffect(() => {
-    const matchId = matchIdRef.current
-    if (!matchId) return
-
-    // Reset guard when leaving steps or once results arrive
-    if (state.phase !== 'steps' || state.results) {
-      stepResultsPollingStartedRef.current = false
-      return
-    }
-
-    if (state.waitingForOpponentToCompleteSteps && !stepResultsPollingStartedRef.current) {
-      stepResultsPollingStartedRef.current = true
-      console.log('[useGame] 🔄 Starting polling fallback for step results (waiting for opponent to complete steps)')
-      startPollingForResults(matchId)
-    }
-  }, [state.phase, state.waitingForOpponentToCompleteSteps, state.results, startPollingForResults])
-
   const submitEarlyAnswer = useCallback(() => {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -1176,13 +1184,13 @@ export function useGame(match: MatchRow | null) {
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number) => {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.error('[useGame] WebSocket not connected - cannot submit answer')
+      console.error('[useGame] WebSocket not connected')
       return
     }
 
     setState(prev => {
       if (prev.answerSubmitted) {
-        console.warn('[useGame] Answer already submitted - ignoring duplicate submission')
+        console.warn('[useGame] Answer already submitted')
         return prev
       }
 
@@ -1192,15 +1200,7 @@ export function useGame(match: MatchRow | null) {
         answerIndex
       }
       console.log('[useGame] Sending SUBMIT_STEP_ANSWER:', submitMessage)
-      
-      try {
-        ws.send(JSON.stringify(submitMessage))
-        console.log('[useGame] SUBMIT_STEP_ANSWER sent successfully')
-      } catch (error) {
-        console.error('[useGame] Failed to send SUBMIT_STEP_ANSWER:', error)
-        // Don't update state on send failure - allow retry
-        return prev
-      }
+      ws.send(JSON.stringify(submitMessage))
       
       return {
         ...prev,
