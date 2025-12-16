@@ -1448,18 +1448,33 @@ async function handleStepAnswer(
   socket: WebSocket,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  console.log(`[${matchId}] 🎯 [STEP] SUBMIT_STEP_ANSWER received at ${new Date().toISOString()}`)
+  console.log(`[${matchId}] 🎯 [STEP] Player: ${playerId}, StepIndex: ${stepIndex}, AnswerIndex: ${answerIndex}`)
+  
   const state = gameStates.get(matchId)
-  if (!state || state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
+  if (!state) {
+    console.error(`[${matchId}] ❌ [STEP] No game state found for match`)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
-      message: 'Invalid step answer submission'
+      message: 'Invalid step answer submission - no game state'
+    } as GameErrorEvent))
+    return
+  }
+  
+  console.log(`[${matchId}] 📊 [STEP] Current state: phase=${state.currentPhase}, currentStepIndex=${state.currentStepIndex}`)
+  
+  if (state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
+    console.warn(`[${matchId}] ⚠️ [STEP] Invalid step submission - expected step ${state.currentStepIndex}, got ${stepIndex}`)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: `Invalid step answer submission - current step is ${state.currentStepIndex}, not ${stepIndex}`
     } as GameErrorEvent))
     return
   }
 
   // Check if player is eliminated - ignore their answer
   if (state.eliminatedPlayers.has(playerId)) {
-    console.log(`[${matchId}] ⚠️ Ignoring answer from eliminated player ${playerId}`)
+    console.log(`[${matchId}] ⚠️ [STEP] Ignoring answer from eliminated player ${playerId}`)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: 'You have been eliminated from this round'
@@ -1467,13 +1482,14 @@ async function handleStepAnswer(
     return
   }
 
-  // Store answer
+  // Store answer in local state
   if (!state.playerStepAnswers.has(playerId)) {
     state.playerStepAnswers.set(playerId, new Map())
   }
   state.playerStepAnswers.get(playerId)!.set(stepIndex, answerIndex)
 
-  console.log(`[${matchId}] ✅ Step ${stepIndex} answer stored for player ${playerId}: ${answerIndex}`)
+  console.log(`[${matchId}] ✅ [STEP] Step ${stepIndex} answer stored in local state for player ${playerId}: ${answerIndex}`)
+  console.log(`[${matchId}] 📊 [STEP] Local state - p1Answers: [${Array.from((state.playerStepAnswers.get(state.p1Id || '') || new Map()).keys()).join(', ')}], p2Answers: [${Array.from((state.playerStepAnswers.get(state.p2Id || '') || new Map()).keys()).join(', ')}]`)
 
   // Check if both players have either answered OR are eliminated
   const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
@@ -1483,6 +1499,8 @@ async function handleStepAnswer(
   const p1Done = p1Answers.has(stepIndex) || p1Eliminated
   const p2Done = p2Answers.has(stepIndex) || p2Eliminated
   const bothDone = p1Done && p2Done
+  
+  console.log(`[${matchId}] 📊 [STEP] Completion check: p1Done=${p1Done} (answered=${p1Answers.has(stepIndex)}, eliminated=${p1Eliminated}), p2Done=${p2Done} (answered=${p2Answers.has(stepIndex)}, eliminated=${p2Eliminated}), bothDone=${bothDone}`)
 
   // Send confirmation
   const stepAnswerEvent: StepAnswerReceivedEvent = {

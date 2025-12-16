@@ -1184,13 +1184,13 @@ export function useGame(match: MatchRow | null) {
   const submitStepAnswer = useCallback((stepIndex: number, answerIndex: number) => {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.error('[useGame] WebSocket not connected')
+      console.error('[useGame] WebSocket not connected - cannot submit answer')
       return
     }
 
     setState(prev => {
       if (prev.answerSubmitted) {
-        console.warn('[useGame] Answer already submitted')
+        console.warn('[useGame] Answer already submitted - ignoring duplicate submission')
         return prev
       }
 
@@ -1200,7 +1200,15 @@ export function useGame(match: MatchRow | null) {
         answerIndex
       }
       console.log('[useGame] Sending SUBMIT_STEP_ANSWER:', submitMessage)
-      ws.send(JSON.stringify(submitMessage))
+      
+      try {
+        ws.send(JSON.stringify(submitMessage))
+        console.log('[useGame] SUBMIT_STEP_ANSWER sent successfully')
+      } catch (error) {
+        console.error('[useGame] Failed to send SUBMIT_STEP_ANSWER:', error)
+        // Don't update state on send failure - allow retry
+        return prev
+      }
       
       return {
         ...prev,
