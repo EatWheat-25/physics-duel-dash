@@ -1188,25 +1188,39 @@ async function checkStepTimeout(
   stepIndex: number,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  console.log(`[${matchId}] ⏰ [TIMEOUT] checkStepTimeout called for step ${stepIndex} at ${new Date().toISOString()}`)
+  
   const state = gameStates.get(matchId)
+  
+  // Guard: Skip if state is invalid or we've already moved past this step
   if (!state || state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
+    console.log(`[${matchId}] ⏰ [TIMEOUT] Skipping timeout for step ${stepIndex} - state is stale or already advanced`)
+    console.log(`[${matchId}] ⏰ [TIMEOUT]   state exists: ${!!state}, phase: ${state?.currentPhase}, currentStepIndex: ${state?.currentStepIndex}`)
     return
   }
+
+  console.log(`[${matchId}] ⚠️ [TIMEOUT] Step ${stepIndex} timed out - checking for unanswered players`)
 
   const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
   const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
 
+  const p1Answered = p1Answers.has(stepIndex)
+  const p2Answered = p2Answers.has(stepIndex)
+  
+  console.log(`[${matchId}] 📊 [TIMEOUT] Answer status at timeout: P1 answered=${p1Answered}, P2 answered=${p2Answered}`)
+
   // Eliminate players who didn't answer this step
-  if (!p1Answers.has(stepIndex) && state.p1Id) {
+  if (!p1Answered && state.p1Id) {
     state.eliminatedPlayers.add(state.p1Id)
-    console.log(`[${matchId}] ⚠️ Player 1 eliminated - no answer for step ${stepIndex}`)
+    console.log(`[${matchId}] ❌ [TIMEOUT] Player 1 eliminated - no answer for step ${stepIndex}`)
   }
-  if (!p2Answers.has(stepIndex) && state.p2Id) {
+  if (!p2Answered && state.p2Id) {
     state.eliminatedPlayers.add(state.p2Id)
-    console.log(`[${matchId}] ⚠️ Player 2 eliminated - no answer for step ${stepIndex}`)
+    console.log(`[${matchId}] ❌ [TIMEOUT] Player 2 eliminated - no answer for step ${stepIndex}`)
   }
 
   // Move to next step (or results)
+  console.log(`[${matchId}] ➡️ [TIMEOUT] Moving to next step after timeout`)
   await moveToNextStep(matchId, supabase)
 }
 
@@ -1219,15 +1233,21 @@ async function moveToNextStep(
 ): Promise<void> {
   const state = gameStates.get(matchId)
   if (!state || state.currentPhase !== 'steps') {
-    console.warn(`[${matchId}] ⚠️ Cannot move to next step - invalid state`)
+    console.warn(`[${matchId}] ⚠️ [STEP] Cannot move to next step - invalid state (phase: ${state?.currentPhase})`)
     return
   }
 
-  // Clear current step timer
+  console.log(`[${matchId}] ➡️ [STEP] moveToNextStep called for step ${state.currentStepIndex}`)
+
+  // Clear current step timer (defensive - may already be cleared in handleStepAnswer)
   const currentTimer = state.stepTimers.get(state.currentStepIndex)
   if (currentTimer) {
+    console.log(`[${matchId}] 🔥 [TIMER] Clearing step ${state.currentStepIndex} timer in moveToNextStep (timer ID: ${currentTimer})`)
     clearTimeout(currentTimer)
     state.stepTimers.delete(state.currentStepIndex)
+    console.log(`[${matchId}] ✅ [TIMER] Step ${state.currentStepIndex} timer cleared in moveToNextStep`)
+  } else {
+    console.log(`[${matchId}] ⚠️ [TIMER] Step ${state.currentStepIndex} timer already cleared (cleared in handleStepAnswer - good!)`)
   }
 
   const steps = Array.isArray(state.currentQuestion.steps) 
@@ -1238,11 +1258,13 @@ async function moveToNextStep(
 
   if (nextStepIndex >= steps.length) {
     // All steps done - calculate results
+    console.log(`[${matchId}] 🏁 [STEP] All steps complete (${steps.length}/${steps.length}) - calculating results`)
     await calculateStepResults(matchId, supabase)
     return
   }
 
   // Move to next step
+  console.log(`[${matchId}] ⏩ [STEP] Advancing from step ${state.currentStepIndex} to step ${nextStepIndex}`)
   state.currentStepIndex = nextStepIndex
   const currentStep = steps[nextStepIndex]
   const stepEndsAt = new Date(Date.now() + 15 * 1000).toISOString()
@@ -1264,15 +1286,17 @@ async function moveToNextStep(
     }
   }
 
+  console.log(`[${matchId}] 📤 [STEP] Broadcasting PHASE_CHANGE for step ${nextStepIndex}`)
   broadcastToMatch(matchId, phaseChangeEvent)
 
   // Start timer for next step - on timeout, check for eliminations
   const stepTimerId = setTimeout(() => {
+    console.log(`[${matchId}] ⏰ [TIMER] Step ${nextStepIndex} timeout fired - checking for eliminations`)
     checkStepTimeout(matchId, nextStepIndex, supabase)
   }, 15 * 1000) as unknown as number
   
   state.stepTimers.set(nextStepIndex, stepTimerId)
-  console.log(`[${matchId}] ⏰ Started step ${nextStepIndex} timer (15s)`)
+  console.log(`[${matchId}] ⏰ [TIMER] Started step ${nextStepIndex} timer (15s, timer ID: ${stepTimerId})`)
 }
 
 /**
@@ -1282,17 +1306,22 @@ async function calculateStepResults(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  console.log(`[${matchId}] 🧮 [RESULTS] calculateStepResults called at ${new Date().toISOString()}`)
+  
   const state = gameStates.get(matchId)
   if (!state) {
-    console.warn(`[${matchId}] ⚠️ Cannot calculate results - no game state`)
+    console.warn(`[${matchId}] ⚠️ [RESULTS] Cannot calculate results - no game state`)
     return
   }
 
   // Clear all timers
-  state.stepTimers.forEach((timerId) => {
+  console.log(`[${matchId}] 🔥 [TIMER] Clearing ALL step timers (${state.stepTimers.size} active)`)
+  state.stepTimers.forEach((timerId, stepIndex) => {
+    console.log(`[${matchId}] 🔥 [TIMER] Clearing timer for step ${stepIndex} (timer ID: ${timerId})`)
     clearTimeout(timerId)
   })
   state.stepTimers.clear()
+  console.log(`[${matchId}] ✅ [TIMER] All step timers cleared`)
 
   const steps = Array.isArray(state.currentQuestion.steps) 
     ? state.currentQuestion.steps 
@@ -1401,8 +1430,18 @@ async function calculateStepResults(
     matchWinnerId
   }
 
+  // Log socket state before broadcasting
+  const matchSockets = sockets.get(matchId)
+  const socketCount = matchSockets?.size || 0
+  const openSocketCount = matchSockets ? Array.from(matchSockets).filter(s => s.readyState === WebSocket.OPEN).length : 0
+  
+  console.log(`[${matchId}] 📤 [RESULTS] Broadcasting RESULTS_RECEIVED to ${socketCount} socket(s) (${openSocketCount} open)`)
+  console.log(`[${matchId}] 📊 [RESULTS] Results summary: P1: ${p1Score}, P2: ${p2Score}, Winner: ${winnerId || 'Tie'}, Match Over: ${matchOver}`)
+  console.log(`[${matchId}] 📊 [RESULTS] Player states: P1 eliminated=${p1Eliminated}, P2 eliminated=${p2Eliminated}`)
+  
   broadcastToMatch(matchId, resultsEvent)
-  console.log(`[${matchId}] ✅ Step results calculated - P1: ${p1Score}, P2: ${p2Score}, Round Winner: ${winnerId || 'Tie'}, Match Over: ${matchOver}`)
+  
+  console.log(`[${matchId}] ✅ [RESULTS] RESULTS_RECEIVED broadcast completed - clients should reset waiting flags now`)
 
   if (matchOver) {
     // Match finished - cleanup and don't start next round
@@ -1532,8 +1571,20 @@ async function handleStepAnswer(
   socket.send(JSON.stringify(stepAnswerEvent))
 
   if (bothDone) {
-    // Both players done (answered or eliminated) - move to next step immediately
-    console.log(`[${matchId}] ⚡ Both players done with step ${stepIndex} - moving to next step`)
+    // Both players done (answered or eliminated) - CLEAR TIMER FIRST, then move to next step
+    console.log(`[${matchId}] ⚡ [STEP] Both players done with step ${currentStepIdx} - clearing timer and moving to next step immediately`)
+    
+    // Clear timer BEFORE moving to prevent race with timeout
+    const currentTimer = state.stepTimers.get(currentStepIdx)
+    if (currentTimer) {
+      console.log(`[${matchId}] 🔥 [TIMER] Clearing step ${currentStepIdx} timer BEFORE progression (timer ID: ${currentTimer})`)
+      clearTimeout(currentTimer)
+      state.stepTimers.delete(currentStepIdx)
+      console.log(`[${matchId}] ✅ [TIMER] Step ${currentStepIdx} timer cleared successfully`)
+    } else {
+      console.log(`[${matchId}] ⚠️ [TIMER] No active timer found for step ${currentStepIdx} (already cleared or never set)`)
+    }
+    
     await moveToNextStep(matchId, supabase)
   }
 }
