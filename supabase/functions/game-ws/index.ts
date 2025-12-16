@@ -1444,10 +1444,12 @@ async function calculateStepResults(
       console.error(`[${matchId}] ❌ [RESULTS] Failed to fetch match row for results persistence:`, matchRowError)
     } else {
       const nextResultsVersion = (matchRow?.results_version ?? 0) + 1
+      // Ensure round_id is never null to satisfy client roundMatch checks
+      const roundIdForResults = matchRow?.current_round_id ?? matchId
       broadcastResultsVersion = nextResultsVersion
       broadcastResultsPayload = {
         mode: 'steps',
-        round_id: matchRow?.current_round_id ?? null,
+        round_id: roundIdForResults,
         round_number: state.roundNumber,
         correct_answer: 0,
         p1: {
@@ -1472,7 +1474,7 @@ async function calculateStepResults(
         .update({
           results_payload: broadcastResultsPayload,
           results_version: nextResultsVersion,
-          results_round_id: matchRow?.current_round_id ?? null,
+          results_round_id: roundIdForResults,
           results_computed_at: new Date().toISOString()
         })
         .eq('id', matchId)
