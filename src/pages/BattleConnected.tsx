@@ -473,17 +473,13 @@ export default function BattleConnected() {
                     {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => {
                       const isSelected = selectedStepAnswer === idx;
                       const isTimeExpired = stepTimeLeft !== null && stepTimeLeft <= 0;
-                      const isDisabled = answerSubmitted; // Only disable if already submitted, not when timer expires
+                      const isDisabled = answerSubmitted || isTimeExpired; // Disable when submitted OR timer expired
                       return (
                         <button
                           key={idx}
                           onClick={() => {
-                            if (!answerSubmitted) {
+                            if (!answerSubmitted && !isTimeExpired) {
                               setSelectedStepAnswer(idx)
-                              // If timer expired and answer selected, auto-submit immediately
-                              if (isTimeExpired) {
-                                setTimeout(() => submitStepAnswer(currentStepIndex, idx), 100)
-                              }
                             }
                           }}
                           disabled={isDisabled}
@@ -491,10 +487,6 @@ export default function BattleConnected() {
                             relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
                             ${isDisabled
                               ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
-                              : isTimeExpired
-                              ? isSelected
-                                ? 'border-red-500 bg-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.3)] animate-pulse'
-                                : 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20 hover:border-red-500'
                               : isSelected
                               ? 'border-amber-500 bg-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.3)]'
                               : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
@@ -524,7 +516,7 @@ export default function BattleConnected() {
                     })}
                   </div>
 
-                  {selectedStepAnswer !== null && !answerSubmitted && stepTimeLeft !== null && (
+                  {selectedStepAnswer !== null && !answerSubmitted && stepTimeLeft !== null && stepTimeLeft > 0 && (
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }} 
                       animate={{ opacity: 1, y: 0 }}
@@ -532,13 +524,9 @@ export default function BattleConnected() {
                     >
                       <button
                         onClick={() => submitStepAnswer(currentStepIndex, selectedStepAnswer)}
-                        className={`px-8 py-3 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl active:scale-95 ${
-                          stepTimeLeft <= 0 
-                            ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                            : 'bg-amber-500 hover:bg-amber-600'
-                        }`}
+                        className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl active:scale-95"
                       >
-                        {stepTimeLeft <= 0 ? 'Submit Answer (Time Expired)' : 'Submit Answer'}
+                        Submit Answer
                       </button>
                     </motion.div>
                   )}
