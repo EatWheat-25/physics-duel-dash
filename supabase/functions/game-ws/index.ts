@@ -1394,6 +1394,7 @@ async function handleStepAnswer(
   }
   state.playerStepAnswers.get(playerId)!.set(stepIndex, answerIndex)
 
+<<<<<<< HEAD
   // CRITICAL: Also store in database so all Edge Function instances can see it
   console.log(`[${matchId}] 🔍 ATTEMPTING DB STORE: stepIndex=${stepIndex}, playerId=${playerId}, roundNumber=${state.roundNumber}, questionId=${state.currentQuestion.id}`)
   const steps = Array.isArray(state.currentQuestion.steps) 
@@ -1431,6 +1432,47 @@ async function handleStepAnswer(
     }
   } catch (error) {
     console.error(`[${matchId}] ❌❌❌ EXCEPTION storing step answer in database:`, error)
+=======
+  const p1KeysBefore = Array.from((state.playerStepAnswers.get(state.p1Id || '') || new Map()).keys())
+  const p2KeysBefore = Array.from((state.playerStepAnswers.get(state.p2Id || '') || new Map()).keys())
+  console.log(`[${matchId}] ✅ [STEP] Step ${stepIndex} answer stored in local state for player ${playerId}: ${answerIndex}`)
+  console.log(`[${matchId}] 📊 [STEP] Local state - p1Answers: [${p1KeysBefore.join(', ')}], p2Answers: [${p2KeysBefore.join(', ')}]`)
+
+  // Fire-and-forget DB upsert (for cross-instance consistency) - do NOT await for completion check
+  try {
+    const steps = Array.isArray(state.currentQuestion.steps)
+      ? state.currentQuestion.steps
+      : JSON.parse(state.currentQuestion.steps ?? '[]')
+    const step = steps[stepIndex]
+    const correctAnswer = step?.correct_answer?.correctIndex ?? step?.correctAnswer ?? 0
+    const roundIndex = Math.max(0, (state.roundNumber || 1) - 1)
+    const isCorrect = answerIndex === correctAnswer
+
+    supabase
+      .from('match_step_answers_v2')
+      .upsert({
+        match_id: matchId,
+        round_index: roundIndex,
+        question_id: state.currentQuestion?.id ?? '',
+        player_id: playerId,
+        step_index: stepIndex,
+        selected_option: answerIndex,
+        is_correct: isCorrect,
+        response_time_ms: 0
+      })
+      .then(({ error }) => {
+        if (error) {
+          console.error(`[${matchId}] ❌ [STEP] DB upsert error for step ${stepIndex}:`, error)
+        } else {
+          console.log(`[${matchId}] ✅ [STEP] DB upsert stored step ${stepIndex} for player ${playerId}`)
+        }
+      })
+      .catch((err) => {
+        console.error(`[${matchId}] ❌ [STEP] DB upsert exception for step ${stepIndex}:`, err)
+      })
+  } catch (err) {
+    console.error(`[${matchId}] ❌ [STEP] Failed to start DB upsert for step ${stepIndex}:`, err)
+>>>>>>> cbb141a (Add async DB upsert for step answers + richer logging)
   }
 
   // #region agent log
@@ -1486,138 +1528,20 @@ async function handleStepAnswer(
   socket.send(JSON.stringify(stepAnswerEvent))
 
   if (bothDone) {
-    // Both players done (answered or eliminated) - check if this was the last step
-    const steps = Array.isArray(state.currentQuestion.steps) 
-      ? state.currentQuestion.steps 
-      : JSON.parse(state.currentQuestion.steps ?? '[]')
-    
-    const isLastStep = stepIndex >= steps.length - 1
-    
-    if (isLastStep) {
-      // Last step completed - check if both players have completed all steps
-      // CRITICAL: Query database to get answers from ALL instances, not just local memory
-      console.log(`[${matchId}] 🔍 Querying database for step answers (round_index=${state.roundNumber - 1}, question_id=${state.currentQuestion.id})`)
-      const { data: dbAnswers, error: dbError } = await supabase
-        .from('match_step_answers_v2')
-        .select('player_id, step_index, selected_option')
-        .eq('match_id', matchId)
-        .eq('round_index', state.roundNumber - 1)
-        .eq('question_id', state.currentQuestion.id)
-      
-      if (dbError) {
-        console.error(`[${matchId}] ❌ Failed to query step answers from database:`, dbError)
-      } else {
-        console.log(`[${matchId}] 🔍 Database returned ${dbAnswers?.length || 0} step answers`)
-      }
-      
-      // Build answer maps from database results
-      const p1AnswersFromDb = new Map<number, number>()
-      const p2AnswersFromDb = new Map<number, number>()
-      
-      if (dbAnswers) {
-        for (const answer of dbAnswers) {
-          if (answer.player_id === state.p1Id) {
-            p1AnswersFromDb.set(answer.step_index, answer.selected_option)
-          } else if (answer.player_id === state.p2Id) {
-            p2AnswersFromDb.set(answer.step_index, answer.selected_option)
-          }
-        }
-      }
-      
-      // Also check local memory (fallback)
-      const p1AnswersLocal = state.playerStepAnswers.get(state.p1Id || '') || new Map()
-      const p2AnswersLocal = state.playerStepAnswers.get(state.p2Id || '') || new Map()
-      
-      // Use database answers if available, otherwise fall back to local
-      const p1Answers = p1AnswersFromDb.size > 0 ? p1AnswersFromDb : p1AnswersLocal
-      const p2Answers = p2AnswersFromDb.size > 0 ? p2AnswersFromDb : p2AnswersLocal
-      
-      console.log(`[${matchId}] 🔍 FINAL: p1Answers from DB: [${Array.from(p1Answers.keys()).join(', ')}], p2Answers from DB: [${Array.from(p2Answers.keys()).join(', ')}]`)
-      const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
-      const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1478',message:'AFTER RETRIEVING ANSWERS',data:{matchId,stepIndex,playerId,p1Id:state.p1Id,p2Id:state.p2Id,p1AnswersSize:p1Answers.size,p2AnswersSize:p2Answers.size,p1AnswersKeys:Array.from(p1Answers.keys()),p2AnswersKeys:Array.from(p2Answers.keys()),p1Eliminated,p2Eliminated},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
-      // Check if each player has answered all steps
-      // IMPORTANT: Check actual completion first - if a player answered all steps,
-      // they are complete regardless of elimination status (elimination might be from a race condition)
-      let p1AllComplete = true
-      let p2AllComplete = true
-      
-      // Check if p1 answered all steps
-      for (let i = 0; i < steps.length; i++) {
-        if (!p1Answers.has(i)) {
-          p1AllComplete = false
-          break
-        }
-      }
-      
-      // Check if p2 answered all steps
-      for (let i = 0; i < steps.length; i++) {
-        if (!p2Answers.has(i)) {
-          p2AllComplete = false
-          break
-        }
-      }
-      
-      // If a player is eliminated AND didn't answer all steps, they're not complete
-      // But if they answered all steps, they ARE complete (even if marked eliminated due to race condition)
-      if (p1Eliminated && !p1AllComplete) {
-        p1AllComplete = false
-      }
-      if (p2Eliminated && !p2AllComplete) {
-        p2AllComplete = false
-      }
-      
-      // Update completion flags
-      state.p1AllStepsComplete = p1AllComplete
-      state.p2AllStepsComplete = p2AllComplete
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1507',message:'LAST STEP COMPLETION CHECK',data:{matchId,stepIndex,p1Id:state.p1Id,p2Id:state.p2Id,p1Eliminated,p2Eliminated,p1AnswersCount:p1Answers.size,p2AnswersCount:p2Answers.size,p1AllComplete,p2AllComplete,stepsLength:steps.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      console.log(`[${matchId}] 🔍 DEBUG: Last step ${stepIndex} completed - p1AllComplete=${p1AllComplete} (eliminated=${p1Eliminated}), p2AllComplete=${p2AllComplete} (eliminated=${p2Eliminated})`)
-      console.log(`[${matchId}] 🔍 DEBUG: p1Answers keys: [${Array.from(p1Answers.keys()).join(', ')}], p2Answers keys: [${Array.from(p2Answers.keys()).join(', ')}]`)
-      
-      if (p1AllComplete && p2AllComplete) {
-        // Both players completed all steps - calculate results
-        console.log(`[${matchId}] *** BOTH COMPLETE - CALLING calculateStepResults ***`)
-        console.log(`[${matchId}] 🔍 VERIFY: p1Answers.size=${p1Answers.size}, p2Answers.size=${p2Answers.size}`)
-        console.log(`[${matchId}] 🔍 VERIFY: p1Id=${state.p1Id}, p2Id=${state.p2Id}`)
-        console.log(`[${matchId}] 🔍 VERIFY: all stored player IDs: [${Array.from(state.playerStepAnswers.keys()).join(', ')}]`)
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1510',message:'BOTH COMPLETE - CALLING calculateStepResults',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1044',message:'CALLING calculateStepResults FROM TIMEOUT',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1473',message:'CALLING calculateStepResults FROM handleStepAnswer',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-        await calculateStepResults(matchId, supabase)
-      } else {
-        // One player finished but other hasn't - send waiting state
-        console.log(`[${matchId}] ⏳ One player completed all steps - waiting for opponent (P1: ${p1AllComplete}, P2: ${p2AllComplete})`)
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1520',message:'NOT BOTH COMPLETE - BROADCASTING WAITING',data:{matchId,stepIndex,p1AllComplete,p2AllComplete,p1Eliminated,p2Eliminated},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        
-        // Broadcast waiting state to both players
-        const waitingEvent = {
-          type: 'ALL_STEPS_COMPLETE_WAITING',
-          matchId,
-          p1Complete: p1AllComplete,
-          p2Complete: p2AllComplete,
-          waitingForOpponent: true
-        }
-        broadcastToMatch(matchId, waitingEvent)
-      }
+    console.log(`[${matchId}] ⚡ [STEP] Both players done with step ${currentStepIdx} - clearing timer and moving to next step immediately`)
+
+    // Clear timer BEFORE moving to prevent race with timeout
+    const currentTimer = state.stepTimers.get(currentStepIdx)
+    if (currentTimer) {
+      console.log(`[${matchId}] 🔥 [TIMER] Clearing step ${currentStepIdx} timer BEFORE progression (timer ID: ${currentTimer})`)
+      clearTimeout(currentTimer)
+      state.stepTimers.delete(currentStepIdx)
+      console.log(`[${matchId}] ✅ [TIMER] Step ${currentStepIdx} timer cleared successfully`)
     } else {
-      // Not last step - move to next step immediately
-      console.log(`[${matchId}] ⚡ Both players done with step ${stepIndex} - moving to next step`)
-      await moveToNextStep(matchId, supabase, null) // Pass null since we're moving to next step, not checking completion
+      console.log(`[${matchId}] ⚠️ [TIMER] No active timer found for step ${currentStepIdx} (already cleared or never set)`)
     }
+
+    await moveToNextStep(matchId, supabase)
   }
 }
 
