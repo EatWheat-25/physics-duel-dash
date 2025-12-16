@@ -1431,6 +1431,8 @@ async function calculateStepResults(
   }
 
   // Persist results payload so Realtime delivers to all instances (prevents one-player-only results)
+  let broadcastResultsVersion: number | undefined
+  let broadcastResultsPayload: any | undefined
   try {
     const { data: matchRow, error: matchRowError } = await supabase
       .from('matches')
@@ -1442,13 +1444,24 @@ async function calculateStepResults(
       console.error(`[${matchId}] ❌ [RESULTS] Failed to fetch match row for results persistence:`, matchRowError)
     } else {
       const nextResultsVersion = (matchRow?.results_version ?? 0) + 1
-      const resultsPayload = {
+      broadcastResultsVersion = nextResultsVersion
+      broadcastResultsPayload = {
         mode: 'steps',
         round_id: matchRow?.current_round_id ?? null,
         round_number: state.roundNumber,
         correct_answer: 0,
-        p1: { total: p1Score, steps: stepResults },
-        p2: { total: p2Score, steps: stepResults },
+        p1: {
+          answer: null,
+          correct: p1Score > p2Score,
+          total: p1Score,
+          steps: stepResults
+        },
+        p2: {
+          answer: null,
+          correct: p2Score > p1Score,
+          total: p2Score,
+          steps: stepResults
+        },
         round_winner: winnerId,
         match_over: matchOver,
         match_winner_id: matchWinnerId
@@ -1457,7 +1470,7 @@ async function calculateStepResults(
       const { error: persistError } = await supabase
         .from('matches')
         .update({
-          results_payload: resultsPayload,
+          results_payload: broadcastResultsPayload,
           results_version: nextResultsVersion,
           results_round_id: matchRow?.current_round_id ?? null,
           results_computed_at: new Date().toISOString()
@@ -1467,11 +1480,19 @@ async function calculateStepResults(
       if (persistError) {
         console.error(`[${matchId}] ❌ [RESULTS] Failed to persist results payload:`, persistError)
       } else {
-        console.log(`[${matchId}] ✅ [RESULTS] Persisted results payload (version ${nextResultsVersion}, round_id=${resultsPayload.round_id})`)
+        console.log(`[${matchId}] ✅ [RESULTS] Persisted results payload (version ${nextResultsVersion}, round_id=${broadcastResultsPayload.round_id})`)
       }
     }
   } catch (err) {
     console.error(`[${matchId}] ❌ [RESULTS] Exception while persisting results payload:`, err)
+  }
+
+  // Attach payload/version to WS event so clients can render answers immediately (fast-path)
+  if (broadcastResultsPayload) {
+    ;(resultsEvent as any).results_payload = broadcastResultsPayload
+  }
+  if (broadcastResultsVersion !== undefined) {
+    ;(resultsEvent as any).results_version = broadcastResultsVersion
   }
 
   // Log socket state before broadcasting
