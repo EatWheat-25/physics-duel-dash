@@ -1463,13 +1463,31 @@ async function handleStepAnswer(
   
   console.log(`[${matchId}] 📊 [STEP] Current state: phase=${state.currentPhase}, currentStepIndex=${state.currentStepIndex}`)
   
-  if (state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
-    console.warn(`[${matchId}] ⚠️ [STEP] Invalid step submission - expected step ${state.currentStepIndex}, got ${stepIndex}`)
+  // Validation: must be in steps phase
+  if (state.currentPhase !== 'steps') {
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
-      message: `Invalid step answer submission - current step is ${state.currentStepIndex}, not ${stepIndex}`
+      message: 'Invalid step answer submission - not in steps phase'
     } as GameErrorEvent))
     return
+  }
+
+  // Allow current step or previous step (catch-up), reject future steps
+  const isCurrentStep = stepIndex === state.currentStepIndex
+  const isPreviousStep = stepIndex === state.currentStepIndex - 1
+  const isFutureStep = stepIndex > state.currentStepIndex
+
+  if (isFutureStep) {
+    console.warn(`[${matchId}] ⚠️ [STEP] Rejecting future step answer - current step is ${state.currentStepIndex}, got ${stepIndex}`)
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: `Invalid step answer submission - current step is ${state.currentStepIndex}, cannot submit for future step ${stepIndex}`
+    } as GameErrorEvent))
+    return
+  }
+
+  if (isPreviousStep) {
+    console.log(`[${matchId}] ⚠️ [STEP] Player ${playerId} submitting answer for previous step ${stepIndex} (current is ${state.currentStepIndex}) - allowing catch-up`)
   }
 
   // Check if player is eliminated - ignore their answer
@@ -1491,16 +1509,17 @@ async function handleStepAnswer(
   console.log(`[${matchId}] ✅ [STEP] Step ${stepIndex} answer stored in local state for player ${playerId}: ${answerIndex}`)
   console.log(`[${matchId}] 📊 [STEP] Local state - p1Answers: [${Array.from((state.playerStepAnswers.get(state.p1Id || '') || new Map()).keys()).join(', ')}], p2Answers: [${Array.from((state.playerStepAnswers.get(state.p2Id || '') || new Map()).keys()).join(', ')}]`)
 
-  // Check if both players have either answered OR are eliminated
+  // Check if both players have either answered OR are eliminated for the CURRENT step
+  const currentStepIdx = state.currentStepIndex
   const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
   const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
   const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
   const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-  const p1Done = p1Answers.has(stepIndex) || p1Eliminated
-  const p2Done = p2Answers.has(stepIndex) || p2Eliminated
+  const p1Done = p1Answers.has(currentStepIdx) || p1Eliminated
+  const p2Done = p2Answers.has(currentStepIdx) || p2Eliminated
   const bothDone = p1Done && p2Done
   
-  console.log(`[${matchId}] 📊 [STEP] Completion check: p1Done=${p1Done} (answered=${p1Answers.has(stepIndex)}, eliminated=${p1Eliminated}), p2Done=${p2Done} (answered=${p2Answers.has(stepIndex)}, eliminated=${p2Eliminated}), bothDone=${bothDone}`)
+  console.log(`[${matchId}] 📊 [STEP] Completion check (current step ${currentStepIdx}): p1Done=${p1Done} (answered=${p1Answers.has(currentStepIdx)}, eliminated=${p1Eliminated}), p2Done=${p2Done} (answered=${p2Answers.has(currentStepIdx)}, eliminated=${p2Eliminated}), bothDone=${bothDone}`)
 
   // Send confirmation
   const stepAnswerEvent: StepAnswerReceivedEvent = {
