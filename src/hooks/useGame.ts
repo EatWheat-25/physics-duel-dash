@@ -134,6 +134,7 @@ export function useGame(match: MatchRow | null) {
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const localResultsVersionRef = useRef<number>(0)
   const processedRoundIdsRef = useRef<Set<string>>(new Set())
+  const stepResultsPollingStartedRef = useRef<boolean>(false)
   const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
 
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
@@ -1166,6 +1167,24 @@ export function useGame(match: MatchRow | null) {
     poll()
     pollingIntervalRef.current = window.setInterval(poll, 2000)
   }, [applyResults])
+
+  // Fallback: if we're stuck waiting for opponent to complete steps, poll for results
+  useEffect(() => {
+    const matchId = matchIdRef.current
+    if (!matchId) return
+
+    // Reset guard when leaving steps or once results arrive
+    if (state.phase !== 'steps' || state.results) {
+      stepResultsPollingStartedRef.current = false
+      return
+    }
+
+    if (state.waitingForOpponentToCompleteSteps && !stepResultsPollingStartedRef.current) {
+      stepResultsPollingStartedRef.current = true
+      console.log('[useGame] 🔄 Starting polling fallback for step results (waiting for opponent to complete steps)')
+      startPollingForResults(matchId)
+    }
+  }, [state.phase, state.waitingForOpponentToCompleteSteps, state.results, startPollingForResults])
 
   const submitEarlyAnswer = useCallback(() => {
     const ws = wsRef.current
