@@ -1394,45 +1394,46 @@ async function handleStepAnswer(
   }
   state.playerStepAnswers.get(playerId)!.set(stepIndex, answerIndex)
 
-<<<<<<< HEAD
-  // CRITICAL: Also store in database so all Edge Function instances can see it
-  console.log(`[${matchId}] 🔍 ATTEMPTING DB STORE: stepIndex=${stepIndex}, playerId=${playerId}, roundNumber=${state.roundNumber}, questionId=${state.currentQuestion.id}`)
-  const steps = Array.isArray(state.currentQuestion.steps) 
-    ? state.currentQuestion.steps 
-    : JSON.parse(state.currentQuestion.steps ?? '[]')
-  const currentStep = steps[stepIndex]
-  const correctAnswer = currentStep?.correct_answer?.correctIndex ?? currentStep?.correctAnswer ?? 0
-  const isCorrect = answerIndex === correctAnswer
-  
+  const p1KeysBefore = Array.from((state.playerStepAnswers.get(state.p1Id || '') || new Map()).keys())
+  const p2KeysBefore = Array.from((state.playerStepAnswers.get(state.p2Id || '') || new Map()).keys())
+  console.log(`[${matchId}] ✅ [STEP] Step ${stepIndex} answer stored in local state for player ${playerId}: ${answerIndex}`)
+  console.log(`[${matchId}] 📊 [STEP] Local state - p1Answers: [${p1KeysBefore.join(', ')}], p2Answers: [${p2KeysBefore.join(', ')}]`)
+
+  // Fire-and-forget DB upsert (for cross-instance consistency) - do NOT await for completion check
   try {
-    const upsertData = {
-      match_id: matchId,
-      round_index: state.roundNumber - 1, // round_index is 0-based
-      question_id: state.currentQuestion.id,
-      player_id: playerId,
-      step_index: stepIndex,
-      selected_option: answerIndex,
-      is_correct: isCorrect,
-      response_time_ms: 0 // TODO: track actual response time
-    }
-    console.log(`[${matchId}] 🔍 DB UPSERT DATA:`, JSON.stringify(upsertData))
-    const { data: upsertResult, error: dbError } = await supabase
+    const steps = Array.isArray(state.currentQuestion.steps)
+      ? state.currentQuestion.steps
+      : JSON.parse(state.currentQuestion.steps ?? '[]')
+    const step = steps[stepIndex]
+    const correctAnswer = step?.correct_answer?.correctIndex ?? step?.correctAnswer ?? 0
+    const roundIndex = Math.max(0, (state.roundNumber || 1) - 1)
+    const isCorrect = answerIndex === correctAnswer
+
+    supabase
       .from('match_step_answers_v2')
-      .upsert(upsertData, {
-        onConflict: 'match_id,round_index,player_id,question_id,step_index'
+      .upsert({
+        match_id: matchId,
+        round_index: roundIndex,
+        question_id: state.currentQuestion?.id ?? '',
+        player_id: playerId,
+        step_index: stepIndex,
+        selected_option: answerIndex,
+        is_correct: isCorrect,
+        response_time_ms: 0
       })
-      .select()
-    
-    if (dbError) {
-      console.error(`[${matchId}] ❌❌❌ FAILED to store step answer in database:`, dbError)
-      console.error(`[${matchId}] ❌❌❌ Error code: ${dbError.code}, message: ${dbError.message}`)
-    } else {
-      console.log(`[${matchId}] ✅✅✅ Step ${stepIndex} answer stored in database for player ${playerId}`)
-      console.log(`[${matchId}] ✅✅✅ Upsert result:`, upsertResult)
-    }
-  } catch (error) {
-    console.error(`[${matchId}] ❌❌❌ EXCEPTION storing step answer in database:`, error)
-=======
+      .then(({ error }) => {
+        if (error) {
+          console.error(`[${matchId}] ❌ [STEP] DB upsert error for step ${stepIndex}:`, error)
+        } else {
+          console.log(`[${matchId}] ✅ [STEP] DB upsert stored step ${stepIndex} for player ${playerId}`)
+        }
+      })
+      .catch((err) => {
+        console.error(`[${matchId}] ❌ [STEP] DB upsert exception for step ${stepIndex}:`, err)
+      })
+  } catch (err) {
+    console.error(`[${matchId}] ❌ [STEP] Failed to start DB upsert for step ${stepIndex}:`, err)
+  }
   const p1KeysBefore = Array.from((state.playerStepAnswers.get(state.p1Id || '') || new Map()).keys())
   const p2KeysBefore = Array.from((state.playerStepAnswers.get(state.p2Id || '') || new Map()).keys())
   console.log(`[${matchId}] ✅ [STEP] Step ${stepIndex} answer stored in local state for player ${playerId}: ${answerIndex}`)
@@ -1487,35 +1488,17 @@ async function handleStepAnswer(
     console.log(`[${matchId}] 🔍 AFTER STORE: player ${pid} has ${answers.size} answers: [${Array.from(answers.keys()).join(', ')}]`)
   }
 
-  // Check if both players have either answered OR are eliminated
-  // CRITICAL: Query database to get answers from ALL instances, not just local memory
-  // This fixes the issue where players on different instances don't see each other's answers
-  const { data: dbStepAnswers, error: dbQueryError } = await supabase
-    .from('match_step_answers_v2')
-    .select('player_id, step_index')
-    .eq('match_id', matchId)
-    .eq('round_index', state.roundNumber - 1)
-    .eq('question_id', state.currentQuestion.id)
-    .eq('step_index', stepIndex)
-  
-  // Build answer sets from database
-  const p1AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p1Id) || false
-  const p2AnsweredInDb = dbStepAnswers?.some(a => a.player_id === state.p2Id) || false
-  
-  // Also check local memory (fallback for same-instance optimization)
-  const p1AnswersLocal = state.playerStepAnswers.get(state.p1Id || '') || new Map()
-  const p2AnswersLocal = state.playerStepAnswers.get(state.p2Id || '') || new Map()
-  const p1AnsweredLocal = p1AnswersLocal.has(stepIndex)
-  const p2AnsweredLocal = p2AnswersLocal.has(stepIndex)
-  
-  // Use database as source of truth, but also check local (for same-instance fast path)
+  // Check completion using ONLY in-memory state (avoid DB race)
+  const currentStepIdx = state.currentStepIndex
+  const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
+  const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
   const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
   const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-  const p1Done = (p1AnsweredInDb || p1AnsweredLocal) || p1Eliminated
-  const p2Done = (p2AnsweredInDb || p2AnsweredLocal) || p2Eliminated
+  const p1Done = p1Answers.has(currentStepIdx) || p1Eliminated
+  const p2Done = p2Answers.has(currentStepIdx) || p2Eliminated
   const bothDone = p1Done && p2Done
   
-  console.log(`[${matchId}] 🔍 Step ${stepIndex} completion check: p1Done=${p1Done} (DB=${p1AnsweredInDb}, local=${p1AnsweredLocal}, eliminated=${p1Eliminated}), p2Done=${p2Done} (DB=${p2AnsweredInDb}, local=${p2AnsweredLocal}, eliminated=${p2Eliminated}), bothDone=${bothDone}`)
+  console.log(`[${matchId}] 📊 [STEP] Completion check (step ${currentStepIdx}): p1Done=${p1Done} (answered=${p1Answers.has(currentStepIdx)}, eliminated=${p1Eliminated}), p2Done=${p2Done} (answered=${p2Answers.has(currentStepIdx)}, eliminated=${p2Eliminated}), bothDone=${bothDone}`)
 
   // Send confirmation
   const stepAnswerEvent: StepAnswerReceivedEvent = {
