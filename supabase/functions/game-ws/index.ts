@@ -1430,6 +1430,50 @@ async function calculateStepResults(
     matchWinnerId
   }
 
+  // Persist results payload so Realtime delivers to all instances (prevents one-player-only results)
+  try {
+    const { data: matchRow, error: matchRowError } = await supabase
+      .from('matches')
+      .select('results_version, current_round_id')
+      .eq('id', matchId)
+      .single()
+
+    if (matchRowError) {
+      console.error(`[${matchId}] ❌ [RESULTS] Failed to fetch match row for results persistence:`, matchRowError)
+    } else {
+      const nextResultsVersion = (matchRow?.results_version ?? 0) + 1
+      const resultsPayload = {
+        mode: 'steps',
+        round_id: matchRow?.current_round_id ?? null,
+        round_number: state.roundNumber,
+        correct_answer: 0,
+        p1: { total: p1Score, steps: stepResults },
+        p2: { total: p2Score, steps: stepResults },
+        round_winner: winnerId,
+        match_over: matchOver,
+        match_winner_id: matchWinnerId
+      }
+
+      const { error: persistError } = await supabase
+        .from('matches')
+        .update({
+          results_payload: resultsPayload,
+          results_version: nextResultsVersion,
+          results_round_id: matchRow?.current_round_id ?? null,
+          results_computed_at: new Date().toISOString()
+        })
+        .eq('id', matchId)
+
+      if (persistError) {
+        console.error(`[${matchId}] ❌ [RESULTS] Failed to persist results payload:`, persistError)
+      } else {
+        console.log(`[${matchId}] ✅ [RESULTS] Persisted results payload (version ${nextResultsVersion}, round_id=${resultsPayload.round_id})`)
+      }
+    }
+  } catch (err) {
+    console.error(`[${matchId}] ❌ [RESULTS] Exception while persisting results payload:`, err)
+  }
+
   // Log socket state before broadcasting
   const matchSockets = sockets.get(matchId)
   const socketCount = matchSockets?.size || 0
