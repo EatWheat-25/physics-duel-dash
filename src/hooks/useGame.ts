@@ -153,6 +153,7 @@ export function useGame(match: MatchRow | null) {
   const hasConnectedRef = useRef<boolean>(false)
   const pollingTimeoutRef = useRef<number | null>(null)
   const pollingIntervalRef = useRef<number | null>(null)
+  const multiStepPollingIntervalRef = useRef<number | null>(null)
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const matchRoundsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const currentRoundIdRef = useRef<string | null>(null)
@@ -276,6 +277,74 @@ export function useGame(match: MatchRow | null) {
       window.removeEventListener('polling-results-detected', handlePollingResults as EventListener)
     }
   }, [])
+
+  // Multi-step safety net: if we finished all parts but results didn't arrive (WS/Realtime),
+  // poll matches.results_payload until it appears.
+  useEffect(() => {
+    if (!match?.id) return
+
+    const shouldPoll =
+      state.status === 'playing' &&
+      state.phase === 'steps' &&
+      state.allStepsComplete &&
+      !state.results
+
+    if (!shouldPoll) {
+      if (multiStepPollingIntervalRef.current) {
+        clearInterval(multiStepPollingIntervalRef.current)
+        multiStepPollingIntervalRef.current = null
+      }
+      return
+    }
+
+    if (multiStepPollingIntervalRef.current) return
+
+    let attempts = 0
+    const maxAttempts = 30 // ~60 seconds at 2s interval
+
+    const poll = async () => {
+      attempts++
+      try {
+        const { data: matchRow, error } = await supabase
+          .from('matches')
+          .select('results_payload, results_version, results_round_id, current_round_id')
+          .eq('id', match.id)
+          .single() as { data: any; error: any }
+
+        if (error || !matchRow) return
+
+        const hasPayload = matchRow.results_payload != null
+        const roundMatch = matchRow.results_round_id === matchRow.current_round_id
+        const version = matchRow.results_version ?? 0
+
+        if (hasPayload && roundMatch && version > localResultsVersionRef.current) {
+          console.log('[useGame] ✅ Multi-step polling fallback found results_payload; applying...')
+          localResultsVersionRef.current = version
+          applyResults(matchRow.results_payload)
+        }
+
+        if (attempts >= maxAttempts) {
+          console.warn('[useGame] ⚠️ Multi-step polling fallback timed out (no results_payload)')
+          if (multiStepPollingIntervalRef.current) {
+            clearInterval(multiStepPollingIntervalRef.current)
+            multiStepPollingIntervalRef.current = null
+          }
+        }
+      } catch (err) {
+        console.error('[useGame] Multi-step polling fallback error:', err)
+      }
+    }
+
+    poll()
+    multiStepPollingIntervalRef.current = window.setInterval(poll, 2000)
+
+    return () => {
+      if (multiStepPollingIntervalRef.current) {
+        clearInterval(multiStepPollingIntervalRef.current)
+        multiStepPollingIntervalRef.current = null
+      }
+    }
+  }, [match?.id, state.status, state.phase, state.allStepsComplete, state.results, applyResults])
 
   // Timer countdown effect (for single-step questions)
   useEffect(() => {

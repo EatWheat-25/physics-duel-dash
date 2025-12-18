@@ -330,8 +330,11 @@ async function broadcastQuestion(
       gameState.lastResultsRoundIdBroadcasted = null
     }
 
-    // Async segments model: start steps immediately (no global "main question" waiting)
-    gameState.mainQuestionEndsAt = null
+    // Async segments model: show a brief "main question" phase, but allow each player to start steps early.
+    // IMPORTANT: players should NOT wait for each other here.
+    const mainQuestionSeconds = 15
+    const mainQuestionEndsAt = new Date(Date.now() + mainQuestionSeconds * 1000).toISOString()
+    gameState.mainQuestionEndsAt = mainQuestionEndsAt
     gameState.stepEndsAt = null
 
     // Persist round status for observability (best-effort; progression is per-player via progress table)
@@ -339,15 +342,15 @@ async function broadcastQuestion(
       const { error: roundUpdateError } = await supabase
         .from('match_rounds')
         .update({
-          status: 'steps',
+          status: 'main',
           current_step_index: 0,
           step_ends_at: null,
-          main_question_ends_at: null
+          main_question_ends_at: mainQuestionEndsAt
         })
         .eq('id', dbRoundId)
 
       if (roundUpdateError) {
-        console.error(`[${matchId}] ❌ Failed to mark match_rounds as steps:`, roundUpdateError)
+        console.error(`[${matchId}] ❌ Failed to mark match_rounds as main:`, roundUpdateError)
       }
     } else {
       console.warn(`[${matchId}] ⚠️ No current_round_id found; cannot initialize async segments`)
@@ -359,7 +362,7 @@ async function broadcastQuestion(
       matchId,
       roundId: dbRoundId || matchId,
       roundIndex: dbRoundNumber - 1, // roundIndex is 0-based
-      phase: 'steps',
+      phase: 'main_question',
       question: {
         id: questionDb.id,
         title: questionDb.title,
@@ -382,6 +385,7 @@ async function broadcastQuestion(
         topicTags: questionDb.topic_tags || [],
         rankTier: questionDb.rank_tier || undefined
       },
+      mainQuestionEndsAt,
       totalSteps: steps.length
     }
 
@@ -392,7 +396,7 @@ async function broadcastQuestion(
     broadcastToMatch(matchId, roundStartEvent)
     console.log(`[${matchId}] ✅ [WS] ROUND_START broadcast completed`)
 
-    // Initialize per-player progress and send initial segment to each player
+    // Initialize per-player progress (starts at "main question" sentinel in DB; step timers begin only after this phase)
     const { error: initError } = await supabase.rpc('init_round_progress_v1', {
       p_match_id: matchId,
       p_round_id: dbRoundId
@@ -400,31 +404,6 @@ async function broadcastQuestion(
     if (initError) {
       console.error(`[${matchId}] ❌ init_round_progress_v1 failed:`, initError)
       return
-    }
-
-    const { data: progressRows, error: progressError } = await supabase
-      .from('match_round_player_progress_v1')
-      .select('player_id, current_step_index, current_segment, segment_ends_at, completed_at')
-      .eq('match_id', matchId)
-      .eq('round_id', dbRoundId)
-
-    if (progressError) {
-      console.error(`[${matchId}] ❌ Failed to fetch progress rows:`, progressError)
-      return
-    }
-
-    for (const row of progressRows ?? []) {
-      if (!row?.player_id || row.completed_at) continue
-      const seg = (row.current_segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
-      await sendSegmentStartToPlayer(
-        matchId,
-        row.player_id,
-        questionDb,
-        row.current_step_index ?? 0,
-        seg,
-        row.segment_ends_at
-      )
-      gameState.lastSentSegmentKeyByPlayer.set(row.player_id, `${row.current_step_index ?? 0}:${seg}`)
     }
 
     // Start server-side timeout sweeper (per instance)
@@ -1305,12 +1284,19 @@ function ensureAsyncSegmentSweep(
 
       // If both complete, compute results and broadcast once (WS fast-path)
       if (p1Complete && p2Complete && state?.lastResultsRoundIdBroadcasted !== round.id) {
+        console.log(`[${matchId}] 🧮 Both players complete; computing results for round ${round.id}...`)
         const { data: rpcResult, error: rpcError } = await supabase.rpc('compute_multi_step_results_v3', {
           p_match_id: matchId,
           p_round_id: round.id
         })
+
+        if (rpcError) {
+          console.error(`[${matchId}] ❌ compute_multi_step_results_v3 RPC error:`, rpcError)
+        }
+
         if (!rpcError && rpcResult?.success && rpcResult?.results_payload) {
           const payload = rpcResult.results_payload
+          console.log(`[${matchId}] ✅ Broadcasting RESULTS_RECEIVED (version=${rpcResult.results_version})`)
           broadcastToMatch(matchId, {
             type: 'RESULTS_RECEIVED',
             results_payload: payload,
@@ -1323,6 +1309,8 @@ function ensureAsyncSegmentSweep(
           if (payload.match_over) {
             setTimeout(() => cleanupGameState(matchId), 5000)
           }
+        } else if (!rpcError) {
+          console.error(`[${matchId}] ❌ compute_multi_step_results_v3 returned no payload:`, rpcResult)
         }
       }
     })()
@@ -1889,11 +1877,89 @@ async function calculateStepResults(
  */
 async function handleEarlyAnswer(
   matchId: string,
+  playerId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  // Async segments ruleset: steps start immediately at ROUND_START.
-  // Keep handler for backwards compatibility, but do not mutate shared round state.
-  console.log(`[${matchId}] ⚡ Early answer received (no-op in async segments ruleset)`)
+  // Async segments ruleset with main-question phase:
+  // EARLY_ANSWER means "start my steps now" (do NOT wait for opponent).
+  const ctx = await getDbRoundContext(matchId, supabase)
+  if (!ctx) return
+
+  const { match, round } = ctx
+  const questionId = round.question_id || match.question_id || null
+  const questionDb = await getQuestionForRound(matchId, questionId, supabase)
+  if (!questionDb) return
+
+  // Ensure progress row exists
+  await supabase.rpc('init_round_progress_v1', {
+    p_match_id: matchId,
+    p_round_id: round.id
+  })
+
+  const steps = parseQuestionSteps(questionDb.steps)
+  const step0 = steps?.[0]
+  const rawLimit =
+    (step0 as any)?.timeLimitSeconds ??
+    (step0 as any)?.time_limit_seconds ??
+    15
+  const stepSeconds =
+    typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit > 0
+      ? rawLimit
+      : 15
+
+  const nowIso = new Date().toISOString()
+  const stepEndsAtIso = new Date(Date.now() + stepSeconds * 1000).toISOString()
+
+  // Read current progress to decide if we need to transition from main-question sentinel
+  const { data: progressBefore, error: progressBeforeError } = await supabase
+    .from('match_round_player_progress_v1')
+    .select('current_step_index, current_segment, segment_ends_at, completed_at')
+    .eq('match_id', matchId)
+    .eq('round_id', round.id)
+    .eq('player_id', playerId)
+    .maybeSingle()
+
+  if (progressBeforeError) {
+    console.error(`[${matchId}] ❌ Failed to read progress before EARLY_ANSWER:`, progressBeforeError)
+    return
+  }
+  if (!progressBefore || progressBefore.completed_at) return
+
+  const currentStepIndex = typeof (progressBefore as any).current_step_index === 'number'
+    ? (progressBefore as any).current_step_index
+    : 0
+
+  // If already started steps, just re-send the canonical segment (best-effort resync)
+  if (currentStepIndex >= 0) {
+    const seg = ((progressBefore as any).current_segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
+    await sendSegmentStartToPlayer(matchId, playerId, questionDb, currentStepIndex, seg, (progressBefore as any).segment_ends_at ?? null)
+    const state = gameStates.get(matchId)
+    state?.lastSentSegmentKeyByPlayer.set(playerId, `${currentStepIndex}:${seg}`)
+    return
+  }
+
+  // Transition from main-question sentinel to step 0 main, starting the step timer now.
+  const { error: updateError } = await supabase
+    .from('match_round_player_progress_v1')
+    .update({
+      current_step_index: 0,
+      current_segment: 'main',
+      segment_ends_at: stepEndsAtIso,
+      completed_at: null,
+      updated_at: nowIso
+    })
+    .eq('match_id', matchId)
+    .eq('round_id', round.id)
+    .eq('player_id', playerId)
+
+  if (updateError) {
+    console.error(`[${matchId}] ❌ Failed to start steps on EARLY_ANSWER:`, updateError)
+    return
+  }
+
+  await sendSegmentStartToPlayer(matchId, playerId, questionDb, 0, 'main', stepEndsAtIso)
+  const state = gameStates.get(matchId)
+  state?.lastSentSegmentKeyByPlayer.set(playerId, `0:main`)
 }
 
 /**
@@ -2029,6 +2095,7 @@ async function handleSegmentAnswer(
 
   // If both completed, compute + broadcast results immediately
   if (p1Complete && p2Complete && state?.lastResultsRoundIdBroadcasted !== round.id) {
+    console.log(`[${matchId}] 🧮 Both players complete (submit path); computing results for round ${round.id}...`)
     const { data: computeResult, error: computeError } = await supabase.rpc('compute_multi_step_results_v3', {
       p_match_id: matchId,
       p_round_id: round.id
@@ -2039,6 +2106,7 @@ async function handleSegmentAnswer(
     }
     if (computeResult?.success && computeResult?.results_payload) {
       const payload = computeResult.results_payload
+      console.log(`[${matchId}] ✅ Broadcasting RESULTS_RECEIVED (version=${computeResult.results_version})`)
       broadcastToMatch(matchId, {
         type: 'RESULTS_RECEIVED',
         results_payload: payload,
@@ -2051,6 +2119,8 @@ async function handleSegmentAnswer(
       if (payload.match_over) {
         setTimeout(() => cleanupGameState(matchId), 5000)
       }
+    } else {
+      console.error(`[${matchId}] ❌ compute_multi_step_results_v3 returned no payload:`, computeResult)
     }
   }
 }
@@ -3093,7 +3163,7 @@ Deno.serve(async (req) => {
         await handleJoinMatch(matchId, user.id, socket, supabase)
       } else if (message.type === 'EARLY_ANSWER') {
         console.log(`[${matchId}] Processing EARLY_ANSWER from user ${user.id}`)
-        await handleEarlyAnswer(matchId, supabase)
+        await handleEarlyAnswer(matchId, user.id, supabase)
       } else if (message.type === 'SUBMIT_SEGMENT_ANSWER') {
         console.log(`[${matchId}] Processing SUBMIT_SEGMENT_ANSWER from user ${user.id}`)
         const seg = (message.segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
