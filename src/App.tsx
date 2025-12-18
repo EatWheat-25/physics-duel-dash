@@ -42,6 +42,7 @@ import MatchmakingTest from "./pages/MatchmakingTest";
 import BattleSimple from "./pages/BattleSimple";
 import SupabaseDebug from "./pages/SupabaseDebug";
 import { getRandomQuestions } from "./data/questions";
+import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
 
 const queryClient = new QueryClient();
 
@@ -75,8 +76,16 @@ const App = () => {
                 <Route path="/modes" element={<ModeSelection />} />
                 <Route path="/game-modes" element={<GameModes />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
-                <Route path="/admin/dashboard" element={<AdminDashboard />} />
-                <Route path="/admin/questions" element={<AdminQuestions />} />
+                <Route path="/admin/dashboard" element={
+                  <ProtectedAdminRoute>
+                    <AdminDashboard />
+                  </ProtectedAdminRoute>
+                } />
+                <Route path="/admin/questions" element={
+                  <ProtectedAdminRoute>
+                    <AdminQuestions />
+                  </ProtectedAdminRoute>
+                } />
                 <Route path="/debug/questions" element={<DebugQuestions />} />
                 <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
                 <Route path="/dev/contract-test" element={<DevContractTest />} />

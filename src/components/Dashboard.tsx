@@ -9,8 +9,6 @@ import CharacterSelection from './CharacterSelection';
 import FortniteStyleShowcase from './FortniteStyleShowcase';
 import { useCharacter } from '@/hooks/useCharacter';
 import { UserRankData, getRankByPoints } from '@/types/ranking';
-import { useIsAdmin } from '@/hooks/useUserRole';
-import { Button } from './ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   DropdownMenu,
@@ -33,7 +31,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { selectedCharacter, setCharacterSelectionOpen } = useCharacter();
-  const { isAdmin } = useIsAdmin();
   const { signOut } = useAuth();
   const currentRank = getRankByPoints(userData.currentPoints);
   
@@ -224,27 +221,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            
-            {isAdmin && (
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => navigate('/admin/questions')}
-                  variant="default"
-                  size="sm"
-                  className="ml-2 text-white"
-                >
-                  Admin
-                </Button>
-                <Button
-                  onClick={() => navigate('/admin/dashboard')}
-                  variant="destructive"
-                  size="sm"
-                  className="text-white"
-                >
-                  Admin 2.0
-                </Button>
-              </div>
-            )}
           </div>
         </div>
       </motion.div>

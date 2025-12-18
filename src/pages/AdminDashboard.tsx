@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { StepBasedQuestion } from '@/types/question-contract';
 import { dbRowToQuestion } from '@/lib/question-contract';
@@ -8,11 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2, Shield, Search, Filter, X, RefreshCw, AlertCircle, CheckCircle2, BookOpen, TrendingUp, BarChart3 } from 'lucide-react';
+import { Loader2, Plus, Trash2, Shield, Search, Filter, X, RefreshCw, AlertCircle, BookOpen, TrendingUp, BarChart3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import SpaceBackground from '@/components/SpaceBackground';
-import { useIsAdmin } from '@/hooks/useUserRole';
-import AdminQuestions from './AdminQuestions';
 
 type QuestionFilter = {
   subject: 'all' | 'math' | 'physics' | 'chemistry';
@@ -22,8 +19,6 @@ type QuestionFilter = {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
-  const { isAdmin, isLoading: checkingAdmin } = useIsAdmin();
 
   // Question list state
   const [questions, setQuestions] = useState<StepBasedQuestion[]>([]);
@@ -40,10 +35,8 @@ export default function AdminDashboard() {
 
   // Load questions on mount and filter changes
   useEffect(() => {
-    if (isAdmin) {
-      fetchQuestions();
-    }
-  }, [isAdmin, filters]);
+    fetchQuestions();
+  }, [filters]);
 
   async function fetchQuestions() {
     setLoadingQuestions(true);
@@ -244,44 +237,7 @@ export default function AdminDashboard() {
     return { total, bySubject, byLevel, totalSteps, avgSteps: total > 0 ? (totalSteps / total).toFixed(1) : '0' };
   }, [questions]);
 
-  // Loading state
-  if (authLoading || checkingAdmin) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
-        <SpaceBackground />
-        <div className="relative z-10 flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary" />
-          <p className="text-white/70 font-medium animate-pulse">Authenticating...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Not logged in / Not admin
-  if (!user || !isAdmin) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
-        <SpaceBackground />
-        <div className="relative z-10 max-w-md w-full p-8 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl text-center">
-          <Shield className={`w-16 h-16 mx-auto mb-6 ${!user ? 'text-white/50' : 'text-red-500'}`} />
-          <h2 className="text-2xl font-black text-white mb-2">
-            {!user ? 'Authentication Required' : 'Access Denied'}
-          </h2>
-          <p className="text-white/60 mb-8">
-            {!user ? 'Please login to access the admin panel.' : 'You do not have permission to view this page.'}
-          </p>
-          <Button
-            onClick={() => navigate(!user ? '/auth' : '/')}
-            className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/10 h-12 text-lg font-bold"
-          >
-            {!user ? 'Go to Login' : 'Return Home'}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Main UI
+  // Main UI (auth is handled by ProtectedAdminRoute wrapper)
   return (
     <div className="min-h-screen text-foreground relative overflow-hidden font-sans">
       <SpaceBackground />
