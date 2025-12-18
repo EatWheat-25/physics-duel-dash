@@ -78,7 +78,7 @@ export default function BattleConnected() {
     results, roundNumber, lastRoundWinner, consecutiveWinsCount, 
     matchFinished, matchWinner, timeRemaining, submitAnswer,
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
-    mainQuestionTimeLeft, stepTimeLeft, currentStep, submitEarlyAnswer, submitStepAnswer,
+    mainQuestionTimeLeft, stepTimeLeft, currentStep, currentSegment, submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
     isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
     allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
@@ -423,6 +423,9 @@ export default function BattleConnected() {
                   <div className="text-center mb-6">
                     <div className="text-sm text-amber-400/60 font-mono mb-2 uppercase tracking-wider">
                       Step {currentStepIndex + 1} of {totalSteps}
+                      {currentSegment === 'sub' && (
+                        <span className="ml-2 text-blue-400">• SUB-STEP</span>
+                      )}
                     </div>
                     <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
                       {currentStep.prompt || currentStep.question}
@@ -630,11 +633,17 @@ export default function BattleConnected() {
                       <div className="text-sm text-white/60 font-mono mb-2">
                         Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
                       </div>
-                      {results.p1Score !== undefined && results.p2Score !== undefined && (
+                      {typeof results.totalParts === 'number' &&
+                       typeof results.p1PartsCorrect === 'number' &&
+                       typeof results.p2PartsCorrect === 'number' ? (
+                        <div className="text-lg font-bold mb-2">
+                          Round Parts: {isPlayer1 ? results.p1PartsCorrect : results.p2PartsCorrect} / {results.totalParts} - {isPlayer1 ? results.p2PartsCorrect : results.p1PartsCorrect} / {results.totalParts}
+                        </div>
+                      ) : results.p1Score !== undefined && results.p2Score !== undefined ? (
                         <div className="text-lg font-bold mb-2">
                           Round Score: {isPlayer1 ? results.p1Score : results.p2Score} - {isPlayer1 ? results.p2Score : results.p1Score}
                         </div>
-                      )}
+                      ) : null}
                       <div className="text-sm font-bold mb-2">
                         Match Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
                       </div>
@@ -650,17 +659,31 @@ export default function BattleConnected() {
                   <div className="mb-8">
                     {/* Calculate parts correct for each player */}
                     {(() => {
-                      const myPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
-                        return myAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
-                      const oppPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
-                        return oppAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
-                      const totalSteps = results.stepResults.length;
+                      const totalSteps = results.totalParts ?? results.stepResults.length;
+                      const hasDirectCounts = typeof results.p1PartsCorrect === 'number' && typeof results.p2PartsCorrect === 'number';
+
+                      const myPartsCorrect = hasDirectCounts
+                        ? (isPlayer1 ? (results.p1PartsCorrect as number) : (results.p2PartsCorrect as number))
+                        : results.stepResults.filter((stepResult) => {
+                            if (typeof stepResult?.p1PartCorrect === 'boolean' || typeof stepResult?.p2PartCorrect === 'boolean') {
+                              return isPlayer1 ? !!stepResult.p1PartCorrect : !!stepResult.p2PartCorrect;
+                            }
+                            // Legacy fallback (v2)
+                            const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
+                            return myAnswer === stepResult.correctAnswer;
+                          }).length;
+
+                      const oppPartsCorrect = hasDirectCounts
+                        ? (isPlayer1 ? (results.p2PartsCorrect as number) : (results.p1PartsCorrect as number))
+                        : results.stepResults.filter((stepResult) => {
+                            if (typeof stepResult?.p1PartCorrect === 'boolean' || typeof stepResult?.p2PartCorrect === 'boolean') {
+                              return isPlayer1 ? !!stepResult.p2PartCorrect : !!stepResult.p1PartCorrect;
+                            }
+                            // Legacy fallback (v2)
+                            const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
+                            return oppAnswer === stepResult.correctAnswer;
+                          }).length;
+
                       const iWon = myPartsCorrect > oppPartsCorrect;
                       const isTie = myPartsCorrect === oppPartsCorrect;
                       
@@ -743,9 +766,18 @@ export default function BattleConnected() {
                             </summary>
                             <div className="space-y-2 mt-3">
                               {results.stepResults.map((stepResult, idx) => {
-                                const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
-                                const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
-                                const myCorrect = myAnswer === stepResult.correctAnswer
+                                const myCorrect =
+                                  typeof stepResult?.p1PartCorrect === 'boolean' || typeof stepResult?.p2PartCorrect === 'boolean'
+                                    ? (isPlayer1 ? !!stepResult.p1PartCorrect : !!stepResult.p2PartCorrect)
+                                    : (() => {
+                                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
+                                        return myAnswer === stepResult.correctAnswer
+                                      })()
+
+                                const myMarks =
+                                  typeof stepResult?.p1StepAwarded === 'number' || typeof stepResult?.p2StepAwarded === 'number'
+                                    ? (isPlayer1 ? (stepResult.p1StepAwarded ?? 0) : (stepResult.p2StepAwarded ?? 0))
+                                    : (isPlayer1 ? (stepResult.p1Marks ?? 0) : (stepResult.p2Marks ?? 0))
                                 return (
                                   <div
                                     key={idx}
@@ -759,6 +791,11 @@ export default function BattleConnected() {
                                         {myCorrect ? '✓' : '✗'} {myMarks} pts
                                       </span>
                                     </div>
+                                    {stepResult?.hasSubStep && (
+                                      <div className="mt-1 text-[10px] font-mono text-white/50">
+                                        Sub-step required
+                                      </div>
+                                    )}
                                   </div>
                                 )
                               })}

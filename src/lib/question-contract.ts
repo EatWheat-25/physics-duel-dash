@@ -10,7 +10,7 @@
  * ═══════════════════════════════════════════════════════════════════════
  */
 
-import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
+import { StepBasedQuestion, QuestionStep, QuestionSubStep } from '@/types/question-contract';
 
 /**
  * Maps WebSocket/Database payload to canonical StepBasedQuestion.
@@ -212,6 +212,74 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
         marks,
         explanation: rawStep.explanation || null,
     };
+
+    // Optional sub-step mapping (segment inside the same step)
+    try {
+        const rawSub = rawStep.subStep ?? rawStep.sub_step ?? null;
+        if (rawSub && typeof rawSub === 'object') {
+            // Normalize type
+            let subTypeRaw = rawSub.type ?? rawSub.step_type ?? rawSub.sub_type;
+            if (typeof subTypeRaw !== 'string') subTypeRaw = String(subTypeRaw ?? 'true_false');
+            let subType = subTypeRaw
+                .trim()
+                .toLowerCase()
+                .replace(/^["']|["']$/g, '')
+                .replace(/\s+/g, '_')
+                .replace(/-/g, '_');
+            if (subType === 'true_false' || subType === 'truefalse' || subType === 'true false') {
+                subType = 'true_false';
+            } else if (subType === 'mcq' || subType === 'multiple_choice' || subType === 'multiplechoice') {
+                subType = 'mcq';
+            }
+            if (subType !== 'mcq' && subType !== 'true_false') {
+                warn(`Invalid subStep.type "${subTypeRaw}" (normalized: "${subType}"); defaulting to true_false`);
+                subType = 'true_false';
+            }
+
+            const subPrompt = typeof rawSub.prompt === 'string' && rawSub.prompt.trim().length > 0
+                ? rawSub.prompt
+                : typeof rawSub.question === 'string'
+                    ? rawSub.question
+                    : '';
+
+            let subOptions = Array.isArray(rawSub.options) ? rawSub.options : [];
+            subOptions = subOptions.map((opt: any) => (opt ?? '').toString());
+            while (subOptions.length < 4) subOptions.push('');
+            if (subOptions.length > 4) subOptions = subOptions.slice(0, 4);
+
+            let subCorrectAnswer: number | undefined;
+            if (typeof rawSub.correctAnswer === 'number') {
+                subCorrectAnswer = rawSub.correctAnswer;
+            } else if (typeof rawSub.correct_answer === 'number') {
+                subCorrectAnswer = rawSub.correct_answer;
+            } else if (rawSub.correct_answer && typeof rawSub.correct_answer === 'object') {
+                subCorrectAnswer = rawSub.correct_answer.correctIndex;
+            }
+            if (typeof subCorrectAnswer !== 'number' || subCorrectAnswer < 0 || subCorrectAnswer > 3) {
+                warn(`subStep.correctAnswer invalid "${subCorrectAnswer}", defaulting to 0`);
+                subCorrectAnswer = 0;
+            }
+
+            const rawSubTime = rawSub.timeLimitSeconds ?? rawSub.time_limit_seconds;
+            const subTimeLimitSeconds = typeof rawSubTime === 'number' ? rawSubTime : 5;
+
+            const subStep: QuestionSubStep = {
+                type: subType as 'mcq' | 'true_false',
+                prompt: subPrompt,
+                options: subOptions as [string, string, string, string],
+                correctAnswer: subCorrectAnswer as 0 | 1 | 2 | 3,
+                timeLimitSeconds: subTimeLimitSeconds,
+                explanation: rawSub.explanation || null
+            };
+
+            step.subStep = subStep;
+        } else {
+            step.subStep = null;
+        }
+    } catch (e) {
+        warn(`Failed to map subStep; ignoring. Error: ${(e as any)?.message ?? String(e)}`);
+        step.subStep = null;
+    }
 
     return step;
 }

@@ -34,6 +34,14 @@ type FormStep = {
   marks: number;
   timeLimitSeconds: number | null;
   explanation: string;
+  subStep?: {
+    type: 'mcq' | 'true_false';
+    prompt: string;
+    options: [string, string, string, string];
+    correctAnswer: 0 | 1 | 2 | 3;
+    timeLimitSeconds: number | null;
+    explanation: string;
+  } | null;
 };
 
 type QuestionForm = {
@@ -113,7 +121,8 @@ export default function AdminQuestions() {
         correctAnswer: 0,
         marks: 1,
         timeLimitSeconds: 30,
-        explanation: ''
+        explanation: '',
+        subStep: null
       }],
       imageUrl: ''
     };
@@ -194,7 +203,22 @@ export default function AdminQuestions() {
         correctAnswer: s.correctAnswer,
         marks: s.marks,
         timeLimitSeconds: s.timeLimitSeconds,
-        explanation: s.explanation || ''
+        explanation: s.explanation || '',
+        subStep: s.subStep
+          ? {
+              type: s.subStep.type || 'true_false',
+              prompt: s.subStep.prompt || '',
+              options: [
+                s.subStep.options?.[0] || '',
+                s.subStep.options?.[1] || '',
+                s.subStep.options?.[2] || '',
+                s.subStep.options?.[3] || ''
+              ],
+              correctAnswer: s.subStep.correctAnswer ?? 0,
+              timeLimitSeconds: s.subStep.timeLimitSeconds ?? 5,
+              explanation: s.subStep.explanation || ''
+            }
+          : null
       })),
       imageUrl: q.imageUrl || ''
     });
@@ -238,7 +262,8 @@ export default function AdminQuestions() {
           correctAnswer: 0,
           marks: 1,
           timeLimitSeconds: 30,
-          explanation: ''
+          explanation: '',
+          subStep: null
         }
       ]
     });
@@ -300,6 +325,72 @@ export default function AdminQuestions() {
     setForm({ ...form, steps: newSteps });
   }
 
+  function toggleSubStep(stepIndex: number, enabled: boolean) {
+    const newSteps = [...form.steps];
+    const step = { ...newSteps[stepIndex] };
+
+    if (enabled) {
+      step.subStep = step.subStep ?? {
+        type: 'true_false',
+        prompt: '',
+        options: ['True', 'False', '', ''],
+        correctAnswer: 0,
+        timeLimitSeconds: 5,
+        explanation: ''
+      };
+    } else {
+      step.subStep = null;
+    }
+
+    newSteps[stepIndex] = step;
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function updateSubStepField<K extends keyof NonNullable<FormStep['subStep']>>(
+    stepIndex: number,
+    field: K,
+    value: NonNullable<FormStep['subStep']>[K]
+  ) {
+    const newSteps = [...form.steps];
+    const step = { ...newSteps[stepIndex] };
+    const current = step.subStep ?? {
+      type: 'true_false' as const,
+      prompt: '',
+      options: ['True', 'False', '', ''] as [string, string, string, string],
+      correctAnswer: 0 as 0 | 1 | 2 | 3,
+      timeLimitSeconds: 5 as number | null,
+      explanation: ''
+    };
+
+    const updated = { ...current, [field]: value } as NonNullable<FormStep['subStep']>;
+
+    if (field === 'type' && value === 'true_false') {
+      updated.options = ['True', 'False', '', ''];
+      if (updated.correctAnswer > 1) updated.correctAnswer = 0;
+    } else if (field === 'type' && value === 'mcq') {
+      if (!updated.options?.[2] && !updated.options?.[3]) {
+        updated.options = [updated.options?.[0] || '', updated.options?.[1] || '', '', ''];
+      }
+    }
+
+    step.subStep = updated;
+    newSteps[stepIndex] = step;
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function updateSubStepOption(stepIndex: number, optionIndex: number, value: string) {
+    const newSteps = [...form.steps];
+    const step = { ...newSteps[stepIndex] };
+    const sub = step.subStep;
+    if (!sub) return;
+
+    const options = [...sub.options];
+    options[optionIndex] = value;
+    step.subStep = { ...sub, options: options as [string, string, string, string] };
+    newSteps[stepIndex] = step;
+    setForm({ ...form, steps: newSteps });
+  }
+
   function validateForm(): boolean {
     if (!form.title.trim()) {
       toast.error('Title is required');
@@ -346,6 +437,37 @@ export default function AdminQuestions() {
         if (step.correctAnswer < 0 || step.correctAnswer >= nonEmptyOptions.length) {
           toast.error(`Step ${i + 1}: correct answer must be between 0 and ${nonEmptyOptions.length - 1}`);
           return false;
+        }
+      }
+
+      // Optional sub-step validation (if enabled)
+      if (step.subStep) {
+        const sub = step.subStep;
+        if (!sub.prompt.trim()) {
+          toast.error(`Step ${i + 1} sub-step: prompt is required`);
+          return false;
+        }
+
+        if (sub.type === 'true_false') {
+          const nonEmpty = sub.options.slice(0, 2).filter(opt => opt.trim());
+          if (nonEmpty.length !== 2) {
+            toast.error(`Step ${i + 1} sub-step: True/False needs exactly 2 options (True/False)`);
+            return false;
+          }
+          if (sub.correctAnswer < 0 || sub.correctAnswer > 1) {
+            toast.error(`Step ${i + 1} sub-step: correct answer must be 0 (True) or 1 (False)`);
+            return false;
+          }
+        } else {
+          const nonEmpty = sub.options.filter(opt => opt.trim());
+          if (nonEmpty.length < 2) {
+            toast.error(`Step ${i + 1} sub-step: MCQ needs at least 2 options`);
+            return false;
+          }
+          if (sub.correctAnswer < 0 || sub.correctAnswer >= nonEmpty.length) {
+            toast.error(`Step ${i + 1} sub-step: correct answer must be between 0 and ${nonEmpty.length - 1}`);
+            return false;
+          }
         }
       }
     }
@@ -398,6 +520,52 @@ export default function AdminQuestions() {
           nonEmptyOptions[3] || ''
         ];
         
+        // Optional sub-step payload
+        let subStepPayload: QuestionStep['subStep'] = null;
+        if (s.subStep) {
+          const sub = s.subStep;
+
+          let subNonEmptyOptions: string[];
+          if (sub.type === 'true_false') {
+            subNonEmptyOptions = sub.options.slice(0, 2).map(o => o.trim()).filter(Boolean);
+            if (subNonEmptyOptions.length !== 2) {
+              throw new Error(`Step ${i + 1} sub-step: True/False must have exactly 2 options`);
+            }
+          } else {
+            subNonEmptyOptions = sub.options.map(o => o.trim()).filter(Boolean);
+            if (subNonEmptyOptions.length < 2) {
+              throw new Error(`Step ${i + 1} sub-step: MCQ must have at least 2 options`);
+            }
+          }
+
+          const subCorrect = Number(sub.correctAnswer);
+          if (Number.isNaN(subCorrect)) {
+            throw new Error(`Step ${i + 1} sub-step: correctAnswer missing`);
+          }
+          if (sub.type === 'true_false' && (subCorrect < 0 || subCorrect > 1)) {
+            throw new Error(`Step ${i + 1} sub-step: True/False correct answer must be 0 or 1`);
+          }
+          if (sub.type === 'mcq' && (subCorrect < 0 || subCorrect >= subNonEmptyOptions.length)) {
+            throw new Error(`Step ${i + 1} sub-step: correctAnswer out of range (must be 0-${subNonEmptyOptions.length - 1})`);
+          }
+
+          const paddedSubOptions: [string, string, string, string] = [
+            subNonEmptyOptions[0] || '',
+            subNonEmptyOptions[1] || '',
+            subNonEmptyOptions[2] || '',
+            subNonEmptyOptions[3] || ''
+          ];
+
+          subStepPayload = {
+            type: sub.type,
+            prompt: sub.prompt,
+            options: paddedSubOptions,
+            correctAnswer: subCorrect as 0 | 1 | 2 | 3,
+            timeLimitSeconds: sub.timeLimitSeconds ?? 5,
+            explanation: sub.explanation || null
+          };
+        }
+
         return {
           id: s.id || `step-${i + 1}`,
           index: i,
@@ -408,7 +576,8 @@ export default function AdminQuestions() {
           correctAnswer: correct as 0 | 1 | 2 | 3,
           timeLimitSeconds: s.timeLimitSeconds ?? null,
           marks: s.marks,
-          explanation: s.explanation || null
+          explanation: s.explanation || null,
+          subStep: subStepPayload
         }
       });
 
@@ -1249,6 +1418,121 @@ export default function AdminQuestions() {
                                 className={`${glassInput} h-20 text-sm`}
                                 placeholder="Explain why the answer is correct..."
                               />
+                            </div>
+
+                            {/* Optional Sub-step (5s) */}
+                            <div className="mt-2 bg-blue-500/5 border-2 border-blue-500/20 rounded-xl p-5">
+                              <div className="flex items-start justify-between gap-4 mb-4">
+                                <div>
+                                  <div className="text-sm font-bold text-blue-300">Optional Sub-step (5s)</div>
+                                  <div className="text-xs text-white/50 font-mono mt-1">
+                                    Shown immediately after this step is submitted. If failed, this whole step awards 0 marks.
+                                  </div>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  className={step.subStep ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border-0' : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border-0'}
+                                  onClick={() => toggleSubStep(index, !step.subStep)}
+                                >
+                                  {step.subStep ? 'Remove' : 'Add'}
+                                </Button>
+                              </div>
+
+                              {step.subStep && (
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                      <label className={labelStyle}>Type</label>
+                                      <Select
+                                        value={step.subStep.type}
+                                        onValueChange={(v: 'mcq' | 'true_false') => updateSubStepField(index, 'type', v)}
+                                      >
+                                        <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                                        <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                          <SelectItem value="mcq">MCQ</SelectItem>
+                                          <SelectItem value="true_false">True/False</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <label className={labelStyle}>Time (s)</label>
+                                      <Input
+                                        type="number"
+                                        value={step.subStep.timeLimitSeconds ?? ''}
+                                        onChange={e => updateSubStepField(index, 'timeLimitSeconds', e.target.value ? parseInt(e.target.value) : null)}
+                                        className={glassInput}
+                                        placeholder="5"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className={labelStyle}>Correct Answer</label>
+                                      <Select
+                                        value={step.subStep.correctAnswer.toString()}
+                                        onValueChange={(v) => updateSubStepField(index, 'correctAnswer', parseInt(v))}
+                                      >
+                                        <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                                        <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                          <SelectItem value="0">Option A{step.subStep.type === 'true_false' ? ' (True)' : ''}</SelectItem>
+                                          <SelectItem value="1">Option B{step.subStep.type === 'true_false' ? ' (False)' : ''}</SelectItem>
+                                          {step.subStep.type === 'mcq' && (
+                                            <>
+                                              <SelectItem value="2">Option C</SelectItem>
+                                              <SelectItem value="3">Option D</SelectItem>
+                                            </>
+                                          )}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className={labelStyle}>Sub-step Prompt</label>
+                                    <Textarea
+                                      value={step.subStep.prompt}
+                                      onChange={e => updateSubStepField(index, 'prompt', e.target.value)}
+                                      className={`${glassInput} min-h-[70px]`}
+                                      placeholder="Quick 5-second check question..."
+                                    />
+                                  </div>
+
+                                  <div className={`grid gap-4 bg-gradient-to-br from-black/30 to-black/10 p-5 rounded-xl border-2 ${step.subStep.type === 'true_false' ? 'grid-cols-2 border-green-500/20' : 'grid-cols-2 border-blue-500/20'}`}>
+                                    {(step.subStep.type === 'true_false' ? [0, 1] : [0, 1, 2, 3]).map((optIdx) => (
+                                      <div key={optIdx} className={`p-3 rounded-lg border-2 transition-all ${
+                                        step.subStep!.correctAnswer === optIdx
+                                          ? 'bg-green-500/20 border-green-500/50'
+                                          : 'bg-white/5 border-white/10 hover:border-white/20'
+                                      }`}>
+                                        <label className="text-xs text-white/70 mb-2 block uppercase tracking-wider font-semibold">
+                                          Option {String.fromCharCode(65 + optIdx)}
+                                          {step.subStep!.type === 'true_false' && optIdx === 0 && ' (True)'}
+                                          {step.subStep!.type === 'true_false' && optIdx === 1 && ' (False)'}
+                                          {step.subStep!.correctAnswer === optIdx && (
+                                            <span className="ml-2 text-green-400">✓ Correct</span>
+                                          )}
+                                        </label>
+                                        <Input
+                                          value={step.subStep!.options[optIdx]}
+                                          onChange={e => updateSubStepOption(index, optIdx, e.target.value)}
+                                          className={`${glassInput} h-10 text-sm`}
+                                          placeholder={step.subStep!.type === 'true_false' && optIdx === 0 ? 'True' : step.subStep!.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  <div>
+                                    <label className={labelStyle}>Sub-step Explanation</label>
+                                    <Textarea
+                                      value={step.subStep.explanation}
+                                      onChange={e => updateSubStepField(index, 'explanation', e.target.value)}
+                                      className={`${glassInput} h-20 text-sm`}
+                                      placeholder="Optional explanation..."
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>

@@ -49,6 +49,37 @@ export interface QuestionStep {
 
     /** Explanation shown after answering (null = no explanation) */
     explanation: string | null;
+
+    /**
+     * Optional 5-second sub-step inside this step.
+     * - NOT an extra step/part (still counts toward the same part)
+     * - If present and failed, the whole step awards 0 marks (server enforces)
+     */
+    subStep?: QuestionSubStep | null;
+}
+
+/**
+ * Optional sub-step inside a step.
+ * Same answer shape as a normal step, but it awards no marks by itself.
+ */
+export interface QuestionSubStep {
+    /** Sub-step type - MCQ or True/False */
+    type: 'mcq' | 'true_false';
+
+    /** The actual question text for the sub-step */
+    prompt: string;
+
+    /** Exactly 4 options (TF uses first 2; C/D can be empty strings) */
+    options: [string, string, string, string];
+
+    /** Index of correct option (0, 1, 2, or 3) */
+    correctAnswer: 0 | 1 | 2 | 3;
+
+    /** Time limit for this sub-step in seconds (default: 5; null = no limit) */
+    timeLimitSeconds: number | null;
+
+    /** Explanation shown after answering (null = no explanation) */
+    explanation: string | null;
 }
 
 /**
@@ -109,7 +140,20 @@ export function isValidQuestionStep(obj: any): obj is QuestionStep {
         typeof obj.correctAnswer === 'number' &&
         obj.correctAnswer >= 0 &&
         obj.correctAnswer <= 3 &&
-        typeof obj.marks === 'number'
+        typeof obj.marks === 'number' &&
+        (
+            obj.subStep == null ||
+            (
+                typeof obj.subStep === 'object' &&
+                (obj.subStep.type === 'mcq' || obj.subStep.type === 'true_false') &&
+                typeof obj.subStep.prompt === 'string' &&
+                Array.isArray(obj.subStep.options) &&
+                obj.subStep.options.length === 4 &&
+                typeof obj.subStep.correctAnswer === 'number' &&
+                obj.subStep.correctAnswer >= 0 &&
+                obj.subStep.correctAnswer <= 3
+            )
+        )
     );
 }
 

@@ -23,14 +23,32 @@ interface ConnectionState {
     round_winner: string | null
     p1Score?: number
     p2Score?: number
+    // V2 legacy: per-step results lived under payload.p1.steps
+    // V3 (async segments): results live under payload.stepResults and include main/sub segments
     stepResults?: Array<{
       stepIndex: number
-      correctAnswer: number
-      p1AnswerIndex: number | null
-      p2AnswerIndex: number | null
-      p1Marks: number
-      p2Marks: number
+      marks?: number
+      hasSubStep?: boolean
+      mainCorrectAnswer?: number
+      subCorrectAnswer?: number | null
+      p1MainAnswerIndex?: number | null
+      p2MainAnswerIndex?: number | null
+      p1SubAnswerIndex?: number | null
+      p2SubAnswerIndex?: number | null
+      p1PartCorrect?: boolean
+      p2PartCorrect?: boolean
+      p1StepAwarded?: number
+      p2StepAwarded?: number
+      // Legacy v2 shape (still supported)
+      correctAnswer?: number
+      p1AnswerIndex?: number | null
+      p2AnswerIndex?: number | null
+      p1Marks?: number
+      p2Marks?: number
     }>
+    p1PartsCorrect?: number
+    p2PartsCorrect?: number
+    totalParts?: number
   } | null
   // Stage 3: Tug-of-war state (deprecated, kept for compatibility)
   roundNumber: number
@@ -51,7 +69,9 @@ interface ConnectionState {
   mainQuestionTimeLeft: number | null
   stepTimeLeft: number | null
   currentStep: any | null
+  currentSegment: 'main' | 'sub'
   // Match-level state (rounds system)
+  currentRoundId: string | null
   currentRoundNumber: number
   targetRoundsToWin: number
   playerRoundWins: { [playerId: string]: number }
@@ -64,7 +84,7 @@ interface RoundStartEvent {
   matchId: string
   roundId: string
   roundIndex: number
-  phase: 'thinking' | 'main_question'
+  phase: 'thinking' | 'main_question' | 'steps'
   question: any
   thinkingEndsAt?: string
   mainQuestionEndsAt?: string
@@ -115,7 +135,9 @@ export function useGame(match: MatchRow | null) {
     mainQuestionTimeLeft: null,
     stepTimeLeft: null,
     currentStep: null,
+    currentSegment: 'main',
     // Match-level state (rounds system)
+    currentRoundId: null,
     currentRoundNumber: 1,
     targetRoundsToWin: 4,
     playerRoundWins: {},
@@ -132,6 +154,8 @@ export function useGame(match: MatchRow | null) {
   const pollingTimeoutRef = useRef<number | null>(null)
   const pollingIntervalRef = useRef<number | null>(null)
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const matchRoundsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const currentRoundIdRef = useRef<string | null>(null)
   const localResultsVersionRef = useRef<number>(0)
   const processedRoundIdsRef = useRef<Set<string>>(new Set())
   const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
@@ -161,6 +185,11 @@ export function useGame(match: MatchRow | null) {
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useGame.ts:154',message:'applyResults BUILDING RESULTS',data:{mode,hasP1Steps:!!payload.p1?.steps,stepResultsLength:payload.p1?.steps?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
     // #endregion
+    const stepResults =
+      mode === 'steps'
+        ? (payload.stepResults ?? payload.p1?.steps ?? payload.p1?.stepResults)
+        : undefined
+
     const results = {
       player1_answer: mode === 'simple' ? payload.p1?.answer ?? null : null,
       player2_answer: mode === 'simple' ? payload.p2?.answer ?? null : null,
@@ -170,7 +199,10 @@ export function useGame(match: MatchRow | null) {
       round_winner: payload.round_winner ?? null,
       p1Score: payload.p1?.total ?? 0,
       p2Score: payload.p2?.total ?? 0,
-      stepResults: mode === 'steps' ? payload.p1?.steps : undefined,
+      stepResults,
+      p1PartsCorrect: payload.p1_parts_correct ?? payload.p1PartsCorrect ?? undefined,
+      p2PartsCorrect: payload.p2_parts_correct ?? payload.p2PartsCorrect ?? undefined,
+      totalParts: payload.total_parts ?? payload.totalParts ?? undefined,
       round_id: roundId // Store round_id in results for reference
     }
     // #region agent log
@@ -477,16 +509,17 @@ export function useGame(match: MatchRow | null) {
               // Clear processed round IDs and results when new round starts
               processedRoundIdsRef.current.clear()
               const roundStartEvent = message as any as RoundStartEvent
-              if (roundStartEvent.phase === 'main_question') {
-                // Multi-step question - main question phase
+              if (roundStartEvent.phase === 'main_question' || roundStartEvent.phase === 'steps') {
+                // Multi-step question (async segments may start directly in steps)
                 setState(prev => ({
                   ...prev,
                   status: 'playing',
-                  phase: 'main_question',
+                  phase: roundStartEvent.phase === 'steps' ? 'steps' : 'main_question',
                   question: roundStartEvent.question,
                   mainQuestionEndsAt: (roundStartEvent as any).mainQuestionEndsAt || null,
                   totalSteps: (roundStartEvent as any).totalSteps || 0,
                   currentStepIndex: 0,
+                  currentSegment: 'main',
                   answerSubmitted: false,
                   waitingForOpponent: false,
                   resultsAcknowledged: false,
@@ -521,6 +554,7 @@ export function useGame(match: MatchRow | null) {
                   totalSteps: message.totalSteps ?? prev.totalSteps,
                   stepEndsAt: message.stepEndsAt || null,
                   currentStep: message.currentStep || null,
+                  currentSegment: (message.segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub',
                   answerSubmitted: false,
                   waitingForOpponent: false,
                   allStepsComplete: false,
@@ -673,7 +707,8 @@ export function useGame(match: MatchRow | null) {
                 stepEndsAt: null,
                 mainQuestionTimeLeft: null,
                 stepTimeLeft: null,
-                currentStep: null
+              currentStep: null,
+              currentSegment: 'main'
               }))
             } else if (message.type === 'MATCH_FINISHED') {
               console.log('[useGame] MATCH_FINISHED message received')
@@ -789,11 +824,21 @@ export function useGame(match: MatchRow | null) {
       try {
         const { data: matchData, error } = await supabase
           .from('matches')
-          .select('results_computed_at, results_payload, results_version, results_round_id, current_round_id, status, winner_id')
+          .select('results_computed_at, results_payload, results_version, results_round_id, current_round_id, current_round_number, status, winner_id')
           .eq('id', match.id)
           .single() as { data: any; error: any }
 
         if (error || !matchData) return
+
+        // Track canonical current round identity (used for match_rounds Realtime sync)
+        if (matchData.current_round_id) {
+          currentRoundIdRef.current = matchData.current_round_id
+        }
+        setState(prev => ({
+          ...prev,
+          currentRoundId: matchData.current_round_id ?? prev.currentRoundId,
+          currentRoundNumber: matchData.current_round_number ?? prev.currentRoundNumber
+        }))
 
         // If results already computed, show them immediately
         if (matchData.results_computed_at && matchData.results_payload) {
@@ -842,6 +887,34 @@ export function useGame(match: MatchRow | null) {
 
         // Handle results updates (handles both NULL → NOT NULL and out-of-order events)
         const newPayload = payload.new
+
+        // Track canonical current round identity for match_rounds Realtime sync
+        if (newPayload?.current_round_id && newPayload.current_round_id !== currentRoundIdRef.current) {
+          currentRoundIdRef.current = newPayload.current_round_id
+          setState(prev => ({
+            ...prev,
+            currentRoundId: newPayload.current_round_id,
+            currentRoundNumber: newPayload.current_round_number ?? prev.currentRoundNumber,
+            // Clear step-phase state; it will be rehydrated from match_rounds updates
+            mainQuestionEndsAt: null,
+            stepEndsAt: null,
+            mainQuestionTimeLeft: null,
+            stepTimeLeft: null,
+            currentStepIndex: 0,
+            currentStep: null,
+            answerSubmitted: false,
+            waitingForOpponent: false,
+            allStepsComplete: false,
+            waitingForOpponentToCompleteSteps: false
+          }))
+        } else if (newPayload?.current_round_number != null) {
+          // Keep round number in sync even if round_id didn't change (rare but safe)
+          setState(prev => (
+            newPayload.current_round_number === prev.currentRoundNumber
+              ? prev
+              : { ...prev, currentRoundNumber: newPayload.current_round_number }
+          ))
+        }
         const oldVersion = payload.old?.results_version ?? 0
         const newVersion = newPayload.results_version ?? 0
 
@@ -903,6 +976,134 @@ export function useGame(match: MatchRow | null) {
       }
     }
   }, [match?.id, applyResults])
+
+  const applyRoundRow = useCallback((roundRow: any) => {
+    if (!roundRow) return
+    setState(prev => {
+      // Only apply updates for the canonical current round (defense-in-depth)
+      const canonicalRoundId = prev.currentRoundId || currentRoundIdRef.current
+      if (canonicalRoundId && roundRow.id && roundRow.id !== canonicalRoundId) return prev
+
+      // Only apply match_rounds-driven phase if we are in (or expecting) multi-step flow.
+      // Single-step rounds also use match_rounds.status='main', but the UI phase should remain 'question'.
+      const isMultiStepContext = prev.totalSteps > 0 || prev.phase === 'main_question' || prev.phase === 'steps'
+      if (!isMultiStepContext) return prev
+
+      const status = roundRow.status
+      if (status === 'main') {
+        const nextEndsAt = roundRow.main_question_ends_at ?? prev.mainQuestionEndsAt
+        return {
+          ...prev,
+          phase: 'main_question',
+          mainQuestionEndsAt: nextEndsAt,
+          // Clear step-specific state
+          stepEndsAt: null,
+          stepTimeLeft: null,
+          currentStepIndex: 0,
+          currentStep: null,
+          answerSubmitted: false,
+          waitingForOpponent: false,
+          allStepsComplete: false,
+          waitingForOpponentToCompleteSteps: false
+        }
+      }
+
+      if (status === 'steps') {
+        const nextStepIndex = typeof roundRow.current_step_index === 'number' ? roundRow.current_step_index : 0
+        const nextStepEndsAt = roundRow.step_ends_at ?? prev.stepEndsAt
+        const inferredTotalSteps = prev.totalSteps || (Array.isArray(prev.question?.steps) ? prev.question.steps.length : 0)
+        const derivedStep = Array.isArray(prev.question?.steps) ? prev.question.steps[nextStepIndex] : null
+        const stepChanged = prev.phase !== 'steps' || nextStepIndex !== prev.currentStepIndex
+
+        // Dedup: if we already have this step index and endsAt, no update needed
+        if (!stepChanged && nextStepEndsAt === prev.stepEndsAt) return prev
+
+        return {
+          ...prev,
+          phase: 'steps',
+          totalSteps: inferredTotalSteps,
+          currentStepIndex: nextStepIndex,
+          stepEndsAt: nextStepEndsAt,
+          currentStep: derivedStep ?? prev.currentStep,
+          answerSubmitted: stepChanged ? false : prev.answerSubmitted,
+          waitingForOpponent: false,
+          allStepsComplete: false,
+          waitingForOpponentToCompleteSteps: false
+        }
+      }
+
+      return prev
+    })
+  }, [])
+
+  // Realtime subscription for match_rounds (DB-authoritative phase + step progression)
+  useEffect(() => {
+    if (!match?.id) return
+
+    const channel = supabase
+      .channel(`match_rounds:${match.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'match_rounds',
+        filter: `match_id=eq.${match.id}`
+      }, (payload: any) => {
+        applyRoundRow(payload.new)
+      })
+      .subscribe((status) => {
+        console.log('[useGame] match_rounds subscription status:', status)
+      })
+
+    matchRoundsChannelRef.current = channel
+
+    return () => {
+      if (matchRoundsChannelRef.current) {
+        supabase.removeChannel(matchRoundsChannelRef.current)
+        matchRoundsChannelRef.current = null
+      }
+    }
+  }, [match?.id, applyRoundRow])
+
+  // Fetch current round row on round changes (initial hydration; Realtime delivers subsequent updates)
+  useEffect(() => {
+    if (!match?.id) return
+    const roundId = state.currentRoundId || currentRoundIdRef.current
+    if (!roundId) return
+
+    const fetchInitialRoundRow = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('match_rounds')
+          .select('id, status, current_step_index, step_ends_at, main_question_ends_at')
+          .eq('id', roundId)
+          .single() as { data: any; error: any }
+
+        if (error || !data) return
+        applyRoundRow(data)
+      } catch (err) {
+        console.error('[useGame] Error fetching match_rounds initial row:', err)
+      }
+    }
+
+    fetchInitialRoundRow()
+  }, [match?.id, state.currentRoundId, applyRoundRow])
+
+  // If we enter steps phase before the question payload is present, backfill currentStep once question arrives.
+  useEffect(() => {
+    if (state.phase !== 'steps') return
+    if (!state.question || !Array.isArray(state.question.steps)) return
+
+    const step = state.question.steps[state.currentStepIndex]
+    if (!step) return
+
+    setState(prev => {
+      // Backfill only: if match_rounds update arrived before question payload, currentStep may be null.
+      if (prev.currentStep) return prev
+      if (prev.phase !== 'steps') return prev
+      if (prev.currentStepIndex !== state.currentStepIndex) return prev
+      return { ...prev, currentStep: step }
+    })
+  }, [state.phase, state.question, state.currentStepIndex])
 
   // Visibility-based lightweight resync
   useEffect(() => {
@@ -973,13 +1174,14 @@ export function useGame(match: MatchRow | null) {
 
       // Route based on current phase
       if (prev.phase === 'steps') {
-        // Step-based answer
+        // Segment-based answer (async: main/sub)
         const submitMessage = {
-          type: 'SUBMIT_STEP_ANSWER',
+          type: 'SUBMIT_SEGMENT_ANSWER',
           stepIndex: prev.currentStepIndex,
+          segment: prev.currentSegment,
           answerIndex: answerIndex
         }
-        console.log('[useGame] Sending SUBMIT_STEP_ANSWER:', submitMessage)
+        console.log('[useGame] Sending SUBMIT_SEGMENT_ANSWER:', submitMessage)
         ws.send(JSON.stringify(submitMessage))
       } else {
         // Single-step answer
@@ -1195,11 +1397,12 @@ export function useGame(match: MatchRow | null) {
       }
 
       const submitMessage = {
-        type: 'SUBMIT_STEP_ANSWER',
+        type: 'SUBMIT_SEGMENT_ANSWER',
         stepIndex,
+        segment: prev.currentSegment,
         answerIndex
       }
-      console.log('[useGame] Sending SUBMIT_STEP_ANSWER:', submitMessage)
+      console.log('[useGame] Sending SUBMIT_SEGMENT_ANSWER:', submitMessage)
       ws.send(JSON.stringify(submitMessage))
       
       return {
@@ -1267,6 +1470,7 @@ export function useGame(match: MatchRow | null) {
     mainQuestionTimeLeft: state.mainQuestionTimeLeft,
     stepTimeLeft: state.stepTimeLeft,
     currentStep: state.currentStep,
+    currentSegment: state.currentSegment,
     submitEarlyAnswer,
     submitStepAnswer,
     readyForNextRound,
