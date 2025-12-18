@@ -511,6 +511,27 @@ export default function BattleConnected() {
               </motion.div>
             )}
 
+            {/* BOTH PLAYERS COMPLETE, WAITING FOR RESULTS PAYLOAD */}
+            {status === 'playing' && phase === 'steps' && allStepsComplete && !waitingForOpponentToCompleteSteps && !results && (
+              <motion.div
+                key="computing-results"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+              >
+                <div className="mb-6">
+                  <Loader2 className="w-16 h-16 animate-spin text-amber-400 mx-auto mb-4" />
+                  <h2 className="text-3xl font-bold mb-2 tracking-tight">
+                    CALCULATING RESULTS
+                  </h2>
+                  <p className="text-white/60 font-mono text-sm mb-4">
+                    Both players finished all parts. Preparing the round summary...
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
             {/* PLAYING STATE (Single-step) */}
             {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
               <motion.div

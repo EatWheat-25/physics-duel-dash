@@ -910,7 +910,7 @@ async function selectAndBroadcastQuestion(
         detailsLower.includes('idx_match_rounds_match_active')
 
       if (!isUniqueViolation) {
-        console.error(`[${matchId}] ❌ Failed to create match_rounds row:`, roundError)
+      console.error(`[${matchId}] ❌ Failed to create match_rounds row:`, roundError)
         throw roundError
       }
 
@@ -1156,6 +1156,94 @@ function sendToPlayer(matchId: string, playerId: string, event: any): void {
   })
 }
 
+async function maybeComputeAndBroadcastMultiStepResults(
+  matchId: string,
+  roundId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  // Use DB state for idempotency (cross-instance safe). In-memory state is best-effort only.
+  const { data: matchRow, error: matchError } = await supabase
+    .from('matches')
+    .select('id, current_round_id, current_round_number, results_round_id, results_version, results_payload')
+    .eq('id', matchId)
+    .maybeSingle()
+
+  if (matchError || !matchRow) {
+    console.error(`[${matchId}] ❌ maybeComputeAndBroadcastMultiStepResults: failed to read matches row:`, matchError)
+    return
+  }
+
+  // Safety: only compute/broadcast for the active round
+  if (matchRow.current_round_id && matchRow.current_round_id !== roundId) {
+    console.warn(
+      `[${matchId}] ⚠️ maybeComputeAndBroadcastMultiStepResults: roundId mismatch (current_round_id=${matchRow.current_round_id}, requested=${roundId})`
+    )
+    return
+  }
+
+  const state = gameStates.get(matchId)
+  const alreadyBroadcasted = state?.lastResultsRoundIdBroadcasted === roundId
+
+  // If DB already has results for this round, broadcast to local sockets (optional fast-path)
+  if (matchRow.results_round_id === roundId && matchRow.results_payload) {
+    if (!alreadyBroadcasted) {
+      const payload = matchRow.results_payload
+      const version = matchRow.results_version ?? 0
+      console.log(`[${matchId}] 📤 Re-broadcasting RESULTS_RECEIVED from DB (version=${version})`)
+      broadcastToMatch(matchId, {
+        type: 'RESULTS_RECEIVED',
+        results_payload: payload,
+        results_version: version,
+        round_number: payload?.round_number || matchRow.current_round_number || 0,
+        round_id: payload?.round_id || roundId
+      })
+      if (state) state.lastResultsRoundIdBroadcasted = roundId
+    }
+    return
+  }
+
+  // Otherwise compute now (service_role). This is safe to call multiple times; RPC is idempotent.
+  console.log(`[${matchId}] 🧮 Computing results via compute_multi_step_results_v3 for round ${roundId}...`)
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('compute_multi_step_results_v3', {
+    p_match_id: matchId,
+    p_round_id: roundId
+  })
+
+  if (rpcError) {
+    console.error(`[${matchId}] ❌ compute_multi_step_results_v3 RPC error:`, rpcError)
+    // Tell clients something went wrong so we can diagnose from browser console.
+    broadcastToMatch(matchId, {
+      type: 'GAME_ERROR',
+      message: `Failed to compute results: ${rpcError.message || 'unknown error'}`
+    })
+    return
+  }
+
+  if (!rpcResult?.success || !rpcResult?.results_payload) {
+    console.error(`[${matchId}] ❌ compute_multi_step_results_v3 returned no payload:`, rpcResult)
+    broadcastToMatch(matchId, {
+      type: 'GAME_ERROR',
+      message: `Failed to compute results (no payload). Check server logs.`
+    })
+    return
+  }
+
+  const payload = rpcResult.results_payload
+  console.log(`[${matchId}] ✅ Broadcasting RESULTS_RECEIVED (version=${rpcResult.results_version})`)
+  broadcastToMatch(matchId, {
+    type: 'RESULTS_RECEIVED',
+    results_payload: payload,
+    results_version: rpcResult.results_version,
+    round_number: payload.round_number || matchRow.current_round_number || 0,
+    round_id: payload.round_id || roundId
+  })
+  if (state) state.lastResultsRoundIdBroadcasted = roundId
+
+  if (payload.match_over) {
+    setTimeout(() => cleanupGameState(matchId), 5000)
+  }
+}
+
 function buildSegmentStepFromQuestion(
   questionDb: any,
   stepIndex: number,
@@ -1282,36 +1370,9 @@ function ensureAsyncSegmentSweep(
         state?.lastSentSegmentKeyByPlayer.set(row.player_id, key)
       }
 
-      // If both complete, compute results and broadcast once (WS fast-path)
-      if (p1Complete && p2Complete && state?.lastResultsRoundIdBroadcasted !== round.id) {
-        console.log(`[${matchId}] 🧮 Both players complete; computing results for round ${round.id}...`)
-        const { data: rpcResult, error: rpcError } = await supabase.rpc('compute_multi_step_results_v3', {
-          p_match_id: matchId,
-          p_round_id: round.id
-        })
-
-        if (rpcError) {
-          console.error(`[${matchId}] ❌ compute_multi_step_results_v3 RPC error:`, rpcError)
-        }
-
-        if (!rpcError && rpcResult?.success && rpcResult?.results_payload) {
-          const payload = rpcResult.results_payload
-          console.log(`[${matchId}] ✅ Broadcasting RESULTS_RECEIVED (version=${rpcResult.results_version})`)
-          broadcastToMatch(matchId, {
-            type: 'RESULTS_RECEIVED',
-            results_payload: payload,
-            results_version: rpcResult.results_version,
-            round_number: payload.round_number || match.current_round_number || 0,
-            round_id: payload.round_id || round.id
-          })
-          if (state) state.lastResultsRoundIdBroadcasted = round.id
-
-          if (payload.match_over) {
-            setTimeout(() => cleanupGameState(matchId), 5000)
-          }
-        } else if (!rpcError) {
-          console.error(`[${matchId}] ❌ compute_multi_step_results_v3 returned no payload:`, rpcResult)
-        }
+      // If both complete, compute results (DB-idempotent) and broadcast to any local sockets.
+      if (p1Complete && p2Complete) {
+        await maybeComputeAndBroadcastMultiStepResults(matchId, round.id, supabase)
       }
     })()
       .catch((err) => console.error(`[${matchId}] ❌ async segment sweep error:`, err))
@@ -1437,8 +1498,8 @@ async function advanceFromStepDb(
   const state = gameStates.get(matchId)
   if (state) {
     state.currentPhase = 'steps'
-    state.currentStepIndex = nextStepIndex
-    state.stepEndsAt = stepEndsAt
+  state.currentStepIndex = nextStepIndex
+  state.stepEndsAt = stepEndsAt
   }
 
   const nextStep = steps[nextStepIndex]
@@ -1465,9 +1526,9 @@ async function advanceFromStepDb(
   const stepTimerId = setTimeout(() => {
     checkStepTimeout(matchId, nextStepIndex, supabase)
   }, 15 * 1000) as unknown as number
-
+  
   if (state) {
-    state.stepTimers.set(nextStepIndex, stepTimerId)
+  state.stepTimers.set(nextStepIndex, stepTimerId)
   }
   console.log(`[${matchId}] ⏰ Started step ${nextStepIndex} timer (15s)`)
 }
@@ -1665,7 +1726,7 @@ async function calculateStepResults(
   // Clear local timers (best-effort; canonical is DB)
   if (state) {
     state.stepTimers.forEach((timerId) => clearTimeout(timerId))
-    state.stepTimers.clear()
+  state.stepTimers.clear()
   }
 
   const ctx = await getDbRoundContext(matchId, supabase)
@@ -1811,8 +1872,8 @@ async function calculateStepResults(
 
     // Update round wins in memory state
     if (roundWinner) {
-      const matchState = matchStates.get(matchId)
-      if (matchState) {
+    const matchState = matchStates.get(matchId)
+    if (matchState) {
         const currentWins = matchState.playerRoundWins.get(roundWinner) || 0
         matchState.playerRoundWins.set(roundWinner, currentWins + 1)
         console.log(`[${matchId}] 🏆 Round ${match.current_round_number || 0} won by ${roundWinner} (now has ${currentWins + 1} wins)`)
@@ -1824,7 +1885,7 @@ async function calculateStepResults(
     }
 
     // Convert playerRoundWins from payload
-    const playerRoundWinsObj: { [playerId: string]: number } = {}
+  const playerRoundWinsObj: { [playerId: string]: number } = {}
     if (payload.p1?.total !== undefined && payload.p2?.total !== undefined) {
       if (p1Id) playerRoundWinsObj[p1Id] = payload.p1.total
       if (p2Id) playerRoundWinsObj[p2Id] = payload.p2.total
@@ -1839,14 +1900,14 @@ async function calculateStepResults(
     // If both players are on this instance, they get instant results
     // If players are on different instances, Realtime will deliver shortly after
     const resultsEvent = {
-      type: 'RESULTS_RECEIVED',
+    type: 'RESULTS_RECEIVED',
       results_payload: payload,
       results_version: rpcResult.results_version,
       round_number: payload.round_number || match.current_round_number || 0,
       round_id: payload.round_id || roundId
     }
     console.log(`[${matchId}] ⚡ WS fast-path: Broadcasting to local sockets`)
-    broadcastToMatch(matchId, resultsEvent)
+  broadcastToMatch(matchId, resultsEvent)
 
     // Initialize readiness tracking for results acknowledgment
     const matchState = matchStates.get(matchId)
@@ -1856,14 +1917,14 @@ async function calculateStepResults(
       matchState.roundTransitionInProgress = false
     }
 
-    if (matchOver) {
-      // Match finished - cleanup and don't start next round
-      console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
-      matchStates.delete(matchId)
-      setTimeout(() => {
-        cleanupGameState(matchId)
-      }, 5000) // Give time for UI to show final results
-    } else {
+  if (matchOver) {
+    // Match finished - cleanup and don't start next round
+    console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
+    matchStates.delete(matchId)
+    setTimeout(() => {
+      cleanupGameState(matchId)
+    }, 5000) // Give time for UI to show final results
+  } else {
       // Don't auto-transition - wait for both players to acknowledge results
       console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
     }
@@ -1933,7 +1994,7 @@ async function handleEarlyAnswer(
   if (currentStepIndex >= 0) {
     const seg = ((progressBefore as any).current_segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
     await sendSegmentStartToPlayer(matchId, playerId, questionDb, currentStepIndex, seg, (progressBefore as any).segment_ends_at ?? null)
-    const state = gameStates.get(matchId)
+  const state = gameStates.get(matchId)
     state?.lastSentSegmentKeyByPlayer.set(playerId, `${currentStepIndex}:${seg}`)
     return
   }
@@ -2094,34 +2155,8 @@ async function handleSegmentAnswer(
   }
 
   // If both completed, compute + broadcast results immediately
-  if (p1Complete && p2Complete && state?.lastResultsRoundIdBroadcasted !== round.id) {
-    console.log(`[${matchId}] 🧮 Both players complete (submit path); computing results for round ${round.id}...`)
-    const { data: computeResult, error: computeError } = await supabase.rpc('compute_multi_step_results_v3', {
-      p_match_id: matchId,
-      p_round_id: round.id
-    })
-    if (computeError) {
-      console.error(`[${matchId}] ❌ compute_multi_step_results_v3 failed:`, computeError)
-      return
-    }
-    if (computeResult?.success && computeResult?.results_payload) {
-      const payload = computeResult.results_payload
-      console.log(`[${matchId}] ✅ Broadcasting RESULTS_RECEIVED (version=${computeResult.results_version})`)
-      broadcastToMatch(matchId, {
-        type: 'RESULTS_RECEIVED',
-        results_payload: payload,
-        results_version: computeResult.results_version,
-        round_number: payload.round_number || match.current_round_number || 0,
-        round_id: payload.round_id || round.id
-      })
-      if (state) state.lastResultsRoundIdBroadcasted = round.id
-
-      if (payload.match_over) {
-        setTimeout(() => cleanupGameState(matchId), 5000)
-      }
-    } else {
-      console.error(`[${matchId}] ❌ compute_multi_step_results_v3 returned no payload:`, computeResult)
-    }
+  if (p1Complete && p2Complete) {
+    await maybeComputeAndBroadcastMultiStepResults(matchId, round.id, supabase)
   }
 }
 
@@ -2465,7 +2500,7 @@ async function handleSubmitAnswer(
       matchState.p1ResultsAcknowledged = false
       matchState.p2ResultsAcknowledged = false
       matchState.roundTransitionInProgress = false
-
+      
       if (matchOver) {
         // Match finished - cleanup and don't start next round
         console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
