@@ -149,7 +149,7 @@ export function MathText({
     <span className={className}>
       {segments.map((seg, idx) => {
         if (seg.kind === 'text') {
-          return <React.Fragment key={`t-${idx}`}>{seg.text}</React.Fragment>;
+          return <span key={`t-${idx}`}>{seg.text}</span>;
         }
 
         if (seg.kind === 'inline') {
