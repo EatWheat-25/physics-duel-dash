@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { MathText } from '@/components/math/MathText';
 
 interface AnswerGridProps {
     options: string[];
@@ -67,7 +68,7 @@ export const AnswerGrid: React.FC<AnswerGridProps> = ({
                     </div>
 
                     {/* Option Text */}
-                    <span className="font-medium text-lg leading-snug">{option}</span>
+                    <span className="font-medium text-lg leading-snug"><MathText text={option} /></span>
 
                     {/* Selection Indicator (Corner) */}
                     {(index === selectedIndex || index === correctIndex) && (
