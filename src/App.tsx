@@ -29,7 +29,6 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import AdminQuestions from "./pages/AdminQuestions";
 import AdminLogin from "./pages/AdminLogin";
-import AdminDashboard from "./pages/AdminDashboard";
 import OnlineBattlePage from "./pages/OnlineBattlePage";
 import BattleConnected from "./pages/BattleConnected";
 import DebugQuestions from "./pages/DebugQuestions";
@@ -41,9 +40,7 @@ import { DevMapperTest } from "./pages/DevMapperTest";
 import MatchmakingTest from "./pages/MatchmakingTest";
 import BattleSimple from "./pages/BattleSimple";
 import SupabaseDebug from "./pages/SupabaseDebug";
-import DevMathDemo from "./pages/DevMathDemo";
 import { getRandomQuestions } from "./data/questions";
-import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
 
 const queryClient = new QueryClient();
 
@@ -77,22 +74,12 @@ const App = () => {
                 <Route path="/modes" element={<ModeSelection />} />
                 <Route path="/game-modes" element={<GameModes />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
-                <Route path="/admin/dashboard" element={
-                  <ProtectedAdminRoute>
-                    <AdminDashboard />
-                  </ProtectedAdminRoute>
-                } />
-                <Route path="/admin/questions" element={
-                  <ProtectedAdminRoute>
-                    <AdminQuestions />
-                  </ProtectedAdminRoute>
-                } />
+                <Route path="/admin/questions" element={<AdminQuestions />} />
                 <Route path="/debug/questions" element={<DebugQuestions />} />
                 <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
                 <Route path="/dev/contract-test" element={<DevContractTest />} />
                 <Route path="/dev/db-test" element={<DevDatabaseTest />} />
                 <Route path="/dev/mapper-test" element={<DevMapperTest />} />
-                <Route path="/dev/math-demo" element={<DevMathDemo />} />
                 <Route path="/supabase-debug" element={<SupabaseDebug />} />
                 <Route path="/matchmaking-test" element={<MatchmakingTest />} />
                 <Route path="/battle-simple/:matchId" element={<BattleSimple />} />

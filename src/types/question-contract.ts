@@ -51,11 +51,11 @@ export interface QuestionStep {
     explanation: string | null;
 
     /**
-     * Optional 5-second sub-step inside this step.
-     * - NOT an extra step/part (still counts toward the same part)
-     * - If present and failed, the whole step awards 0 marks (server enforces)
+     * Optional sub-steps inside this step.
+     * - NOT extra steps/parts (still counts toward the same step)
+     * - If present and ANY are failed, the whole step awards 0 marks (server enforces)
      */
-    subStep?: QuestionSubStep | null;
+    subSteps?: QuestionSubStep[];
 }
 
 /**
@@ -142,16 +142,19 @@ export function isValidQuestionStep(obj: any): obj is QuestionStep {
         obj.correctAnswer <= 3 &&
         typeof obj.marks === 'number' &&
         (
-            obj.subStep == null ||
+            obj.subSteps == null ||
             (
-                typeof obj.subStep === 'object' &&
-                (obj.subStep.type === 'mcq' || obj.subStep.type === 'true_false') &&
-                typeof obj.subStep.prompt === 'string' &&
-                Array.isArray(obj.subStep.options) &&
-                obj.subStep.options.length === 4 &&
-                typeof obj.subStep.correctAnswer === 'number' &&
-                obj.subStep.correctAnswer >= 0 &&
-                obj.subStep.correctAnswer <= 3
+                Array.isArray(obj.subSteps) &&
+                obj.subSteps.every((s: any) => (
+                    typeof s === 'object' &&
+                    (s.type === 'mcq' || s.type === 'true_false') &&
+                    typeof s.prompt === 'string' &&
+                    Array.isArray(s.options) &&
+                    s.options.length === 4 &&
+                    typeof s.correctAnswer === 'number' &&
+                    s.correctAnswer >= 0 &&
+                    s.correctAnswer <= 3
+                ))
             )
         )
     );

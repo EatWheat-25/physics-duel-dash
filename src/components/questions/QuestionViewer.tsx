@@ -17,7 +17,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2, Clock } from 'lucide-react';
 import { RoundPhase } from '@/types/gameEvents';
-import { MathText } from '@/components/math/MathText';
 
 interface QuestionViewerProps {
   questions: StepBasedQuestion[];
@@ -37,6 +36,11 @@ interface QuestionViewerProps {
   // Step props
   currentStepIndex?: number;
   stepTimeLeft?: number | null;
+  // Sub-step props (optional, server-driven)
+  currentSegment?: 'main' | 'sub';
+  currentSubStepIndex?: number;
+  subStepTimeLeft?: number | null;
+  currentSubStep?: any | null;
   totalSteps?: number;
 }
 
@@ -55,6 +59,10 @@ export function QuestionViewer({
   onReadyForOptions,
   currentStepIndex = 0,
   stepTimeLeft = null,
+  currentSegment = 'main',
+  currentSubStepIndex = 0,
+  subStepTimeLeft = null,
+  currentSubStep = null,
   totalSteps = 1,
 }: QuestionViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -69,6 +77,12 @@ export function QuestionViewer({
     : currentQuestion
       ? getPrimaryDisplayStep(currentQuestion)
       : null;
+
+  // In online mode, allow a server-provided sub-step override for display.
+  // When present, the UI can show a sub-step without needing it to exist in currentQuestion.steps.
+  const displayStep = (isOnlineMode && currentSegment === 'sub' && currentSubStep)
+    ? currentSubStep
+    : currentStep;
 
   // Reset selection when question or step changes (online mode)
   useEffect(() => {
@@ -95,7 +109,7 @@ export function QuestionViewer({
     );
   }
 
-  if (!currentStep) {
+  if (!displayStep) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <p className="text-gray-500">Question data is malformed or step not found</p>
@@ -125,16 +139,17 @@ export function QuestionViewer({
     setSelectedOptionIndex(actualIdx);
     if (isOnlineMode && onSubmitAnswer && !isSubmitting) {
       console.log('[QuestionViewer] Instant submit triggered');
-      onSubmitAnswer(currentQuestion!.id, currentStep!.id, actualIdx);
+      onSubmitAnswer(currentQuestion!.id, (displayStep as any)?.id ?? (currentStep as any)?.id ?? '', actualIdx);
     }
   };
 
   // Options to display
   const displayOptions = isOnlineMode && (currentPhase === 'choosing' || currentPhase === 'result') && options
     ? options.map(o => o.text)
-    : currentStep?.options || [];
+    : (displayStep as any)?.options || [];
 
   const shouldShowOptions = !isOnlineMode || currentPhase === 'choosing' || currentPhase === 'result';
+  const activeTimer = currentSegment === 'sub' ? subStepTimeLeft : stepTimeLeft;
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
@@ -145,7 +160,12 @@ export function QuestionViewer({
           <span>Question {currentIndex + 1} of {questions.length}</span>
         </div>
         {isOnlineMode && totalSteps > 1 && (
-          <div className="font-bold text-primary">Step {currentStepIndex + 1} of {totalSteps}</div>
+          <div className="font-bold text-primary">
+            Step {currentStepIndex + 1} of {totalSteps}
+            {currentSegment === 'sub' && (
+              <span className="ml-2 text-purple-600">• Sub-step {currentSubStepIndex + 1}</span>
+            )}
+          </div>
         )}
         <div className="flex gap-1">
           {questions.map((_, idx) => (
@@ -173,9 +193,11 @@ export function QuestionViewer({
               <Badge variant="secondary">{currentQuestion.difficulty}</Badge>
               {currentQuestion.rank_tier && <Badge variant="default">{currentQuestion.rank_tier}</Badge>}
             </div>
-            <CardTitle className="text-2xl"><MathText text={currentQuestion.title} /></CardTitle>
+            <CardTitle className="text-2xl">{currentQuestion.title}</CardTitle>
             <CardDescription className="text-base">
-              {currentQuestion.chapter} • {currentStep.marks} marks
+              {currentQuestion.chapter} • {(currentSegment === 'sub'
+                ? ((currentStep as any)?.marks ?? (displayStep as any)?.marks ?? 0)
+                : ((displayStep as any)?.marks ?? 0))} marks
               {totalSteps > 1 && (
                 <span className="ml-2 font-semibold text-blue-600">• Step {currentStepIndex + 1} of {totalSteps}</span>
               )}
@@ -186,13 +208,13 @@ export function QuestionViewer({
             {currentQuestion.stem && totalSteps > 1 && (
               <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                 <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-1">Main Question:</p>
-                <p className="text-gray-800 font-medium"><MathText text={currentQuestion.stem} /></p>
+                <p className="text-gray-800 font-medium">{currentQuestion.stem}</p>
               </div>
             )}
             {/* Single‑step stem fallback */}
             {currentQuestion.stem && totalSteps === 1 && (
               <div className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground">
-                <span className="font-semibold mr-2">Question:</span><MathText text={currentQuestion.stem} />
+                <span className="font-semibold mr-2">Question:</span>{currentQuestion.stem}
               </div>
             )}
             {/* Step‑specific prompt */}
@@ -201,27 +223,29 @@ export function QuestionViewer({
                 <div className="flex items-start justify-between gap-4 mb-2">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-amber-700 font-semibold">
-                      Step {currentStepIndex + 1}: {currentStep.title || 'Question Step'}
+                      {currentSegment === 'sub'
+                        ? `Sub-step ${currentSubStepIndex + 1}: Quick Check`
+                        : `Step ${currentStepIndex + 1}: ${currentStep.title || 'Question Step'}`}
                     </p>
                   </div>
-                  {isOnlineMode && stepTimeLeft !== null && (
-                    <Badge variant={stepTimeLeft < 5 ? 'destructive' : 'secondary'} className="text-lg px-3 py-1">
-                      <Clock className="w-4 h-4 mr-2" />{stepTimeLeft}s
+                  {isOnlineMode && activeTimer !== null && (
+                    <Badge variant={activeTimer < 5 ? 'destructive' : 'secondary'} className="text-lg px-3 py-1">
+                      <Clock className="w-4 h-4 mr-2" />{activeTimer}s
                     </Badge>
                   )}
                 </div>
-                <p className="text-lg font-semibold text-gray-900"><MathText text={currentStep.prompt} /></p>
+                <p className="text-lg font-semibold text-gray-900">{(displayStep as any).prompt}</p>
               </div>
             )}
             {/* Single‑step prompt fallback */}
             {totalSteps === 1 && (
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2">
-                  <p className="text-xl font-medium text-foreground leading-relaxed"><MathText text={currentStep.prompt} /></p>
+                  <p className="text-xl font-medium text-foreground leading-relaxed">{(displayStep as any).prompt}</p>
                 </div>
-                {isOnlineMode && stepTimeLeft !== null && (
-                  <Badge variant={stepTimeLeft < 5 ? 'destructive' : 'secondary'} className="text-lg px-3 py-1 shrink-0">
-                    <Clock className="w-4 h-4 mr-2" />{stepTimeLeft}s
+                {isOnlineMode && activeTimer !== null && (
+                  <Badge variant={activeTimer < 5 ? 'destructive' : 'secondary'} className="text-lg px-3 py-1 shrink-0">
+                    <Clock className="w-4 h-4 mr-2" />{activeTimer}s
                   </Badge>
                 )}
               </div>
@@ -251,7 +275,7 @@ export function QuestionViewer({
                           >
                             {showResult && isCorrect ? <Check className="w-5 h-5" /> : showResult && isWrong ? <X className="w-5 h-5" /> : optionLabel}
                           </div>
-                          <p className="flex-1 text-gray-800 pt-1"><MathText text={option} /></p>
+                          <p className="flex-1 text-gray-800 pt-1">{option}</p>
                         </div>
                       </button>
                     );

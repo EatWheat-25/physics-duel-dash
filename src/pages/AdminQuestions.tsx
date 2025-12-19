@@ -24,6 +24,15 @@ type QuestionFilter = {
 
 type EditorMode = 'idle' | 'creating' | 'editing';
 
+type FormSubStep = {
+  type: 'mcq' | 'true_false';
+  prompt: string;
+  options: [string, string, string, string];
+  correctAnswer: 0 | 1 | 2 | 3;
+  timeLimitSeconds: number | null;
+  explanation: string;
+};
+
 type FormStep = {
   id?: string;
   type: 'mcq' | 'true_false';
@@ -34,14 +43,7 @@ type FormStep = {
   marks: number;
   timeLimitSeconds: number | null;
   explanation: string;
-  subStep?: {
-    type: 'mcq' | 'true_false';
-    prompt: string;
-    options: [string, string, string, string];
-    correctAnswer: 0 | 1 | 2 | 3;
-    timeLimitSeconds: number | null;
-    explanation: string;
-  } | null;
+  subSteps: FormSubStep[];
 };
 
 type QuestionForm = {
@@ -57,18 +59,6 @@ type QuestionForm = {
   steps: FormStep[];
   imageUrl: string;
 };
-
-const PHYSICS_A1_CHAPTERS = [
-  'Physical quantities and measurement techniques',
-  'Kinematics',
-  'Dynamics',
-  'Force density and pressure',
-  'Work, energy and power',
-  'Deformation of solids',
-  'Waves and superpositions',
-  'Electricity and DC circuits',
-  'Nuclear physics'
-] as const;
 
 export default function AdminQuestions() {
   const navigate = useNavigate();
@@ -134,7 +124,7 @@ export default function AdminQuestions() {
         marks: 1,
         timeLimitSeconds: 30,
         explanation: '',
-        subStep: null
+        subSteps: []
       }],
       imageUrl: ''
     };
@@ -216,21 +206,14 @@ export default function AdminQuestions() {
         marks: s.marks,
         timeLimitSeconds: s.timeLimitSeconds,
         explanation: s.explanation || '',
-        subStep: s.subStep
-          ? {
-              type: s.subStep.type || 'true_false',
-              prompt: s.subStep.prompt || '',
-              options: [
-                s.subStep.options?.[0] || '',
-                s.subStep.options?.[1] || '',
-                s.subStep.options?.[2] || '',
-                s.subStep.options?.[3] || ''
-              ],
-              correctAnswer: s.subStep.correctAnswer ?? 0,
-              timeLimitSeconds: s.subStep.timeLimitSeconds ?? 5,
-              explanation: s.subStep.explanation || ''
-            }
-          : null
+        subSteps: (s.subSteps ?? []).map(sub => ({
+          type: sub.type || 'true_false',
+          prompt: sub.prompt || '',
+          options: [sub.options?.[0] || '', sub.options?.[1] || '', sub.options?.[2] || '', sub.options?.[3] || ''],
+          correctAnswer: sub.correctAnswer ?? 0,
+          timeLimitSeconds: sub.timeLimitSeconds ?? 5,
+          explanation: sub.explanation || ''
+        }))
       })),
       imageUrl: q.imageUrl || ''
     });
@@ -275,7 +258,7 @@ export default function AdminQuestions() {
           marks: 1,
           timeLimitSeconds: 30,
           explanation: '',
-          subStep: null
+          subSteps: []
         }
       ]
     });
@@ -337,69 +320,86 @@ export default function AdminQuestions() {
     setForm({ ...form, steps: newSteps });
   }
 
-  function toggleSubStep(stepIndex: number, enabled: boolean) {
+  function handleAddSubStep(stepIndex: number) {
     const newSteps = [...form.steps];
-    const step = { ...newSteps[stepIndex] };
+    const step = newSteps[stepIndex];
+    const current = Array.isArray(step.subSteps) ? step.subSteps : [];
 
-    if (enabled) {
-      step.subStep = step.subStep ?? {
+    const next: FormSubStep[] = [
+      ...current,
+      {
         type: 'true_false',
         prompt: '',
         options: ['True', 'False', '', ''],
         correctAnswer: 0,
         timeLimitSeconds: 5,
         explanation: ''
-      };
-    } else {
-      step.subStep = null;
-    }
+      }
+    ];
 
-    newSteps[stepIndex] = step;
+    newSteps[stepIndex] = { ...step, subSteps: next };
     setForm({ ...form, steps: newSteps });
   }
 
-  function updateSubStepField<K extends keyof NonNullable<FormStep['subStep']>>(
-    stepIndex: number,
-    field: K,
-    value: NonNullable<FormStep['subStep']>[K]
-  ) {
+  function handleDeleteSubStep(stepIndex: number, subStepIndex: number) {
     const newSteps = [...form.steps];
-    const step = { ...newSteps[stepIndex] };
-    const current = step.subStep ?? {
-      type: 'true_false' as const,
-      prompt: '',
-      options: ['True', 'False', '', ''] as [string, string, string, string],
-      correctAnswer: 0 as 0 | 1 | 2 | 3,
-      timeLimitSeconds: 5 as number | null,
-      explanation: ''
-    };
+    const step = newSteps[stepIndex];
+    const current = Array.isArray(step.subSteps) ? step.subSteps : [];
+    const next = current.filter((_, i) => i !== subStepIndex);
+    newSteps[stepIndex] = { ...step, subSteps: next };
+    setForm({ ...form, steps: newSteps });
+  }
 
-    const updated = { ...current, [field]: value } as NonNullable<FormStep['subStep']>;
+  function handleMoveSubStepUp(stepIndex: number, subStepIndex: number) {
+    if (subStepIndex === 0) return;
+    const newSteps = [...form.steps];
+    const step = newSteps[stepIndex];
+    const current = Array.isArray(step.subSteps) ? [...step.subSteps] : [];
+    [current[subStepIndex - 1], current[subStepIndex]] = [current[subStepIndex], current[subStepIndex - 1]];
+    newSteps[stepIndex] = { ...step, subSteps: current };
+    setForm({ ...form, steps: newSteps });
+  }
 
+  function handleMoveSubStepDown(stepIndex: number, subStepIndex: number) {
+    const newSteps = [...form.steps];
+    const step = newSteps[stepIndex];
+    const current = Array.isArray(step.subSteps) ? [...step.subSteps] : [];
+    if (subStepIndex >= current.length - 1) return;
+    [current[subStepIndex], current[subStepIndex + 1]] = [current[subStepIndex + 1], current[subStepIndex]];
+    newSteps[stepIndex] = { ...step, subSteps: current };
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function updateSubStepField(stepIndex: number, subStepIndex: number, field: keyof FormSubStep, value: any) {
+    const newSteps = [...form.steps];
+    const step = newSteps[stepIndex];
+    const current = Array.isArray(step.subSteps) ? [...step.subSteps] : [];
+    const updated = { ...current[subStepIndex], [field]: value };
+
+    // When changing type to true_false, set default options and limit correctAnswer
     if (field === 'type' && value === 'true_false') {
       updated.options = ['True', 'False', '', ''];
       if (updated.correctAnswer > 1) updated.correctAnswer = 0;
     } else if (field === 'type' && value === 'mcq') {
-      if (!updated.options?.[2] && !updated.options?.[3]) {
-        updated.options = [updated.options?.[0] || '', updated.options?.[1] || '', '', ''];
+      if (!updated.options[2] && !updated.options[3]) {
+        updated.options = [updated.options[0] || '', updated.options[1] || '', '', ''];
       }
     }
 
-    step.subStep = updated;
-    newSteps[stepIndex] = step;
+    current[subStepIndex] = updated;
+    newSteps[stepIndex] = { ...step, subSteps: current };
     setForm({ ...form, steps: newSteps });
   }
 
-  function updateSubStepOption(stepIndex: number, optionIndex: number, value: string) {
+  function updateSubStepOption(stepIndex: number, subStepIndex: number, optionIndex: number, value: string) {
     const newSteps = [...form.steps];
-    const step = { ...newSteps[stepIndex] };
-    const sub = step.subStep;
-    if (!sub) return;
-
+    const step = newSteps[stepIndex];
+    const current = Array.isArray(step.subSteps) ? [...step.subSteps] : [];
+    const sub = current[subStepIndex];
     const options = [...sub.options];
     options[optionIndex] = value;
-    step.subStep = { ...sub, options: options as [string, string, string, string] };
-    newSteps[stepIndex] = step;
+    current[subStepIndex] = { ...sub, options: options as [string, string, string, string] };
+    newSteps[stepIndex] = { ...step, subSteps: current };
     setForm({ ...form, steps: newSteps });
   }
 
@@ -452,32 +452,33 @@ export default function AdminQuestions() {
         }
       }
 
-      // Optional sub-step validation (if enabled)
-      if (step.subStep) {
-        const sub = step.subStep;
+      // Validate sub-steps (optional)
+      const subSteps = Array.isArray(step.subSteps) ? step.subSteps : [];
+      for (let j = 0; j < subSteps.length; j++) {
+        const sub = subSteps[j];
         if (!sub.prompt.trim()) {
-          toast.error(`Step ${i + 1} sub-step: prompt is required`);
+          toast.error(`Step ${i + 1} Sub-step ${j + 1}: prompt is required`);
           return false;
         }
 
         if (sub.type === 'true_false') {
-          const nonEmpty = sub.options.slice(0, 2).filter(opt => opt.trim());
-          if (nonEmpty.length !== 2) {
-            toast.error(`Step ${i + 1} sub-step: True/False needs exactly 2 options (True/False)`);
+          const nonEmptyOptions = sub.options.slice(0, 2).filter(opt => opt.trim());
+          if (nonEmptyOptions.length !== 2) {
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: True/False needs exactly 2 options (True and False)`);
             return false;
           }
           if (sub.correctAnswer < 0 || sub.correctAnswer > 1) {
-            toast.error(`Step ${i + 1} sub-step: correct answer must be 0 (True) or 1 (False)`);
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: True/False correct answer must be 0 (True) or 1 (False)`);
             return false;
           }
         } else {
-          const nonEmpty = sub.options.filter(opt => opt.trim());
-          if (nonEmpty.length < 2) {
-            toast.error(`Step ${i + 1} sub-step: MCQ needs at least 2 options`);
+          const nonEmptyOptions = sub.options.filter(opt => opt.trim());
+          if (nonEmptyOptions.length < 2) {
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: MCQ needs at least 2 options`);
             return false;
           }
-          if (sub.correctAnswer < 0 || sub.correctAnswer >= nonEmpty.length) {
-            toast.error(`Step ${i + 1} sub-step: correct answer must be between 0 and ${nonEmpty.length - 1}`);
+          if (sub.correctAnswer < 0 || sub.correctAnswer >= nonEmptyOptions.length) {
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: correct answer must be between 0 and ${nonEmptyOptions.length - 1}`);
             return false;
           }
         }
@@ -531,53 +532,52 @@ export default function AdminQuestions() {
           nonEmptyOptions[2] || '',
           nonEmptyOptions[3] || ''
         ];
+
+        const subStepsPayload = (Array.isArray(s.subSteps) ? s.subSteps : [])
+          .filter((sub) => sub.prompt.trim().length > 0)
+          .map((sub, j) => {
+            // Normalize/validate sub-step options
+            let subNonEmptyOptions: string[];
+            if (sub.type === 'true_false') {
+              subNonEmptyOptions = sub.options.slice(0, 2).map(o => o.trim()).filter(Boolean);
+              if (subNonEmptyOptions.length !== 2) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False must have exactly 2 options`);
+              }
+            } else {
+              subNonEmptyOptions = sub.options.map(o => o.trim()).filter(Boolean);
+              if (subNonEmptyOptions.length < 2) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: MCQ must have at least 2 options`);
+              }
+            }
+
+            const subCorrect = Number(sub.correctAnswer);
+            if (Number.isNaN(subCorrect)) {
+              throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer missing`);
+            }
+            if (sub.type === 'true_false' && (subCorrect < 0 || subCorrect > 1)) {
+              throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False correct answer must be 0 or 1`);
+            }
+            if (sub.type === 'mcq' && (subCorrect < 0 || subCorrect >= subNonEmptyOptions.length)) {
+              throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer out of range (must be 0-${subNonEmptyOptions.length - 1})`);
+            }
+
+            const subPaddedOptions: [string, string, string, string] = [
+              subNonEmptyOptions[0] || '',
+              subNonEmptyOptions[1] || '',
+              subNonEmptyOptions[2] || '',
+              subNonEmptyOptions[3] || ''
+            ];
+
+            return {
+              type: sub.type,
+              prompt: sub.prompt,
+              options: subPaddedOptions,
+              correctAnswer: subCorrect as 0 | 1 | 2 | 3,
+              timeLimitSeconds: sub.timeLimitSeconds ?? 5,
+              explanation: sub.explanation || null
+            };
+          });
         
-        // Optional sub-step payload
-        let subStepPayload: QuestionStep['subStep'] = null;
-        if (s.subStep) {
-          const sub = s.subStep;
-
-          let subNonEmptyOptions: string[];
-          if (sub.type === 'true_false') {
-            subNonEmptyOptions = sub.options.slice(0, 2).map(o => o.trim()).filter(Boolean);
-            if (subNonEmptyOptions.length !== 2) {
-              throw new Error(`Step ${i + 1} sub-step: True/False must have exactly 2 options`);
-            }
-          } else {
-            subNonEmptyOptions = sub.options.map(o => o.trim()).filter(Boolean);
-            if (subNonEmptyOptions.length < 2) {
-              throw new Error(`Step ${i + 1} sub-step: MCQ must have at least 2 options`);
-            }
-          }
-
-          const subCorrect = Number(sub.correctAnswer);
-          if (Number.isNaN(subCorrect)) {
-            throw new Error(`Step ${i + 1} sub-step: correctAnswer missing`);
-          }
-          if (sub.type === 'true_false' && (subCorrect < 0 || subCorrect > 1)) {
-            throw new Error(`Step ${i + 1} sub-step: True/False correct answer must be 0 or 1`);
-          }
-          if (sub.type === 'mcq' && (subCorrect < 0 || subCorrect >= subNonEmptyOptions.length)) {
-            throw new Error(`Step ${i + 1} sub-step: correctAnswer out of range (must be 0-${subNonEmptyOptions.length - 1})`);
-          }
-
-          const paddedSubOptions: [string, string, string, string] = [
-            subNonEmptyOptions[0] || '',
-            subNonEmptyOptions[1] || '',
-            subNonEmptyOptions[2] || '',
-            subNonEmptyOptions[3] || ''
-          ];
-
-          subStepPayload = {
-            type: sub.type,
-            prompt: sub.prompt,
-            options: paddedSubOptions,
-            correctAnswer: subCorrect as 0 | 1 | 2 | 3,
-            timeLimitSeconds: sub.timeLimitSeconds ?? 5,
-            explanation: sub.explanation || null
-          };
-        }
-
         return {
           id: s.id || `step-${i + 1}`,
           index: i,
@@ -589,7 +589,7 @@ export default function AdminQuestions() {
           timeLimitSeconds: s.timeLimitSeconds ?? null,
           marks: s.marks,
           explanation: s.explanation || null,
-          subStep: subStepPayload
+          subSteps: subStepsPayload.length > 0 ? subStepsPayload : undefined
         }
       });
 
@@ -1187,36 +1187,12 @@ export default function AdminQuestions() {
 
                       <div>
                         <label className={labelStyle}>Chapter *</label>
-                        {form.subject === 'physics' && form.level === 'A1' ? (
-                          <Select
-                            value={form.chapter || '__unset__'}
-                            onValueChange={(v: string) =>
-                              setForm({ ...form, chapter: v === '__unset__' ? '' : v })
-                            }
-                          >
-                            <SelectTrigger className={glassInput}>
-                              <SelectValue placeholder="Select chapter..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-gray-900 border-white/10 text-white">
-                              <SelectItem value="__unset__">Select chapter...</SelectItem>
-                              {form.chapter && !PHYSICS_A1_CHAPTERS.includes(form.chapter as any) && (
-                                <SelectItem value={form.chapter}>{`(Current) ${form.chapter}`}</SelectItem>
-                              )}
-                              {PHYSICS_A1_CHAPTERS.map((chapter) => (
-                                <SelectItem key={chapter} value={chapter}>
-                                  {chapter}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            value={form.chapter}
-                            onChange={e => setForm({ ...form, chapter: e.target.value })}
-                            className={glassInput}
-                            placeholder="e.g. Integration"
-                          />
-                        )}
+                        <Input
+                          value={form.chapter}
+                          onChange={e => setForm({ ...form, chapter: e.target.value })}
+                          className={glassInput}
+                          placeholder="e.g. Integration"
+                        />
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
@@ -1456,117 +1432,195 @@ export default function AdminQuestions() {
                               />
                             </div>
 
-                            {/* Optional Sub-step (5s) */}
-                            <div className="mt-2 bg-blue-500/5 border-2 border-blue-500/20 rounded-xl p-5">
-                              <div className="flex items-start justify-between gap-4 mb-4">
-                                <div>
-                                  <div className="text-sm font-bold text-blue-300">Optional Sub-step (5s)</div>
-                                  <div className="text-xs text-white/50 font-mono mt-1">
-                                    Shown immediately after this step is submitted. If failed, this whole step awards 0 marks.
-                                  </div>
+                            {/* Sub-steps */}
+                            <div className="mt-2 rounded-xl border-2 border-purple-500/20 bg-purple-500/5 p-5 space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Badge className="bg-purple-500/20 text-purple-300 border-0 font-semibold">SUB-STEPS</Badge>
+                                  <Badge className="bg-white/10 text-white/70 border-0">
+                                    {step.subSteps?.length || 0}
+                                  </Badge>
+                                  <span className="text-xs text-white/50 hidden md:inline">
+                                    All sub-steps must be correct to earn this step&apos;s marks.
+                                  </span>
                                 </div>
                                 <Button
                                   type="button"
                                   size="sm"
                                   variant="secondary"
-                                  className={step.subStep ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border-0' : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border-0'}
-                                  onClick={() => toggleSubStep(index, !step.subStep)}
+                                  className="bg-white/10 hover:bg-white/15 text-white border border-white/10"
+                                  onClick={() => handleAddSubStep(index)}
                                 >
-                                  {step.subStep ? 'Remove' : 'Add'}
+                                  <Plus className="w-4 h-4 mr-2" /> Add Sub-step
                                 </Button>
                               </div>
 
-                              {step.subStep && (
+                              {(!step.subSteps || step.subSteps.length === 0) ? (
+                                <p className="text-xs text-white/50">
+                                  No sub-steps yet. Add quick mini-questions that must be answered after the main step.
+                                </p>
+                              ) : (
                                 <div className="space-y-4">
-                                  <div className="grid grid-cols-3 gap-4">
-                                    <div>
-                                      <label className={labelStyle}>Type</label>
-                                      <Select
-                                        value={step.subStep.type}
-                                        onValueChange={(v: 'mcq' | 'true_false') => updateSubStepField(index, 'type', v)}
-                                      >
-                                        <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
-                                        <SelectContent className="bg-gray-900 border-white/10 text-white">
-                                          <SelectItem value="mcq">MCQ</SelectItem>
-                                          <SelectItem value="true_false">True/False</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                    <div>
-                                      <label className={labelStyle}>Time (s)</label>
-                                      <Input
-                                        type="number"
-                                        value={step.subStep.timeLimitSeconds ?? ''}
-                                        onChange={e => updateSubStepField(index, 'timeLimitSeconds', e.target.value ? parseInt(e.target.value) : null)}
-                                        className={glassInput}
-                                        placeholder="5"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className={labelStyle}>Correct Answer</label>
-                                      <Select
-                                        value={step.subStep.correctAnswer.toString()}
-                                        onValueChange={(v) => updateSubStepField(index, 'correctAnswer', parseInt(v))}
-                                      >
-                                        <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
-                                        <SelectContent className="bg-gray-900 border-white/10 text-white">
-                                          <SelectItem value="0">Option A{step.subStep.type === 'true_false' ? ' (True)' : ''}</SelectItem>
-                                          <SelectItem value="1">Option B{step.subStep.type === 'true_false' ? ' (False)' : ''}</SelectItem>
-                                          {step.subStep.type === 'mcq' && (
-                                            <>
-                                              <SelectItem value="2">Option C</SelectItem>
-                                              <SelectItem value="3">Option D</SelectItem>
-                                            </>
-                                          )}
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                  </div>
+                                  {step.subSteps.map((sub, subIdx) => (
+                                    <div
+                                      key={subIdx}
+                                      className="bg-black/30 border border-white/10 rounded-xl p-4 hover:border-purple-500/30 transition-colors"
+                                    >
+                                      <div className="flex items-center justify-between gap-3 mb-3">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <Badge className="bg-purple-500/20 text-purple-300 border-0 font-semibold">
+                                            Sub-step {subIdx + 1}
+                                          </Badge>
+                                          <Badge className={sub.type === 'true_false'
+                                            ? 'bg-green-500/20 text-green-400 border-green-500/50'
+                                            : 'bg-blue-500/20 text-blue-400 border-blue-500/50'}>
+                                            {sub.type === 'true_false' ? '✓ True/False' : '✓ MCQ'}
+                                          </Badge>
+                                          <Badge className="bg-white/10 text-white/70 border-0">
+                                            {(sub.timeLimitSeconds ?? 5)}s
+                                          </Badge>
+                                        </div>
 
-                                  <div>
-                                    <label className={labelStyle}>Sub-step Prompt</label>
-                                    <Textarea
-                                      value={step.subStep.prompt}
-                                      onChange={e => updateSubStepField(index, 'prompt', e.target.value)}
-                                      className={`${glassInput} min-h-[70px]`}
-                                      placeholder="Quick 5-second check question..."
-                                    />
-                                  </div>
+                                        <div className="flex items-center gap-2">
+                                          <Select
+                                            value={sub.type}
+                                            onValueChange={(v: 'mcq' | 'true_false') => updateSubStepField(index, subIdx, 'type', v)}
+                                          >
+                                            <SelectTrigger className="w-32 h-8 bg-white/5 border-white/10 text-white text-xs">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                              <SelectItem value="mcq">MCQ</SelectItem>
+                                              <SelectItem value="true_false">True/False</SelectItem>
+                                            </SelectContent>
+                                          </Select>
 
-                                  <div className={`grid gap-4 bg-gradient-to-br from-black/30 to-black/10 p-5 rounded-xl border-2 ${step.subStep.type === 'true_false' ? 'grid-cols-2 border-green-500/20' : 'grid-cols-2 border-blue-500/20'}`}>
-                                    {(step.subStep.type === 'true_false' ? [0, 1] : [0, 1, 2, 3]).map((optIdx) => (
-                                      <div key={optIdx} className={`p-3 rounded-lg border-2 transition-all ${
-                                        step.subStep!.correctAnswer === optIdx
-                                          ? 'bg-green-500/20 border-green-500/50'
-                                          : 'bg-white/5 border-white/10 hover:border-white/20'
-                                      }`}>
-                                        <label className="text-xs text-white/70 mb-2 block uppercase tracking-wider font-semibold">
-                                          Option {String.fromCharCode(65 + optIdx)}
-                                          {step.subStep!.type === 'true_false' && optIdx === 0 && ' (True)'}
-                                          {step.subStep!.type === 'true_false' && optIdx === 1 && ' (False)'}
-                                          {step.subStep!.correctAnswer === optIdx && (
-                                            <span className="ml-2 text-green-400">✓ Correct</span>
-                                          )}
-                                        </label>
-                                        <Input
-                                          value={step.subStep!.options[optIdx]}
-                                          onChange={e => updateSubStepOption(index, optIdx, e.target.value)}
-                                          className={`${glassInput} h-10 text-sm`}
-                                          placeholder={step.subStep!.type === 'true_false' && optIdx === 0 ? 'True' : step.subStep!.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
-                                        />
+                                          <div className="flex gap-1">
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-8 w-8 text-white/70 hover:bg-white/10"
+                                              onClick={() => handleMoveSubStepUp(index, subIdx)}
+                                              disabled={subIdx === 0}
+                                              title="Move up"
+                                            >
+                                              <ArrowUp className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-8 w-8 text-white/70 hover:bg-white/10"
+                                              onClick={() => handleMoveSubStepDown(index, subIdx)}
+                                              disabled={subIdx === (step.subSteps.length - 1)}
+                                              title="Move down"
+                                            >
+                                              <ArrowDown className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-8 w-8 text-red-400 hover:bg-red-500/20"
+                                              onClick={() => handleDeleteSubStep(index, subIdx)}
+                                              title="Delete sub-step"
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
                                       </div>
-                                    ))}
-                                  </div>
 
-                                  <div>
-                                    <label className={labelStyle}>Sub-step Explanation</label>
-                                    <Textarea
-                                      value={step.subStep.explanation}
-                                      onChange={e => updateSubStepField(index, 'explanation', e.target.value)}
-                                      className={`${glassInput} h-20 text-sm`}
-                                      placeholder="Optional explanation..."
-                                    />
-                                  </div>
+                                      <div className="grid grid-cols-1 gap-4">
+                                        <div>
+                                          <label className={labelStyle}>Prompt</label>
+                                          <Textarea
+                                            value={sub.prompt}
+                                            onChange={(e) => updateSubStepField(index, subIdx, 'prompt', e.target.value)}
+                                            className={`${glassInput} min-h-[70px]`}
+                                            placeholder="Mini question prompt..."
+                                          />
+                                        </div>
+
+                                        <div className={`grid gap-4 bg-gradient-to-br from-black/30 to-black/10 p-4 rounded-xl border-2 ${sub.type === 'true_false' ? 'grid-cols-2 border-green-500/20' : 'grid-cols-2 border-blue-500/20'}`}>
+                                          {(sub.type === 'true_false' ? [0, 1] : [0, 1, 2, 3]).map((optIdx) => (
+                                            <div key={optIdx} className={`p-3 rounded-lg border-2 transition-all ${
+                                              sub.correctAnswer === optIdx
+                                                ? 'bg-green-500/20 border-green-500/50'
+                                                : 'bg-white/5 border-white/10 hover:border-white/20'
+                                            }`}>
+                                              <label className="text-xs text-white/70 mb-2 block uppercase tracking-wider font-semibold">
+                                                Option {String.fromCharCode(65 + optIdx)}
+                                                {sub.type === 'true_false' && optIdx === 0 && ' (True)'}
+                                                {sub.type === 'true_false' && optIdx === 1 && ' (False)'}
+                                                {sub.correctAnswer === optIdx && (
+                                                  <span className="ml-2 text-green-400">✓ Correct</span>
+                                                )}
+                                              </label>
+                                              <div className="flex items-center gap-2">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                                                  sub.correctAnswer === optIdx
+                                                    ? 'bg-green-500 text-black shadow-lg shadow-green-500/50'
+                                                    : 'bg-white/10 text-white/70'
+                                                }`}>
+                                                  {String.fromCharCode(65 + optIdx)}
+                                                </div>
+                                                <Input
+                                                  value={sub.options[optIdx]}
+                                                  onChange={e => updateSubStepOption(index, subIdx, optIdx, e.target.value)}
+                                                  className={`${glassInput} h-10 text-sm flex-1`}
+                                                  placeholder={sub.type === 'true_false' && optIdx === 0 ? 'True' : sub.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
+                                                />
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                          <div>
+                                            <label className={labelStyle}>Correct Answer</label>
+                                            <Select
+                                              value={sub.correctAnswer.toString()}
+                                              onValueChange={(v) => updateSubStepField(index, subIdx, 'correctAnswer', parseInt(v))}
+                                            >
+                                              <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                                              <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                                <SelectItem value="0">Option A{sub.type === 'true_false' ? ' (True)' : ''}</SelectItem>
+                                                <SelectItem value="1">Option B{sub.type === 'true_false' ? ' (False)' : ''}</SelectItem>
+                                                {sub.type === 'mcq' && (
+                                                  <>
+                                                    <SelectItem value="2">Option C</SelectItem>
+                                                    <SelectItem value="3">Option D</SelectItem>
+                                                  </>
+                                                )}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div>
+                                            <label className={labelStyle}>Time (s)</label>
+                                            <Input
+                                              type="number"
+                                              value={sub.timeLimitSeconds ?? ''}
+                                              onChange={e => updateSubStepField(index, subIdx, 'timeLimitSeconds', e.target.value ? parseInt(e.target.value) : null)}
+                                              className={glassInput}
+                                              placeholder="5"
+                                            />
+                                          </div>
+                                        </div>
+
+                                        <div>
+                                          <label className={labelStyle}>Explanation</label>
+                                          <Textarea
+                                            value={sub.explanation}
+                                            onChange={(e) => updateSubStepField(index, subIdx, 'explanation', e.target.value)}
+                                            className={`${glassInput} h-20 text-sm`}
+                                            placeholder="Explain why the answer is correct..."
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>

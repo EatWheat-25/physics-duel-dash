@@ -7,7 +7,6 @@ import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Starfield } from '@/components/Starfield';
-import { MathText } from '@/components/math/MathText';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -18,10 +17,8 @@ export default function BattleConnected() {
   const [showRoundIntro, setShowRoundIntro] = useState(false);
   const [shouldAnimateMyWins, setShouldAnimateMyWins] = useState<boolean>(false);
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
-  const [nextRoundSecondsLeft, setNextRoundSecondsLeft] = useState<number | null>(null);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
-  const autoNextRoundFiredForRoundIdRef = useRef<string | null>(null);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -81,48 +78,12 @@ export default function BattleConnected() {
     results, roundNumber, lastRoundWinner, consecutiveWinsCount, 
     matchFinished, matchWinner, timeRemaining, submitAnswer,
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
-    mainQuestionTimeLeft, stepTimeLeft, currentStep, currentSegment, submitEarlyAnswer, submitStepAnswer,
+    mainQuestionTimeLeft, stepTimeLeft, subStepTimeLeft, currentStep, currentSegment, currentSubStepIndex,
+    submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
-    isWebSocketConnected, waitingForOpponent,
+    isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
     allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
-
-  const resultsRoundId: string | null = (results as any)?.round_id ?? null;
-  const resultsComputedAt: string | null = (results as any)?.computedAt ?? null;
-
-  // Auto-advance after 10 seconds on results screen (no button)
-  useEffect(() => {
-    if (status !== 'results' || !results || matchOver) {
-      setNextRoundSecondsLeft(null);
-      autoNextRoundFiredForRoundIdRef.current = null;
-      return;
-    }
-
-    // Prefer server timestamp (computedAt) so both players count down consistently
-    const computedAtMs = resultsComputedAt ? Date.parse(resultsComputedAt) : NaN;
-    const startsAtMs = Number.isFinite(computedAtMs) ? computedAtMs + 10_000 : Date.now() + 10_000;
-
-    const tick = () => {
-      const left = Math.max(0, Math.ceil((startsAtMs - Date.now()) / 1000));
-      setNextRoundSecondsLeft(left);
-    };
-
-    tick();
-    const interval = window.setInterval(tick, 250);
-
-    const timeout = window.setTimeout(() => {
-      // Fire at most once per results round (defensive)
-      const key = resultsRoundId ?? resultsComputedAt ?? 'unknown';
-      if (autoNextRoundFiredForRoundIdRef.current === key) return;
-      autoNextRoundFiredForRoundIdRef.current = key;
-      readyForNextRound();
-    }, Math.max(0, startsAtMs - Date.now()) + 50);
-
-    return () => {
-      window.clearInterval(interval);
-      window.clearTimeout(timeout);
-    };
-  }, [status, matchOver, resultsRoundId, resultsComputedAt, readyForNextRound, results]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -306,11 +267,11 @@ export default function BattleConnected() {
           <div className="flex flex-col items-center pb-2">
             <div className="text-xs text-white/30 font-mono mb-2 uppercase tracking-widest">
               ROUND {currentRoundNumber || roundNumber || 0}
-              {phase === 'steps' && totalSteps > 0 && ` • STEP ${currentStepIndex + 1}/${totalSteps}`}
+              {phase === 'steps' && totalSteps > 0 && ` • STEP ${currentStepIndex + 1}/${totalSteps}${currentSegment === 'sub' ? ` • SUB ${currentSubStepIndex + 1}` : ''}`}
             </div>
             <div className={`text-5xl font-black font-mono tracking-tighter tabular-nums transition-colors duration-300 ${
               ((phase === 'main_question' && (mainQuestionTimeLeft ?? 60) <= 10) ||
-               (phase === 'steps' && (stepTimeLeft ?? 15) <= 5) ||
+               (phase === 'steps' && (stepTimeLeft ?? 15) <= (currentSegment === 'sub' ? 2 : 5)) ||
                (phase === 'question' && (timeRemaining ?? 60) <= 10))
                 ? 'text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
                 : 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]'
@@ -412,7 +373,7 @@ export default function BattleConnected() {
                       Main Question
                     </div>
                     <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
-                      <MathText text={question.stem || question.questionText || question.title} />
+                      {question.stem || question.questionText || question.title}
                     </h3>
                     <div className="mt-6 text-sm text-white/40">
                       {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
@@ -462,14 +423,18 @@ export default function BattleConnected() {
                   
                   <div className="text-center mb-6">
                     <div className="text-sm text-amber-400/60 font-mono mb-2 uppercase tracking-wider">
-                      Step {currentStepIndex + 1} of {totalSteps}
-                      {currentSegment === 'sub' && (
-                        <span className="ml-2 text-blue-400">• SUB-STEP</span>
-                      )}
+                      {currentSegment === 'sub'
+                        ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
+                        : `Step ${currentStepIndex + 1} of ${totalSteps}`}
                     </div>
                     <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
-                      <MathText text={currentStep.prompt || currentStep.question} />
+                      {currentStep.prompt || currentStep.question}
                     </h3>
+                    {currentSegment === 'sub' && (
+                      <p className="text-xs text-white/50 mt-3 font-mono">
+                        QUICK CHECK — must be correct to earn this step&apos;s marks
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -494,7 +459,7 @@ export default function BattleConnected() {
                           `}>
                             {String.fromCharCode(65 + idx)}
                           </div>
-                          <span className="text-lg font-medium"><MathText text={option} /></span>
+                          <span className="text-lg font-medium">{option}</span>
                         </div>
                       </button>
                     ))}
@@ -551,27 +516,6 @@ export default function BattleConnected() {
               </motion.div>
             )}
 
-            {/* BOTH PLAYERS COMPLETE, WAITING FOR RESULTS PAYLOAD */}
-            {status === 'playing' && phase === 'steps' && allStepsComplete && !waitingForOpponentToCompleteSteps && !results && (
-              <motion.div
-                key="computing-results"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.05 }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
-              >
-                <div className="mb-6">
-                  <Loader2 className="w-16 h-16 animate-spin text-amber-400 mx-auto mb-4" />
-                  <h2 className="text-3xl font-bold mb-2 tracking-tight">
-                    CALCULATING RESULTS
-                  </h2>
-                  <p className="text-white/60 font-mono text-sm mb-4">
-                    Both players finished all parts. Preparing the round summary...
-                  </p>
-                </div>
-              </motion.div>
-            )}
-
             {/* PLAYING STATE (Single-step) */}
             {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
               <motion.div
@@ -587,7 +531,7 @@ export default function BattleConnected() {
                   <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   
                   <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
-                    <MathText text={question.stem || question.questionText} />
+                    {question.stem || question.questionText}
                   </h3>
                 </div>
 
@@ -614,7 +558,7 @@ export default function BattleConnected() {
                         `}>
                           {String.fromCharCode(65 + idx)}
                         </div>
-                        <span className="text-lg font-medium"><MathText text={option} /></span>
+                        <span className="text-lg font-medium">{option}</span>
                       </div>
                     </button>
                   ))}
@@ -692,19 +636,13 @@ export default function BattleConnected() {
                         {results.round_winner === currentUser ? 'ROUND SECURED' : results.round_winner === null ? 'STALEMATE' : 'ROUND LOST'}
                       </h2>
                       <div className="text-sm text-white/60 font-mono mb-2">
-                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 3} needed
+                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
                       </div>
-                      {typeof results.totalParts === 'number' &&
-                       typeof results.p1PartsCorrect === 'number' &&
-                       typeof results.p2PartsCorrect === 'number' ? (
-                        <div className="text-lg font-bold mb-2">
-                          Round Parts: {isPlayer1 ? results.p1PartsCorrect : results.p2PartsCorrect} / {results.totalParts} - {isPlayer1 ? results.p2PartsCorrect : results.p1PartsCorrect} / {results.totalParts}
-                        </div>
-                      ) : results.p1Score !== undefined && results.p2Score !== undefined ? (
+                      {results.p1Score !== undefined && results.p2Score !== undefined && (
                         <div className="text-lg font-bold mb-2">
                           Round Score: {isPlayer1 ? results.p1Score : results.p2Score} - {isPlayer1 ? results.p2Score : results.p1Score}
                         </div>
-                      ) : null}
+                      )}
                       <div className="text-sm font-bold mb-2">
                         Match Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
                       </div>
@@ -720,31 +658,17 @@ export default function BattleConnected() {
                   <div className="mb-8">
                     {/* Calculate parts correct for each player */}
                     {(() => {
-                      const totalSteps = results.totalParts ?? results.stepResults.length;
-                      const hasDirectCounts = typeof results.p1PartsCorrect === 'number' && typeof results.p2PartsCorrect === 'number';
-
-                      const myPartsCorrect = hasDirectCounts
-                        ? (isPlayer1 ? (results.p1PartsCorrect as number) : (results.p2PartsCorrect as number))
-                        : results.stepResults.filter((stepResult) => {
-                            if (typeof stepResult?.p1PartCorrect === 'boolean' || typeof stepResult?.p2PartCorrect === 'boolean') {
-                              return isPlayer1 ? !!stepResult.p1PartCorrect : !!stepResult.p2PartCorrect;
-                            }
-                            // Legacy fallback (v2)
-                            const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
-                            return myAnswer === stepResult.correctAnswer;
-                          }).length;
-
-                      const oppPartsCorrect = hasDirectCounts
-                        ? (isPlayer1 ? (results.p2PartsCorrect as number) : (results.p1PartsCorrect as number))
-                        : results.stepResults.filter((stepResult) => {
-                            if (typeof stepResult?.p1PartCorrect === 'boolean' || typeof stepResult?.p2PartCorrect === 'boolean') {
-                              return isPlayer1 ? !!stepResult.p2PartCorrect : !!stepResult.p1PartCorrect;
-                            }
-                            // Legacy fallback (v2)
-                            const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
-                            return oppAnswer === stepResult.correctAnswer;
-                          }).length;
-
+                      const myPartsCorrect = results.stepResults.filter((stepResult) => {
+                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
+                        return myAnswer === stepResult.correctAnswer;
+                      }).length;
+                      
+                      const oppPartsCorrect = results.stepResults.filter((stepResult) => {
+                        const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
+                        return oppAnswer === stepResult.correctAnswer;
+                      }).length;
+                      
+                      const totalSteps = results.stepResults.length;
                       const iWon = myPartsCorrect > oppPartsCorrect;
                       const isTie = myPartsCorrect === oppPartsCorrect;
                       
@@ -827,18 +751,9 @@ export default function BattleConnected() {
                             </summary>
                             <div className="space-y-2 mt-3">
                               {results.stepResults.map((stepResult, idx) => {
-                                const myCorrect =
-                                  typeof stepResult?.p1PartCorrect === 'boolean' || typeof stepResult?.p2PartCorrect === 'boolean'
-                                    ? (isPlayer1 ? !!stepResult.p1PartCorrect : !!stepResult.p2PartCorrect)
-                                    : (() => {
-                                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
-                                        return myAnswer === stepResult.correctAnswer
-                                      })()
-
-                                const myMarks =
-                                  typeof stepResult?.p1StepAwarded === 'number' || typeof stepResult?.p2StepAwarded === 'number'
-                                    ? (isPlayer1 ? (stepResult.p1StepAwarded ?? 0) : (stepResult.p2StepAwarded ?? 0))
-                                    : (isPlayer1 ? (stepResult.p1Marks ?? 0) : (stepResult.p2Marks ?? 0))
+                                const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
+                                const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
+                                const myCorrect = myAnswer === stepResult.correctAnswer
                                 return (
                                   <div
                                     key={idx}
@@ -852,11 +767,6 @@ export default function BattleConnected() {
                                         {myCorrect ? '✓' : '✗'} {myMarks} pts
                                       </span>
                                     </div>
-                                    {stepResult?.hasSubStep && (
-                                      <div className="mt-1 text-[10px] font-mono text-white/50">
-                                        Sub-step required
-                                      </div>
-                                    )}
                                   </div>
                                 )
                               })}
@@ -939,25 +849,30 @@ export default function BattleConnected() {
 
                 {!matchOver && (
                   <div className="mt-6">
-                    <div className="flex flex-col items-center gap-3">
-                      {nextRoundSecondsLeft !== null && nextRoundSecondsLeft > 0 ? (
-                        <>
-                          <div className="text-sm font-mono text-white/60 text-center">
-                            NEXT ROUND STARTING IN <span className="text-white font-bold">{nextRoundSecondsLeft}</span> SECONDS
-                          </div>
-                          <div className="text-xs font-mono text-white/40 text-center">
-                            (AUTOMATIC)
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                          <div className="text-sm font-mono text-white/60 text-center">
-                            STARTING NEXT ROUND...
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    {!resultsAcknowledged ? (
+                      <button
+                        onClick={readyForNextRound}
+                        disabled={!isWebSocketConnected}
+                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-all shadow-lg ${
+                          isWebSocketConnected
+                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
+                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                        }`}
+                      >
+                        {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
+                      </button>
+                    ) : waitingForOpponentToAcknowledge ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                        <div className="text-sm font-mono text-white/60">
+                          WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm font-mono text-white/60 text-center">
+                        BOTH PLAYERS READY - STARTING NEXT ROUND...
+                      </div>
+                    )}
                   </div>
                 )}
                 {matchOver && (

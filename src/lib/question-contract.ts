@@ -213,10 +213,28 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
         explanation: rawStep.explanation || null,
     };
 
-    // Optional sub-step mapping (segment inside the same step)
+    // Optional sub-steps mapping (segments inside the same step)
     try {
-        const rawSub = rawStep.subStep ?? rawStep.sub_step ?? null;
-        if (rawSub && typeof rawSub === 'object') {
+        const rawSubs =
+            rawStep.subSteps ??
+            rawStep.sub_steps ??
+            null;
+
+        const rawLegacySingle = rawStep.subStep ?? rawStep.sub_step ?? null;
+
+        const rawList: any[] =
+            Array.isArray(rawSubs)
+                ? rawSubs
+                : (rawLegacySingle && typeof rawLegacySingle === 'object')
+                    ? [rawLegacySingle]
+                    : [];
+
+        const mapped: QuestionSubStep[] = [];
+
+        for (let i = 0; i < rawList.length; i++) {
+            const rawSub = rawList[i];
+            if (!rawSub || typeof rawSub !== 'object') continue;
+
             // Normalize type
             let subTypeRaw = rawSub.type ?? rawSub.step_type ?? rawSub.sub_type;
             if (typeof subTypeRaw !== 'string') subTypeRaw = String(subTypeRaw ?? 'true_false');
@@ -232,7 +250,7 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
                 subType = 'mcq';
             }
             if (subType !== 'mcq' && subType !== 'true_false') {
-                warn(`Invalid subStep.type "${subTypeRaw}" (normalized: "${subType}"); defaulting to true_false`);
+                warn(`Invalid subSteps[${i}].type "${subTypeRaw}" (normalized: "${subType}"); defaulting to true_false`);
                 subType = 'true_false';
             }
 
@@ -256,29 +274,28 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
                 subCorrectAnswer = rawSub.correct_answer.correctIndex;
             }
             if (typeof subCorrectAnswer !== 'number' || subCorrectAnswer < 0 || subCorrectAnswer > 3) {
-                warn(`subStep.correctAnswer invalid "${subCorrectAnswer}", defaulting to 0`);
+                warn(`subSteps[${i}].correctAnswer invalid "${subCorrectAnswer}", defaulting to 0`);
                 subCorrectAnswer = 0;
             }
 
             const rawSubTime = rawSub.timeLimitSeconds ?? rawSub.time_limit_seconds;
             const subTimeLimitSeconds = typeof rawSubTime === 'number' ? rawSubTime : 5;
 
-            const subStep: QuestionSubStep = {
+            mapped.push({
                 type: subType as 'mcq' | 'true_false',
                 prompt: subPrompt,
                 options: subOptions as [string, string, string, string],
                 correctAnswer: subCorrectAnswer as 0 | 1 | 2 | 3,
                 timeLimitSeconds: subTimeLimitSeconds,
                 explanation: rawSub.explanation || null
-            };
+            });
+        }
 
-            step.subStep = subStep;
-        } else {
-            step.subStep = null;
+        if (mapped.length > 0) {
+            step.subSteps = mapped;
         }
     } catch (e) {
-        warn(`Failed to map subStep; ignoring. Error: ${(e as any)?.message ?? String(e)}`);
-        step.subStep = null;
+        warn(`Failed to map subSteps; ignoring. Error: ${(e as any)?.message ?? String(e)}`);
     }
 
     return step;

@@ -227,14 +227,8 @@ Deno.serve(async (req) => {
         subject,
         mode: level,
         status: 'pending',
-        // Round-wins ruleset (new system)
-        target_rounds_to_win: 3,
-
-        // Safety cap (allows sudden-death ties; legacy paths may still read this)
-        max_rounds: 25,
-
-        // Legacy scoring fields (kept for compatibility)
-        target_points: 5
+        max_rounds: 3,  // Set to 3 for testing
+        target_points: 5  // Explicitly set target points
         // created_at has DEFAULT now(), so we don't need to specify it
       })
       .select()

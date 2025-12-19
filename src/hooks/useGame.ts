@@ -68,8 +68,11 @@ interface ConnectionState {
   stepEndsAt: string | null
   mainQuestionTimeLeft: number | null
   stepTimeLeft: number | null
+  subStepTimeLeft: number | null
   currentStep: any | null
   currentSegment: 'main' | 'sub'
+  currentSubStepIndex: number
+  currentSubStep: any | null
   // Match-level state (rounds system)
   currentRoundId: string | null
   currentRoundNumber: number
@@ -137,6 +140,9 @@ export function useGame(match: MatchRow | null) {
     stepTimeLeft: null,
     currentStep: null,
     currentSegment: 'main',
+    currentSubStepIndex: 0,
+    currentSubStep: null,
+    subStepTimeLeft: null,
     // Match-level state (rounds system)
     currentRoundId: null,
     currentRoundNumber: 1,
@@ -405,7 +411,7 @@ export function useGame(match: MatchRow | null) {
   // Step timer countdown effect
   useEffect(() => {
     if (!state.stepEndsAt || state.phase !== 'steps') {
-      setState(prev => ({ ...prev, stepTimeLeft: null }))
+      setState(prev => ({ ...prev, stepTimeLeft: null, subStepTimeLeft: null }))
       return
     }
 
@@ -414,13 +420,17 @@ export function useGame(match: MatchRow | null) {
       const endTime = new Date(state.stepEndsAt!).getTime()
       const remaining = Math.max(0, Math.round((endTime - now) / 1000))
       
-      setState(prev => ({ ...prev, stepTimeLeft: remaining }))
+      setState(prev => ({
+        ...prev,
+        stepTimeLeft: remaining,
+        subStepTimeLeft: prev.currentSegment === 'sub' ? remaining : null
+      }))
     }
 
     updateTimer()
     const interval = setInterval(updateTimer, 1000)
     return () => clearInterval(interval)
-  }, [state.stepEndsAt, state.phase])
+  }, [state.stepEndsAt, state.phase, state.currentSegment])
 
   useEffect(() => {
     if (!match) {
@@ -596,6 +606,9 @@ export function useGame(match: MatchRow | null) {
                   totalSteps: (roundStartEvent as any).totalSteps || 0,
                   currentStepIndex: 0,
                   currentSegment: 'main',
+                  currentSubStepIndex: 0,
+                  currentSubStep: null,
+                  subStepTimeLeft: null,
                   // Match-level info (used by UI scoreboard)
                   currentRoundId: roundStartEvent.roundId ?? prev.currentRoundId,
                   currentRoundNumber: Number.isFinite(roundStartEvent.roundIndex)
@@ -642,6 +655,9 @@ export function useGame(match: MatchRow | null) {
                   stepEndsAt: message.stepEndsAt || null,
                   currentStep: message.currentStep || null,
                   currentSegment: (message.segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub',
+                  currentSubStepIndex: Number.isFinite((message as any).subStepIndex) ? (message as any).subStepIndex : 0,
+                  currentSubStep: (message.segment === 'sub' ? (message.currentStep || null) : null),
+                  subStepTimeLeft: null,
                   answerSubmitted: false,
                   waitingForOpponent: false,
                   allStepsComplete: false,
@@ -788,8 +804,11 @@ export function useGame(match: MatchRow | null) {
                 stepEndsAt: null,
                 mainQuestionTimeLeft: null,
                 stepTimeLeft: null,
-              currentStep: null,
-              currentSegment: 'main'
+                subStepTimeLeft: null,
+                currentStep: null,
+                currentSegment: 'main',
+                currentSubStepIndex: 0,
+                currentSubStep: null
               }))
             } else if (message.type === 'MATCH_FINISHED') {
               console.log('[useGame] MATCH_FINISHED message received')
@@ -1466,12 +1485,13 @@ export function useGame(match: MatchRow | null) {
       }
 
       const submitMessage = {
-        type: 'SUBMIT_SEGMENT_ANSWER',
+        type: 'SUBMIT_STEP_ANSWER',
         stepIndex,
         segment: prev.currentSegment,
+        subStepIndex: prev.currentSubStepIndex,
         answerIndex
       }
-      console.log('[useGame] Sending SUBMIT_SEGMENT_ANSWER:', submitMessage)
+      console.log('[useGame] Sending SUBMIT_STEP_ANSWER:', submitMessage)
       ws.send(JSON.stringify(submitMessage))
       
       return {
@@ -1538,8 +1558,11 @@ export function useGame(match: MatchRow | null) {
     stepEndsAt: state.stepEndsAt,
     mainQuestionTimeLeft: state.mainQuestionTimeLeft,
     stepTimeLeft: state.stepTimeLeft,
+    subStepTimeLeft: state.subStepTimeLeft,
     currentStep: state.currentStep,
     currentSegment: state.currentSegment,
+    currentSubStepIndex: state.currentSubStepIndex,
+    currentSubStep: state.currentSubStep,
     submitEarlyAnswer,
     submitStepAnswer,
     readyForNextRound,
