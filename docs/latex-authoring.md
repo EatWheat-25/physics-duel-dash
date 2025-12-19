@@ -94,5 +94,6 @@ Use `\mathrm{...}` for units and thin spaces `\,` between unit factors:
 
 ## Notes / limitations
 
-- `MathText` is **safe**: it does not render arbitrary HTML from input text.\n+- If KaTeX fails to parse a math segment, the UI **falls back to the raw string** and logs a warning in the console.\n+
+- `MathText` is **safe**: it does not render arbitrary HTML from input text.
+- If KaTeX fails to parse a math segment, the UI **falls back to the raw string** and logs a warning in the console.
 
