@@ -58,6 +58,18 @@ type QuestionForm = {
   imageUrl: string;
 };
 
+const PHYSICS_A1_CHAPTERS = [
+  'Physical quantities and measurement techniques',
+  'Kinematics',
+  'Dynamics',
+  'Force density and pressure',
+  'Work, energy and power',
+  'Deformation of solids',
+  'Waves and superpositions',
+  'Electricity and DC circuits',
+  'Nuclear physics'
+] as const;
+
 export default function AdminQuestions() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1175,12 +1187,36 @@ export default function AdminQuestions() {
 
                       <div>
                         <label className={labelStyle}>Chapter *</label>
-                        <Input
-                          value={form.chapter}
-                          onChange={e => setForm({ ...form, chapter: e.target.value })}
-                          className={glassInput}
-                          placeholder="e.g. Integration"
-                        />
+                        {form.subject === 'physics' && form.level === 'A1' ? (
+                          <Select
+                            value={form.chapter || '__unset__'}
+                            onValueChange={(v: string) =>
+                              setForm({ ...form, chapter: v === '__unset__' ? '' : v })
+                            }
+                          >
+                            <SelectTrigger className={glassInput}>
+                              <SelectValue placeholder="Select chapter..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-gray-900 border-white/10 text-white">
+                              <SelectItem value="__unset__">Select chapter...</SelectItem>
+                              {form.chapter && !PHYSICS_A1_CHAPTERS.includes(form.chapter as any) && (
+                                <SelectItem value={form.chapter}>{`(Current) ${form.chapter}`}</SelectItem>
+                              )}
+                              {PHYSICS_A1_CHAPTERS.map((chapter) => (
+                                <SelectItem key={chapter} value={chapter}>
+                                  {chapter}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            value={form.chapter}
+                            onChange={e => setForm({ ...form, chapter: e.target.value })}
+                            className={glassInput}
+                            placeholder="e.g. Integration"
+                          />
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">

@@ -1,9 +1,13 @@
--- 20251218000004_fix_compute_multi_step_results_v3_boolean_agg.sql
--- Fix: Postgres does not support max(boolean). Use bool_or(...) for boolean aggregates.
--- This fixes runtime error: "function max(boolean) does not exist" when computing results.
+-- 20251219000000_draw_awards_both_sudden_death.sql
+-- Rules update:
+-- - Round draws award BOTH players +1 round-win (but round_winner remains NULL for UI "draw")
+-- - Match ends only when someone reaches target_rounds_to_win AND is strictly ahead (sudden death on ties)
 
 begin;
 
+-- =========================
+-- Multi-step async segments
+-- =========================
 create or replace function public.compute_multi_step_results_v3(
   p_match_id uuid,
   p_round_id uuid
@@ -33,6 +37,7 @@ declare
   v_target_rounds_to_win int;
   v_finished boolean := false;
   v_round_winner uuid;
+  v_match_winner uuid := null;
 
   -- Per-step answer aggregates
   v_p1_main_answer int;
@@ -211,7 +216,7 @@ begin
     );
   end loop;
 
-  -- Determine round winner by parts-correct
+  -- Determine round winner by parts-correct (NULL = draw)
   if v_p1_parts_correct > v_p2_parts_correct then
     v_round_winner := v_match.player1_id;
   elsif v_p2_parts_correct > v_p1_parts_correct then
@@ -220,19 +225,30 @@ begin
     v_round_winner := null;
   end if;
 
-  -- Round wins tracking
+  -- Round wins tracking (draw => both +1)
   v_p1_wins := coalesce(v_match.player1_round_wins, 0);
   v_p2_wins := coalesce(v_match.player2_round_wins, 0);
-  v_target_rounds_to_win := coalesce(v_match.target_rounds_to_win, 4);
+  v_target_rounds_to_win := coalesce(v_match.target_rounds_to_win, 3);
 
   if v_round_winner = v_match.player1_id then
     v_p1_wins := v_p1_wins + 1;
   elsif v_round_winner = v_match.player2_id then
     v_p2_wins := v_p2_wins + 1;
+  else
+    v_p1_wins := v_p1_wins + 1;
+    v_p2_wins := v_p2_wins + 1;
   end if;
 
-  if v_p1_wins >= v_target_rounds_to_win or v_p2_wins >= v_target_rounds_to_win then
+  -- Sudden death: must reach target AND be strictly ahead
+  if v_p1_wins >= v_target_rounds_to_win and v_p1_wins > v_p2_wins then
     v_finished := true;
+    v_match_winner := v_match.player1_id;
+  elsif v_p2_wins >= v_target_rounds_to_win and v_p2_wins > v_p1_wins then
+    v_finished := true;
+    v_match_winner := v_match.player2_id;
+  else
+    v_finished := false;
+    v_match_winner := null;
   end if;
 
   v_results_version := coalesce(v_match.results_version, 0) + 1;
@@ -249,11 +265,8 @@ begin
     'stepResults', v_step_results,
     'round_winner', v_round_winner,
     'match_over', v_finished,
-    'match_winner_id', case
-      when v_finished and v_p1_wins >= v_target_rounds_to_win then v_match.player1_id
-      when v_finished and v_p2_wins >= v_target_rounds_to_win then v_match.player2_id
-      else null
-    end,
+    'match_winner_id', v_match_winner,
+    'target_rounds_to_win', v_target_rounds_to_win,
     'player_round_wins', jsonb_build_object(
       v_match.player1_id::text, v_p1_wins,
       v_match.player2_id::text, v_p2_wins
@@ -272,11 +285,7 @@ begin
     player1_round_wins = v_p1_wins,
     player2_round_wins = v_p2_wins,
     status = case when v_finished then 'finished' else v_match.status end,
-    winner_id = case
-      when v_finished and v_p1_wins >= v_target_rounds_to_win then v_match.player1_id
-      when v_finished and v_p2_wins >= v_target_rounds_to_win then v_match.player2_id
-      else v_match.winner_id
-    end
+    winner_id = case when v_finished then v_match_winner else v_match.winner_id end
   where id = p_match_id;
 
   -- Mark round as results
@@ -296,7 +305,227 @@ $$;
 alter function public.compute_multi_step_results_v3(uuid, uuid) set search_path = public;
 grant execute on function public.compute_multi_step_results_v3(uuid, uuid) to service_role;
 
-commit;
+-- =========================
+-- Single-step (legacy) path
+-- =========================
+create or replace function public.submit_round_answer_v2(
+  p_match_id UUID,
+  p_player_id UUID,
+  p_answer INTEGER  -- 0 or 1 for True/False
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_match RECORD;
+  v_is_player1 BOOLEAN;
+  v_both_answered BOOLEAN := false;
+  v_correct_answer INTEGER;
+  v_update_count INTEGER;
+  v_round_winner UUID;
+  v_player1_round_wins INT;
+  v_player2_round_wins INT;
+  v_target_rounds_to_win INT;
+  v_match_over BOOLEAN := false;
+  v_match_winner_id UUID;
+  v_next_round_ready BOOLEAN := false;
+  v_round_number INT;
+  v_p1_answer INTEGER;
+  v_p2_answer INTEGER;
+begin
+  -- 1. Validate: Get match and verify player is in it
+  select * into v_match
+  from public.matches
+  where id = p_match_id
+    and (player1_id = p_player_id or player2_id = p_player_id)
+    and question_id is not null
+    and results_computed_at is null
+    and status = 'in_progress'
+    and winner_id is null;
 
+  if not found then
+    return jsonb_build_object(
+      'success', false,
+      'error', 'Match not found, player not in match, or results already computed'
+    );
+  end if;
+
+  -- 2. Validate: Answer must be 0 or 1 (True/False)
+  if p_answer not in (0, 1) then
+    return jsonb_build_object(
+      'success', false,
+      'error', 'Invalid answer: must be 0 or 1'
+    );
+  end if;
+
+  -- 3. Determine which player
+  v_is_player1 := (v_match.player1_id = p_player_id);
+
+  -- 4. Check if already answered (idempotency)
+  if (v_is_player1 and v_match.player1_answer is not null) or
+     (not v_is_player1 and v_match.player2_answer is not null) then
+    return jsonb_build_object(
+      'success', false,
+      'error', 'Answer already submitted',
+      'already_answered', true
+    );
+  end if;
+
+  -- 5. Atomic update: Set answer + timestamp
+  if v_is_player1 then
+    update public.matches
+    set player1_answer = p_answer,
+        player1_answered_at = now()
+    where id = p_match_id
+      and player1_answer is null;
+    get diagnostics v_update_count = row_count;
+  else
+    update public.matches
+    set player2_answer = p_answer,
+        player2_answered_at = now()
+    where id = p_match_id
+      and player2_answer is null;
+    get diagnostics v_update_count = row_count;
+  end if;
+
+  -- 6. Check FOUND: If update didn't affect any rows, race condition occurred
+  if v_update_count = 0 then
+    return jsonb_build_object(
+      'success', false,
+      'error', 'Answer already submitted (race condition)',
+      'already_answered', true
+    );
+  end if;
+
+  -- 7. Check if both answered (in same transaction) and get current match state
+  select
+    (player1_answer is not null and player2_answer is not null) as both_answered,
+    player1_answer,
+    player2_answer,
+    coalesce(player1_round_wins, 0),
+    coalesce(player2_round_wins, 0),
+    coalesce(target_rounds_to_win, 3),
+    coalesce(round_number, 0)
+  into v_both_answered, v_p1_answer, v_p2_answer,
+       v_player1_round_wins, v_player2_round_wins, v_target_rounds_to_win, v_round_number
+  from public.matches
+  where id = p_match_id;
+
+  -- 8. If both answered, compute results and update round wins atomically
+  if v_both_answered then
+    -- Fetch correct answer from question (do this once)
+    select (steps->0->>'correctAnswer')::int
+    into v_correct_answer
+    from public.questions_v2
+    where id = v_match.question_id;
+
+    -- Determine round winner based on correctness (NULL = draw)
+    if v_p1_answer = v_correct_answer and v_p2_answer != v_correct_answer then
+      v_round_winner := v_match.player1_id;
+    elsif v_p2_answer = v_correct_answer and v_p1_answer != v_correct_answer then
+      v_round_winner := v_match.player2_id;
+    else
+      v_round_winner := null;
+    end if;
+
+    -- Update round wins based on round winner (draw => both +1)
+    if v_round_winner = v_match.player1_id then
+      v_player1_round_wins := v_player1_round_wins + 1;
+    elsif v_round_winner = v_match.player2_id then
+      v_player2_round_wins := v_player2_round_wins + 1;
+    else
+      v_player1_round_wins := v_player1_round_wins + 1;
+      v_player2_round_wins := v_player2_round_wins + 1;
+    end if;
+
+    -- Sudden death: must reach target AND be strictly ahead
+    if v_player1_round_wins >= v_target_rounds_to_win and v_player1_round_wins > v_player2_round_wins then
+      v_match_over := true;
+      v_match_winner_id := v_match.player1_id;
+    elsif v_player2_round_wins >= v_target_rounds_to_win and v_player2_round_wins > v_player1_round_wins then
+      v_match_over := true;
+      v_match_winner_id := v_match.player2_id;
+    else
+      v_match_over := false;
+      v_match_winner_id := null;
+    end if;
+
+    -- Increment round number
+    v_round_number := v_round_number + 1;
+
+    -- Update match with all results, round wins, and match status
+    update public.matches
+    set
+      both_answered_at = now(),
+      correct_answer = v_correct_answer,
+      player1_correct = (v_p1_answer = v_correct_answer),
+      player2_correct = (v_p2_answer = v_correct_answer),
+      round_winner = v_round_winner,
+      results_computed_at = now(),
+      player1_round_wins = v_player1_round_wins,
+      player2_round_wins = v_player2_round_wins,
+      round_number = v_round_number,
+      winner_id = case when v_match_over then v_match_winner_id else null end,
+      status = case when v_match_over then 'finished' else 'in_progress' end
+    where id = p_match_id
+      and results_computed_at is null;
+
+    -- If match continues, clear answer fields for next round
+    if not v_match_over then
+      update public.matches
+      set
+        player1_answer = null,
+        player2_answer = null,
+        player1_answered_at = null,
+        player2_answered_at = null,
+        both_answered_at = null,
+        correct_answer = null,
+        player1_correct = null,
+        player2_correct = null,
+        round_winner = null,
+        results_computed_at = null
+      where id = p_match_id;
+      v_next_round_ready := true;
+    end if;
+
+    -- Return full result payload (use values we computed, not DB selects)
+    return jsonb_build_object(
+      'success', true,
+      'both_answered', true,
+      'result', jsonb_build_object(
+        'player1_answer', v_p1_answer,
+        'player2_answer', v_p2_answer,
+        'correct_answer', v_correct_answer,
+        'player1_correct', (v_p1_answer = v_correct_answer),
+        'player2_correct', (v_p2_answer = v_correct_answer),
+        'round_winner', v_round_winner,
+        'round_number', v_round_number,
+        'target_rounds_to_win', v_target_rounds_to_win,
+        'player1_round_wins', v_player1_round_wins,
+        'player2_round_wins', v_player2_round_wins,
+        'player_round_wins', jsonb_build_object(
+          v_match.player1_id::text, v_player1_round_wins,
+          v_match.player2_id::text, v_player2_round_wins
+        ),
+        'match_over', v_match_over,
+        'match_winner_id', v_match_winner_id,
+        'next_round_ready', v_next_round_ready
+      )
+    );
+  else
+    -- Only one answered - return simple response
+    return jsonb_build_object(
+      'success', true,
+      'both_answered', false
+    );
+  end if;
+end;
+$$;
+
+alter function public.submit_round_answer_v2(uuid, uuid, integer) set search_path = public;
+grant execute on function public.submit_round_answer_v2(uuid, uuid, integer) to authenticated;
+
+commit;
 
 

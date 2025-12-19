@@ -33,6 +33,7 @@ interface RoundStartEvent {
   roundId: string
   roundIndex: number
   phase: 'thinking' | 'main_question' | 'steps'
+  targetRoundsToWin?: number
   question: {
     id: string
     title: string
@@ -144,6 +145,11 @@ const socketMeta = new Map<WebSocket, { matchId: string; userId: string }>()
 // Track timeouts per match (for cleanup)
 const matchTimeouts = new Map<string, number>() // matchId -> timeoutId
 
+// Auto-advance to next round after results (no button)
+const nextRoundTimeouts = new Map<string, number>() // matchId -> timeoutId
+const nextRoundStartInFlight = new Set<string>() // per-instance guard
+const AUTO_NEXT_ROUND_DELAY_MS = 10_000
+
 // Periodic async segment sweep intervals (per match) for server-side timeouts
 const matchSweepIntervals = new Map<string, number>() // matchId -> intervalId
 
@@ -226,6 +232,9 @@ async function broadcastQuestion(
   questionDb: any,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  // New round is starting; cancel any pending auto-next-round timer from prior results.
+  clearAutoNextRoundTimer(matchId)
+
   const matchSockets = sockets.get(matchId)
   if (!matchSockets || matchSockets.size === 0) {
     console.warn(`[${matchId}] ⚠️ [WS] No sockets found for match - cannot broadcast question`)
@@ -266,7 +275,7 @@ async function broadcastQuestion(
       // First round - initialize match state
       matchState = {
         roundNumber: dbRoundNumber,
-        targetRoundsToWin: matchData?.target_rounds_to_win || 4,
+        targetRoundsToWin: matchData?.target_rounds_to_win || 3,
         playerRoundWins: new Map(),
         p1Id: matchData?.player1_id || null,
         p2Id: matchData?.player2_id || null,
@@ -278,7 +287,7 @@ async function broadcastQuestion(
     } else {
       // Sync round number from DB and reset readiness (do NOT increment in-memory)
       matchState.roundNumber = dbRoundNumber
-      matchState.targetRoundsToWin = matchData?.target_rounds_to_win || matchState.targetRoundsToWin
+      matchState.targetRoundsToWin = matchData?.target_rounds_to_win || matchState.targetRoundsToWin || 3
       matchState.p1Id = matchData?.player1_id || matchState.p1Id
       matchState.p2Id = matchData?.player2_id || matchState.p2Id
       matchState.p1ResultsAcknowledged = false
@@ -363,6 +372,7 @@ async function broadcastQuestion(
       roundId: dbRoundId || matchId,
       roundIndex: dbRoundNumber - 1, // roundIndex is 0-based
       phase: 'main_question',
+      targetRoundsToWin: matchState.targetRoundsToWin,
       question: {
         id: questionDb.id,
         title: questionDb.title,
@@ -419,7 +429,7 @@ async function broadcastQuestion(
       // First round - initialize match state
       matchState = {
         roundNumber: 1,
-        targetRoundsToWin: 4,
+        targetRoundsToWin: 3,
         playerRoundWins: new Map(),
         p1Id: matchData?.player1_id || null,
         p2Id: matchData?.player2_id || null,
@@ -709,7 +719,7 @@ async function selectAndBroadcastQuestion(
             p2Id: matchData?.player2_id || null,
             eliminatedPlayers: new Set(),
             roundNumber: activeRound.round_number ?? (match.current_round_number || 1),
-            targetRoundsToWin: match.target_rounds_to_win || 4,
+            targetRoundsToWin: match.target_rounds_to_win || 3,
             playerRoundWins: new Map(),
             p1AllStepsComplete: false,
             p2AllStepsComplete: false,
@@ -749,18 +759,55 @@ async function selectAndBroadcastQuestion(
     // Select question (reuse existing logic)
     let questionDb: any = null
 
-    if (match.question_id) {
+    // ===== No-repeat: never reuse a question within the same match =====
+    // We treat ANY prior match_rounds.question_id as "used" (all statuses).
+    const usedQuestionIds = new Set<string>()
+    try {
+      const { data: usedRows, error: usedErr } = await supabase
+        .from('match_rounds')
+        .select('question_id')
+        .eq('match_id', matchId)
+
+      if (usedErr) {
+        console.warn(`[${matchId}] ⚠️ Failed to read used question ids from match_rounds:`, usedErr)
+      } else {
+        for (const row of usedRows ?? []) {
+          if (row?.question_id) usedQuestionIds.add(String(row.question_id))
+        }
+      }
+    } catch (err) {
+      console.warn(`[${matchId}] ⚠️ Exception reading used question ids from match_rounds:`, err)
+    }
+
+    // If matches.question_id is set but already used by a prior round, clear it so we can re-pick.
+    let matchQuestionId: string | null = (match.question_id as any) ?? null
+    if (matchQuestionId && usedQuestionIds.has(matchQuestionId)) {
+      console.warn(
+        `[${matchId}] ⚠️ matches.question_id=${matchQuestionId} already used in this match; clearing to enforce no-repeat`
+      )
+      try {
+        await supabase
+          .from('matches')
+          .update({ question_id: null, question_sent_at: null })
+          .eq('id', matchId)
+      } catch (err) {
+        console.warn(`[${matchId}] ⚠️ Failed to clear reused matches.question_id (continuing):`, err)
+      }
+      matchQuestionId = null
+    }
+
+    if (matchQuestionId) {
       // Question already assigned, fetch it
-      console.log(`[${matchId}] ✅ Question already assigned: ${match.question_id}`)
+      console.log(`[${matchId}] ✅ Question already assigned: ${matchQuestionId}`)
       const { data: q, error: fetchError } = await supabase
         .from('questions_v2')
         .select('*')
-        .eq('id', match.question_id)
+        .eq('id', matchQuestionId)
         .single()
 
       if (fetchError || !q) {
         console.error(`[${matchId}] ❌ Failed to fetch existing question:`, fetchError)
-        throw new Error(`Failed to fetch question ${match.question_id}`)
+        throw new Error(`Failed to fetch question ${matchQuestionId}`)
       }
       questionDb = q
       console.log(`[${matchId}] ✅ Fetched existing question: ${questionDb.id} - "${questionDb.title}"`)
@@ -811,6 +858,9 @@ async function selectAndBroadcastQuestion(
       // - Each step must have options (2 for TF or 4 for MCQ; tolerate empty strings)
       const isValidQuestion = (q: any) => {
         try {
+          // Enforce no-repeat within this match
+          if (usedQuestionIds.has(String(q?.id))) return false
+
           const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
           if (!Array.isArray(steps) || steps.length !== 4) return false
 
@@ -827,8 +877,14 @@ async function selectAndBroadcastQuestion(
       const questionPool = tiers.flatMap(list => list.filter(isValidQuestion))
 
       if (questionPool.length === 0) {
-        console.error(`[${matchId}] ❌ No valid questions available (need True/False or MCQ questions)`)
-        throw new Error('No valid questions available')
+        console.error(
+          `[${matchId}] ❌ No unused questions available for this match (used=${usedQuestionIds.size})`
+        )
+        broadcastToMatch(matchId, {
+          type: 'GAME_ERROR',
+          message: 'No unused questions available for this match'
+        })
+        return
       }
 
       const selectedQuestion = questionPool[Math.floor(Math.random() * questionPool.length)]
@@ -984,7 +1040,7 @@ async function selectAndBroadcastQuestion(
         p2Id: matchData?.player2_id || null,
         eliminatedPlayers: new Set(),
         roundNumber: roundNumberToUse,
-        targetRoundsToWin: match.target_rounds_to_win || 4,
+        targetRoundsToWin: match.target_rounds_to_win || 3,
         playerRoundWins: new Map(),
         p1AllStepsComplete: false,
         p2AllStepsComplete: false,
@@ -1130,6 +1186,133 @@ function cleanupGameState(matchId: string): void {
     clearInterval(sweepId)
     matchSweepIntervals.delete(matchId)
   }
+
+  // Clear any scheduled auto-next-round timers
+  const nextId = nextRoundTimeouts.get(matchId)
+  if (nextId) {
+    clearTimeout(nextId)
+    nextRoundTimeouts.delete(matchId)
+  }
+  nextRoundStartInFlight.delete(matchId)
+}
+
+function clearAutoNextRoundTimer(matchId: string): void {
+  const existing = nextRoundTimeouts.get(matchId)
+  if (existing) {
+    clearTimeout(existing)
+    nextRoundTimeouts.delete(matchId)
+  }
+}
+
+async function scheduleAutoNextRound(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>,
+  expectedResultsRoundId: string | null,
+  computedAtIso?: string | null
+): Promise<void> {
+  // Always re-schedule (idempotent). This protects against instance restarts / re-broadcasts.
+  clearAutoNextRoundTimer(matchId)
+
+  // Prefer server-computed timestamp for consistent countdowns; fallback to DB read; then now().
+  let computedAtMs: number | null = null
+  if (computedAtIso) {
+    const t = Date.parse(computedAtIso)
+    if (Number.isFinite(t)) computedAtMs = t
+  }
+
+  if (!computedAtMs) {
+    try {
+      const { data: matchRow, error } = await supabase
+        .from('matches')
+        .select('results_computed_at, results_round_id, winner_id, status')
+        .eq('id', matchId)
+        .maybeSingle()
+
+      if (error || !matchRow) return
+      if (matchRow.winner_id || matchRow.status !== 'in_progress') return
+
+      // If caller provided an expected round id, ensure we only schedule for that round.
+      if (expectedResultsRoundId && matchRow.results_round_id && matchRow.results_round_id !== expectedResultsRoundId) {
+        return
+      }
+
+      const t = Date.parse((matchRow as any).results_computed_at ?? '')
+      if (Number.isFinite(t)) computedAtMs = t
+    } catch (err) {
+      console.warn(`[${matchId}] ⚠️ scheduleAutoNextRound: failed to read matches.results_computed_at:`, err)
+    }
+  }
+
+  if (!computedAtMs) computedAtMs = Date.now()
+
+  const startsAtMs = computedAtMs + AUTO_NEXT_ROUND_DELAY_MS
+  const delayMs = Math.max(0, startsAtMs - Date.now())
+  const delaySeconds = Math.ceil(delayMs / 1000)
+
+  console.log(
+    `[${matchId}] ⏳ Auto next round scheduled in ${delaySeconds}s (expectedResultsRoundId=${expectedResultsRoundId ?? 'null'})`
+  )
+
+  const timeoutId = setTimeout(() => {
+    ;(async () => {
+      await attemptAutoStartNextRound(matchId, supabase, expectedResultsRoundId)
+    })().catch((err) => console.error(`[${matchId}] ❌ Auto next round error:`, err))
+  }, delayMs) as unknown as number
+
+  nextRoundTimeouts.set(matchId, timeoutId)
+}
+
+async function attemptAutoStartNextRound(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>,
+  expectedResultsRoundId: string | null
+): Promise<void> {
+  if (nextRoundStartInFlight.has(matchId)) return
+  nextRoundStartInFlight.add(matchId)
+  clearAutoNextRoundTimer(matchId)
+
+  try {
+    const { data: matchRow, error } = await supabase
+      .from('matches')
+      .select('id, status, winner_id, current_round_id, results_round_id, results_computed_at')
+      .eq('id', matchId)
+      .maybeSingle()
+
+    if (error || !matchRow) return
+    if (matchRow.winner_id || matchRow.status !== 'in_progress') return
+    if (!matchRow.results_round_id || !matchRow.results_computed_at) return
+
+    if (expectedResultsRoundId && matchRow.results_round_id !== expectedResultsRoundId) {
+      return
+    }
+
+    // Enforce at least AUTO_NEXT_ROUND_DELAY_MS from results_computed_at (prevents early triggers).
+    const computedAtMs = Date.parse((matchRow as any).results_computed_at ?? '')
+    if (Number.isFinite(computedAtMs)) {
+      const earliestMs = computedAtMs + AUTO_NEXT_ROUND_DELAY_MS
+      if (Date.now() < earliestMs) {
+        await scheduleAutoNextRound(matchId, supabase, matchRow.results_round_id, matchRow.results_computed_at as any)
+        return
+      }
+    }
+
+    // Extra safety: only auto-advance if results are for the active round
+    if (matchRow.current_round_id && matchRow.results_round_id !== matchRow.current_round_id) {
+      return
+    }
+
+    // Clear any legacy timeouts (single-step flow)
+    const existingTimeout = matchTimeouts.get(matchId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+      matchTimeouts.delete(matchId)
+    }
+
+    console.log(`[${matchId}] ➡️ Auto-starting next round now...`)
+    await selectAndBroadcastQuestion(matchId, supabase)
+  } finally {
+    nextRoundStartInFlight.delete(matchId)
+  }
 }
 
 function parseQuestionSteps(rawSteps: any): any[] {
@@ -1186,9 +1369,10 @@ async function maybeComputeAndBroadcastMultiStepResults(
 
   // If DB already has results for this round, broadcast to local sockets (optional fast-path)
   if (matchRow.results_round_id === roundId && matchRow.results_payload) {
+    const payload = matchRow.results_payload
+    const version = matchRow.results_version ?? 0
+
     if (!alreadyBroadcasted) {
-      const payload = matchRow.results_payload
-      const version = matchRow.results_version ?? 0
       console.log(`[${matchId}] 📤 Re-broadcasting RESULTS_RECEIVED from DB (version=${version})`)
       broadcastToMatch(matchId, {
         type: 'RESULTS_RECEIVED',
@@ -1198,6 +1382,13 @@ async function maybeComputeAndBroadcastMultiStepResults(
         round_id: payload?.round_id || roundId
       })
       if (state) state.lastResultsRoundIdBroadcasted = roundId
+    }
+
+    if (payload?.match_over) {
+      setTimeout(() => cleanupGameState(matchId), 5000)
+    } else {
+      // No manual "next round" button: auto-advance after the results window elapses.
+      await scheduleAutoNextRound(matchId, supabase, payload?.round_id || roundId, payload?.computed_at ?? null)
     }
     return
   }
@@ -1241,6 +1432,9 @@ async function maybeComputeAndBroadcastMultiStepResults(
 
   if (payload.match_over) {
     setTimeout(() => cleanupGameState(matchId), 5000)
+  } else {
+    // No manual "next round" button: auto-advance after the results window elapses.
+    await scheduleAutoNextRound(matchId, supabase, payload.round_id || roundId, payload.computed_at ?? null)
   }
 }
 
@@ -1925,8 +2119,8 @@ async function calculateStepResults(
       cleanupGameState(matchId)
     }, 5000) // Give time for UI to show final results
   } else {
-      // Don't auto-transition - wait for both players to acknowledge results
-      console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
+    // No manual "next round" button: auto-advance after the results window elapses.
+    await scheduleAutoNextRound(matchId, supabase, payload.round_id || roundId, payload.computed_at ?? null)
     }
   } else {
     console.error(`[${matchId}] ❌ RPC did not return results_payload`)
@@ -2442,7 +2636,7 @@ async function handleSubmitAnswer(
           .single()
         const fallbackState: MatchState = {
           roundNumber: 1,
-          targetRoundsToWin: 4,
+          targetRoundsToWin: 3,
           playerRoundWins: new Map(),
           p1Id: matchData?.player1_id || null,
           p2Id: matchData?.player2_id || null,
@@ -2461,6 +2655,13 @@ async function handleSubmitAnswer(
         const currentWins = matchState.playerRoundWins.get(winnerId) || 0
         matchState.playerRoundWins.set(winnerId, currentWins + 1)
         console.log(`[${matchId}] 🏆 Round ${matchState.roundNumber} won by ${winnerId} (now has ${currentWins + 1} wins)`)
+      } else {
+        // Draw: both players get +1 round-win (but UI still shows draw because round_winner is null)
+        const p1 = matchState.p1Id
+        const p2 = matchState.p2Id
+        if (p1) matchState.playerRoundWins.set(p1, (matchState.playerRoundWins.get(p1) || 0) + 1)
+        if (p2) matchState.playerRoundWins.set(p2, (matchState.playerRoundWins.get(p2) || 0) + 1)
+        console.log(`[${matchId}] 🤝 Round ${matchState.roundNumber} draw (both players awarded +1 win)`)
       }
       
       // Increment round number for next round (if match continues)
@@ -2469,9 +2670,12 @@ async function handleSubmitAnswer(
       // Check if match is over
       const p1Wins = matchState.playerRoundWins.get(matchState.p1Id || '') || 0
       const p2Wins = matchState.playerRoundWins.get(matchState.p2Id || '') || 0
-      const targetWins = matchState.targetRoundsToWin || 4
-      const matchOver = p1Wins >= targetWins || p2Wins >= targetWins
-      const matchWinnerId = matchOver ? (p1Wins >= targetWins ? matchState.p1Id : matchState.p2Id) : null
+      const targetWins = matchState.targetRoundsToWin || 3
+      const matchOver =
+        (p1Wins >= targetWins && p1Wins > p2Wins) ||
+        (p2Wins >= targetWins && p2Wins > p1Wins)
+      const matchWinnerId =
+        matchOver ? (p1Wins > p2Wins ? matchState.p1Id : matchState.p2Id) : null
 
       // Convert playerRoundWins Map to object for JSON serialization
       const playerRoundWinsObj: { [playerId: string]: number } = {}
@@ -2508,8 +2712,8 @@ async function handleSubmitAnswer(
       } else {
         // Increment round number for next round
         matchState.roundNumber = currentRoundNum + 1
-        // Don't auto-transition - wait for both players to acknowledge results
-        console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
+        // No manual "next round" button: auto-advance after the results window elapses.
+        await scheduleAutoNextRound(matchId, supabase, null)
       }
     }
   } else {
@@ -2646,8 +2850,15 @@ async function handleSubmitAnswerV2(
       matchState.roundTransitionInProgress = false
     }
 
-    // Don't auto-transition - wait for both players to acknowledge results
-    console.log(`[${matchId}] ⏳ [V2] Waiting for both players to acknowledge results before starting next round`)
+    // No manual "next round" button: auto-advance after the results window elapses.
+    const expectedRoundId =
+      (data.results_payload as any)?.round_id ?? (data.results_payload as any)?.roundId ?? null
+    await scheduleAutoNextRound(
+      matchId,
+      supabase,
+      expectedRoundId,
+      (data.results_payload as any)?.computed_at ?? null
+    )
   } else {
     // Only one answered - get match to determine player role for broadcast
     const { data: matchData } = await supabase
@@ -2841,65 +3052,17 @@ async function handleReadyForNextRound(
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   console.log(`[${matchId}] ✅ READY_FOR_NEXT_ROUND from player ${playerId}`)
-  
-  const matchState = matchStates.get(matchId)
-  if (!matchState) {
-    console.error(`[${matchId}] ❌ No match state found`)
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'Match state not found'
-    } as GameErrorEvent))
-    return
-  }
 
-  // Determine which player this is
-  const isP1 = matchState.p1Id === playerId
-  const isP2 = matchState.p2Id === playerId
-
-  if (!isP1 && !isP2) {
-    console.error(`[${matchId}] ❌ Player ${playerId} not in match`)
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'You are not part of this match'
-    } as GameErrorEvent))
-    return
-  }
-
-  // Mark player as ready
-  if (isP1) {
-    matchState.p1ResultsAcknowledged = true
-  } else {
-    matchState.p2ResultsAcknowledged = true
-  }
-
-  // Check if both players are ready
-  const bothReady = matchState.p1ResultsAcknowledged && matchState.p2ResultsAcknowledged
-
-  // Send acknowledgment to this player
-  const readyEvent = {
+  // UI no longer uses a manual "next round" button, but we keep this message as a fallback trigger.
+  // IMPORTANT: do NOT wait for both players here (players may be on different Edge instances).
+  // Instead, schedule the auto-advance based on matches.results_computed_at (enforces a 10s results window).
+  socket.send(JSON.stringify({
     type: 'READY_FOR_NEXT_ROUND',
     playerId,
-    waitingForOpponent: !bothReady
-  }
-  socket.send(JSON.stringify(readyEvent))
+    waitingForOpponent: false
+  }))
 
-  // Broadcast to opponent if they're waiting
-  if (!bothReady) {
-    const opponentId = isP1 ? matchState.p2Id : matchState.p1Id
-    const matchSockets = sockets.get(matchId)
-    if (matchSockets) {
-      matchSockets.forEach((s) => {
-        if (s !== socket && s.readyState === WebSocket.OPEN) {
-          s.send(JSON.stringify(readyEvent))
-        }
-      })
-    }
-    console.log(`[${matchId}] ⏳ Waiting for opponent - P1: ${matchState.p1ResultsAcknowledged}, P2: ${matchState.p2ResultsAcknowledged}`)
-  } else {
-    // Both players ready - start next round
-    console.log(`[${matchId}] ✅ Both players ready - starting next round`)
-    await handleRoundTransition(matchId, supabase)
-  }
+  await scheduleAutoNextRound(matchId, supabase, null)
 }
 
 /**

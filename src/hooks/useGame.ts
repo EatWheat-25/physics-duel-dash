@@ -85,6 +85,7 @@ interface RoundStartEvent {
   roundId: string
   roundIndex: number
   phase: 'thinking' | 'main_question' | 'steps'
+  targetRoundsToWin?: number
   question: any
   thinkingEndsAt?: string
   mainQuestionEndsAt?: string
@@ -139,7 +140,7 @@ export function useGame(match: MatchRow | null) {
     // Match-level state (rounds system)
     currentRoundId: null,
     currentRoundNumber: 1,
-    targetRoundsToWin: 4,
+    targetRoundsToWin: 3,
     playerRoundWins: {},
     matchOver: false,
     matchWinnerId: null
@@ -195,6 +196,7 @@ export function useGame(match: MatchRow | null) {
       p1PartsCorrect: payload.p1_parts_correct ?? payload.p1PartsCorrect ?? undefined,
       p2PartsCorrect: payload.p2_parts_correct ?? payload.p2PartsCorrect ?? undefined,
       totalParts: payload.total_parts ?? payload.totalParts ?? undefined,
+      computedAt: payload.computed_at ?? payload.computedAt ?? undefined,
       round_id: roundId // Store round_id in results for reference
     }
 
@@ -203,6 +205,24 @@ export function useGame(match: MatchRow | null) {
       if (prev.status === 'results' && payload.round_number && payload.round_number < prev.currentRoundNumber) {
         console.log('[useGame] Ignoring older round results')
         return prev
+      }
+
+      const mergedRoundWins = payload.player_round_wins
+        ? { ...prev.playerRoundWins, ...payload.player_round_wins }
+        : { ...prev.playerRoundWins }
+
+      // Guardrail: if a round is a DRAW but the backend didn't increment wins,
+      // warn loudly (this usually means the draw-awards-both migration isn't applied on the DB).
+      if ((payload.round_winner ?? null) === null && payload.player_round_wins) {
+        const unchanged = Object.entries(payload.player_round_wins).every(([playerId, wins]) => {
+          const prevWins = prev.playerRoundWins?.[playerId] ?? 0
+          return prevWins === wins
+        })
+        if (unchanged) {
+          console.warn(
+            '[useGame] ⚠️ Draw round detected but player_round_wins did not increase. Make sure the latest DB migrations are applied.'
+          )
+        }
       }
 
       return {
@@ -216,12 +236,11 @@ export function useGame(match: MatchRow | null) {
         allStepsComplete: false,
         waitingForOpponentToCompleteSteps: false,
         currentRoundNumber: payload.round_number ?? prev.currentRoundNumber,
-        playerRoundWins: payload.player_round_wins 
-          ? { ...prev.playerRoundWins, ...payload.player_round_wins }
-          : {
-              ...prev.playerRoundWins,
-              // Fallback: try to extract from p1.total and p2.total if player IDs available
-            },
+        targetRoundsToWin:
+          payload.target_rounds_to_win ??
+          payload.targetRoundsToWin ??
+          prev.targetRoundsToWin,
+        playerRoundWins: mergedRoundWins,
         matchOver: payload.match_over ?? false,
         matchWinnerId: payload.match_winner_id ?? null
       }
@@ -577,6 +596,12 @@ export function useGame(match: MatchRow | null) {
                   totalSteps: (roundStartEvent as any).totalSteps || 0,
                   currentStepIndex: 0,
                   currentSegment: 'main',
+                  // Match-level info (used by UI scoreboard)
+                  currentRoundId: roundStartEvent.roundId ?? prev.currentRoundId,
+                  currentRoundNumber: Number.isFinite(roundStartEvent.roundIndex)
+                    ? roundStartEvent.roundIndex + 1
+                    : prev.currentRoundNumber,
+                  targetRoundsToWin: roundStartEvent.targetRoundsToWin ?? prev.targetRoundsToWin,
                   answerSubmitted: false,
                   waitingForOpponent: false,
                   resultsAcknowledged: false,
@@ -593,6 +618,11 @@ export function useGame(match: MatchRow | null) {
                   status: 'playing',
                   phase: 'question',
                   question: roundStartEvent.question,
+                  currentRoundId: roundStartEvent.roundId ?? prev.currentRoundId,
+                  currentRoundNumber: Number.isFinite(roundStartEvent.roundIndex)
+                    ? roundStartEvent.roundIndex + 1
+                    : prev.currentRoundNumber,
+                  targetRoundsToWin: roundStartEvent.targetRoundsToWin ?? prev.targetRoundsToWin,
                   resultsAcknowledged: false,
                   waitingForOpponentToAcknowledge: false,
                   allStepsComplete: false,

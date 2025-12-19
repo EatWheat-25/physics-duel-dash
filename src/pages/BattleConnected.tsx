@@ -17,8 +17,10 @@ export default function BattleConnected() {
   const [showRoundIntro, setShowRoundIntro] = useState(false);
   const [shouldAnimateMyWins, setShouldAnimateMyWins] = useState<boolean>(false);
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
+  const [nextRoundSecondsLeft, setNextRoundSecondsLeft] = useState<number | null>(null);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
+  const autoNextRoundFiredForRoundIdRef = useRef<string | null>(null);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -80,9 +82,46 @@ export default function BattleConnected() {
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, currentStep, currentSegment, submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
-    isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
+    isWebSocketConnected, waitingForOpponent,
     allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
+
+  const resultsRoundId: string | null = (results as any)?.round_id ?? null;
+  const resultsComputedAt: string | null = (results as any)?.computedAt ?? null;
+
+  // Auto-advance after 10 seconds on results screen (no button)
+  useEffect(() => {
+    if (status !== 'results' || !results || matchOver) {
+      setNextRoundSecondsLeft(null);
+      autoNextRoundFiredForRoundIdRef.current = null;
+      return;
+    }
+
+    // Prefer server timestamp (computedAt) so both players count down consistently
+    const computedAtMs = resultsComputedAt ? Date.parse(resultsComputedAt) : NaN;
+    const startsAtMs = Number.isFinite(computedAtMs) ? computedAtMs + 10_000 : Date.now() + 10_000;
+
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((startsAtMs - Date.now()) / 1000));
+      setNextRoundSecondsLeft(left);
+    };
+
+    tick();
+    const interval = window.setInterval(tick, 250);
+
+    const timeout = window.setTimeout(() => {
+      // Fire at most once per results round (defensive)
+      const key = resultsRoundId ?? resultsComputedAt ?? 'unknown';
+      if (autoNextRoundFiredForRoundIdRef.current === key) return;
+      autoNextRoundFiredForRoundIdRef.current = key;
+      readyForNextRound();
+    }, Math.max(0, startsAtMs - Date.now()) + 50);
+
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [status, matchOver, resultsRoundId, resultsComputedAt, readyForNextRound, results]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -652,7 +691,7 @@ export default function BattleConnected() {
                         {results.round_winner === currentUser ? 'ROUND SECURED' : results.round_winner === null ? 'STALEMATE' : 'ROUND LOST'}
                       </h2>
                       <div className="text-sm text-white/60 font-mono mb-2">
-                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
+                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 3} needed
                       </div>
                       {typeof results.totalParts === 'number' &&
                        typeof results.p1PartsCorrect === 'number' &&
@@ -899,30 +938,25 @@ export default function BattleConnected() {
 
                 {!matchOver && (
                   <div className="mt-6">
-                    {!resultsAcknowledged ? (
-                      <button
-                        onClick={readyForNextRound}
-                        disabled={!isWebSocketConnected}
-                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-all shadow-lg ${
-                          isWebSocketConnected
-                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
-                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
-                      </button>
-                    ) : waitingForOpponentToAcknowledge ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                        <div className="text-sm font-mono text-white/60">
-                          WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-sm font-mono text-white/60 text-center">
-                        BOTH PLAYERS READY - STARTING NEXT ROUND...
-                      </div>
-                    )}
+                    <div className="flex flex-col items-center gap-3">
+                      {nextRoundSecondsLeft !== null && nextRoundSecondsLeft > 0 ? (
+                        <>
+                          <div className="text-sm font-mono text-white/60 text-center">
+                            NEXT ROUND STARTING IN <span className="text-white font-bold">{nextRoundSecondsLeft}</span> SECONDS
+                          </div>
+                          <div className="text-xs font-mono text-white/40 text-center">
+                            (AUTOMATIC)
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                          <div className="text-sm font-mono text-white/60 text-center">
+                            STARTING NEXT ROUND...
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
                 {matchOver && (

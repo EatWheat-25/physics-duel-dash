@@ -47,7 +47,8 @@ export interface RoundStartEvent {
   matchId: string;
   roundId: string;
   roundIndex: number;
-  phase: 'thinking' | 'main_question';
+  phase: 'thinking' | 'main_question' | 'steps';
+  targetRoundsToWin?: number;
   question: QuestionDTO;
   thinkingEndsAt?: string; // ISO timestamp
   mainQuestionEndsAt?: string; // ISO timestamp
