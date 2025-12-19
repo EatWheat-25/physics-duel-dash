@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CharacterProvider } from "@/hooks/useCharacter";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import Index from "./pages/Index";
 import Home from "./routes/Home";
@@ -27,6 +27,7 @@ import BattlePageNew from "./components/BattlePageNew";
 import BattleLoader from "./components/BattleLoader";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
+import AdminDashboard from "./pages/AdminDashboard";
 import AdminQuestions from "./pages/AdminQuestions";
 import AdminLogin from "./pages/AdminLogin";
 import OnlineBattlePage from "./pages/OnlineBattlePage";
@@ -41,6 +42,7 @@ import MatchmakingTest from "./pages/MatchmakingTest";
 import BattleSimple from "./pages/BattleSimple";
 import SupabaseDebug from "./pages/SupabaseDebug";
 import { getRandomQuestions } from "./data/questions";
+import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +76,15 @@ const App = () => {
                 <Route path="/modes" element={<ModeSelection />} />
                 <Route path="/game-modes" element={<GameModes />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+                <Route
+                  path="/admin/dashboard"
+                  element={
+                    <ProtectedAdminRoute>
+                      <AdminDashboard />
+                    </ProtectedAdminRoute>
+                  }
+                />
                 <Route path="/admin/questions" element={<AdminQuestions />} />
                 <Route path="/debug/questions" element={<DebugQuestions />} />
                 <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
