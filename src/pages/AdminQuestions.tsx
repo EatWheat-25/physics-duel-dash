@@ -15,6 +15,20 @@ import { Badge } from '@/components/ui/badge';
 import SpaceBackground from '@/components/SpaceBackground';
 import { useIsAdmin } from '@/hooks/useUserRole';
 
+const PHYSICS_A1_CHAPTER_TITLES: string[] = [
+  'Chapter 1: Motion in a Straight Line',
+  "Chapter 2: Forces & Newton's Laws",
+  'Chapter 3: Work, Energy & Power',
+  'Chapter 4: Momentum & Collisions',
+  'Chapter 5: Circular Motion',
+  'Chapter 6: Simple Harmonic Motion',
+  'Chapter 7: Waves',
+  'Chapter 8: Electric Current',
+  'Chapter 9: Electric Circuits',
+  'Chapter 10: Magnetic Fields',
+  'Chapter 11: Photoelectric Effect',
+];
+
 type QuestionFilter = {
   subject: 'all' | 'math' | 'physics' | 'chemistry';
   level: 'all' | 'A1' | 'A2';
@@ -1192,7 +1206,15 @@ export default function AdminQuestions() {
                           onChange={e => setForm({ ...form, chapter: e.target.value })}
                           className={glassInput}
                           placeholder="e.g. Integration"
+                          list={form.subject === 'physics' && form.level === 'A1' ? 'physics-a1-chapters' : undefined}
                         />
+                        {form.subject === 'physics' && form.level === 'A1' && (
+                          <datalist id="physics-a1-chapters">
+                            {PHYSICS_A1_CHAPTER_TITLES.map((t) => (
+                              <option key={t} value={t} />
+                            ))}
+                          </datalist>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
