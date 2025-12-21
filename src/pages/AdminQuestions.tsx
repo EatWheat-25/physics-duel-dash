@@ -16,17 +16,17 @@ import SpaceBackground from '@/components/SpaceBackground';
 import { useIsAdmin } from '@/hooks/useUserRole';
 
 const PHYSICS_A1_CHAPTER_TITLES: string[] = [
-  'Chapter 1: Motion in a Straight Line',
-  "Chapter 2: Forces & Newton's Laws",
-  'Chapter 3: Work, Energy & Power',
-  'Chapter 4: Momentum & Collisions',
-  'Chapter 5: Circular Motion',
-  'Chapter 6: Simple Harmonic Motion',
+  'Chapter 1: Physical Quantities',
+  'Chapter 2: Kinematics',
+  'Chapter 3: Dynamics',
+  'Chapter 4: Force Density and Pressure',
+  'Chapter 5: Work, Power and Energy',
+  'Chapter 6: Deformation of Solids',
   'Chapter 7: Waves',
-  'Chapter 8: Electric Current',
-  'Chapter 9: Electric Circuits',
-  'Chapter 10: Magnetic Fields',
-  'Chapter 11: Photoelectric Effect',
+  'Chapter 8: Superpositions',
+  'Chapter 9: Current of Electricity',
+  'Chapter 10: DC Circuits',
+  'Chapter 11: Nuclear Physics',
 ];
 
 type QuestionFilter = {
