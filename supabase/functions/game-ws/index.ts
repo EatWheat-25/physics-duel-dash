@@ -584,6 +584,8 @@ async function selectAndBroadcastQuestion(
 
     // Calculate new round number
     const newRoundNumber = (match.current_round_number || 0) + 1
+    // If we detect an already-active round created by another instance, we should reuse its round_number
+    let roundNumberForUpdate = newRoundNumber
 
     // Select question (reuse existing logic)
     let questionDb: any = null
@@ -722,31 +724,127 @@ async function selectAndBroadcastQuestion(
       }
     }
 
-    // ===== Create new match_rounds row with question_id (NON-NEGOTIABLE 1: single source of truth) =====
-    const { data: newRound, error: roundError } = await supabase
-      .from('match_rounds')
-      .insert({
-        match_id: matchId,
-        question_id: questionDb.id, // Single source of truth for question
-        round_number: newRoundNumber,
-        status: 'main' // For simple questions, will transition to 'results' when computed
-      })
-      .select('id')
-      .single()
+    // ===== Create or reuse match_rounds row with question_id (idempotent across Edge instances) =====
+    let newRound: any = null
 
-    if (roundError || !newRound) {
-      console.error(`[${matchId}] ❌ Failed to create match_rounds row:`, roundError)
-      throw roundError || new Error('Failed to create match_rounds row')
+    // IDEMPOTENCY: another instance may have already created an active round (status main/steps)
+    const { data: existingRound, error: existingRoundError } = await supabase
+      .from('match_rounds')
+      .select('id, question_id, round_number, status')
+      .eq('match_id', matchId)
+      .in('status', ['main', 'steps'])
+      .maybeSingle()
+
+    if (existingRoundError) {
+      // This shouldn't normally happen; log and continue with insert path
+      console.warn(`[${matchId}] ⚠️ Error checking existing round:`, existingRoundError)
     }
 
-    console.log(`[${matchId}] ✅ Created match_rounds row: ${newRound.id} for round ${newRoundNumber}`)
+    if (existingRound) {
+      console.log(`[${matchId}] ✅ Round already exists: ${existingRound.id}, reusing...`)
+      newRound = { id: existingRound.id }
+      if (typeof existingRound.round_number === 'number') {
+        roundNumberForUpdate = existingRound.round_number
+      }
+
+      // Treat existing round as authoritative if question_id differs (keep both clients in sync)
+      if (existingRound.question_id && existingRound.question_id !== questionDb.id) {
+        console.warn(
+          `[${matchId}] ⚠️ Existing round has different question_id (${existingRound.question_id}); re-fetching question to stay consistent`
+        )
+        const { data: existingQuestion, error: existingQuestionError } = await supabase
+          .from('questions_v2')
+          .select('*')
+          .eq('id', existingRound.question_id)
+          .single()
+
+        if (existingQuestionError || !existingQuestion) {
+          console.error(`[${matchId}] ❌ Failed to fetch existing round question:`, existingQuestionError)
+        } else {
+          questionDb = existingQuestion
+        }
+      }
+    } else {
+      // ===== Create new match_rounds row with question_id (single source of truth) =====
+      const { data: insertedRound, error: roundError } = await supabase
+        .from('match_rounds')
+        .insert({
+          match_id: matchId,
+          question_id: questionDb.id, // Single source of truth for question
+          round_number: newRoundNumber,
+          status: 'main' // For simple questions, will transition to 'results' when computed
+        })
+        .select('id')
+        .single()
+
+      if (roundError || !insertedRound) {
+        // Handle unique constraint violation gracefully (another instance created the round)
+        if (
+          roundError?.code === '23505' ||
+          roundError?.message?.includes('unique') ||
+          roundError?.message?.includes('duplicate')
+        ) {
+          console.log(
+            `[${matchId}] ⚠️ Round insert hit unique constraint; another instance created it. Fetching existing...`
+          )
+
+          const { data: fetchedRound, error: fetchedRoundError } = await supabase
+            .from('match_rounds')
+            .select('id, question_id, round_number, status')
+            .eq('match_id', matchId)
+            .in('status', ['main', 'steps'])
+            .maybeSingle()
+
+          if (fetchedRoundError) {
+            console.error(`[${matchId}] ❌ Error fetching existing round after constraint violation:`, fetchedRoundError)
+            throw fetchedRoundError
+          }
+
+          if (!fetchedRound) {
+            console.error(`[${matchId}] ❌ Failed to find round after constraint violation`)
+            throw new Error('Failed to create or find match_rounds row')
+          }
+
+          console.log(`[${matchId}] ✅ Found round created by other instance: ${fetchedRound.id}`)
+          newRound = { id: fetchedRound.id }
+          if (typeof fetchedRound.round_number === 'number') {
+            roundNumberForUpdate = fetchedRound.round_number
+          }
+
+          // Align questionDb with the fetched round if needed
+          if (fetchedRound.question_id && fetchedRound.question_id !== questionDb.id) {
+            const { data: fetchedQuestion, error: fetchedQuestionError } = await supabase
+              .from('questions_v2')
+              .select('*')
+              .eq('id', fetchedRound.question_id)
+              .single()
+
+            if (fetchedQuestionError || !fetchedQuestion) {
+              console.error(`[${matchId}] ❌ Failed to fetch question for existing round:`, fetchedQuestionError)
+            } else {
+              questionDb = fetchedQuestion
+            }
+          }
+        } else {
+          console.error(`[${matchId}] ❌ Failed to create match_rounds row:`, roundError)
+          throw roundError || new Error('Failed to create match_rounds row')
+        }
+      } else {
+        newRound = insertedRound
+        console.log(`[${matchId}] ✅ Created match_rounds row: ${newRound.id} for round ${roundNumberForUpdate}`)
+      }
+    }
+
+    if (!newRound?.id) {
+      throw new Error('Failed to obtain round ID')
+    }
 
     // ===== Update matches with current_round_id and current_round_number =====
     const { error: updateError } = await supabase
       .from('matches')
       .update({
         current_round_id: newRound.id,
-        current_round_number: newRoundNumber,
+        current_round_number: roundNumberForUpdate,
         // Keep question_id for backwards compatibility, but we read from match_rounds.question_id
         question_id: questionDb.id
       })
@@ -757,12 +855,13 @@ async function selectAndBroadcastQuestion(
       throw updateError
     }
 
-    console.log(`[${matchId}] ✅ Updated matches.current_round_id = ${newRound.id}, current_round_number = ${newRoundNumber}`)
+    console.log(`[${matchId}] ✅ Updated matches.current_round_id = ${newRound.id}, current_round_number = ${roundNumberForUpdate}`)
 
     // After obtaining questionDb, set it in gameState for idempotency
     const existingGameState = gameStates.get(matchId)
     if (existingGameState) {
       existingGameState.currentQuestion = questionDb
+      existingGameState.roundNumber = roundNumberForUpdate
     } else {
       // Get match players for game state initialization
       const { data: matchData } = await supabase
@@ -786,7 +885,7 @@ async function selectAndBroadcastQuestion(
         p1Id: matchData?.player1_id || null,
         p2Id: matchData?.player2_id || null,
         eliminatedPlayers: new Set(),
-        roundNumber: newRoundNumber,
+        roundNumber: roundNumberForUpdate,
         targetRoundsToWin: match.target_rounds_to_win || 4,
         playerRoundWins: new Map(),
         p1AllStepsComplete: false,
