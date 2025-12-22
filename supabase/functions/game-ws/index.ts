@@ -221,7 +221,8 @@ function broadcastToMatch(matchId: string, event: any): void {
 async function broadcastQuestion(
   matchId: string,
   questionDb: any,
-  supabase: ReturnType<typeof createClient>
+  supabase: ReturnType<typeof createClient>,
+  roundId?: string
 ): Promise<void> {
   const matchSockets = sockets.get(matchId)
   if (!matchSockets || matchSockets.size === 0) {
@@ -336,7 +337,8 @@ async function broadcastQuestion(
     const roundStartEvent: RoundStartEvent = {
       type: 'ROUND_START',
       matchId,
-      roundId: matchId, // Using matchId as roundId for now
+      // Use canonical match_rounds.id if provided; fallback to matchId only if absent
+      roundId: roundId ?? matchId,
       roundIndex: currentRoundNumber - 1, // roundIndex is 0-based
       phase: 'main_question',
       question: {
@@ -895,7 +897,7 @@ async function selectAndBroadcastQuestion(
     }
     
     console.log(`[${matchId}] ✅ Selected new question from DB: ${questionDb.id}`)
-    await broadcastQuestion(matchId, questionDb, supabase)
+    await broadcastQuestion(matchId, questionDb, supabase, newRound.id)
   } catch (error) {
     console.error(`[${matchId}] ❌ Error in atomic question selection:`, error)
     

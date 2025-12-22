@@ -595,6 +595,17 @@ export function useGame(match: MatchRow | null) {
               // Clear processed round IDs and results when new round starts
               processedRoundIdsRef.current.clear()
               const roundStartEvent = message as any as RoundStartEvent
+              const roundIdFromMessage = roundStartEvent.roundId
+
+              // Only trust roundId if it differs from the match id (canonical match_rounds.id)
+              if (roundIdFromMessage && roundIdFromMessage !== match?.id) {
+                currentRoundIdRef.current = roundIdFromMessage
+              }
+
+              const resolvedRoundId = roundIdFromMessage && roundIdFromMessage !== match?.id
+                ? roundIdFromMessage
+                : state.currentRoundId || currentRoundIdRef.current
+
               if (roundStartEvent.phase === 'main_question' || roundStartEvent.phase === 'steps') {
                 // Multi-step question (async segments may start directly in steps)
                 setState(prev => ({
@@ -610,7 +621,7 @@ export function useGame(match: MatchRow | null) {
                   currentSubStep: null,
                   subStepTimeLeft: null,
                   // Match-level info (used by UI scoreboard)
-                  currentRoundId: roundStartEvent.roundId ?? prev.currentRoundId,
+                  currentRoundId: resolvedRoundId ?? prev.currentRoundId,
                   currentRoundNumber: Number.isFinite(roundStartEvent.roundIndex)
                     ? roundStartEvent.roundIndex + 1
                     : prev.currentRoundNumber,
@@ -631,7 +642,7 @@ export function useGame(match: MatchRow | null) {
                   status: 'playing',
                   phase: 'question',
                   question: roundStartEvent.question,
-                  currentRoundId: roundStartEvent.roundId ?? prev.currentRoundId,
+                  currentRoundId: resolvedRoundId ?? prev.currentRoundId,
                   currentRoundNumber: Number.isFinite(roundStartEvent.roundIndex)
                     ? roundStartEvent.roundIndex + 1
                     : prev.currentRoundNumber,
