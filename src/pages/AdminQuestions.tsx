@@ -454,14 +454,32 @@ export default function AdminQuestions() {
           return false;
         }
       } else {
-        // MCQ: need at least 2 non-empty options
-        const nonEmptyOptions = step.options.filter(opt => opt.trim());
-        if (nonEmptyOptions.length < 2) {
-          toast.error(`Step ${i + 1}: MCQ questions need at least 2 options`);
+        const trimmed: [string, string, string, string] = [
+          step.options[0].trim(),
+          step.options[1].trim(),
+          step.options[2].trim(),
+          step.options[3].trim(),
+        ];
+
+        // MCQ: require at least A + B
+        if (!trimmed[0] || !trimmed[1]) {
+          toast.error(`Step ${i + 1}: MCQ needs at least 2 options (A and B)`);
           return false;
         }
-        if (step.correctAnswer < 0 || step.correctAnswer >= nonEmptyOptions.length) {
-          toast.error(`Step ${i + 1}: correct answer must be between 0 and ${nonEmptyOptions.length - 1}`);
+
+        // Disallow gaps (e.g. D filled while C empty)
+        if (!trimmed[2] && trimmed[3]) {
+          toast.error(`Step ${i + 1}: Fill option C before option D`);
+          return false;
+        }
+
+        const maxIndex = trimmed[3] ? 3 : trimmed[2] ? 2 : 1;
+        if (step.correctAnswer < 0 || step.correctAnswer > maxIndex) {
+          toast.error(`Step ${i + 1}: correct answer must be between 0 and ${maxIndex}`);
+          return false;
+        }
+        if (!trimmed[step.correctAnswer]) {
+          toast.error(`Step ${i + 1}: correct answer cannot point to an empty option`);
           return false;
         }
       }
@@ -486,13 +504,32 @@ export default function AdminQuestions() {
             return false;
           }
         } else {
-          const nonEmptyOptions = sub.options.filter(opt => opt.trim());
-          if (nonEmptyOptions.length < 2) {
-            toast.error(`Step ${i + 1} Sub-step ${j + 1}: MCQ needs at least 2 options`);
+          const trimmed: [string, string, string, string] = [
+            sub.options[0].trim(),
+            sub.options[1].trim(),
+            sub.options[2].trim(),
+            sub.options[3].trim(),
+          ];
+
+          // MCQ: require at least A + B
+          if (!trimmed[0] || !trimmed[1]) {
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: MCQ needs at least 2 options (A and B)`);
             return false;
           }
-          if (sub.correctAnswer < 0 || sub.correctAnswer >= nonEmptyOptions.length) {
-            toast.error(`Step ${i + 1} Sub-step ${j + 1}: correct answer must be between 0 and ${nonEmptyOptions.length - 1}`);
+
+          // Disallow gaps (e.g. D filled while C empty)
+          if (!trimmed[2] && trimmed[3]) {
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: Fill option C before option D`);
+            return false;
+          }
+
+          const maxIndex = trimmed[3] ? 3 : trimmed[2] ? 2 : 1;
+          if (sub.correctAnswer < 0 || sub.correctAnswer > maxIndex) {
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: correct answer must be between 0 and ${maxIndex}`);
+            return false;
+          }
+          if (!trimmed[sub.correctAnswer]) {
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: correct answer cannot point to an empty option`);
             return false;
           }
         }
@@ -513,17 +550,23 @@ export default function AdminQuestions() {
         .filter(t => t.length > 0);
 
       const stepsPayload: QuestionStep[] = form.steps.map((s, i) => {
-        // Get non-empty options based on type
-        let nonEmptyOptions: string[];
+        const trimmed: [string, string, string, string] = [
+          s.options[0].trim(),
+          s.options[1].trim(),
+          s.options[2].trim(),
+          s.options[3].trim(),
+        ];
+
         if (s.type === 'true_false') {
-          nonEmptyOptions = s.options.slice(0, 2).map(o => o.trim()).filter(Boolean);
-          if (nonEmptyOptions.length !== 2) {
-            throw new Error(`Step ${i + 1}: True/False questions must have exactly 2 options`);
+          if (!trimmed[0] || !trimmed[1]) {
+            throw new Error(`Step ${i + 1}: True/False questions must have 2 options (True and False)`);
           }
         } else {
-          nonEmptyOptions = s.options.map(o => o.trim()).filter(Boolean);
-          if (nonEmptyOptions.length < 2) {
-            throw new Error(`Step ${i + 1}: MCQ questions must have at least 2 options`);
+          if (!trimmed[0] || !trimmed[1]) {
+            throw new Error(`Step ${i + 1}: MCQ questions must have at least 2 options (A and B)`);
+          }
+          if (!trimmed[2] && trimmed[3]) {
+            throw new Error(`Step ${i + 1}: Fill option C before option D`);
           }
         }
         
@@ -535,32 +578,42 @@ export default function AdminQuestions() {
         if (s.type === 'true_false' && (correct < 0 || correct > 1)) {
           throw new Error(`Step ${i + 1}: True/False correct answer must be 0 or 1`);
         }
-        if (s.type === 'mcq' && (correct < 0 || correct >= nonEmptyOptions.length)) {
-          throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${nonEmptyOptions.length - 1})`);
+        if (s.type === 'mcq') {
+          const maxIndex = trimmed[3] ? 3 : trimmed[2] ? 2 : 1;
+          if (correct < 0 || correct > maxIndex) {
+            throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${maxIndex})`);
+          }
+          if (!trimmed[correct as 0 | 1 | 2 | 3]) {
+            throw new Error(`Step ${i + 1}: correctAnswer cannot point to an empty option`);
+          }
         }
         
-        // Pad options to exactly 4 for storage (True/False will have empty C and D)
-        const paddedOptions: [string, string, string, string] = [
-          nonEmptyOptions[0] || '',
-          nonEmptyOptions[1] || '',
-          nonEmptyOptions[2] || '',
-          nonEmptyOptions[3] || ''
-        ];
+        // Store options as fixed A/B/C/D (True/False keeps C/D empty)
+        const paddedOptions: [string, string, string, string] =
+          s.type === 'true_false'
+            ? [trimmed[0], trimmed[1], '', '']
+            : trimmed;
 
         const subStepsPayload = (Array.isArray(s.subSteps) ? s.subSteps : [])
           .filter((sub) => sub.prompt.trim().length > 0)
           .map((sub, j) => {
-            // Normalize/validate sub-step options
-            let subNonEmptyOptions: string[];
+            const subTrimmed: [string, string, string, string] = [
+              sub.options[0].trim(),
+              sub.options[1].trim(),
+              sub.options[2].trim(),
+              sub.options[3].trim(),
+            ];
+
             if (sub.type === 'true_false') {
-              subNonEmptyOptions = sub.options.slice(0, 2).map(o => o.trim()).filter(Boolean);
-              if (subNonEmptyOptions.length !== 2) {
-                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False must have exactly 2 options`);
+              if (!subTrimmed[0] || !subTrimmed[1]) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False must have 2 options (True and False)`);
               }
             } else {
-              subNonEmptyOptions = sub.options.map(o => o.trim()).filter(Boolean);
-              if (subNonEmptyOptions.length < 2) {
-                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: MCQ must have at least 2 options`);
+              if (!subTrimmed[0] || !subTrimmed[1]) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: MCQ must have at least 2 options (A and B)`);
+              }
+              if (!subTrimmed[2] && subTrimmed[3]) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: Fill option C before option D`);
               }
             }
 
@@ -571,16 +624,20 @@ export default function AdminQuestions() {
             if (sub.type === 'true_false' && (subCorrect < 0 || subCorrect > 1)) {
               throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False correct answer must be 0 or 1`);
             }
-            if (sub.type === 'mcq' && (subCorrect < 0 || subCorrect >= subNonEmptyOptions.length)) {
-              throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer out of range (must be 0-${subNonEmptyOptions.length - 1})`);
+            if (sub.type === 'mcq') {
+              const maxIndex = subTrimmed[3] ? 3 : subTrimmed[2] ? 2 : 1;
+              if (subCorrect < 0 || subCorrect > maxIndex) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer out of range (must be 0-${maxIndex})`);
+              }
+              if (!subTrimmed[subCorrect as 0 | 1 | 2 | 3]) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer cannot point to an empty option`);
+              }
             }
 
-            const subPaddedOptions: [string, string, string, string] = [
-              subNonEmptyOptions[0] || '',
-              subNonEmptyOptions[1] || '',
-              subNonEmptyOptions[2] || '',
-              subNonEmptyOptions[3] || ''
-            ];
+            const subPaddedOptions: [string, string, string, string] =
+              sub.type === 'true_false'
+                ? [subTrimmed[0], subTrimmed[1], '', '']
+                : subTrimmed;
 
             return {
               type: sub.type,
@@ -624,7 +681,7 @@ export default function AdminQuestions() {
       if (mode === 'creating') {
         const { data, error } = await supabase
           .from('questions_v2')
-          .insert([payload])
+          .insert([payload] as any)
           .select()
           .single();
 
@@ -638,7 +695,7 @@ export default function AdminQuestions() {
       } else if (mode === 'editing' && selectedQuestionId) {
         const { data, error } = await supabase
           .from('questions_v2')
-          .update(payload)
+          .update(payload as any)
           .eq('id', selectedQuestionId)
           .select()
           .single();
@@ -712,17 +769,17 @@ export default function AdminQuestions() {
 
       // Handle matches table if it has question_id column
       // Try to update to NULL first, then delete if that fails
-      const { error: matchesUpdateError } = await supabase
+      const { error: matchesUpdateError } = await (supabase as any)
         .from('matches')
-        .update({ question_id: null } as any)
-        .eq('question_id' as any, selectedQuestionId);
+        .update({ question_id: null })
+        .eq('question_id', selectedQuestionId);
 
       if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
         // If update to NULL fails (column not nullable), try deleting matches
-        const { error: matchesDeleteError } = await supabase
+        const { error: matchesDeleteError } = await (supabase as any)
           .from('matches')
           .delete()
-          .eq('question_id' as any, selectedQuestionId);
+          .eq('question_id', selectedQuestionId);
         
         if (matchesDeleteError && !matchesDeleteError.message.includes('does not exist')) {
           console.warn('[AdminQuestions] Error handling matches:', matchesDeleteError);
@@ -829,17 +886,17 @@ export default function AdminQuestions() {
 
       // Handle matches table if it has question_id column
       // Try to update to NULL first, then delete if that fails
-      const { error: matchesUpdateError } = await supabase
+      const { error: matchesUpdateError } = await (supabase as any)
         .from('matches')
-        .update({ question_id: null } as any)
-        .eq('question_id' as any, questionId);
+        .update({ question_id: null })
+        .eq('question_id', questionId);
 
       if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
         // If update to NULL fails (column not nullable), try deleting matches
-        const { error: matchesDeleteError } = await supabase
+        const { error: matchesDeleteError } = await (supabase as any)
           .from('matches')
           .delete()
-          .eq('question_id' as any, questionId);
+          .eq('question_id', questionId);
         
         if (matchesDeleteError && !matchesDeleteError.message.includes('does not exist')) {
           console.warn('[AdminQuestions] Error handling matches:', matchesDeleteError);
