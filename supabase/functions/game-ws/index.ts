@@ -927,6 +927,10 @@ async function selectAndBroadcastQuestion(
         let q = supabase
           .from('questions_v2')
           .select('*')
+          // Prefer newest questions so recently added/edited questions actually show up in-game.
+          // Important: nullsFirst=false ensures rows missing updated_at don't float to the top.
+          .order('updated_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false, nullsFirst: false })
           .limit(200)
         
         if (filters.subject && subject) q = q.eq('subject', subject)
@@ -949,14 +953,6 @@ async function selectAndBroadcastQuestion(
         })
       }
 
-      // Fetch in tiers
-      const tiers = [
-        await fetchTier({ subject: true, level: true }),
-        await fetchTier({ subject: true, level: false }),
-        await fetchTier({ subject: false, level: true }),
-        await fetchTier({ subject: false, level: false })
-      ]
-
       // Filter for valid questions (True/False or MCQ)
       const isValidQuestion = (q: any) => {
         try {
@@ -975,14 +971,26 @@ async function selectAndBroadcastQuestion(
         }
       }
 
-      const questionPool = tiers.flatMap(list => list.filter(isValidQuestion))
+      // Fetch in tiers with proper priority (only fall back if the stricter tier is empty).
+      // This also keeps the selection pool small, increasing the chance of new questions appearing.
+      const tier1 = (await fetchTier({ subject: true, level: true })).filter(isValidQuestion)
+      const tier2 = tier1.length === 0 ? (await fetchTier({ subject: true, level: false })).filter(isValidQuestion) : []
+      const tier3 = tier1.length === 0 && tier2.length === 0 ? (await fetchTier({ subject: false, level: true })).filter(isValidQuestion) : []
+      const tier4 = tier1.length === 0 && tier2.length === 0 && tier3.length === 0
+        ? (await fetchTier({ subject: false, level: false })).filter(isValidQuestion)
+        : []
+
+      const questionPool = tier1.length > 0 ? tier1 : tier2.length > 0 ? tier2 : tier3.length > 0 ? tier3 : tier4
 
       if (questionPool.length === 0) {
         console.error(`[${matchId}] ❌ No valid questions available (need True/False or MCQ questions)`)
         throw new Error('No valid questions available')
       }
 
-      const selectedQuestion = questionPool[Math.floor(Math.random() * questionPool.length)]
+      // Bias toward newer questions: pick randomly from the newest N (still randomized, but boosts recency).
+      const RECENT_POOL_MAX = 50
+      const recentPool = questionPool.slice(0, Math.min(RECENT_POOL_MAX, questionPool.length))
+      const selectedQuestion = recentPool[Math.floor(Math.random() * recentPool.length)]
       console.log(`[${matchId}] 🎯 Selected question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
 
       // Atomic claim: UPDATE only if question_id IS NULL
