@@ -62,6 +62,8 @@ interface ConnectionState {
   timeRemaining: number | null // seconds remaining
   // Step-based question state
   phase: 'question' | 'main_question' | 'steps' | 'result'
+  // Step progression mode: in async mode, the server advances per-player and match_rounds must NOT override.
+  stepProgressMode: 'shared' | 'async'
   currentStepIndex: number
   totalSteps: number
   mainQuestionEndsAt: string | null
@@ -132,6 +134,7 @@ export function useGame(match: MatchRow | null) {
     timeRemaining: null,
     // Step-based question state
     phase: 'question',
+    stepProgressMode: 'shared',
     currentStepIndex: 0,
     totalSteps: 0,
     mainQuestionEndsAt: null,
@@ -612,6 +615,7 @@ export function useGame(match: MatchRow | null) {
                   ...prev,
                   status: 'playing',
                   phase: roundStartEvent.phase === 'steps' ? 'steps' : 'main_question',
+                  stepProgressMode: 'shared',
                   question: roundStartEvent.question,
                   mainQuestionEndsAt: (roundStartEvent as any).mainQuestionEndsAt || null,
                   totalSteps: (roundStartEvent as any).totalSteps || 0,
@@ -641,6 +645,7 @@ export function useGame(match: MatchRow | null) {
                   ...prev,
                   status: 'playing',
                   phase: 'question',
+                  stepProgressMode: 'shared',
                   question: roundStartEvent.question,
                   currentRoundId: resolvedRoundId ?? prev.currentRoundId,
                   currentRoundNumber: Number.isFinite(roundStartEvent.roundIndex)
@@ -661,6 +666,7 @@ export function useGame(match: MatchRow | null) {
                 setState(prev => ({
                   ...prev,
                   phase: 'steps',
+                  stepProgressMode: (message as any).progressMode === 'async' ? 'async' : prev.stepProgressMode,
                   currentStepIndex: message.stepIndex ?? message.currentStepIndex ?? 0,
                   totalSteps: message.totalSteps ?? prev.totalSteps,
                   stepEndsAt: message.stepEndsAt || null,
@@ -796,6 +802,7 @@ export function useGame(match: MatchRow | null) {
                 ...prev,
                 status: 'playing',
                 phase: 'question',
+                stepProgressMode: 'shared',
                 answerSubmitted: false,
                 waitingForOpponent: false,
                 resultsAcknowledged: false,
@@ -1087,6 +1094,10 @@ export function useGame(match: MatchRow | null) {
       // Single-step rounds also use match_rounds.status='main', but the UI phase should remain 'question'.
       const isMultiStepContext = prev.totalSteps > 0 || prev.phase === 'main_question' || prev.phase === 'steps'
       if (!isMultiStepContext) return prev
+
+      // Async per-player progression is driven by WebSocket PHASE_CHANGE + progress RPCs.
+      // match_rounds is match-scoped and cannot represent per-player stepIndex/segment, so ignore it.
+      if (prev.stepProgressMode === 'async') return prev
 
       const status = roundRow.status
       if (status === 'main') {

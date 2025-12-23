@@ -82,6 +82,8 @@ interface PhaseChangeEvent {
   subStepIndex: number
   totalSteps: number
   stepEndsAt: string
+  // Optional: indicates whether step progression is per-player (async) or match-synchronized (shared)
+  progressMode?: 'async' | 'shared'
   currentStep: {
     id: string
     prompt: string
@@ -98,6 +100,12 @@ interface StepAnswerReceivedEvent {
   subStepIndex: number
   playerId: string
   waitingForOpponent: boolean
+}
+
+interface AllStepsCompleteWaitingEvent {
+  type: 'ALL_STEPS_COMPLETE_WAITING'
+  p1Complete: boolean
+  p2Complete: boolean
 }
 
 interface ResultsReceivedEvent {
@@ -144,9 +152,17 @@ const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 // Track timeouts per match (for cleanup)
 const matchTimeouts = new Map<string, number>() // matchId -> timeoutId
 
+// Track async per-player progress sweeps (DB-driven timeouts) per match (per Edge instance)
+const asyncProgressSweepIntervals = new Map<string, number>() // matchId -> intervalId
+const lastAsyncProgressKeys = new Map<string, Map<string, string>>() // matchId -> (playerId -> key)
+const multiStepResultsComputeInProgress = new Set<string>() // `${matchId}:${roundId}`
+
 // Track game state for multi-step questions
 interface GameState {
   currentPhase: 'question' | 'main_question' | 'steps' | 'result'
+  // When set to 'async', step progression is per-player via DB progress rows.
+  // Undefined means legacy/shared in-memory progression.
+  progressMode?: 'async' | 'shared'
   currentStepIndex: number
   currentSegment: 'main' | 'sub'
   currentSubStepIndex: number
@@ -208,6 +224,285 @@ function broadcastToMatch(matchId: string, event: any): void {
   })
 
   console.log(`[${matchId}] 📊 Broadcast ${event.type} to ${sentCount}/${matchSockets.size} sockets`)
+}
+
+function progressKeyFromRow(row: any): string {
+  const stepIndex = Number(row?.current_step_index ?? row?.currentStepIndex ?? row?.current_step ?? -999)
+  const segment = (row?.current_segment === 'sub' || row?.currentSegment === 'sub') ? 'sub' : 'main'
+  const subIdx = segment === 'sub'
+    ? Number(row?.current_sub_step_index ?? row?.currentSubStepIndex ?? row?.subStepIndex ?? 0)
+    : 0
+  const endsAtRaw = row?.segment_ends_at ?? row?.segmentEndsAt ?? row?.stepEndsAt ?? ''
+  const completedAtRaw = row?.completed_at ?? row?.completedAt ?? ''
+  const endsAt = endsAtRaw ? (() => { try { return new Date(endsAtRaw).toISOString() } catch { return String(endsAtRaw) } })() : ''
+  const completedAt = completedAtRaw ? (() => { try { return new Date(completedAtRaw).toISOString() } catch { return String(completedAtRaw) } })() : ''
+  return `${stepIndex}|${segment}|${subIdx}|${endsAt}|${completedAt}`
+}
+
+function setLastAsyncProgressKey(matchId: string, playerId: string, key: string): void {
+  if (!lastAsyncProgressKeys.has(matchId)) lastAsyncProgressKeys.set(matchId, new Map())
+  lastAsyncProgressKeys.get(matchId)!.set(playerId, key)
+}
+
+function clearAsyncProgressSweep(matchId: string): void {
+  const intervalId = asyncProgressSweepIntervals.get(matchId)
+  if (intervalId) {
+    clearInterval(intervalId)
+    asyncProgressSweepIntervals.delete(matchId)
+  }
+  lastAsyncProgressKeys.delete(matchId)
+}
+
+function ensureAsyncProgressSweep(matchId: string, supabase: ReturnType<typeof createClient>): void {
+  if (asyncProgressSweepIntervals.has(matchId)) return
+
+  const intervalId = setInterval(() => {
+    // Fire-and-forget: keep the loop alive even if one tick errors
+    runAsyncProgressSweepTick(matchId, supabase).catch((err) => {
+      console.error(`[${matchId}] ❌ Async progress sweep tick error:`, err)
+    })
+  }, 1000) as unknown as number
+
+  asyncProgressSweepIntervals.set(matchId, intervalId)
+  console.log(`[${matchId}] 🕒 Started async progress sweep (1s)`)
+}
+
+async function runAsyncProgressSweepTick(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const gameState = gameStates.get(matchId)
+  const matchSockets = sockets.get(matchId)
+
+  // Stop sweep if match no longer active on this instance
+  if (!matchSockets || matchSockets.size === 0 || !gameState || gameState.progressMode !== 'async' || gameState.currentPhase !== 'steps') {
+    clearAsyncProgressSweep(matchId)
+    return
+  }
+
+  const { data: matchRow, error: matchError } = await supabase
+    .from('matches')
+    .select('current_round_id, player1_id, player2_id')
+    .eq('id', matchId)
+    .single()
+
+  if (matchError || !matchRow?.current_round_id) return
+  const roundId = matchRow.current_round_id as string
+
+  // Advance any overdue segments (idempotent + serialized by advisory locks in SQL)
+  const { error: sweepError } = await supabase.rpc('auto_advance_overdue_segments_v1', {
+    p_match_id: matchId,
+    p_round_id: roundId
+  })
+  if (sweepError) {
+    console.warn(`[${matchId}] ⚠️ auto_advance_overdue_segments_v1 error:`, sweepError)
+  }
+
+  const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
+  if (playerIds.length === 0) return
+
+  const { data: progressRows, error: progressRowsError } = await supabase
+    .from('match_round_player_progress_v1')
+    .select('*')
+    .eq('match_id', matchId)
+    .eq('round_id', roundId)
+    .in('player_id', playerIds)
+
+  if (progressRowsError || !Array.isArray(progressRows)) return
+
+  const steps = normalizeSteps(gameState.currentQuestion?.steps)
+  const hasSteps = steps.length > 0
+
+  // Completion state (for waiting UI). We broadcast this when it changes.
+  const byPlayer = new Map<string, any>()
+  progressRows.forEach((row: any) => byPlayer.set(row.player_id, row))
+  const p1Complete = !!(matchRow.player1_id && byPlayer.get(matchRow.player1_id)?.completed_at)
+  const p2Complete = !!(matchRow.player2_id && byPlayer.get(matchRow.player2_id)?.completed_at)
+
+  // Push per-player PHASE_CHANGE updates when progress changes
+  for (const row of progressRows) {
+    const pid = row.player_id as string
+    const key = progressKeyFromRow(row)
+    const prevKey = lastAsyncProgressKeys.get(matchId)?.get(pid)
+    if (key === prevKey) continue
+    setLastAsyncProgressKey(matchId, pid, key)
+
+    // If player finished, waiting UI is driven by ALL_STEPS_COMPLETE_WAITING
+    if (row.completed_at) continue
+
+    if (!hasSteps) continue
+
+    const stepIndex = Number(row.current_step_index ?? 0)
+    const seg = (row.current_segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
+    const subIdx = seg === 'sub' ? Number(row.current_sub_step_index ?? 0) : 0
+    const stepEndsAt = row.segment_ends_at ? String(row.segment_ends_at) : new Date().toISOString()
+
+    if (!Number.isFinite(stepIndex) || stepIndex < 0 || stepIndex >= steps.length) continue
+    const mainStep = steps[stepIndex]
+    const subSteps = normalizeSubSteps(mainStep)
+    const segStep = seg === 'main' ? mainStep : subSteps[subIdx]
+    if (!segStep) continue
+
+    const phaseChangeEvent: PhaseChangeEvent = {
+      type: 'PHASE_CHANGE',
+      matchId,
+      phase: 'steps',
+      stepIndex,
+      segment: seg,
+      subStepIndex: subIdx,
+      totalSteps: steps.length,
+      stepEndsAt,
+      progressMode: 'async',
+      currentStep: {
+        id: segStep?.id || '',
+        prompt: coercePrompt(segStep),
+        options: coerceOptions(segStep),
+        correctAnswer: coerceCorrectAnswerIndex(segStep),
+        marks: mainStep?.marks || 0
+      }
+    }
+
+    sendToPlayer(matchId, pid, phaseChangeEvent)
+  }
+
+  // If completion changed (or one player completed), broadcast waiting status so UI can show the correct end-of-steps screen.
+  // We key off completion booleans only (not per-player step position).
+  const completionKey = `${p1Complete}|${p2Complete}`
+  const prevCompletionKey = lastAsyncProgressKeys.get(matchId)?.get('__completion__')
+  if (completionKey !== prevCompletionKey) {
+    setLastAsyncProgressKey(matchId, '__completion__', completionKey)
+    const waitingEvent: AllStepsCompleteWaitingEvent = {
+      type: 'ALL_STEPS_COMPLETE_WAITING',
+      p1Complete,
+      p2Complete
+    }
+    if (matchRow.player1_id) sendToPlayer(matchId, matchRow.player1_id, waitingEvent)
+    if (matchRow.player2_id) sendToPlayer(matchId, matchRow.player2_id, waitingEvent)
+
+    // If both players are complete, compute results immediately (idempotent).
+    if (p1Complete && p2Complete) {
+      await computeAndBroadcastMultiStepResultsV3(matchId, roundId, supabase)
+    }
+  }
+}
+
+async function computeAndBroadcastMultiStepResultsV3(
+  matchId: string,
+  roundId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const key = `${matchId}:${roundId}`
+  if (multiStepResultsComputeInProgress.has(key)) return
+  multiStepResultsComputeInProgress.add(key)
+
+  try {
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('compute_multi_step_results_v3', {
+      p_match_id: matchId,
+      p_round_id: roundId
+    })
+
+    if (rpcError) {
+      console.error(`[${matchId}] ❌ Error calling compute_multi_step_results_v3:`, rpcError)
+      return
+    }
+
+    if (!rpcResult?.success) {
+      console.error(`[${matchId}] ❌ compute_multi_step_results_v3 returned error:`, rpcResult?.error)
+      return
+    }
+
+    const payload = rpcResult.results_payload
+    if (!payload) {
+      console.error(`[${matchId}] ❌ compute_multi_step_results_v3 did not return results_payload`)
+      return
+    }
+
+    // FAST-PATH: broadcast via WebSocket (Realtime on matches delivers cross-instance)
+    const resultsEvent = {
+      type: 'RESULTS_RECEIVED',
+      results_payload: payload,
+      results_version: rpcResult.results_version,
+      round_number: payload.round_number,
+      round_id: payload.round_id ?? roundId
+    }
+    broadcastToMatch(matchId, resultsEvent)
+
+    // Reset readiness tracking for results acknowledgment
+    const matchState = matchStates.get(matchId)
+    if (matchState) {
+      matchState.p1ResultsAcknowledged = false
+      matchState.p2ResultsAcknowledged = false
+      matchState.roundTransitionInProgress = false
+      if (payload.player_round_wins && typeof payload.player_round_wins === 'object') {
+        const next = new Map<string, number>()
+        Object.entries(payload.player_round_wins).forEach(([pid, wins]) => {
+          next.set(pid, Number(wins) || 0)
+        })
+        matchState.playerRoundWins = next
+      }
+    }
+
+    const gameState = gameStates.get(matchId)
+    if (gameState) {
+      gameState.currentPhase = 'result'
+    }
+
+    // Stop async sweep during results
+    clearAsyncProgressSweep(matchId)
+
+    const matchOver = !!payload.match_over
+    const matchWinnerId = payload.match_winner_id ?? null
+
+    if (matchOver) {
+      console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
+      matchStates.delete(matchId)
+      setTimeout(() => {
+        cleanupGameState(matchId)
+      }, 5000)
+    } else {
+      console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
+    }
+  } finally {
+    multiStepResultsComputeInProgress.delete(key)
+  }
+}
+
+/**
+ * Send an event to all sockets for a specific player in a match (supports multi-tab).
+ * Falls back to the provided socket if metadata isn't available.
+ */
+function sendToPlayer(
+  matchId: string,
+  playerId: string,
+  event: any,
+  fallbackSocket?: WebSocket
+): void {
+  const matchSockets = sockets.get(matchId)
+  if (!matchSockets || matchSockets.size === 0) return
+
+  let sentCount = 0
+  matchSockets.forEach((s) => {
+    const metaPlayerId = (s as any)?._playerId as string | undefined
+    if (s.readyState === WebSocket.OPEN && metaPlayerId === playerId) {
+      try {
+        s.send(JSON.stringify(event))
+        sentCount++
+      } catch (err) {
+        console.error(`[${matchId}] ❌ Error sending ${event.type} to player ${playerId}:`, err)
+      }
+    }
+  })
+
+  if (sentCount === 0 && fallbackSocket && fallbackSocket.readyState === WebSocket.OPEN) {
+    try {
+      fallbackSocket.send(JSON.stringify(event))
+      sentCount = 1
+    } catch (err) {
+      console.error(`[${matchId}] ❌ Error sending ${event.type} via fallback socket to player ${playerId}:`, err)
+    }
+  }
+
+  console.log(`[${matchId}] 📤 Sent ${event.type} to player ${playerId}: ${sentCount} socket(s)`)
 }
 
 /**
@@ -1013,6 +1308,9 @@ async function checkAndBroadcastBothConnected(
  * Cleanup game state for a match
  */
 function cleanupGameState(matchId: string): void {
+  // Clear any async progress sweep interval for this match (per-instance)
+  clearAsyncProgressSweep(matchId)
+
   const state = gameStates.get(matchId)
   if (state) {
     if (state.mainQuestionTimer) {
@@ -1122,6 +1420,86 @@ async function transitionToSteps(
   const stepSeconds = (typeof stepSecondsRaw === 'number' && stepSecondsRaw > 0) ? stepSecondsRaw : 15
   const stepEndsAt = new Date(Date.now() + stepSeconds * 1000).toISOString()
   state.stepEndsAt = stepEndsAt
+
+  // Prefer DB-driven per-player async step progression if available.
+  // This is what enables "answer → advance immediately" without waiting for the opponent/timer.
+  try {
+    const { data: matchRow, error: matchError } = await supabase
+      .from('matches')
+      .select('current_round_id, player1_id, player2_id')
+      .eq('id', matchId)
+      .single()
+
+    if (!matchError && matchRow?.current_round_id) {
+      const roundId = matchRow.current_round_id as string
+
+      const { error: initError } = await supabase.rpc('init_round_progress_v1', {
+        p_match_id: matchId,
+        p_round_id: roundId
+      })
+
+      if (!initError) {
+        // If init placed players in main-question sentinel (-1), advance them into step 0 now.
+        const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
+        if (playerIds.length > 0) {
+          const { error: progressUpdateError } = await supabase
+            .from('match_round_player_progress_v1')
+            .update({
+              current_step_index: 0,
+              current_segment: 'main',
+              segment_ends_at: stepEndsAt,
+              updated_at: new Date().toISOString()
+            })
+            .eq('match_id', matchId)
+            .eq('round_id', roundId)
+            .in('player_id', playerIds)
+            .lt('current_step_index', 0)
+
+          if (progressUpdateError) {
+            console.warn(`[${matchId}] ⚠️ Failed to advance progress from main-question sentinel:`, progressUpdateError)
+          }
+        }
+
+        state.progressMode = 'async'
+        ensureAsyncProgressSweep(matchId, supabase)
+
+        const asyncPhaseChangeEvent: PhaseChangeEvent = {
+          type: 'PHASE_CHANGE',
+          matchId,
+          phase: 'steps',
+          stepIndex: 0,
+          segment: 'main',
+          subStepIndex: 0,
+          totalSteps: steps.length,
+          stepEndsAt,
+          progressMode: 'async',
+          currentStep: {
+            id: currentStep.id || '',
+            prompt: currentStep.prompt || currentStep.question || '',
+            options: Array.isArray(currentStep.options) ? currentStep.options : [],
+            correctAnswer: currentStep.correct_answer?.correctIndex ?? currentStep.correctAnswer ?? 0,
+            marks: currentStep.marks || 0
+          }
+        }
+
+        // Step 0 is shared at the start; broadcast is fine. Subsequent segments are per-player.
+        broadcastToMatch(matchId, asyncPhaseChangeEvent)
+
+        // Prime dedupe keys (avoid immediate sweep re-sending step 0)
+        const initialKey = `0|main|0|${new Date(stepEndsAt).toISOString()}|`
+        if (matchRow.player1_id) setLastAsyncProgressKey(matchId, matchRow.player1_id, initialKey)
+        if (matchRow.player2_id) setLastAsyncProgressKey(matchId, matchRow.player2_id, initialKey)
+        setLastAsyncProgressKey(matchId, '__completion__', 'false|false')
+        return
+      } else {
+        console.warn(`[${matchId}] ⚠️ init_round_progress_v1 not available; falling back to legacy shared step progression`, initError)
+      }
+    } else if (matchError) {
+      console.warn(`[${matchId}] ⚠️ Could not query matches.current_round_id for async progression`, matchError)
+    }
+  } catch (err) {
+    console.warn(`[${matchId}] ⚠️ Async step init error; falling back to legacy`, err)
+  }
 
   const phaseChangeEvent: PhaseChangeEvent = {
     type: 'PHASE_CHANGE',
@@ -1361,15 +1739,9 @@ async function calculateStepResults(
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   console.log(`[${matchId}] *** calculateStepResults CALLED ***`)
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1137',message:'calculateStepResults ENTRY',data:{matchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
   const state = gameStates.get(matchId)
   if (!state) {
     console.error(`[${matchId}] *** ERROR: Cannot calculate results - no game state ***`)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1142',message:'calculateStepResults NO STATE',data:{matchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     return
   }
 
@@ -1477,19 +1849,17 @@ async function calculateStepResults(
     return
   }
 
+  // V3: DB-driven multi-step results (reads from match_step_answers_v2; supports async segments)
+  await computeAndBroadcastMultiStepResultsV3(matchId, matchData.current_round_id, supabase)
+  return
+
   // Call database RPC to compute results and write to database
   console.log(`[${matchId}] 📊 Calling compute_multi_step_results_v2 RPC with ${stepResultsArray.length} steps`)
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1239',message:'BEFORE RPC CALL',data:{matchId,roundId:matchData.current_round_id,stepCount:stepResultsArray.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
   const { data: rpcResult, error: rpcError } = await supabase.rpc('compute_multi_step_results_v2', {
     p_match_id: matchId,
     p_round_id: matchData.current_round_id,
     p_step_results: stepResultsArray as any
   })
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1244',message:'AFTER RPC CALL',data:{matchId,hasError:!!rpcError,hasResult:!!rpcResult,success:rpcResult?.success,error:rpcError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
 
   if (rpcError) {
     console.error(`[${matchId}] ❌ Error calling compute_multi_step_results_v2:`, rpcError)
@@ -1501,9 +1871,6 @@ async function calculateStepResults(
   if (!rpcResult?.success) {
     console.error(`[${matchId}] ❌ RPC returned error:`, rpcResult?.error)
     console.error(`[${matchId}] 🔍 DEBUG: RPC FAILED - NO SUCCESS - error=${rpcResult?.error}`)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1291',message:'RPC FAILED - NO SUCCESS',data:{matchId,error:rpcResult?.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     return
   }
 
@@ -1512,9 +1879,6 @@ async function calculateStepResults(
   // Update in-memory state from RPC result
   const payload = rpcResult.results_payload
   console.log(`[${matchId}] 🔍 DEBUG: RPC SUCCESS - PAYLOAD RECEIVED - hasPayload=${!!payload}, mode=${payload?.mode}, resultsVersion=${rpcResult.results_version}`)
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1295',message:'RPC SUCCESS - PAYLOAD RECEIVED',data:{matchId,hasPayload:!!payload,payloadMode:payload?.mode,resultsVersion:rpcResult.results_version},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
   if (payload) {
     const roundWinner = payload.round_winner
     const matchOver = payload.match_over || false
@@ -1618,6 +1982,271 @@ async function handleStepAnswer(
       type: 'GAME_ERROR',
       message: 'Invalid step answer submission'
     } as GameErrorEvent))
+    return
+  }
+
+  // DB-driven async progression: advance THIS player immediately after answering.
+  // This avoids "wait for opponent/timer" between parts.
+  if (state.progressMode === 'async') {
+    // Resolve current round id + players
+    const { data: matchRow, error: matchError } = await supabase
+      .from('matches')
+      .select('current_round_id, player1_id, player2_id')
+      .eq('id', matchId)
+      .single()
+
+    if (matchError || !matchRow?.current_round_id) {
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Match round not available' } as GameErrorEvent))
+      return
+    }
+
+    const roundId = matchRow.current_round_id as string
+
+    // Ensure progress rows exist (idempotent)
+    const { error: initError } = await supabase.rpc('init_round_progress_v1', {
+      p_match_id: matchId,
+      p_round_id: roundId
+    })
+    if (initError) {
+      console.error(`[${matchId}] ❌ init_round_progress_v1 failed:`, initError)
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Progress system unavailable' } as GameErrorEvent))
+      return
+    }
+
+    // Load canonical progress for this player
+    const { data: progress, error: progressError } = await supabase
+      .from('match_round_player_progress_v1')
+      .select('*')
+      .eq('match_id', matchId)
+      .eq('round_id', roundId)
+      .eq('player_id', playerId)
+      .maybeSingle()
+
+    if (progressError || !progress) {
+      console.error(`[${matchId}] ❌ Failed to load player progress:`, progressError)
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Failed to load progress' } as GameErrorEvent))
+      return
+    }
+
+    // If player already finished, just re-emit waiting state
+    if (progress.completed_at) {
+      const p1Complete = !!(matchRow.player1_id && matchRow.player1_id === playerId) || !!progress.completed_at
+      const p2Complete = !!(matchRow.player2_id && matchRow.player2_id === playerId) || false
+      const waitingEvent: AllStepsCompleteWaitingEvent = {
+        type: 'ALL_STEPS_COMPLETE_WAITING',
+        p1Complete,
+        p2Complete
+      }
+      sendToPlayer(matchId, playerId, waitingEvent, socket)
+      return
+    }
+
+    const canonicalStepIndex = Number(progress.current_step_index ?? 0)
+    const canonicalSegment = (progress.current_segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
+    const canonicalSubStepIndex = canonicalSegment === 'sub'
+      ? Number((progress as any).current_sub_step_index ?? 0)
+      : 0
+
+    // If still in main-question sentinel (-1), reject and let the client resync
+    if (!Number.isFinite(canonicalStepIndex) || canonicalStepIndex < 0) {
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Not yet in steps - please wait' } as GameErrorEvent))
+      return
+    }
+
+    // Ensure we have the question payload to compute correctness + build next segment UI
+    const steps = normalizeSteps(state.currentQuestion?.steps)
+    if (steps.length === 0) {
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Question steps not loaded' } as GameErrorEvent))
+      return
+    }
+
+    // Out-of-sync protection: return canonical state to the client (do not record an answer)
+    if (
+      canonicalStepIndex !== stepIndex ||
+      canonicalSegment !== segment ||
+      canonicalSubStepIndex !== subStepIndex
+    ) {
+      const mainStep = steps[canonicalStepIndex]
+      const subSteps = normalizeSubSteps(mainStep)
+      const segmentStep = canonicalSegment === 'main' ? mainStep : subSteps[canonicalSubStepIndex]
+      const stepEndsAt = progress.segment_ends_at ? String(progress.segment_ends_at) : new Date().toISOString()
+
+      if (segmentStep) {
+        const resyncEvent: PhaseChangeEvent = {
+          type: 'PHASE_CHANGE',
+          matchId,
+          phase: 'steps',
+          stepIndex: canonicalStepIndex,
+          segment: canonicalSegment,
+          subStepIndex: canonicalSubStepIndex,
+          totalSteps: steps.length,
+          stepEndsAt,
+          progressMode: 'async',
+          currentStep: {
+            id: segmentStep?.id || '',
+            prompt: coercePrompt(segmentStep),
+            options: coerceOptions(segmentStep),
+            correctAnswer: coerceCorrectAnswerIndex(segmentStep),
+            marks: mainStep?.marks || 0
+          }
+        }
+        sendToPlayer(matchId, playerId, resyncEvent, socket)
+      }
+      return
+    }
+
+    // Determine correct answer for this segment
+    const mainStep = steps[canonicalStepIndex]
+    const subSteps = normalizeSubSteps(mainStep)
+    const segmentStep = canonicalSegment === 'main' ? mainStep : subSteps[canonicalSubStepIndex]
+    if (!segmentStep) {
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Invalid segment' } as GameErrorEvent))
+      return
+    }
+
+    const correctAnswer = coerceCorrectAnswerIndex(segmentStep)
+    const isCorrect = answerIndex === correctAnswer
+
+    // Atomic: record answer + advance THIS player's progress
+    const { data: submitResult, error: submitError } = await supabase.rpc('submit_segment_v1', {
+      p_match_id: matchId,
+      p_round_id: roundId,
+      p_player_id: playerId,
+      p_step_index: canonicalStepIndex,
+      p_segment: canonicalSegment,
+      p_answer_index: answerIndex,
+      p_is_correct: isCorrect
+    })
+
+    if (submitError) {
+      console.error(`[${matchId}] ❌ submit_segment_v1 failed:`, submitError)
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Failed to submit answer' } as GameErrorEvent))
+      return
+    }
+
+    const r: any = submitResult
+
+    // Out-of-sync response from RPC (canonical is returned)
+    if (r?.out_of_sync && r?.canonical) {
+      const c = r.canonical
+      const cStepIndex = Number(c.stepIndex ?? c.current_step_index ?? canonicalStepIndex)
+      const cSegment = (c.segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
+      const cSubIdx = cSegment === 'sub' ? Number(c.subStepIndex ?? c.current_sub_step_index ?? 0) : 0
+      const cEndsAt = c.segmentEndsAt ?? c.segment_ends_at ?? progress.segment_ends_at ?? new Date().toISOString()
+
+      const cMainStep = steps[cStepIndex]
+      const cSubSteps = normalizeSubSteps(cMainStep)
+      const cSegStep = cSegment === 'main' ? cMainStep : cSubSteps[cSubIdx]
+
+      if (cSegStep) {
+        const resyncEvent: PhaseChangeEvent = {
+          type: 'PHASE_CHANGE',
+          matchId,
+          phase: 'steps',
+          stepIndex: cStepIndex,
+          segment: cSegment,
+          subStepIndex: cSubIdx,
+          totalSteps: steps.length,
+          stepEndsAt: String(cEndsAt),
+          progressMode: 'async',
+          currentStep: {
+            id: cSegStep?.id || '',
+            prompt: coercePrompt(cSegStep),
+            options: coerceOptions(cSegStep),
+            correctAnswer: coerceCorrectAnswerIndex(cSegStep),
+            marks: cMainStep?.marks || 0
+          }
+        }
+        sendToPlayer(matchId, playerId, resyncEvent, socket)
+      }
+      return
+    }
+
+    // Completed all parts for this player
+    if (r?.completed === true || r?.already_completed === true) {
+      // Determine completion status for both players (for end-of-steps waiting UI)
+      const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
+      const { data: rows } = await supabase
+        .from('match_round_player_progress_v1')
+        .select('player_id, completed_at')
+        .eq('match_id', matchId)
+        .eq('round_id', roundId)
+        .in('player_id', playerIds)
+
+      const byPlayer = new Map<string, any>()
+      ;(rows || []).forEach((row: any) => byPlayer.set(row.player_id, row))
+
+      const p1Complete = !!(matchRow.player1_id && byPlayer.get(matchRow.player1_id)?.completed_at)
+      const p2Complete = !!(matchRow.player2_id && byPlayer.get(matchRow.player2_id)?.completed_at)
+
+      const waitingEvent: AllStepsCompleteWaitingEvent = {
+        type: 'ALL_STEPS_COMPLETE_WAITING',
+        p1Complete,
+        p2Complete
+      }
+      // Send to both players so each can render correct waiting state.
+      if (matchRow.player1_id) sendToPlayer(matchId, matchRow.player1_id, waitingEvent)
+      if (matchRow.player2_id) sendToPlayer(matchId, matchRow.player2_id, waitingEvent)
+
+      // If both finished, compute results immediately (idempotent).
+      if (p1Complete && p2Complete) {
+        await computeAndBroadcastMultiStepResultsV3(matchId, roundId, supabase)
+      }
+      return
+    }
+
+    // Extract next canonical state from RPC (supports multiple return shapes)
+    const nextObj = r?.next ?? r
+    const nextStepIndex = Number(nextObj.stepIndex ?? nextObj.current_step_index)
+    const nextSegment = (nextObj.segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
+    const nextSubIdx = nextSegment === 'sub'
+      ? Number(nextObj.subStepIndex ?? nextObj.current_sub_step_index ?? 0)
+      : 0
+    const nextEndsAt = nextObj.segmentEndsAt ?? nextObj.segment_ends_at ?? nextObj.stepEndsAt ?? new Date().toISOString()
+
+    if (!Number.isFinite(nextStepIndex) || nextStepIndex < 0) {
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Invalid next progress state' } as GameErrorEvent))
+      return
+    }
+
+    const nextMainStep = steps[nextStepIndex]
+    const nextSubSteps = normalizeSubSteps(nextMainStep)
+    const nextSegStep = nextSegment === 'main' ? nextMainStep : nextSubSteps[nextSubIdx]
+
+    if (!nextSegStep) {
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Invalid next segment' } as GameErrorEvent))
+      return
+    }
+
+    const phaseChangeEvent: PhaseChangeEvent = {
+      type: 'PHASE_CHANGE',
+      matchId,
+      phase: 'steps',
+      stepIndex: nextStepIndex,
+      segment: nextSegment,
+      subStepIndex: nextSubIdx,
+      totalSteps: steps.length,
+      stepEndsAt: String(nextEndsAt),
+      progressMode: 'async',
+      currentStep: {
+        id: nextSegStep?.id || '',
+        prompt: coercePrompt(nextSegStep),
+        options: coerceOptions(nextSegStep),
+        correctAnswer: coerceCorrectAnswerIndex(nextSegStep),
+        // Sub-steps don't award marks; show the parent step marks for UI consistency.
+        marks: nextMainStep?.marks || 0
+      }
+    }
+
+    // Prime sweep dedupe with the new canonical state for this player
+    try {
+      const iso = new Date(String(nextEndsAt)).toISOString()
+      setLastAsyncProgressKey(matchId, playerId, `${nextStepIndex}|${nextSegment}|${nextSubIdx}|${iso}|`)
+    } catch {
+      setLastAsyncProgressKey(matchId, playerId, `${nextStepIndex}|${nextSegment}|${nextSubIdx}|${String(nextEndsAt)}|`)
+    }
+
+    sendToPlayer(matchId, playerId, phaseChangeEvent, socket)
     return
   }
 
@@ -2306,6 +2935,11 @@ async function handleJoinMatch(
     matchId: matchId
   } as ConnectedEvent))
 
+  // Attach metadata to the socket for per-player messaging (multi-tab safe)
+  ;(socket as any)._matchId = matchId
+  ;(socket as any)._playerId = playerId
+  ;(socket as any)._playerRole = playerRole
+
   console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected and confirmed`)
 
   // 5. Check if both players are connected (query database) and broadcast if so
@@ -2538,21 +3172,66 @@ Deno.serve(async (req) => {
           ? message.subStepIndex
           : 0
         await handleStepAnswer(matchId, user.id, message.stepIndex, seg, subIdx, message.answerIndex, socket, supabase)
+      } else if (message.type === 'SUBMIT_SEGMENT_ANSWER') {
+        console.log(`[${matchId}] Processing SUBMIT_SEGMENT_ANSWER from user ${user.id}`)
+        const seg = (message.segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
+        const stepIdx = (typeof message.stepIndex === 'number' && Number.isFinite(message.stepIndex))
+          ? message.stepIndex
+          : 0
+        const subIdx = (typeof message.subStepIndex === 'number' && Number.isFinite(message.subStepIndex))
+          ? message.subStepIndex
+          : 0
+        const ansIdx = (typeof message.answerIndex === 'number' && Number.isFinite(message.answerIndex))
+          ? message.answerIndex
+          : (typeof message.answer === 'number' ? message.answer : 0)
+        await handleStepAnswer(matchId, user.id, stepIdx, seg, subIdx, ansIdx, socket, supabase)
       } else if (message.type === 'SUBMIT_ANSWER') {
         console.log(`[${matchId}] Processing SUBMIT_ANSWER from user ${user.id}`)
         // Check if we're in step phase - if so, route to step handler
         const state = gameStates.get(matchId)
         if (state && state.currentPhase === 'steps') {
-          await handleStepAnswer(
-            matchId,
-            user.id,
-            state.currentStepIndex,
-            state.currentSegment,
-            state.currentSubStepIndex,
-            message.answer,
-            socket,
-            supabase
-          )
+          if (state.progressMode === 'async') {
+            // In async mode, derive canonical step/segment from DB progress to avoid out-of-sync.
+            try {
+              const { data: matchRow } = await supabase
+                .from('matches')
+                .select('current_round_id')
+                .eq('id', matchId)
+                .single()
+
+              const roundId = matchRow?.current_round_id as string | undefined
+              if (roundId) {
+                const { data: progress } = await supabase
+                  .from('match_round_player_progress_v1')
+                  .select('*')
+                  .eq('match_id', matchId)
+                  .eq('round_id', roundId)
+                  .eq('player_id', user.id)
+                  .maybeSingle()
+
+                const pStep = Number(progress?.current_step_index ?? 0)
+                const pSeg = ((progress?.current_segment === 'sub') ? 'sub' : 'main') as 'main' | 'sub'
+                const pSub = pSeg === 'sub' ? Number((progress as any)?.current_sub_step_index ?? 0) : 0
+
+                await handleStepAnswer(matchId, user.id, pStep, pSeg, pSub, message.answer, socket, supabase)
+              } else {
+                await handleStepAnswer(matchId, user.id, state.currentStepIndex, state.currentSegment, state.currentSubStepIndex, message.answer, socket, supabase)
+              }
+            } catch {
+              await handleStepAnswer(matchId, user.id, state.currentStepIndex, state.currentSegment, state.currentSubStepIndex, message.answer, socket, supabase)
+            }
+          } else {
+            await handleStepAnswer(
+              matchId,
+              user.id,
+              state.currentStepIndex,
+              state.currentSegment,
+              state.currentSubStepIndex,
+              message.answer,
+              socket,
+              supabase
+            )
+          }
         } else {
           // V2: Always use handleSubmitAnswerV2 (migrations must be deployed first)
           await handleSubmitAnswerV2(matchId, user.id, message.answer, socket, supabase)
