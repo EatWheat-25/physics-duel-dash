@@ -549,10 +549,10 @@ async function broadcastQuestion(
 
   const isMultiStep = Array.isArray(steps) && steps.length >= 2
 
-  // Get match players for game state
+  // Get match players + target rounds for game state
   const { data: matchData } = await supabase
     .from('matches')
-    .select('player1_id, player2_id')
+    .select('player1_id, player2_id, target_rounds_to_win')
     .eq('id', matchId)
     .single()
 
@@ -566,7 +566,7 @@ async function broadcastQuestion(
       // First round - initialize match state
       matchState = {
         roundNumber: 1,
-        targetRoundsToWin: 4,
+        targetRoundsToWin: matchData?.target_rounds_to_win || 3,
         playerRoundWins: new Map(),
         p1Id: matchData?.player1_id || null,
         p2Id: matchData?.player2_id || null,
@@ -701,7 +701,7 @@ async function broadcastQuestion(
       // First round - initialize match state
       matchState = {
         roundNumber: 1,
-        targetRoundsToWin: 4,
+        targetRoundsToWin: matchData?.target_rounds_to_win || 3,
         playerRoundWins: new Map(),
         p1Id: matchData?.player1_id || null,
         p2Id: matchData?.player2_id || null,
@@ -1196,7 +1196,7 @@ async function selectAndBroadcastQuestion(
         p2Id: matchData?.player2_id || null,
         eliminatedPlayers: new Set(),
         roundNumber: roundNumberForUpdate,
-        targetRoundsToWin: match.target_rounds_to_win || 4,
+        targetRoundsToWin: match.target_rounds_to_win || 3,
         playerRoundWins: new Map(),
         p1AllStepsComplete: false,
         p2AllStepsComplete: false
@@ -2502,7 +2502,7 @@ async function handleSubmitAnswer(
           .single()
         const fallbackState: MatchState = {
           roundNumber: 1,
-          targetRoundsToWin: 4,
+          targetRoundsToWin: matchData?.target_rounds_to_win || 3,
           playerRoundWins: new Map(),
           p1Id: matchData?.player1_id || null,
           p2Id: matchData?.player2_id || null,
@@ -2529,7 +2529,7 @@ async function handleSubmitAnswer(
       // Check if match is over
       const p1Wins = matchState.playerRoundWins.get(matchState.p1Id || '') || 0
       const p2Wins = matchState.playerRoundWins.get(matchState.p2Id || '') || 0
-      const targetWins = matchState.targetRoundsToWin || 4
+      const targetWins = matchState.targetRoundsToWin || 3
       const matchOver = p1Wins >= targetWins || p2Wins >= targetWins
       const matchWinnerId = matchOver ? (p1Wins >= targetWins ? matchState.p1Id : matchState.p2Id) : null
 
@@ -2827,24 +2827,27 @@ async function handleReadyForNextRound(
   socket: WebSocket,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  console.log(`[${matchId}] ✅ READY_FOR_NEXT_ROUND from player ${playerId}`)
-  
-  const matchState = matchStates.get(matchId)
-  if (!matchState) {
-    console.error(`[${matchId}] ❌ No match state found`)
+  console.log(`[${matchId}] ✅ READY_FOR_NEXT_ROUND request from player ${playerId}`)
+
+  // DB-driven: do not rely on in-memory ack state (Edge instances are not shared).
+  // Treat this as a "request to advance / ensure current round question is broadcast to this instance".
+  const { data: matchRow, error: matchError } = await supabase
+    .from('matches')
+    .select('id, player1_id, player2_id, status, winner_id, results_computed_at, current_round_id, current_round_number, question_id')
+    .eq('id', matchId)
+    .single()
+
+  if (matchError || !matchRow) {
+    console.error(`[${matchId}] ❌ READY_FOR_NEXT_ROUND: match not found`, matchError)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
-      message: 'Match state not found'
+      message: 'Match not found'
     } as GameErrorEvent))
     return
   }
 
-  // Determine which player this is
-  const isP1 = matchState.p1Id === playerId
-  const isP2 = matchState.p2Id === playerId
-
-  if (!isP1 && !isP2) {
-    console.error(`[${matchId}] ❌ Player ${playerId} not in match`)
+  if (matchRow.player1_id !== playerId && matchRow.player2_id !== playerId) {
+    console.error(`[${matchId}] ❌ READY_FOR_NEXT_ROUND: player ${playerId} not in match`)
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
       message: 'You are not part of this match'
@@ -2852,41 +2855,63 @@ async function handleReadyForNextRound(
     return
   }
 
-  // Mark player as ready
-  if (isP1) {
-    matchState.p1ResultsAcknowledged = true
-  } else {
-    matchState.p2ResultsAcknowledged = true
+  // If match is finished, notify and stop.
+  if (matchRow.winner_id) {
+    const matchFinishedEvent: MatchFinishedEvent = {
+      type: 'MATCH_FINISHED',
+      winner_id: matchRow.winner_id,
+      total_rounds: matchRow.current_round_number || 0
+    }
+    socket.send(JSON.stringify(matchFinishedEvent))
+    return
   }
 
-  // Check if both players are ready
-  const bothReady = matchState.p1ResultsAcknowledged && matchState.p2ResultsAcknowledged
+  if (matchRow.status !== 'in_progress') {
+    console.warn(`[${matchId}] ⚠️ READY_FOR_NEXT_ROUND: match not in_progress (status=${matchRow.status})`)
+    return
+  }
 
-  // Send acknowledgment to this player
-  const readyEvent = {
+  // If results are currently computed, clear round fields to allow selecting the next round question.
+  // If another instance already transitioned, results_computed_at may already be NULL; that's fine.
+  if (matchRow.results_computed_at) {
+    const { data: resetResult, error: resetError } = await supabase.rpc('start_next_round_stage3', {
+      p_match_id: matchId
+    })
+
+    if (resetError) {
+      // If RPC is missing (migration not applied), fall back to a direct update (server has service role).
+      if (
+        resetError.code === '42883' ||
+        resetError.message?.includes('does not exist') ||
+        resetError.message?.includes('function')
+      ) {
+        console.warn(`[${matchId}] ⚠️ start_next_round_stage3 not available; using direct DB fallback`, resetError)
+        await supabase
+          .from('matches')
+          .update({
+            question_id: null,
+            question_sent_at: null
+          })
+          .eq('id', matchId)
+          .eq('status', 'in_progress')
+          .is('winner_id', null)
+      } else {
+        console.warn(`[${matchId}] ⚠️ start_next_round_stage3 failed; continuing with idempotent selection`, resetError)
+      }
+    } else if (resetResult && resetResult.success === false) {
+      console.warn(`[${matchId}] ⚠️ start_next_round_stage3 returned not-ready; continuing with idempotent selection`, resetResult)
+    }
+  }
+
+  // Idempotent, cross-instance-safe: will reuse an existing active round if another instance already created it.
+  await selectAndBroadcastQuestion(matchId, supabase)
+
+  // Acknowledge request (client may ignore; kept for backwards compatibility)
+  socket.send(JSON.stringify({
     type: 'READY_FOR_NEXT_ROUND',
     playerId,
-    waitingForOpponent: !bothReady
-  }
-  socket.send(JSON.stringify(readyEvent))
-
-  // Broadcast to opponent if they're waiting
-  if (!bothReady) {
-    const opponentId = isP1 ? matchState.p2Id : matchState.p1Id
-    const matchSockets = sockets.get(matchId)
-    if (matchSockets) {
-      matchSockets.forEach((s) => {
-        if (s !== socket && s.readyState === WebSocket.OPEN) {
-          s.send(JSON.stringify(readyEvent))
-        }
-      })
-    }
-    console.log(`[${matchId}] ⏳ Waiting for opponent - P1: ${matchState.p1ResultsAcknowledged}, P2: ${matchState.p2ResultsAcknowledged}`)
-  } else {
-    // Both players ready - start next round
-    console.log(`[${matchId}] ✅ Both players ready - starting next round`)
-    await handleRoundTransition(matchId, supabase)
-  }
+    waitingForOpponent: false
+  }))
 }
 
 /**

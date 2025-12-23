@@ -121,7 +121,8 @@ Deno.serve(async (req) => {
         .insert({
           player1_id: user.id,
           player2_id: opponent.player_id,
-          status: 'pending'
+          status: 'pending',
+          target_rounds_to_win: 3
         })
         .select()
         .single()

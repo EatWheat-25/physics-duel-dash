@@ -84,8 +84,9 @@ export default function BattleConnected() {
     mainQuestionTimeLeft, stepTimeLeft, subStepTimeLeft, currentStep, currentSegment, currentSubStepIndex,
     submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
-    isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
-    allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
+    nextRoundCountdown,
+    isWebSocketConnected, waitingForOpponent,
+    allStepsComplete, waitingForOpponentToCompleteSteps
   } = useGame(match);
 
   // Track round wins for animation
@@ -486,7 +487,7 @@ export default function BattleConnected() {
                         {results.round_winner === currentUser ? 'ROUND SECURED' : results.round_winner === null ? 'STALEMATE' : 'ROUND LOST'}
                       </h2>
                       <div className="text-sm text-white/60 font-mono mb-2">
-                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
+                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 3} needed
                       </div>
                       {results.p1Score !== undefined && results.p2Score !== undefined && (
                         <div className="text-lg font-bold mb-2">
@@ -739,30 +740,31 @@ export default function BattleConnected() {
 
                 {!matchOver && (
                   <div className="mt-6">
-                    {!resultsAcknowledged ? (
-                      <button
-                        onClick={readyForNextRound}
-                        disabled={!isWebSocketConnected}
-                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-all shadow-lg ${
-                          isWebSocketConnected
-                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
-                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
-                      </button>
-                    ) : waitingForOpponentToAcknowledge ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                        <div className="text-sm font-mono text-white/60">
-                          WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-sm font-mono text-white/60 text-center">
-                        BOTH PLAYERS READY - STARTING NEXT ROUND...
-                      </div>
-                    )}
+                    <div className="flex flex-col items-center gap-3">
+                      {!isWebSocketConnected ? (
+                        <>
+                          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                          <div className="text-sm font-mono text-white/60">CONNECTING...</div>
+                        </>
+                      ) : typeof nextRoundCountdown === 'number' ? (
+                        nextRoundCountdown > 0 ? (
+                          <>
+                            <div className="text-xs font-mono text-white/50 tracking-widest">NEXT ROUND IN</div>
+                            <div className="text-5xl font-black tracking-tight">{nextRoundCountdown}s</div>
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                            <div className="text-sm font-mono text-white/60">STARTING NEXT ROUND...</div>
+                          </>
+                        )
+                      ) : (
+                        <>
+                          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                          <div className="text-sm font-mono text-white/60">STARTING NEXT ROUND...</div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
                 {matchOver && (

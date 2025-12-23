@@ -82,6 +82,8 @@ interface ConnectionState {
   playerRoundWins: { [playerId: string]: number }
   matchOver: boolean
   matchWinnerId: string | null
+  // Inter-round countdown (results -> next round)
+  nextRoundCountdown: number | null
 }
 
 interface RoundStartEvent {
@@ -152,7 +154,8 @@ export function useGame(match: MatchRow | null) {
     targetRoundsToWin: 3,
     playerRoundWins: {},
     matchOver: false,
-    matchWinnerId: null
+    matchWinnerId: null,
+    nextRoundCountdown: null
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -251,7 +254,9 @@ export function useGame(match: MatchRow | null) {
           prev.targetRoundsToWin,
         playerRoundWins: mergedRoundWins,
         matchOver: payload.match_over ?? false,
-        matchWinnerId: payload.match_winner_id ?? null
+        matchWinnerId: payload.match_winner_id ?? null,
+        // Auto next round countdown (10s) unless match is over
+        nextRoundCountdown: (payload.match_over ?? false) ? null : 10
       }
     })
 
@@ -583,7 +588,8 @@ export function useGame(match: MatchRow | null) {
                   timerEndAt: timerEndAt,
                   answerSubmitted: false,
                   waitingForOpponent: false,
-                  results: null
+                  results: null,
+                  nextRoundCountdown: null
                 }))
               } catch (error) {
                 console.error('[useGame] Error mapping question:', error)
@@ -637,6 +643,7 @@ export function useGame(match: MatchRow | null) {
                   allStepsComplete: false,
                   waitingForOpponentToCompleteSteps: false,
                   results: null, // Clear results when new round starts
+                  nextRoundCountdown: null,
                   errorMessage: null
                 }))
               } else {
@@ -657,6 +664,7 @@ export function useGame(match: MatchRow | null) {
                   allStepsComplete: false,
                   waitingForOpponentToCompleteSteps: false,
                   results: null, // Clear results when new round starts
+                  nextRoundCountdown: null,
                   errorMessage: null
                 }))
               }
@@ -815,6 +823,7 @@ export function useGame(match: MatchRow | null) {
                 consecutiveWinsCount: message.consecutive_wins_count || 0,
                 timerEndAt: null, // Will be set when QUESTION_RECEIVED arrives
                 timeRemaining: null,
+                nextRoundCountdown: null,
                 // Reset step state
                 currentStepIndex: 0,
                 totalSteps: 0,
@@ -842,7 +851,8 @@ export function useGame(match: MatchRow | null) {
                 waitingForOpponent: false,
                 resultsAcknowledged: false,
                 waitingForOpponentToAcknowledge: false,
-                results: null // Clear results when match ends
+                results: null, // Clear results when match ends
+                nextRoundCountdown: null
               }))
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
@@ -1010,6 +1020,7 @@ export function useGame(match: MatchRow | null) {
             ...prev,
             currentRoundId: newPayload.current_round_id,
             currentRoundNumber: newPayload.current_round_number ?? prev.currentRoundNumber,
+            nextRoundCountdown: null,
             // Clear step-phase state; it will be rehydrated from match_rounds updates
             mainQuestionEndsAt: null,
             stepEndsAt: null,
@@ -1551,6 +1562,46 @@ export function useGame(match: MatchRow | null) {
     })
   }, [])
 
+  // Inter-round countdown: results -> next round (10s)
+  useEffect(() => {
+    if (state.status !== 'results') return
+    if (state.matchOver) return
+    if (state.nextRoundCountdown == null) return
+    if (state.nextRoundCountdown <= 0) return
+
+    const interval = window.setInterval(() => {
+      setState(prev => {
+        if (prev.status !== 'results') return prev
+        if (prev.matchOver) return prev
+        if (prev.nextRoundCountdown == null) return prev
+        return { ...prev, nextRoundCountdown: Math.max(0, prev.nextRoundCountdown - 1) }
+      })
+    }, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [state.status, state.matchOver, state.nextRoundCountdown])
+
+  // Auto-send READY_FOR_NEXT_ROUND at 0s (only once; retries when WS reconnects)
+  useEffect(() => {
+    const shouldSend =
+      state.status === 'results' &&
+      !state.matchOver &&
+      state.nextRoundCountdown === 0 &&
+      !state.resultsAcknowledged
+
+    if (!shouldSend) return
+    if (!isWebSocketConnected) return
+
+    readyForNextRound()
+  }, [
+    state.status,
+    state.matchOver,
+    state.nextRoundCountdown,
+    state.resultsAcknowledged,
+    isWebSocketConnected,
+    readyForNextRound
+  ])
+
   return {
     status: state.status,
     playerRole: state.playerRole,
@@ -1595,6 +1646,7 @@ export function useGame(match: MatchRow | null) {
     playerRoundWins: state.playerRoundWins,
     matchOver: state.matchOver,
     matchWinnerId: state.matchWinnerId,
+    nextRoundCountdown: state.nextRoundCountdown,
     // WebSocket connection status
     isWebSocketConnected
   }
