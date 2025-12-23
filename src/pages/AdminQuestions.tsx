@@ -103,6 +103,12 @@ export default function AdminQuestions() {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
+  const hasAnySubStepsInForm = useMemo(() => {
+    return form.steps.some((s) => Array.isArray(s.subSteps) && s.subSteps.length > 0);
+  }, [form.steps]);
+
+  const subStepsRequireTwoSteps = hasAnySubStepsInForm && form.steps.length < 2;
+
   const filteredQuestions = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
     return questions.filter((q) => {
@@ -367,6 +373,12 @@ export default function AdminQuestions() {
   }
 
   function handleAddSubStep(stepIndex: number) {
+    // Sub-steps are only supported for multi-step questions in-game (2+ steps)
+    if (form.steps.length < 2) {
+      toast.error('Sub-steps require at least 2 steps. Add a second step to enable sub-steps.');
+      return;
+    }
+
     const newSteps = [...form.steps];
     const step = newSteps[stepIndex];
     const current = Array.isArray(step.subSteps) ? step.subSteps : [];
@@ -695,6 +707,12 @@ export default function AdminQuestions() {
           subSteps: subStepsPayload.length > 0 ? subStepsPayload : undefined
         }
       });
+
+      const hasSubSteps = stepsPayload.some((s: any) => Array.isArray((s as any).subSteps) && (s as any).subSteps.length > 0);
+      if (hasSubSteps && stepsPayload.length < 2) {
+        toast.error('Sub-steps require at least 2 steps for in-game multi-step flow. Add Step 2 or remove sub-steps.');
+        return;
+      }
 
       const payload = {
         title: form.title,
@@ -1258,6 +1276,21 @@ export default function AdminQuestions() {
                   {/* Main Editor */}
                   <div className={`flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar transition-all ${showPreview ? 'w-1/2 pr-4' : 'w-full'}`}>
 
+                  {subStepsRequireTwoSteps && (
+                    <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-yellow-100">
+                      <div className="flex items-start gap-3">
+                        <XCircle className="w-5 h-5 text-yellow-400 mt-0.5" />
+                        <div>
+                          <div className="font-bold text-sm">Sub-steps require at least 2 steps</div>
+                          <div className="text-xs text-yellow-100/80 mt-1">
+                            This question currently has sub-steps but only 1 step. In-game, that plays as a single-step question and shows options immediately.
+                            Add a Step 2 (multi-step) or remove sub-steps.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Section: Meta */}
                   <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white/90 border-b border-white/10 pb-2 flex items-center gap-2">
@@ -1559,12 +1592,19 @@ export default function AdminQuestions() {
                                   type="button"
                                   size="sm"
                                   variant="secondary"
-                                  className="bg-white/10 hover:bg-white/15 text-white border border-white/10"
+                                  className={`bg-white/10 text-white border border-white/10 ${form.steps.length < 2 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/15'}`}
                                   onClick={() => handleAddSubStep(index)}
+                                  disabled={form.steps.length < 2}
                                 >
                                   <Plus className="w-4 h-4 mr-2" /> Add Sub-step
                                 </Button>
                               </div>
+
+                              {form.steps.length < 2 && (
+                                <p className="text-xs text-yellow-100/70">
+                                  Add a second step to enable sub-steps (multi-step questions only).
+                                </p>
+                              )}
 
                               {(!step.subSteps || step.subSteps.length === 0) ? (
                                 <p className="text-xs text-white/50">
