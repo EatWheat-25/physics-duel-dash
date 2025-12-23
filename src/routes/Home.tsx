@@ -396,7 +396,7 @@ export default function Home() {
         </div>
 
         {/* Center player card (real “card” feel: depth + foil + tilt) */}
-        <div className="absolute left-1/2 top-[46%] sm:top-[50%] lg:top-[54%] -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[380px]">
+        <div className="absolute left-1/2 top-[46%] sm:top-[50%] lg:top-[54%] -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[340px] lg:w-[360px] aspect-[5/8]">
           <div className="relative" style={{ perspective: 1100 }}>
             <motion.div
               onPointerMove={onCardPointerMove}
@@ -405,7 +405,7 @@ export default function Home() {
               animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
               whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
-              className="lobby-card lobby-3d"
+              className="lobby-card lobby-3d h-full"
               style={{
                 rotateX: tiltXSpring,
                 rotateY: tiltYSpring,
@@ -431,7 +431,7 @@ export default function Home() {
               <div className="absolute left-4 bottom-4 h-4 w-4 border-l border-b border-white/20 pointer-events-none" />
               <div className="absolute right-4 bottom-4 h-4 w-4 border-r border-b border-white/20 pointer-events-none" />
 
-              <div className="relative z-10 p-6 sm:p-7">
+              <div className="relative z-10 p-6 sm:p-7 h-full flex flex-col">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex flex-col gap-2">
                     <span className="lobby-chip">
@@ -453,8 +453,9 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Avatar plate */}
-                <div className="mt-7 flex items-center justify-center">
+                {/* Main portrait area */}
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  {/* Avatar plate */}
                   <div
                     className="relative h-28 w-28 rounded-full flex items-center justify-center"
                     style={{
@@ -484,21 +485,20 @@ export default function Home() {
                       {initial}
                     </span>
                   </div>
+                  <div className="mt-6 text-center">
+                    <div
+                      className="text-2xl font-black"
+                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif', letterSpacing: '0.03em' }}
+                    >
+                      {username}
+                    </div>
+                    <div className="mt-2 text-sm text-white/65 tech-text">
+                      {selectedCharacter?.name || 'Selected Agent'} • {rank.displayName}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mt-7 text-center">
-                  <div
-                    className="text-2xl font-black"
-                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif', letterSpacing: '0.03em' }}
-                  >
-                    {username}
-                  </div>
-                  <div className="mt-2 text-sm text-white/65 tech-text">
-                    {selectedCharacter?.name || 'Selected Agent'} • {rank.displayName}
-                  </div>
-                </div>
-
-                <div className="mt-7 grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => navigate('/profile')}
