@@ -290,12 +290,24 @@ async function runAsyncProgressSweepTick(
   const roundId = matchRow.current_round_id as string
 
   // Advance any overdue segments (idempotent + serialized by advisory locks in SQL)
-  const { error: sweepError } = await supabase.rpc('auto_advance_overdue_segments_v1', {
-    p_match_id: matchId,
-    p_round_id: roundId
-  })
-  if (sweepError) {
-    console.warn(`[${matchId}] ⚠️ auto_advance_overdue_segments_v1 error:`, sweepError)
+  {
+    // PostgREST cannot disambiguate overloaded functions unless we include all parameters.
+    // Prefer the (p_match_id, p_round_id, p_force) signature; fallback to legacy 2-arg if needed.
+    const { error: err3 } = await supabase.rpc('auto_advance_overdue_segments_v1', {
+      p_match_id: matchId,
+      p_round_id: roundId,
+      p_force: false
+    })
+    if (err3) {
+      // Fallback: older deployments may only have the 2-arg version
+      const { error: err2 } = await supabase.rpc('auto_advance_overdue_segments_v1', {
+        p_match_id: matchId,
+        p_round_id: roundId
+      })
+      if (err2) {
+        console.warn(`[${matchId}] ⚠️ auto_advance_overdue_segments_v1 error:`, err3, err2)
+      }
+    }
   }
 
   const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
@@ -2028,10 +2040,22 @@ async function handleStepAnswer(
       return
     }
 
-    // If player already finished, just re-emit waiting state
+    // If player already finished, just re-emit waiting state (with correct p1/p2 flags)
     if (progress.completed_at) {
-      const p1Complete = !!(matchRow.player1_id && matchRow.player1_id === playerId) || !!progress.completed_at
-      const p2Complete = !!(matchRow.player2_id && matchRow.player2_id === playerId) || false
+      const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
+      const { data: rows } = await supabase
+        .from('match_round_player_progress_v1')
+        .select('player_id, completed_at')
+        .eq('match_id', matchId)
+        .eq('round_id', roundId)
+        .in('player_id', playerIds)
+
+      const byPlayer = new Map<string, any>()
+      ;(rows || []).forEach((row: any) => byPlayer.set(row.player_id, row))
+
+      const p1Complete = !!(matchRow.player1_id && byPlayer.get(matchRow.player1_id)?.completed_at)
+      const p2Complete = !!(matchRow.player2_id && byPlayer.get(matchRow.player2_id)?.completed_at)
+
       const waitingEvent: AllStepsCompleteWaitingEvent = {
         type: 'ALL_STEPS_COMPLETE_WAITING',
         p1Complete,

@@ -658,17 +658,46 @@ export default function BattleConnected() {
                   <div className="mb-8">
                     {/* Calculate parts correct for each player */}
                     {(() => {
-                      const myPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
-                        return myAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
-                      const oppPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
-                        return oppAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
-                      const totalSteps = results.stepResults.length;
+                      const totalParts =
+                        typeof results.totalParts === 'number' && Number.isFinite(results.totalParts) && results.totalParts > 0
+                          ? results.totalParts
+                          : results.stepResults.length;
+
+                      const hasAggregateParts =
+                        typeof results.p1PartsCorrect === 'number' && typeof results.p2PartsCorrect === 'number';
+
+                      const getMainAnswer = (stepResult: any, which: 'p1' | 'p2') =>
+                        which === 'p1'
+                          ? (stepResult.p1MainAnswerIndex ?? stepResult.p1AnswerIndex)
+                          : (stepResult.p2MainAnswerIndex ?? stepResult.p2AnswerIndex);
+
+                      const getMainCorrect = (stepResult: any) =>
+                        stepResult.mainCorrectAnswer ?? stepResult.correctAnswer;
+
+                      const myPartsCorrect = hasAggregateParts
+                        ? (isPlayer1 ? results.p1PartsCorrect : results.p2PartsCorrect)
+                        : results.stepResults.filter((stepResult: any) => {
+                            const myPartCorrect = isPlayer1 ? stepResult.p1PartCorrect : stepResult.p2PartCorrect;
+                            if (typeof myPartCorrect === 'boolean') return myPartCorrect;
+
+                            // Legacy fallback (main-only)
+                            const myAnswer = getMainAnswer(stepResult, isPlayer1 ? 'p1' : 'p2');
+                            const correct = getMainCorrect(stepResult);
+                            return myAnswer !== null && myAnswer !== undefined && correct !== null && correct !== undefined && myAnswer === correct;
+                          }).length;
+
+                      const oppPartsCorrect = hasAggregateParts
+                        ? (isPlayer1 ? results.p2PartsCorrect : results.p1PartsCorrect)
+                        : results.stepResults.filter((stepResult: any) => {
+                            const oppPartCorrect = isPlayer1 ? stepResult.p2PartCorrect : stepResult.p1PartCorrect;
+                            if (typeof oppPartCorrect === 'boolean') return oppPartCorrect;
+
+                            // Legacy fallback (main-only)
+                            const oppAnswer = getMainAnswer(stepResult, isPlayer1 ? 'p2' : 'p1');
+                            const correct = getMainCorrect(stepResult);
+                            return oppAnswer !== null && oppAnswer !== undefined && correct !== null && correct !== undefined && oppAnswer === correct;
+                          }).length;
+
                       const iWon = myPartsCorrect > oppPartsCorrect;
                       const isTie = myPartsCorrect === oppPartsCorrect;
                       
@@ -693,10 +722,10 @@ export default function BattleConnected() {
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
-                                {myPartsCorrect} out of {totalSteps}
+                                {myPartsCorrect} out of {totalParts}
                               </div>
                               <div className="text-sm text-white/60 font-mono">
-                                {myPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - myPartsCorrect} incorrect`}
+                                {myPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - myPartsCorrect} incorrect`}
                               </div>
                             </motion.div>
                             
@@ -717,10 +746,10 @@ export default function BattleConnected() {
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
-                                {oppPartsCorrect} out of {totalSteps}
+                                {oppPartsCorrect} out of {totalParts}
                               </div>
                               <div className="text-sm text-white/60 font-mono">
-                                {oppPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - oppPartsCorrect} incorrect`}
+                                {oppPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - oppPartsCorrect} incorrect`}
                               </div>
                             </motion.div>
                           </div>
@@ -751,9 +780,20 @@ export default function BattleConnected() {
                             </summary>
                             <div className="space-y-2 mt-3">
                               {results.stepResults.map((stepResult, idx) => {
-                                const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
-                                const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
-                                const myCorrect = myAnswer === stepResult.correctAnswer
+                                const myPartCorrect = isPlayer1 ? stepResult.p1PartCorrect : stepResult.p2PartCorrect
+                                const myCorrect = typeof myPartCorrect === 'boolean'
+                                  ? myPartCorrect
+                                  : (() => {
+                                      const myAnswer = isPlayer1
+                                        ? (stepResult.p1MainAnswerIndex ?? stepResult.p1AnswerIndex)
+                                        : (stepResult.p2MainAnswerIndex ?? stepResult.p2AnswerIndex)
+                                      const correct = stepResult.mainCorrectAnswer ?? stepResult.correctAnswer
+                                      return myAnswer !== null && myAnswer !== undefined && correct !== null && correct !== undefined && myAnswer === correct
+                                    })()
+
+                                const myAwarded = isPlayer1
+                                  ? (stepResult.p1StepAwarded ?? stepResult.p1Marks ?? 0)
+                                  : (stepResult.p2StepAwarded ?? stepResult.p2Marks ?? 0)
                                 return (
                                   <div
                                     key={idx}
@@ -764,7 +804,7 @@ export default function BattleConnected() {
                                     <div className="flex items-center justify-between">
                                       <span className="font-bold">Step {stepResult.stepIndex + 1}</span>
                                       <span className="font-mono">
-                                        {myCorrect ? '✓' : '✗'} {myMarks} pts
+                                        {myCorrect ? '✓' : '✗'} {myAwarded} pts
                                       </span>
                                     </div>
                                   </div>
