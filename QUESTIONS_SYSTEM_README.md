@@ -416,7 +416,7 @@ const questions = await getA2Questions(5);
 - [ ] Collaborative question authoring
 - [ ] AI-generated question variations
 - [ ] Multi-language support
-- [ ] LaTeX rendering for complex math
+- [x] LaTeX rendering for complex math ✅ (Implemented with KaTeX)
 
 ---
 
