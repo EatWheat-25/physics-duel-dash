@@ -657,6 +657,7 @@ async function broadcastQuestion(
         difficulty: questionDb.difficulty,
         questionText: questionDb.question_text || questionDb.stem || '',
         stem: questionDb.question_text || questionDb.stem || questionDb.title,
+        imageUrl: questionDb.image_url || undefined,
         totalMarks: questionDb.total_marks || 0,
         steps: steps.map((s: any) => ({
           id: s.id || '',

@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnswerGrid } from './AnswerGrid';
 import { Clock } from 'lucide-react';
+import { MathText } from '@/components/math/MathText';
 
 interface ActiveQuestionProps {
     question: {
@@ -85,7 +86,7 @@ export const ActiveQuestion: React.FC<ActiveQuestionProps> = ({
                         {/* Question Text */}
                         <div className="space-y-6 text-center">
                             <h2 className="text-2xl md:text-4xl font-bold text-white leading-tight">
-                                {question.text}
+                                <MathText text={question.text} />
                             </h2>
                             {question.imageUrl && (
                                 <div className="relative rounded-xl overflow-hidden border border-white/10 max-h-64 mx-auto inline-block">

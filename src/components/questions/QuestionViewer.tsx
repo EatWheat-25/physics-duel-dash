@@ -17,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2, Clock } from 'lucide-react';
 import { RoundPhase } from '@/types/gameEvents';
+import { MathText } from '@/components/math/MathText';
 
 interface QuestionViewerProps {
   questions: StepBasedQuestion[];
@@ -208,13 +209,16 @@ export function QuestionViewer({
             {currentQuestion.stem && totalSteps > 1 && (
               <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                 <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-1">Main Question:</p>
-                <p className="text-gray-800 font-medium">{currentQuestion.stem}</p>
+                <p className="text-gray-800 font-medium">
+                  <MathText text={currentQuestion.stem} />
+                </p>
               </div>
             )}
             {/* Single‑step stem fallback */}
             {currentQuestion.stem && totalSteps === 1 && (
               <div className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground">
-                <span className="font-semibold mr-2">Question:</span>{currentQuestion.stem}
+                <span className="font-semibold mr-2">Question:</span>
+                <MathText text={currentQuestion.stem} />
               </div>
             )}
             {/* Step‑specific prompt */}
@@ -234,14 +238,18 @@ export function QuestionViewer({
                     </Badge>
                   )}
                 </div>
-                <p className="text-lg font-semibold text-gray-900">{(displayStep as any).prompt}</p>
+                <p className="text-lg font-semibold text-gray-900">
+                  <MathText text={(displayStep as any).prompt} />
+                </p>
               </div>
             )}
             {/* Single‑step prompt fallback */}
             {totalSteps === 1 && (
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2">
-                  <p className="text-xl font-medium text-foreground leading-relaxed">{(displayStep as any).prompt}</p>
+                  <p className="text-xl font-medium text-foreground leading-relaxed">
+                    <MathText text={(displayStep as any).prompt} />
+                  </p>
                 </div>
                 {isOnlineMode && activeTimer !== null && (
                   <Badge variant={activeTimer < 5 ? 'destructive' : 'secondary'} className="text-lg px-3 py-1 shrink-0">
@@ -275,7 +283,9 @@ export function QuestionViewer({
                           >
                             {showResult && isCorrect ? <Check className="w-5 h-5" /> : showResult && isWrong ? <X className="w-5 h-5" /> : optionLabel}
                           </div>
-                          <p className="flex-1 text-gray-800 pt-1">{option}</p>
+                          <p className="flex-1 text-gray-800 pt-1">
+                            <MathText text={option} />
+                          </p>
                         </div>
                       </button>
                     );

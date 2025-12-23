@@ -14,6 +14,9 @@ import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Fil
 import { Badge } from '@/components/ui/badge';
 import SpaceBackground from '@/components/SpaceBackground';
 import { useIsAdmin } from '@/hooks/useUserRole';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MathText } from '@/components/math/MathText';
+import { GameQuestionPreview } from '@/components/battle/GameQuestionPreview';
 
 const PHYSICS_A1_CHAPTER_TITLES: string[] = [
   'Chapter 1: Physical Quantities',
@@ -1720,113 +1723,134 @@ export default function AdminQuestions() {
                         </h3>
                         <p className="text-xs text-white/50 mt-1">How this question will appear to students</p>
                       </div>
-                      
-                      <div className="space-y-6">
-                        {/* Question Header */}
-                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className={`${form.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
-                                form.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
-                              } border-0`}>
-                              {form.subject}
-                            </Badge>
-                            <Badge className="bg-white/10 text-white/70 border-0">{form.level}</Badge>
-                            <Badge className={`border-0 ${form.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
-                                form.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
-                              }`}>
-                              {form.difficulty}
-                            </Badge>
-                          </div>
-                          <h2 className="text-xl font-bold text-white mb-2">{form.title || 'Untitled Question'}</h2>
-                          <p className="text-sm text-white/70">{form.chapter}</p>
-                        </div>
 
-                        {/* Stem */}
-                        {form.stem && (
+                      <Tabs defaultValue="quick" className="space-y-4">
+                        <TabsList className="bg-white/5 border border-white/10">
+                          <TabsTrigger value="quick">Quick Preview</TabsTrigger>
+                          <TabsTrigger value="game">In-game Preview</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="quick" className="space-y-6">
+                          {/* Question Header */}
                           <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                            <p className="text-white/90 whitespace-pre-wrap">{form.stem}</p>
-                            {form.imageUrl && (
-                              <img src={form.imageUrl} alt="Question" className="mt-4 rounded-lg max-w-full" />
-                            )}
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className={`${form.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
+                                  form.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
+                                } border-0`}>
+                                {form.subject}
+                              </Badge>
+                              <Badge className="bg-white/10 text-white/70 border-0">{form.level}</Badge>
+                              <Badge className={`border-0 ${form.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
+                                  form.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
+                                }`}>
+                                {form.difficulty}
+                              </Badge>
+                            </div>
+                            <h2 className="text-xl font-bold text-white mb-2">{form.title || 'Untitled Question'}</h2>
+                            <p className="text-sm text-white/70">{form.chapter}</p>
                           </div>
-                        )}
 
-                        {/* Steps Preview */}
-                        <div className="space-y-4">
-                          {form.steps.map((step, idx) => (
-                            <div key={idx} className="bg-white/5 rounded-xl p-4 border border-white/10">
-                              <div className="flex items-center gap-2 mb-3">
-                                <Badge className="bg-primary/20 text-primary border-0">Step {idx + 1}</Badge>
-                                <Badge className={step.type === 'true_false' 
-                                  ? 'bg-green-500/20 text-green-400 border-green-500/50' 
-                                  : 'bg-blue-500/20 text-blue-400 border-blue-500/50'}>
-                                  {step.type === 'true_false' ? 'True/False' : 'MCQ'}
-                                </Badge>
-                                {step.marks > 0 && (
-                                  <Badge className="bg-amber-500/20 text-amber-300 border-0">{step.marks} mark{step.marks !== 1 ? 's' : ''}</Badge>
+                          {/* Stem */}
+                          {form.stem && (
+                            <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                              <p className="text-white/90">
+                                <MathText text={form.stem} />
+                              </p>
+                              {form.imageUrl && (
+                                <img src={form.imageUrl} alt="Question" className="mt-4 rounded-lg max-w-full" />
+                              )}
+                            </div>
+                          )}
+
+                          {/* Steps Preview */}
+                          <div className="space-y-4">
+                            {form.steps.map((step, idx) => (
+                              <div key={idx} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Badge className="bg-primary/20 text-primary border-0">Step {idx + 1}</Badge>
+                                  <Badge className={step.type === 'true_false' 
+                                    ? 'bg-green-500/20 text-green-400 border-green-500/50' 
+                                    : 'bg-blue-500/20 text-blue-400 border-blue-500/50'}>
+                                    {step.type === 'true_false' ? 'True/False' : 'MCQ'}
+                                  </Badge>
+                                  {step.marks > 0 && (
+                                    <Badge className="bg-amber-500/20 text-amber-300 border-0">{step.marks} mark{step.marks !== 1 ? 's' : ''}</Badge>
+                                  )}
+                                </div>
+                                
+                                <h3 className="text-white font-semibold mb-2">{step.title || `Step ${idx + 1}`}</h3>
+                                <p className="text-white/80 mb-4">
+                                  <MathText text={step.prompt || 'No prompt provided'} />
+                                </p>
+                                
+                                <div className="space-y-2">
+                                  {(step.type === 'true_false' ? [0, 1] : [0, 1, 2, 3].filter(i => step.options[i]?.trim())).map((optIdx) => (
+                                    <div
+                                      key={optIdx}
+                                      className={`p-3 rounded-lg border-2 transition-all ${
+                                        step.correctAnswer === optIdx
+                                          ? 'bg-green-500/20 border-green-500/50'
+                                          : 'bg-white/5 border-white/10'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                          step.correctAnswer === optIdx
+                                            ? 'bg-green-500 text-black'
+                                            : 'bg-white/10 text-white/70'
+                                        }`}>
+                                          {String.fromCharCode(65 + optIdx)}
+                                        </div>
+                                        <MathText text={step.options[optIdx] || 'Empty option'} className="text-white flex-1" />
+                                        {step.correctAnswer === optIdx && (
+                                          <CheckCircle2 className="w-5 h-5 text-green-400" />
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {step.explanation && (
+                                  <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                    <p className="text-xs text-blue-300 font-semibold mb-1">Explanation:</p>
+                                    <p className="text-sm text-white/80">
+                                      <MathText text={step.explanation} />
+                                    </p>
+                                  </div>
+                                )}
+
+                                {step.timeLimitSeconds && (
+                                  <div className="mt-2 text-xs text-white/50">
+                                    ⏱️ Time limit: {step.timeLimitSeconds}s
+                                  </div>
                                 )}
                               </div>
-                              
-                              <h3 className="text-white font-semibold mb-2">{step.title || `Step ${idx + 1}`}</h3>
-                              <p className="text-white/80 mb-4 whitespace-pre-wrap">{step.prompt || 'No prompt provided'}</p>
-                              
-                              <div className="space-y-2">
-                                {(step.type === 'true_false' ? [0, 1] : [0, 1, 2, 3].filter(i => step.options[i]?.trim())).map((optIdx) => (
-                                  <div
-                                    key={optIdx}
-                                    className={`p-3 rounded-lg border-2 transition-all ${
-                                      step.correctAnswer === optIdx
-                                        ? 'bg-green-500/20 border-green-500/50'
-                                        : 'bg-white/5 border-white/10'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                                        step.correctAnswer === optIdx
-                                          ? 'bg-green-500 text-black'
-                                          : 'bg-white/10 text-white/70'
-                                      }`}>
-                                        {String.fromCharCode(65 + optIdx)}
-                                      </div>
-                                      <span className="text-white flex-1">{step.options[optIdx] || 'Empty option'}</span>
-                                      {step.correctAnswer === optIdx && (
-                                        <CheckCircle2 className="w-5 h-5 text-green-400" />
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
+                            ))}
+                          </div>
+
+                          {/* Summary */}
+                          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <span className="text-white/50">Total Steps:</span>
+                                <span className="text-white ml-2 font-semibold">{form.steps.length}</span>
                               </div>
-
-                              {step.explanation && (
-                                <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                                  <p className="text-xs text-blue-300 font-semibold mb-1">Explanation:</p>
-                                  <p className="text-sm text-white/80 whitespace-pre-wrap">{step.explanation}</p>
-                                </div>
-                              )}
-
-                              {step.timeLimitSeconds && (
-                                <div className="mt-2 text-xs text-white/50">
-                                  ⏱️ Time limit: {step.timeLimitSeconds}s
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Summary */}
-                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <span className="text-white/50">Total Steps:</span>
-                              <span className="text-white ml-2 font-semibold">{form.steps.length}</span>
-                            </div>
-                            <div>
-                              <span className="text-white/50">Total Marks:</span>
-                              <span className="text-white ml-2 font-semibold">{form.totalMarks}</span>
+                              <div>
+                                <span className="text-white/50">Total Marks:</span>
+                                <span className="text-white ml-2 font-semibold">{form.totalMarks}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
+                        </TabsContent>
+
+                        <TabsContent value="game" className="pt-2">
+                          <GameQuestionPreview
+                            stem={form.stem || form.title || 'Untitled Question'}
+                            imageUrl={form.imageUrl || null}
+                            steps={form.steps as any}
+                          />
+                        </TabsContent>
+                      </Tabs>
                     </div>
                   )}
                 </div>

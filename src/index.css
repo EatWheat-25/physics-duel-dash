@@ -6,6 +6,15 @@
 All colors MUST be HSL.
 */
 
+/* KaTeX: ensure math inherits our theme colors (dark mode friendly) */
+.katex {
+  color: inherit;
+}
+
+.katex-display {
+  color: inherit;
+}
+
 @layer base {
   :root {
     /* === Neon Sci-Fi Theme === */
