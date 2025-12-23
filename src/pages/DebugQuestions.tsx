@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAllMathsQuestions, getA1Questions, getA2Questions, getStepMathQuestions } from '@/data/stepMathQuestions';
 import { StepBasedQuestion } from '@/types/questions';
 import { supabase } from '@/integrations/supabase/client';
+import { MathText } from '@/components/math/MathText';
 
 export default function DebugQuestions() {
   const navigate = useNavigate();
@@ -190,12 +191,16 @@ export default function DebugQuestions() {
                   </div>
                   <div className="mt-3 p-3 bg-gray-800 rounded border border-gray-600">
                     <p className="text-sm font-semibold text-gray-300 mb-1">Question Text:</p>
-                    <p className="text-sm text-gray-400">{q.questionText}</p>
+                    <p className="text-sm text-gray-400">
+                      <MathText text={q.questionText} />
+                    </p>
                   </div>
                   {q.steps && q.steps.length > 0 && (
                     <div className="mt-3 p-3 bg-gray-800 rounded border border-gray-600">
                       <p className="text-sm font-semibold text-gray-300 mb-2">First Step:</p>
-                      <p className="text-sm text-gray-400 mb-2">{q.steps[0].question}</p>
+                      <p className="text-sm text-gray-400 mb-2">
+                        <MathText text={q.steps[0].question} />
+                      </p>
                       <div className="space-y-1">
                         {q.steps[0].options.map((opt, i) => (
                           <div
@@ -206,7 +211,7 @@ export default function DebugQuestions() {
                                 : 'bg-gray-900 text-gray-400'
                             }`}
                           >
-                            {String.fromCharCode(65 + i)}. {opt}
+                            {String.fromCharCode(65 + i)}. <MathText text={opt} />
                             {i === q.steps[0].correctAnswer && ' ✓ (Correct)'}
                           </div>
                         ))}
