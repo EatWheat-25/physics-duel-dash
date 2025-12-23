@@ -136,20 +136,18 @@ export default function Home() {
       <div
         className="absolute inset-0"
         style={{
-          background:
-            'linear-gradient(135deg, rgb(7, 10, 16) 0%, rgb(8, 14, 24) 38%, rgb(6, 10, 18) 100%)',
+          background: 'radial-gradient(circle at 50% 45%, rgba(40, 55, 85, 0.35), transparent 55%), linear-gradient(135deg, #070a10 0%, #0a1324 45%, #060a12 100%)',
         }}
       />
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{
+      style={{
           background: [
-            'radial-gradient(900px 520px at 18% 88%, rgba(56, 189, 248, 0.16) 0%, transparent 62%)',
-            'radial-gradient(900px 520px at 78% 24%, rgba(99, 102, 241, 0.18) 0%, transparent 62%)',
-            'radial-gradient(700px 420px at 52% 56%, rgba(148, 163, 184, 0.06) 0%, transparent 60%)',
-            'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 35%, rgba(255,255,255,0.02) 100%)',
+            'radial-gradient(1100px 560px at 18% 88%, rgba(56, 189, 248, 0.10) 0%, transparent 62%)',
+            'radial-gradient(900px 520px at 78% 24%, rgba(99, 102, 241, 0.10) 0%, transparent 62%)',
+            'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 45%, rgba(255,255,255,0.02) 100%)',
           ].join(','),
-          filter: 'blur(0.2px)',
+          filter: 'blur(0.35px)',
         }}
       />
       {/* Note: keep background clean like the reference (no extra grid layer here) */}
@@ -200,8 +198,8 @@ export default function Home() {
                     }`}
                     style={{
                       background: active ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)',
-                      border: active ? '1px solid rgba(88,196,255,0.20)' : '1px solid rgba(255,255,255,0.10)',
-                      boxShadow: active ? '0 0 28px rgba(88,196,255,0.10)' : undefined,
+                      border: active ? '1px solid rgba(163,230,53,0.22)' : '1px solid rgba(255,255,255,0.10)',
+                      boxShadow: active ? '0 0 28px rgba(163,230,53,0.10)' : undefined,
                     }}
                     aria-hidden="true"
                   />
@@ -210,7 +208,8 @@ export default function Home() {
                     <span
                       className="absolute left-0 right-0 -bottom-1 mx-auto h-0.5 w-10 rounded-full"
                       style={{
-                        background: 'var(--gradient-neon)',
+                        background:
+                          'linear-gradient(90deg, rgba(163,230,53,0), rgba(163,230,53,1), rgba(163,230,53,0))',
                       }}
                     />
                   )}
@@ -280,7 +279,7 @@ export default function Home() {
               type="button"
               onClick={signOut}
               className="h-11 w-11 rounded-2xl flex items-center justify-center"
-              style={{
+          style={{
                 background: 'rgba(255, 255, 255, 0.06)',
                 border: '1px solid rgba(255, 255, 255, 0.12)',
                 backdropFilter: 'blur(18px)',
@@ -319,7 +318,7 @@ export default function Home() {
 
           <motion.button
             type="button"
-            onClick={() => setRankMenuOpen(true)}
+              onClick={() => setRankMenuOpen(true)}
             className="relative w-full rounded-2xl px-4 py-4 text-left"
             style={{
               background: 'rgba(15, 23, 42, 0.58)',
@@ -364,7 +363,7 @@ export default function Home() {
         </div>
 
         {/* Center player card (portrait trading-card shape) */}
-        <div className="absolute left-1/2 top-[46%] sm:top-[50%] lg:top-[54%] -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[340px] lg:w-[360px] aspect-[4/5]">
+        <div className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[360px] lg:w-[380px] aspect-[5/7]">
           <div className="relative" style={{ perspective: 1100 }}>
             <motion.div
               onPointerMove={onCardPointerMove}
@@ -377,20 +376,27 @@ export default function Home() {
               style={{
                 rotateX: tiltXSpring,
                 rotateY: tiltYSpring,
-                borderRadius: 14,
-                background: 'rgba(18, 25, 38, 0.62)',
+                borderRadius: 16,
+                background: 'rgba(24, 33, 48, 0.72)',
                 border: '1px solid rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(22px)',
-                boxShadow: '0 22px 70px rgba(0,0,0,0.55)',
+                backdropFilter: 'blur(26px)',
+                boxShadow: '0 26px 90px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.06)',
               }}
             >
               {/* Interactive glare (pointer-based) */}
-              <motion.div className="absolute inset-0 pointer-events-none" style={{ background: glare, opacity: 0.55 }} />
+              <motion.div className="absolute inset-0 pointer-events-none" style={{ background: glare, opacity: 0.35 }} />
+              <div
+                className="absolute inset-0 pointer-events-none opacity-35"
+                style={{
+                  background:
+                    'radial-gradient(500px 220px at 50% 20%, rgba(255,255,255,0.10), transparent 60%)',
+                }}
+              />
 
               {/* Inner frame */}
-              <div className="absolute inset-3 rounded-[12px] border border-white/10 pointer-events-none" />
+              <div className="absolute inset-3 rounded-[14px] border border-white/10 pointer-events-none" />
               <div
-                className="absolute inset-6 rounded-[10px] pointer-events-none"
+                className="absolute inset-6 rounded-[12px] pointer-events-none"
                 style={{
                   border: '1px solid rgba(255, 255, 255, 0.08)',
                   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
@@ -403,8 +409,8 @@ export default function Home() {
               <div className="absolute left-4 bottom-4 h-4 w-4 border-l border-b border-white/20 pointer-events-none" />
               <div className="absolute right-4 bottom-4 h-4 w-4 border-r border-b border-white/20 pointer-events-none" />
 
-              <div className="relative z-10 p-6 sm:p-7 h-full flex flex-col">
-                <div className="flex items-start justify-between gap-4">
+              <div className="relative z-10 p-7 sm:p-8 h-full flex flex-col">
+                <div className="flex items-start justify-between gap-6">
                   <div className="flex flex-col gap-2">
                     <span
                       className="inline-flex items-center rounded px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em]"
@@ -452,9 +458,10 @@ export default function Home() {
                     }}
                   >
                     <div
-                      className="absolute inset-[-2px] rounded-full opacity-70 pointer-events-none"
+                      className="absolute inset-[-2px] rounded-full opacity-60 pointer-events-none"
                       style={{
-                        background: 'var(--gradient-neon)',
+                        background:
+                          'linear-gradient(135deg, rgba(163,230,53,0.55), rgba(34,197,94,0.45), rgba(163,230,53,0.55))',
                         filter: 'blur(10px)',
                       }}
                     />
@@ -484,7 +491,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <button
                     type="button"
                     onClick={() => navigate('/profile')}
@@ -511,7 +518,7 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-            </motion.div>
+          </motion.div>
 
             {/* Shadow “lift” */}
             <div
@@ -619,7 +626,7 @@ export default function Home() {
         </div>
 
         {/* Bottom-left action stack (matches reference positioning) */}
-        <div className="hidden sm:block absolute left-6 bottom-44 w-[280px] sm:w-[320px]">
+        <div className="absolute left-6 bottom-44 w-[280px] sm:w-[320px]">
           <motion.button
             type="button"
             onClick={() => navigate('/modes')}
@@ -635,7 +642,7 @@ export default function Home() {
             whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
             aria-label="Standard mode"
           >
-            STANDARD <span className="text-white/80">»</span>
+            STANDARD <span className="opacity-80">»</span>
           </motion.button>
 
           <motion.div
@@ -654,8 +661,8 @@ export default function Home() {
                 fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
               }}
               aria-label="Start matchmaking"
-            >
-              START
+          >
+            START
             </motion.button>
           </motion.div>
 
@@ -676,62 +683,10 @@ export default function Home() {
           </motion.button>
         </div>
 
-        {/* Mobile action cluster (keeps bottom nav usable) */}
-        <div className="sm:hidden fixed left-4 right-4 bottom-[132px] z-40">
-          <div className="lobby-card">
-            <div className="relative z-10 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <motion.button
-                  type="button"
-                  onClick={() => navigate('/modes')}
-                  className="lobby-chip"
-                  whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
-                >
-                  STANDARD »
-                </motion.button>
-                <motion.button
-                  type="button"
-                  onClick={() => setRankMenuOpen(true)}
-                  className="lobby-chip"
-                  style={{ borderColor: 'rgba(88, 196, 255, 0.22)' }}
-                  whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
-                >
-                  RANKS
-                </motion.button>
-              </div>
-
-              <motion.button
-                type="button"
-                onClick={() => (window.location.href = '/matchmaking-new')}
-                className="cyber-button w-full mt-3 px-6 py-5 text-xl flex items-center justify-center gap-3"
-                style={{ color: 'white' }}
-                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-              >
-                <Sparkles className="w-5 h-5" />
-                START
-              </motion.button>
-
-              <motion.button
-                type="button"
-                onClick={() => (window.location.href = '/dev/db-test')}
-                className="w-full mt-3 px-6 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.28em] flex items-center justify-center gap-2"
-                style={{
-                  background:
-                    'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
-                  border: '1px solid rgba(154, 91, 255, 0.22)',
-                  backdropFilter: 'blur(18px)',
-                }}
-                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-              >
-                <Flame className="w-4 h-4" />
-                WINNER DEMO
-              </motion.button>
-            </div>
-          </div>
-        </div>
+        {/* Mobile uses the dock nav; keep this screen consistent with the reference */}
       </main>
 
-      <BottomNav />
+        <BottomNav />
       <RankMenu open={rankMenuOpen} onOpenChange={setRankMenuOpen} currentMMR={currentMMR} />
     </div>
   );

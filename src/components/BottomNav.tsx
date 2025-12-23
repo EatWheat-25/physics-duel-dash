@@ -36,12 +36,12 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
   return (
     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-4 w-full max-w-2xl">
       <motion.nav
-        className="flex items-center justify-center gap-2 p-3 rounded-3xl"
+        className="flex items-center justify-center gap-3 px-4 py-3 rounded-2xl"
         style={{
-          background: 'rgba(30, 41, 59, 0.95)',
-          backdropFilter: 'blur(20px)',
-          border: '2px solid rgba(255,255,255,0.2)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)',
+          background: 'rgba(30, 41, 59, 0.78)',
+          backdropFilter: 'blur(26px)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          boxShadow: '0 18px 55px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08)',
         }}
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -64,12 +64,13 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
                     handleNavigation(item.path, item.excludeSubject);
                   }
                 }}
-                className="relative px-6 md:px-8 py-3 md:py-4 rounded-full font-bold text-xs md:text-sm uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914]"
-              style={{
-                background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                color: 'white',
-                boxShadow: '0 0 30px rgba(220, 38, 38, 0.6)',
-              }}
+                className="relative px-6 md:px-7 py-3 md:py-3.5 rounded-xl font-black text-[11px] md:text-xs uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#f59e0b] focus:ring-offset-2 focus:ring-offset-[#060914]"
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                  color: 'white',
+                  border: '1px solid rgba(0,0,0,0.35)',
+                  boxShadow: '0 18px 45px rgba(0,0,0,0.35), 0 0 28px rgba(249,115,22,0.35)',
+                }}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 animate={
@@ -77,9 +78,9 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
                     ? {}
                     : {
                         boxShadow: [
-                          '0 0 30px rgba(242,55,212,0.4)',
-                          '0 0 40px rgba(242,55,212,0.6)',
-                          '0 0 30px rgba(242,55,212,0.4)',
+                          '0 18px 45px rgba(0,0,0,0.35), 0 0 26px rgba(249,115,22,0.30)',
+                          '0 18px 45px rgba(0,0,0,0.35), 0 0 34px rgba(249,115,22,0.45)',
+                          '0 18px 45px rgba(0,0,0,0.35), 0 0 26px rgba(249,115,22,0.30)',
                         ],
                       }
                 }
@@ -91,11 +92,8 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
                 aria-label={item.label}
                 aria-current={active ? 'page' : undefined}
               >
-                <Icon className="w-4 h-4 md:w-5 md:h-5 inline mr-2" />
-                <span className="hidden sm:inline">{item.label}</span>
-                <span className="sm:hidden">
-                  <Icon className="w-5 h-5" />
-                </span>
+                <Icon className="w-4 h-4 inline mr-2" />
+                <span>{item.label}</span>
               </motion.button>
             );
           }
@@ -104,11 +102,11 @@ export function BottomNav({ onBattleClick }: BottomNavProps = {}) {
             <motion.button
               key={item.label}
               onClick={() => handleNavigation(item.path, item.excludeSubject)}
-              className="flex flex-col items-center gap-1 px-3 md:px-4 py-2 md:py-3 rounded-2xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--violet)] focus:ring-offset-2 focus:ring-offset-[#060914]"
+              className="flex flex-col items-center gap-1 px-3 md:px-4 py-2 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#a3e635] focus:ring-offset-2 focus:ring-offset-[#060914]"
               style={{
-                background: active ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
-                color: active ? 'white' : 'rgba(255,255,255,0.8)',
-                border: active ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.1)',
+                background: active ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.06)',
+                color: active ? 'white' : 'rgba(255,255,255,0.78)',
+                border: active ? '1px solid rgba(163,230,53,0.20)' : '1px solid rgba(255,255,255,0.10)',
               }}
               whileHover={{
                 background: 'rgba(255,255,255,0.15)',
