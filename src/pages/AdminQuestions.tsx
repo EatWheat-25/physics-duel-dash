@@ -17,6 +17,7 @@ import { useIsAdmin } from '@/hooks/useUserRole';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MathText } from '@/components/math/MathText';
 import { GameQuestionPreview } from '@/components/battle/GameQuestionPreview';
+import { InGamePreview } from '@/components/admin/InGamePreview';
 
 const PHYSICS_A1_CHAPTER_TITLES: string[] = [
   'Chapter 1: Physical Quantities',
@@ -234,6 +235,34 @@ export default function AdminQuestions() {
       })),
       imageUrl: q.imageUrl || ''
     });
+  }
+
+  function formToQuestion(form: QuestionForm): StepBasedQuestion {
+    return {
+      id: selectedQuestionId || 'preview',
+      title: form.title,
+      subject: form.subject,
+      chapter: form.chapter,
+      level: form.level,
+      difficulty: form.difficulty,
+      rankTier: form.rankTier || undefined,
+      stem: form.stem,
+      totalMarks: form.totalMarks,
+      topicTags: form.topicTags.split(',').map(t => t.trim()).filter(Boolean),
+      steps: form.steps.map((s, idx) => ({
+        id: s.id || `step-${idx}`,
+        index: idx,
+        type: s.type,
+        title: s.title,
+        prompt: s.prompt,
+        options: s.options as [string, string, string, string],
+        correctAnswer: s.correctAnswer,
+        marks: s.marks,
+        timeLimitSeconds: s.timeLimitSeconds,
+        explanation: s.explanation || null,
+      })),
+      imageUrl: form.imageUrl || undefined,
+    };
   }
 
   // Handle URL parameters for create/edit mode
@@ -1844,10 +1873,9 @@ export default function AdminQuestions() {
                         </TabsContent>
 
                         <TabsContent value="game" className="pt-2">
-                          <GameQuestionPreview
-                            stem={form.stem || form.title || 'Untitled Question'}
-                            imageUrl={form.imageUrl || null}
-                            steps={form.steps as any}
+                          <InGamePreview 
+                            question={formToQuestion(form)}
+                            key={JSON.stringify(form)} // Force re-render on form change
                           />
                         </TabsContent>
                       </Tabs>
