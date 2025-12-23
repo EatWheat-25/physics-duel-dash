@@ -919,6 +919,27 @@ async function selectAndBroadcastQuestion(
       // No question assigned, try to claim one atomically with tiered filtering
       console.log(`[${matchId}] 🔍 No question assigned, fetching questions with tiered filtering...`)
 
+      // Avoid repeats within the same match: collect question_ids already used by prior rounds.
+      // This is DB-backed so it works across Edge instances.
+      const usedQuestionIds = new Set<string>()
+      try {
+        const { data: usedRows, error: usedErr } = await supabase
+          .from('match_rounds')
+          .select('question_id')
+          .eq('match_id', matchId)
+
+        if (usedErr) {
+          console.warn(`[${matchId}] ⚠️ Could not query used match_rounds.question_id list:`, usedErr)
+        } else {
+          ;(usedRows ?? []).forEach((r: any) => {
+            const qid = r?.question_id
+            if (typeof qid === 'string' && qid.length > 0) usedQuestionIds.add(qid)
+          })
+        }
+      } catch (err) {
+        console.warn(`[${matchId}] ⚠️ Error while collecting usedQuestionIds:`, err)
+      }
+
       const subject = match.subject ?? null
       const level = match.mode ?? null // mode = level (A1/A2)
 
@@ -987,9 +1008,26 @@ async function selectAndBroadcastQuestion(
         throw new Error('No valid questions available')
       }
 
+      // Avoid repeats within the same match (fallback to repeats if pool exhausted, per product requirement).
+      const unusedPool = usedQuestionIds.size > 0
+        ? questionPool.filter((q: any) => !usedQuestionIds.has(String(q?.id ?? '')))
+        : questionPool
+
+      const selectionPool = unusedPool.length > 0 ? unusedPool : questionPool
+
+      if (unusedPool.length === 0 && usedQuestionIds.size > 0) {
+        console.warn(
+          `[${matchId}] ⚠️ Unused question pool exhausted (used=${usedQuestionIds.size}, pool=${questionPool.length}). Falling back to allowing repeats.`
+        )
+      } else {
+        console.log(
+          `[${matchId}] ✅ No-repeat selection active (used=${usedQuestionIds.size}, pool=${questionPool.length}, unused=${unusedPool.length}).`
+        )
+      }
+
       // Bias toward newer questions: pick randomly from the newest N (still randomized, but boosts recency).
       const RECENT_POOL_MAX = 50
-      const recentPool = questionPool.slice(0, Math.min(RECENT_POOL_MAX, questionPool.length))
+      const recentPool = selectionPool.slice(0, Math.min(RECENT_POOL_MAX, selectionPool.length))
       const selectedQuestion = recentPool[Math.floor(Math.random() * recentPool.length)]
       console.log(`[${matchId}] 🎯 Selected question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
 
