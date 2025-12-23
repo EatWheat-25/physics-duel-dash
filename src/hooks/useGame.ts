@@ -1295,8 +1295,9 @@ export function useGame(match: MatchRow | null) {
         ws.send(JSON.stringify(submitMessage))
       } else {
         // Single-step answer
-        if (answerIndex !== 0 && answerIndex !== 1) {
-          console.error('[useGame] Invalid answer index:', answerIndex)
+        // Single-step rounds can be True/False or MCQ. Accept A-D (0-3).
+        if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex > 3) {
+          console.error('[useGame] Invalid answer index (expected 0-3):', answerIndex)
           return prev
         }
         const submitMessage = {

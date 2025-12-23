@@ -2406,10 +2406,10 @@ async function handleSubmitAnswer(
   console.log(`[${matchId}] SUBMIT_ANSWER from player ${playerId}, answer: ${answer}`)
 
   // Validate answer index
-  if (answer !== 0 && answer !== 1) {
+  if (typeof answer !== 'number' || !Number.isFinite(answer) || !Number.isInteger(answer) || answer < 0 || answer > 3) {
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
-      message: 'Invalid answer: must be 0 or 1'
+      message: 'Invalid answer: must be an integer 0-3'
     } as GameErrorEvent))
     return
   }
@@ -2602,10 +2602,10 @@ async function handleSubmitAnswerV2(
   console.log(`[${matchId}] [V2] SUBMIT_ANSWER from player ${playerId}, answer: ${answer}`)
 
   // Validate answer index
-  if (answer !== 0 && answer !== 1) {
+  if (typeof answer !== 'number' || !Number.isFinite(answer) || !Number.isInteger(answer) || answer < 0 || answer > 3) {
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
-      message: 'Invalid answer: must be 0 or 1'
+      message: 'Invalid answer: must be an integer 0-3'
     } as GameErrorEvent))
     return
   }
