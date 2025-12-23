@@ -29,7 +29,6 @@ All colors MUST be HSL.
     --neon-border: rgba(255,255,255,0.18);
     --text-primary: #eaf0ff;
     --text-dim: #b8c2ff;
-  }
 
   /* === Space Academy Theme === */
 
@@ -94,6 +93,14 @@ All colors MUST be HSL.
     --pattern-hex: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23ff00ff' stroke-width='0.5' stroke-opacity='0.08'%3E%3Cpolygon points='30,5 50,17.5 50,42.5 30,55 10,42.5 10,17.5'/%3E%3C/g%3E%3C/svg%3E");
     --pattern-data: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ff6600' fill-opacity='0.03'%3E%3Crect x='0' y='0' width='2' height='2'/%3E%3Crect x='10' y='10' width='2' height='2'/%3E%3Crect x='20' y='5' width='2' height='2'/%3E%3Crect x='30' y='15' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E");
 
+    /* Missing base grid pattern (referenced by body::before) */
+    --pattern-grid: url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2358c4ff' stroke-opacity='0.10' stroke-width='1'%3E%3Cpath d='M0 0H80V80H0Z'/%3E%3Cpath d='M0 40H80M40 0V80'/%3E%3C/g%3E%3C/svg%3E");
+
+    /* Cyber gradients (used by cyber-panel / cyber-button / futuristic-heading) */
+    --gradient-primary: linear-gradient(135deg, var(--blue) 0%, var(--violet) 55%, var(--indigo) 100%);
+    --gradient-accent: linear-gradient(135deg, var(--indigo) 0%, var(--purple) 55%, var(--violet) 100%);
+    --gradient-neon: linear-gradient(90deg, rgba(88, 196, 255, 0) 0%, rgba(88, 196, 255, 0.85) 35%, rgba(154, 91, 255, 0.85) 65%, rgba(75, 93, 255, 0) 100%);
+
     --radius: 2.5rem;
 
     --sidebar-background: 222 25% 8%;
@@ -138,6 +145,7 @@ All colors MUST be HSL.
     --gradient-card: linear-gradient(145deg, hsl(222, 50%, 8%), hsl(222, 45%, 4%));
     --gradient-metallic: linear-gradient(135deg, hsl(210, 20%, 15%), hsl(222, 35%, 10%));
   }
+}
 
 /* ===== BASE STYLES ===== */
 @layer base {
@@ -481,6 +489,90 @@ All colors MUST be HSL.
     @apply cyber-panel;
   }
 
+  /* ===== Lobby-specific cyber helpers ===== */
+  .lobby-chip {
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase;
+    font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
+    letter-spacing: 0.28em;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(18px);
+  }
+
+  .lobby-card {
+    @apply relative overflow-hidden;
+    border-radius: 28px;
+    background: rgba(9, 13, 22, 0.56);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(22px);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .lobby-card::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: var(--gradient-neon);
+    opacity: 0.18;
+    filter: blur(14px);
+    pointer-events: none;
+  }
+
+  .lobby-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.10) 0%, transparent 40%, rgba(255, 255, 255, 0.04) 100%),
+      radial-gradient(600px 220px at 30% 20%, rgba(88, 196, 255, 0.10) 0%, transparent 60%),
+      radial-gradient(520px 220px at 75% 75%, rgba(154, 91, 255, 0.09) 0%, transparent 62%);
+    opacity: 1;
+    pointer-events: none;
+  }
+
+  .lobby-scanline {
+    @apply absolute inset-0 pointer-events-none;
+    opacity: 0.55;
+    mix-blend-mode: overlay;
+  }
+
+  .lobby-scanline::before {
+    content: '';
+    position: absolute;
+    top: -45%;
+    left: -60%;
+    width: 220%;
+    height: 60%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(88, 196, 255, 0.18),
+      rgba(154, 91, 255, 0.14),
+      transparent
+    );
+    transform: rotate(-12deg);
+    animation: lobbySheen 6.5s ease-in-out infinite;
+  }
+
+  .lobby-scanline::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06) 0px,
+      rgba(255, 255, 255, 0.06) 1px,
+      transparent 1px,
+      transparent 7px
+    );
+    opacity: 0.12;
+  }
+
+  .lobby-3d {
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
   /* Animated Cyber Grid Background - Removed particles */
   .cyber-grid {
     position: fixed;
@@ -510,6 +602,24 @@ All colors MUST be HSL.
   @keyframes grid-move {
     0% { transform: translate(0, 0); }
     100% { transform: translate(50px, 50px); }
+  }
+
+  @keyframes lobbySheen {
+    0% {
+      transform: translateX(-40%) rotate(-12deg);
+      opacity: 0;
+    }
+    18% {
+      opacity: 0.9;
+    }
+    55% {
+      transform: translateX(40%) rotate(-12deg);
+      opacity: 0.65;
+    }
+    100% {
+      transform: translateX(80%) rotate(-12deg);
+      opacity: 0;
+    }
   }
 
   /* No floating particles */

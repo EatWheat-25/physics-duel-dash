@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import type { PointerEvent as ReactPointerEvent } from 'react';
+import { motion, useMotionTemplate, useMotionValue, useSpring } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/components/BottomNav';
 import { RankMenu } from '@/components/RankMenu';
-import { Button } from '@/components/ui/button';
 import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -94,6 +94,42 @@ export default function Home() {
   const username = profile?.username || user?.email?.split('@')[0] || 'Guest';
   const initial = (username?.[0] || '?').toUpperCase();
 
+  // 3D card tilt + interactive holographic glare
+  const tiltX = useMotionValue(0);
+  const tiltY = useMotionValue(0);
+  const glareX = useMotionValue(52);
+  const glareY = useMotionValue(30);
+  const tiltXSpring = useSpring(tiltX, { stiffness: 220, damping: 22, mass: 0.65 });
+  const tiltYSpring = useSpring(tiltY, { stiffness: 220, damping: 22, mass: 0.65 });
+
+  const glare = useMotionTemplate`
+    radial-gradient(560px 240px at ${glareX}% ${glareY}%, rgba(88,196,255,0.22), transparent 60%),
+    radial-gradient(520px 240px at ${glareX}% ${glareY}%, rgba(154,91,255,0.16), transparent 62%)
+  `;
+
+  const onCardPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (prefersReducedMotion) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width;
+    const py = (e.clientY - rect.top) / rect.height;
+
+    // Card tilt (subtle, premium)
+    const rotateY = (px - 0.5) * 10; // -5..5
+    const rotateX = (0.5 - py) * 10; // -5..5
+    tiltX.set(rotateX);
+    tiltY.set(rotateY);
+
+    glareX.set(Math.max(0, Math.min(100, px * 100)));
+    glareY.set(Math.max(0, Math.min(100, py * 100)));
+  };
+
+  const onCardPointerLeave = () => {
+    tiltX.set(0);
+    tiltY.set(0);
+    glareX.set(52);
+    glareY.set(30);
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
       {/* Dark/blue blurred lobby background */}
@@ -153,18 +189,28 @@ export default function Home() {
                   key={item.label}
                   type="button"
                   onClick={item.onClick}
-                  className={`relative py-2 text-[11px] font-black uppercase tracking-[0.28em] transition-colors ${
+                  className={`group relative py-2 text-[11px] font-black uppercase tracking-[0.28em] transition-colors ${
                     active ? 'text-white' : 'text-white/70 hover:text-white'
                   }`}
                   aria-current={active ? 'page' : undefined}
                 >
+                  <span
+                    className={`absolute -inset-x-4 -inset-y-2 rounded-full transition-opacity ${
+                      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                    style={{
+                      background: active ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)',
+                      border: active ? '1px solid rgba(88,196,255,0.20)' : '1px solid rgba(255,255,255,0.10)',
+                      boxShadow: active ? '0 0 28px rgba(88,196,255,0.10)' : undefined,
+                    }}
+                    aria-hidden="true"
+                  />
                   {item.label}
                   {active && (
                     <span
                       className="absolute left-0 right-0 -bottom-1 mx-auto h-0.5 w-10 rounded-full"
                       style={{
-                        background:
-                          'linear-gradient(90deg, rgba(163,230,53,0), rgba(163,230,53,1), rgba(163,230,53,0))',
+                        background: 'var(--gradient-neon)',
                       }}
                     />
                   )}
@@ -283,7 +329,7 @@ export default function Home() {
         </div>
 
         {/* Left stack (reference-style tiles) */}
-        <div className="hidden md:flex absolute left-6 top-28 w-[260px] flex-col gap-3">
+        <div className="hidden lg:flex absolute left-6 top-28 w-[260px] flex-col gap-3">
           <motion.button
             type="button"
             onClick={() => navigate('/modes')}
@@ -349,69 +395,145 @@ export default function Home() {
           </motion.button>
         </div>
 
-        {/* Center card (matches darker reference) */}
-        <div className="absolute left-1/2 top-[54%] -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[360px]">
-          <motion.div
-            initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.96 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
-            transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
-            className="rounded-3xl p-6"
-            style={{
-              background: 'rgba(15, 23, 42, 0.56)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(22px)',
-              boxShadow: '0 20px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)',
-            }}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">
-                  {rank.displayName.toUpperCase()}
-                </div>
-                <div className="mt-1 text-[10px] text-white/55 uppercase tracking-[0.28em]">
-                  Level {level}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-black text-white">{mmr}</div>
-                <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">MMR</div>
-              </div>
-            </div>
+        {/* Center player card (real “card” feel: depth + foil + tilt) */}
+        <div className="absolute left-1/2 top-[46%] sm:top-[50%] lg:top-[54%] -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[380px]">
+          <div className="relative" style={{ perspective: 1100 }}>
+            <motion.div
+              onPointerMove={onCardPointerMove}
+              onPointerLeave={onCardPointerLeave}
+              initial={prefersReducedMotion ? undefined : { opacity: 0, y: 10, scale: 0.98 }}
+              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
+              whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
+              className="lobby-card lobby-3d"
+              style={{
+                rotateX: tiltXSpring,
+                rotateY: tiltYSpring,
+              }}
+            >
+              {/* Interactive glare (pointer-based) */}
+              <motion.div className="absolute inset-0 pointer-events-none" style={{ background: glare, opacity: 0.9 }} />
+              <div className="lobby-scanline" />
 
-            <div className="mt-6 flex items-center justify-center">
+              {/* Inner frame */}
+              <div className="absolute inset-3 rounded-[22px] border border-white/10 pointer-events-none" />
               <div
-                className="h-20 w-20 rounded-full flex items-center justify-center"
+                className="absolute inset-6 rounded-[18px] pointer-events-none"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  border: '1px solid rgba(88, 196, 255, 0.18)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
                 }}
-              >
-                <span className="text-3xl font-black text-white">{initial}</span>
+              />
+
+              {/* Corner ticks */}
+              <div className="absolute left-4 top-4 h-4 w-4 border-l border-t border-white/20 pointer-events-none" />
+              <div className="absolute right-4 top-4 h-4 w-4 border-r border-t border-white/20 pointer-events-none" />
+              <div className="absolute left-4 bottom-4 h-4 w-4 border-l border-b border-white/20 pointer-events-none" />
+              <div className="absolute right-4 bottom-4 h-4 w-4 border-r border-b border-white/20 pointer-events-none" />
+
+              <div className="relative z-10 p-6 sm:p-7">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-2">
+                    <span className="lobby-chip">
+                      {rank.displayName.toUpperCase()}
+                    </span>
+                    <span className="lobby-chip" style={{ borderColor: 'rgba(154, 91, 255, 0.30)' }}>
+                      LV&nbsp;{level}
+                    </span>
+                  </div>
+
+                  <div className="text-right">
+                    <div
+                      className="text-3xl font-black"
+                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif', letterSpacing: '0.02em' }}
+                    >
+                      {mmr}
+                    </div>
+                    <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">MMR</div>
+                  </div>
+                </div>
+
+                {/* Avatar plate */}
+                <div className="mt-7 flex items-center justify-center">
+                  <div
+                    className="relative h-28 w-28 rounded-full flex items-center justify-center"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      boxShadow:
+                        '0 18px 40px rgba(0,0,0,0.5), 0 0 35px rgba(88,196,255,0.12), inset 0 1px 0 rgba(255,255,255,0.06)',
+                    }}
+                  >
+                    <div
+                      className="absolute inset-[-2px] rounded-full opacity-70 pointer-events-none"
+                      style={{
+                        background: 'var(--gradient-neon)',
+                        filter: 'blur(10px)',
+                      }}
+                    />
+                    <div
+                      className="absolute inset-0 rounded-full pointer-events-none"
+                      style={{
+                        background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.12), transparent 60%)',
+                      }}
+                    />
+                    <span
+                      className="relative z-10 text-4xl font-black"
+                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                    >
+                      {initial}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-7 text-center">
+                  <div
+                    className="text-2xl font-black"
+                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif', letterSpacing: '0.03em' }}
+                  >
+                    {username}
+                  </div>
+                  <div className="mt-2 text-sm text-white/65 tech-text">
+                    {selectedCharacter?.name || 'Selected Agent'} • {rank.displayName}
+                  </div>
+                </div>
+
+                <div className="mt-7 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/profile')}
+                    className="lobby-chip justify-center py-3"
+                    style={{
+                      borderColor: 'rgba(88, 196, 255, 0.22)',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                    }}
+                  >
+                    Customize
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/progression')}
+                    className="lobby-chip justify-center py-3"
+                    style={{
+                      borderColor: 'rgba(154, 91, 255, 0.22)',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                    }}
+                  >
+                    Progress
+                  </button>
+                </div>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="mt-6 text-center">
-              <div className="text-2xl font-black text-white">{username}</div>
-              <div className="text-sm text-white/60">{rank.displayName}</div>
-            </div>
-
-            <div className="mt-6 flex items-center justify-between gap-4">
-              <button
-                type="button"
-                onClick={() => navigate('/profile')}
-                className="text-xs text-white/70 hover:text-white transition-colors"
-              >
-                Customize Card
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/progression')}
-                className="text-xs text-white/70 hover:text-white transition-colors"
-              >
-                View Progression
-              </button>
-            </div>
-          </motion.div>
+            {/* Shadow “lift” */}
+            <div
+              className="absolute -inset-6 -z-10 rounded-[32px] blur-3xl opacity-40 pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(circle at 40% 30%, rgba(88,196,255,0.22), transparent 55%), radial-gradient(circle at 70% 70%, rgba(154,91,255,0.18), transparent 55%)',
+              }}
+            />
+          </div>
         </div>
 
         {/* Right widgets (merge from bright reference; subtle in dark theme) */}
@@ -509,16 +631,11 @@ export default function Home() {
         </div>
 
         {/* Bottom-left action stack (matches reference positioning) */}
-        <div className="absolute left-6 bottom-44 w-[280px] sm:w-[320px]">
+        <div className="hidden sm:block absolute left-6 bottom-44 w-[280px] sm:w-[320px]">
           <motion.button
             type="button"
             onClick={() => navigate('/modes')}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-[0.28em] text-white/90"
-            style={{
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.14)',
-              backdropFilter: 'blur(18px)',
-            }}
+            className="lobby-chip"
             whileHover={prefersReducedMotion ? undefined : { y: -1 }}
             whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
             aria-label="Standard mode"
@@ -531,36 +648,86 @@ export default function Home() {
             whileHover={prefersReducedMotion ? undefined : { scale: 1.01 }}
             whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
           >
-            <Button
+            <motion.button
               onClick={() => (window.location.href = '/matchmaking-new')}
-              className="w-full px-8 py-7 text-3xl font-black uppercase tracking-widest rounded-2xl"
-              style={{
-                background: 'linear-gradient(135deg, #a3e635, #22c55e)',
-                color: '#06110a',
-                border: '1px solid rgba(255,255,255,0.22)',
-                boxShadow:
-                  '0 18px 55px rgba(34,197,94,0.24), 0 10px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.16)',
-              }}
+              className="cyber-button w-full px-8 py-6 text-2xl sm:text-3xl flex items-center justify-center gap-3"
+              style={{ color: 'white' }}
               aria-label="Start matchmaking"
             >
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
               START
-            </Button>
+            </motion.button>
           </motion.div>
 
-          <Button
+          <motion.button
             onClick={() => (window.location.href = '/dev/db-test')}
-            variant="ghost"
-            className="mt-3 w-full px-8 py-4 text-sm font-black uppercase tracking-[0.28em] text-white/90 rounded-2xl"
+            className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-black uppercase tracking-[0.28em] flex items-center justify-center gap-2"
             style={{
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background:
+                'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
+              border: '1px solid rgba(154, 91, 255, 0.22)',
+              boxShadow: '0 18px 55px rgba(0,0,0,0.35), 0 0 30px rgba(154,91,255,0.10)',
               backdropFilter: 'blur(18px)',
             }}
             aria-label="Winner demo"
           >
             <Flame className="w-4 h-4 mr-2" />
             WINNER DEMO
-          </Button>
+          </motion.button>
+        </div>
+
+        {/* Mobile action cluster (keeps bottom nav usable) */}
+        <div className="sm:hidden fixed left-4 right-4 bottom-[132px] z-40">
+          <div className="lobby-card">
+            <div className="relative z-10 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <motion.button
+                  type="button"
+                  onClick={() => navigate('/modes')}
+                  className="lobby-chip"
+                  whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+                >
+                  STANDARD »
+                </motion.button>
+                <motion.button
+                  type="button"
+                  onClick={() => setRankMenuOpen(true)}
+                  className="lobby-chip"
+                  style={{ borderColor: 'rgba(88, 196, 255, 0.22)' }}
+                  whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+                >
+                  RANKS
+                </motion.button>
+              </div>
+
+              <motion.button
+                type="button"
+                onClick={() => (window.location.href = '/matchmaking-new')}
+                className="cyber-button w-full mt-3 px-6 py-5 text-xl flex items-center justify-center gap-3"
+                style={{ color: 'white' }}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+              >
+                <Sparkles className="w-5 h-5" />
+                START
+              </motion.button>
+
+              <motion.button
+                type="button"
+                onClick={() => (window.location.href = '/dev/db-test')}
+                className="w-full mt-3 px-6 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.28em] flex items-center justify-center gap-2"
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
+                  border: '1px solid rgba(154, 91, 255, 0.22)',
+                  backdropFilter: 'blur(18px)',
+                }}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+              >
+                <Flame className="w-4 h-4" />
+                WINNER DEMO
+              </motion.button>
+            </div>
+          </div>
         </div>
       </main>
 
