@@ -152,7 +152,7 @@ export default function Home() {
           filter: 'blur(0.2px)',
         }}
       />
-      <div className="cyber-grid" />
+      {/* Note: keep background clean like the reference (no extra grid layer here) */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -294,39 +294,7 @@ export default function Home() {
       </header>
 
       <main className="relative z-20 min-h-[calc(100vh-120px)]">
-        {/* Big character presence (merge from bright reference, but stays subtle) */}
-        <div className="pointer-events-none absolute right-[-140px] bottom-[-80px] w-[840px] max-w-[72vw] opacity-60">
-          {heroSrc ? (
-            heroIsVideo ? (
-              <video
-                src={heroSrc}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="w-full h-auto object-contain"
-                style={{
-                  filter:
-                    'drop-shadow(0 30px 70px rgba(0,0,0,0.7)) drop-shadow(0 0 60px rgba(56,189,248,0.14))',
-                  WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, black 25%, black 100%)',
-                  maskImage: 'linear-gradient(90deg, transparent 0%, black 25%, black 100%)',
-                }}
-              />
-            ) : (
-              <img
-                src={heroSrc}
-                alt={selectedCharacter?.name || 'Selected character'}
-                className="w-full h-auto object-contain"
-                style={{
-                  filter:
-                    'drop-shadow(0 30px 70px rgba(0,0,0,0.7)) drop-shadow(0 0 60px rgba(56,189,248,0.14))',
-                  WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, black 25%, black 100%)',
-                  maskImage: 'linear-gradient(90deg, transparent 0%, black 25%, black 100%)',
-                }}
-              />
-            )
-          ) : null}
-        </div>
+        {/* Keep the lobby clean like the reference (no large character overlay) */}
 
         {/* Left stack (reference-style tiles) */}
         <div className="hidden lg:flex absolute left-6 top-28 w-[260px] flex-col gap-3">
@@ -395,8 +363,8 @@ export default function Home() {
           </motion.button>
         </div>
 
-        {/* Center player card (real “card” feel: depth + foil + tilt) */}
-        <div className="absolute left-1/2 top-[46%] sm:top-[50%] lg:top-[54%] -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[340px] lg:w-[360px] aspect-[5/8]">
+        {/* Center player card (portrait trading-card shape) */}
+        <div className="absolute left-1/2 top-[46%] sm:top-[50%] lg:top-[54%] -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[340px] lg:w-[360px] aspect-[4/5]">
           <div className="relative" style={{ perspective: 1100 }}>
             <motion.div
               onPointerMove={onCardPointerMove}
@@ -405,22 +373,26 @@ export default function Home() {
               animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
               whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
-              className="lobby-card lobby-3d h-full"
+              className="lobby-3d h-full overflow-hidden"
               style={{
                 rotateX: tiltXSpring,
                 rotateY: tiltYSpring,
+                borderRadius: 14,
+                background: 'rgba(18, 25, 38, 0.62)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(22px)',
+                boxShadow: '0 22px 70px rgba(0,0,0,0.55)',
               }}
             >
               {/* Interactive glare (pointer-based) */}
-              <motion.div className="absolute inset-0 pointer-events-none" style={{ background: glare, opacity: 0.9 }} />
-              <div className="lobby-scanline" />
+              <motion.div className="absolute inset-0 pointer-events-none" style={{ background: glare, opacity: 0.55 }} />
 
               {/* Inner frame */}
-              <div className="absolute inset-3 rounded-[22px] border border-white/10 pointer-events-none" />
+              <div className="absolute inset-3 rounded-[12px] border border-white/10 pointer-events-none" />
               <div
-                className="absolute inset-6 rounded-[18px] pointer-events-none"
+                className="absolute inset-6 rounded-[10px] pointer-events-none"
                 style={{
-                  border: '1px solid rgba(88, 196, 255, 0.18)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
                   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
                 }}
               />
@@ -434,10 +406,24 @@ export default function Home() {
               <div className="relative z-10 p-6 sm:p-7 h-full flex flex-col">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex flex-col gap-2">
-                    <span className="lobby-chip">
+                    <span
+                      className="inline-flex items-center rounded px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em]"
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                      }}
+                    >
                       {rank.displayName.toUpperCase()}
                     </span>
-                    <span className="lobby-chip" style={{ borderColor: 'rgba(154, 91, 255, 0.30)' }}>
+                    <span
+                      className="inline-flex items-center rounded px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em]"
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                      }}
+                    >
                       LV&nbsp;{level}
                     </span>
                   </div>
@@ -502,10 +488,11 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => navigate('/profile')}
-                    className="lobby-chip justify-center py-3"
+                    className="w-full rounded px-3 py-3 text-[10px] font-black uppercase tracking-[0.28em]"
                     style={{
-                      borderColor: 'rgba(88, 196, 255, 0.22)',
-                      background: 'rgba(255, 255, 255, 0.05)',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
                     }}
                   >
                     Customize
@@ -513,10 +500,11 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => navigate('/progression')}
-                    className="lobby-chip justify-center py-3"
+                    className="w-full rounded px-3 py-3 text-[10px] font-black uppercase tracking-[0.28em]"
                     style={{
-                      borderColor: 'rgba(154, 91, 255, 0.22)',
-                      background: 'rgba(255, 255, 255, 0.05)',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
                     }}
                   >
                     Progress
@@ -635,7 +623,14 @@ export default function Home() {
           <motion.button
             type="button"
             onClick={() => navigate('/modes')}
-            className="lobby-chip"
+            className="inline-flex items-center gap-2 rounded px-3 py-2 text-[11px] font-black uppercase tracking-[0.28em]"
+            style={{
+              background: '#facc15',
+              color: '#0b1220',
+              border: '1px solid rgba(0,0,0,0.35)',
+              boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
+              fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+            }}
             whileHover={prefersReducedMotion ? undefined : { y: -1 }}
             whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
             aria-label="Standard mode"
@@ -650,11 +645,16 @@ export default function Home() {
           >
             <motion.button
               onClick={() => (window.location.href = '/matchmaking-new')}
-              className="cyber-button w-full px-8 py-6 text-2xl sm:text-3xl flex items-center justify-center gap-3"
-              style={{ color: 'white' }}
+              className="w-full px-8 py-6 text-2xl sm:text-3xl font-black uppercase tracking-widest rounded"
+              style={{
+                background: 'linear-gradient(135deg, #a3e635, #22c55e)',
+                color: '#0b1220',
+                border: '1px solid rgba(0,0,0,0.45)',
+                boxShadow: '0 18px 55px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
+                fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+              }}
               aria-label="Start matchmaking"
             >
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
               START
             </motion.button>
           </motion.div>
