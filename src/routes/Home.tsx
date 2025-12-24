@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useIsAdmin } from '@/hooks/useUserRole';
 import { getRankByPoints } from '@/types/ranking';
+import { useMatchmakingPrefs } from '@/store/useMatchmakingPrefs';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export default function Home() {
   const { user, profile, signOut } = useAuth();
   const { selectedCharacter } = useCharacter();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
+  const { subject: mmSubject, level: mmLevel } = useMatchmakingPrefs();
   const [rankMenuOpen, setRankMenuOpen] = useState(false);
   const [currentMMR, setCurrentMMR] = useState<number>(0);
   const prefersReducedMotion = useMemo(
@@ -93,6 +95,15 @@ export default function Home() {
   const level = Math.max(1, Math.floor(mmr / 100) + 1);
   const username = profile?.username || user?.email?.split('@')[0] || 'Guest';
   const initial = (username?.[0] || '?').toUpperCase();
+  const hasMatchmakingPrefs = Boolean(mmSubject && mmLevel);
+  const subjectLabel = mmSubject
+    ? mmSubject === 'math'
+      ? 'Mathematics'
+      : mmSubject === 'chemistry'
+        ? 'Chemistry'
+        : 'Physics'
+    : '';
+  const levelLabel = mmLevel ? (mmLevel === 'Both' ? 'AS + A2' : mmLevel) : '';
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white font-sans">
@@ -595,13 +606,30 @@ export default function Home() {
             STANDARD <span className="opacity-80">»</span>
           </motion.button>
 
+          {hasMatchmakingPrefs && (
+            <div
+              className="mt-3 w-full px-4 py-3 rounded-2xl"
+              style={{
+                background: 'rgba(15, 23, 42, 0.58)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(18px)',
+                boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
+              }}
+            >
+              <div className="text-xs text-white/60">Selected</div>
+              <div className="text-sm font-semibold text-white">
+                {subjectLabel} <span className="text-white/40">•</span> {levelLabel}
+              </div>
+            </div>
+          )}
+
           <motion.div
             className="mt-3"
             whileHover={prefersReducedMotion ? undefined : { scale: 1.01 }}
             whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
           >
             <motion.button
-              onClick={() => (window.location.href = '/matchmaking-new')}
+              onClick={() => navigate(hasMatchmakingPrefs ? '/matchmaking-new?autostart=1' : '/matchmaking-new')}
               className="w-full px-8 py-6 text-2xl sm:text-3xl font-bold rounded"
               style={{
                 background: 'linear-gradient(135deg, #a3e635, #22c55e)',
