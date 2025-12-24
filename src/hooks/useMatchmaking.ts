@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { MatchRow } from '@/types/schema';
+import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 
 interface MatchmakingState {
   status: 'idle' | 'searching' | 'matched';
@@ -12,6 +13,7 @@ interface MatchmakingState {
 
 export function useMatchmaking() {
   const navigate = useNavigate();
+  const { startMatch } = useElevatorShutter();
   const [state, setState] = useState<MatchmakingState>({
     status: 'idle',
     match: null,
@@ -21,6 +23,7 @@ export function useMatchmaking() {
   const isSearchingRef = useRef(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const matchmakingStartTimeRef = useRef<Date | null>(null);
+  const transitionTriggeredRef = useRef(false);
 
   const checkForMatch = useCallback(async () => {
     try {
@@ -75,10 +78,17 @@ export function useMatchmaking() {
         });
 
         toast.success('Match found! Starting battle...');
-        
-        navigate(`/online-battle-new/${match.id}`, {
-          state: { match },
-        });
+
+        if (!transitionTriggeredRef.current) {
+          transitionTriggeredRef.current = true;
+          startMatch({
+            message: 'ENTERING ARENA',
+            loadingMs: 2000,
+            onClosed: () => {
+              navigate(`/online-battle-new/${match.id}`, { state: { match } });
+            },
+          });
+        }
       } else {
         console.log('[MATCHMAKING] Poll: No match found yet, continuing to wait...');
       }
@@ -187,14 +197,22 @@ export function useMatchmaking() {
         });
 
         toast.success('Match found! Starting battle...');
-        
-        navigate(`/online-battle-new/${match.id}`, {
-          state: { match },
-        });
+
+        if (!transitionTriggeredRef.current) {
+          transitionTriggeredRef.current = true;
+          startMatch({
+            message: 'ENTERING ARENA',
+            loadingMs: 2000,
+            onClosed: () => {
+              navigate(`/online-battle-new/${match.id}`, { state: { match } });
+            },
+          });
+        }
       } else if (data?.matched === false && data?.queued === true) {
         // Queued - enter searching state and start polling
         console.log('[MATCHMAKING] Entering searching state, will poll for match...');
         matchmakingStartTimeRef.current = new Date();
+        transitionTriggeredRef.current = false;
         setState(prev => ({ ...prev, status: 'searching', error: null }));
         toast.info('Searching for opponent...');
         // Polling effect will handle match detection
@@ -202,6 +220,7 @@ export function useMatchmaking() {
         // Unexpected response - treat as queued
         console.warn('[MATCHMAKING] Unexpected response format, treating as queued:', data);
         matchmakingStartTimeRef.current = new Date();
+        transitionTriggeredRef.current = false;
         setState(prev => ({ ...prev, status: 'searching', error: null }));
         toast.info('Searching for opponent...');
       }
@@ -225,6 +244,7 @@ export function useMatchmaking() {
       }
       // Reset matchmaking start time on error
       matchmakingStartTimeRef.current = null;
+      transitionTriggeredRef.current = false;
     } finally {
       isSearchingRef.current = false;
     }
@@ -260,6 +280,7 @@ export function useMatchmaking() {
     });
     isSearchingRef.current = false;
     matchmakingStartTimeRef.current = null;
+    transitionTriggeredRef.current = false;
   }, []);
 
   return {

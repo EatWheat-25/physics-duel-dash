@@ -42,15 +42,6 @@ export default function LobbyNew() {
     setLevel: setPrefLevel,
   } = useMatchmakingPrefs();
 
-  // Navigate to battle when matched
-  useEffect(() => {
-    if (status === 'matched' && match) {
-      navigate(`/online-battle-new/${match.id}`, {
-        state: { match }
-      });
-    }
-  }, [status, match, navigate]);
-
   // Hydrate selection from persisted prefs
   useEffect(() => {
     if (prefSubject) setSelectedSubject(prefSubject);

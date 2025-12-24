@@ -36,15 +36,6 @@ export default function Lobby() {
     document.title = 'Battle Lobby | BattleNerds';
   }, []);
 
-  // Navigate to battle when matched
-  useEffect(() => {
-    if (status === 'matched' && match) {
-      navigate(`/online-battle-new/${match.id}`, {
-        state: { match }
-      });
-    }
-  }, [status, match, navigate]);
-
   // Update queue time when searching
   useEffect(() => {
     let interval: NodeJS.Timeout;
