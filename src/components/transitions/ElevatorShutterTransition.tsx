@@ -14,9 +14,9 @@ type ElevatorShutterContextValue = {
 
 const ElevatorShutterContext = createContext<ElevatorShutterContextValue | null>(null);
 
-// Matte sky ceramic (theme-matched, darker)
-const CERAMIC_SKY = '#B7D6EA';
-const CERAMIC_SKY_DARK = '#8FB8D3';
+// Matte purple ceramic (theme-matched)
+const CERAMIC_PURPLE = '#5B4BBE';
+const CERAMIC_PURPLE_DARK = '#3E3391';
 
 export function ElevatorShutterProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
@@ -97,12 +97,26 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '-100%' }}
           animate={leftControls}
           style={{
-            background: `linear-gradient(180deg, ${CERAMIC_SKY} 0%, ${CERAMIC_SKY_DARK} 100%)`,
+            background: `linear-gradient(180deg, ${CERAMIC_PURPLE} 0%, ${CERAMIC_PURPLE_DARK} 100%)`,
             boxShadow:
               'inset 0 0 0 1px rgba(0,0,0,0.06), inset -18px 0 28px rgba(0,0,0,0.12)',
             willChange: 'transform',
           }}
         >
+          {/* White dot texture (subtle) */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              backgroundImage: [
+                'radial-gradient(circle, rgba(255,255,255,0.16) 1px, transparent 1.2px)',
+                'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1.2px)',
+              ].join(','),
+              backgroundSize: '18px 18px, 28px 28px',
+              backgroundPosition: '0 0, 9px 11px',
+              opacity: 0.55,
+            }}
+          />
+
           {/* Matte grain texture */}
           <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
             <filter id={noiseLeftId}>
@@ -116,7 +130,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             className="absolute inset-0 pointer-events-none opacity-40"
             style={{
               background:
-                'radial-gradient(900px 700px at 18% 18%, rgba(56,189,248,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 85% 75%, rgba(125,211,252,0.14) 0%, transparent 60%)',
+                'radial-gradient(900px 700px at 18% 18%, rgba(168,85,247,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 85% 75%, rgba(196,181,253,0.14) 0%, transparent 60%)',
             }}
           />
         </motion.div>
@@ -127,12 +141,26 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '100%' }}
           animate={rightControls}
           style={{
-            background: `linear-gradient(180deg, ${CERAMIC_SKY} 0%, ${CERAMIC_SKY_DARK} 100%)`,
+            background: `linear-gradient(180deg, ${CERAMIC_PURPLE} 0%, ${CERAMIC_PURPLE_DARK} 100%)`,
             boxShadow:
               'inset 0 0 0 1px rgba(0,0,0,0.06), inset 18px 0 28px rgba(0,0,0,0.12)',
             willChange: 'transform',
           }}
         >
+          {/* White dot texture (subtle) */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              backgroundImage: [
+                'radial-gradient(circle, rgba(255,255,255,0.16) 1px, transparent 1.2px)',
+                'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1.2px)',
+              ].join(','),
+              backgroundSize: '18px 18px, 28px 28px',
+              backgroundPosition: '4px 6px, 15px 2px',
+              opacity: 0.55,
+            }}
+          />
+
           {/* Matte grain texture */}
           <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
             <filter id={noiseRightId}>
@@ -146,7 +174,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             className="absolute inset-0 pointer-events-none opacity-40"
             style={{
               background:
-                'radial-gradient(900px 700px at 82% 18%, rgba(56,189,248,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 18% 75%, rgba(125,211,252,0.14) 0%, transparent 60%)',
+                'radial-gradient(900px 700px at 82% 18%, rgba(168,85,247,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 18% 75%, rgba(196,181,253,0.14) 0%, transparent 60%)',
             }}
           />
         </motion.div>
@@ -161,9 +189,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           <div
             className="relative text-center"
             style={{
-              color: '#0B1220',
+              color: '#F8FAFC',
               textShadow:
-                '0 0 18px rgba(56,189,248,0.85), 0 0 48px rgba(56,189,248,0.35)',
+                '0 0 18px rgba(196,181,253,0.85), 0 0 48px rgba(168,85,247,0.35)',
             }}
           >
             {/* Subtle animated glow blob behind text (transform/opacity only for 60fps) */}
@@ -172,7 +200,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               style={{
                 width: 520,
                 height: 220,
-                background: 'rgba(56, 189, 248, 0.25)',
+                background: 'rgba(168, 85, 247, 0.25)',
               }}
               animate={
                 active
@@ -204,7 +232,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
                 className="h-full w-24"
                 style={{
                   background:
-                    'linear-gradient(90deg, rgba(56,189,248,0), rgba(56,189,248,0.95), rgba(56,189,248,0))',
+                    'linear-gradient(90deg, rgba(196,181,253,0), rgba(196,181,253,0.95), rgba(196,181,253,0))',
                 }}
                 animate={active ? { x: ['-40%', '160%'] } : { x: '-40%' }}
                 transition={{
