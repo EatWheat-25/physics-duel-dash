@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/components/BottomNav';
 import { RankMenu } from '@/components/RankMenu';
-import { PlayerCard } from '@/components/hub/PlayerCard';
 import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy } from 'lucide-react';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { useAuth } from '@/contexts/AuthContext';
@@ -303,9 +302,129 @@ export default function Home() {
           </motion.button>
         </div>
 
-        {/* Center player card - Premium Matte Design */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <PlayerCard />
+        {/* Center player card (Lobby layout) */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[clamp(280px,40vh,360px)] max-w-[90vw] aspect-[5/7]">
+          <motion.div
+            initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
+            animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
+            transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+            className="relative rounded-3xl overflow-hidden h-full w-full"
+            style={{
+              background:
+                'linear-gradient(180deg, rgba(11, 18, 32, 0.96) 0%, rgba(2, 6, 23, 0.96) 100%)',
+              border: '1px solid transparent',
+              borderImage: `${rank.gradient} 1`,
+              boxShadow: '0 22px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.03)',
+            }}
+          >
+            {/* Matte grain (subtle) */}
+            <svg className="absolute inset-0 w-full h-full opacity-[0.035] pointer-events-none">
+              <filter id="homeCardNoise">
+                <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
+                <feColorMatrix type="saturate" values="0" />
+              </filter>
+              <rect width="100%" height="100%" filter="url(#homeCardNoise)" />
+            </svg>
+
+            {/* Etched inner border */}
+            <div
+              className="absolute inset-2 rounded-2xl pointer-events-none"
+              style={{
+                border: `1px solid ${rank.color}`,
+                opacity: 0.18,
+              }}
+            />
+            <div className="absolute inset-[10px] rounded-[18px] border border-white/5 pointer-events-none" />
+
+            <div className="p-6 h-full flex flex-col">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div
+                    className="text-[10px] uppercase tracking-[0.32em] text-white/60 font-black"
+                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                  >
+                    {rank.displayName.toUpperCase()}
+                  </div>
+                  <div
+                    className="mt-2 text-[10px] uppercase tracking-[0.32em] text-white/55 font-black"
+                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                  >
+                    LEVEL {level}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div
+                    className="text-2xl font-black text-white"
+                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                  >
+                    {mmr}
+                  </div>
+                  <div
+                    className="text-[10px] uppercase tracking-[0.32em] font-black"
+                    style={{
+                      fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                      color: 'rgba(255,255,255,0.55)',
+                    }}
+                  >
+                    MMR
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 flex items-center justify-center">
+                <div
+                  className="h-20 w-20 rounded-full flex items-center justify-center"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: `1px solid ${rank.color}`,
+                    boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.45)',
+                  }}
+                >
+                  <span
+                    className="text-3xl font-black text-white"
+                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                  >
+                    {initial}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <div
+                  className="text-2xl font-black text-white"
+                  style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                >
+                  {username}
+                </div>
+                <div className="text-sm uppercase tracking-wider text-white/55">
+                  {rank.displayName}
+                </div>
+              </div>
+
+              <div className="mt-auto pt-8 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => navigate('/profile')}
+                  className="text-[10px] uppercase tracking-[0.18em] font-black transition-colors text-white/55 hover:text-white"
+                  style={{
+                    fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                  }}
+                >
+                  Customize Card
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/progression')}
+                  className="text-[10px] uppercase tracking-[0.18em] font-black transition-colors text-white/55 hover:text-white"
+                  style={{
+                    fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                  }}
+                >
+                  View Progression
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
 
         {/* Right widgets (merge from bright reference; subtle in dark theme) */}
