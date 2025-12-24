@@ -306,79 +306,133 @@ export default function Home() {
             initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
             animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
             transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-            className="relative rounded-3xl overflow-hidden h-full w-full"
-            style={{
-              background:
-                'linear-gradient(180deg, rgba(11, 18, 32, 0.96) 0%, rgba(2, 6, 23, 0.96) 100%)',
-              border: '1px solid transparent',
-              borderImage: `${rank.gradient} 1`,
-              boxShadow: '0 22px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.03)',
-            }}
+            className="relative h-full w-full"
           >
-            {/* Matte grain (subtle) */}
-            <svg className="absolute inset-0 w-full h-full opacity-[0.035] pointer-events-none">
-              <filter id="homeCardNoise">
-                <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
-                <feColorMatrix type="saturate" values="0" />
-              </filter>
-              <rect width="100%" height="100%" filter="url(#homeCardNoise)" />
-            </svg>
-
-            {/* Etched inner border */}
+            {/* Gradient outline wrapper (clean, premium) */}
             <div
-              className="absolute inset-2 rounded-2xl pointer-events-none"
+              className="relative h-full w-full rounded-3xl p-[1px]"
               style={{
-                border: `1px solid ${rank.color}`,
-                opacity: 0.18,
+                background: rank.gradient,
+                boxShadow:
+                  '0 22px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)',
               }}
-            />
-            <div className="absolute inset-[10px] rounded-[18px] border border-white/5 pointer-events-none" />
+            >
+              {/* Matte surface */}
+              <div
+                className="relative h-full w-full rounded-[calc(1.5rem-1px)] overflow-hidden"
+                style={{
+                  background: 'rgba(15, 23, 42, 0.78)',
+                  backdropFilter: 'blur(18px)',
+                  boxShadow:
+                    'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -18px 30px rgba(0,0,0,0.35)',
+                }}
+              >
+                {/* Matte grain (subtle) */}
+                <svg className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none">
+                  <filter id="homeCardNoise">
+                    <feTurbulence
+                      type="fractalNoise"
+                      baseFrequency="0.75"
+                      numOctaves="3"
+                      stitchTiles="stitch"
+                    />
+                    <feColorMatrix type="saturate" values="0" />
+                  </filter>
+                  <rect width="100%" height="100%" filter="url(#homeCardNoise)" />
+                </svg>
 
-            <div className="p-6 h-full flex flex-col">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-xs font-semibold text-white/70">{rank.displayName}</div>
-                  <div className="mt-1 text-xs text-white/55">Level {level}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-white">{mmr}</div>
-                  <div className="text-xs text-white/55">MMR</div>
-                </div>
-              </div>
-
-              <div className="mt-8 flex items-center justify-center">
+                {/* Etched inner border + corner ticks */}
                 <div
-                  className="h-20 w-20 rounded-full flex items-center justify-center"
+                  className="absolute inset-2 rounded-2xl pointer-events-none"
                   style={{
-                    background: 'rgba(255, 255, 255, 0.04)',
                     border: `1px solid ${rank.color}`,
-                    boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.45)',
+                    opacity: 0.2,
                   }}
-                >
-                  <span className="text-3xl font-bold text-white">{initial}</span>
+                />
+                <div className="absolute inset-[10px] rounded-[18px] border border-white/5 pointer-events-none" />
+                <div
+                  className="absolute left-3 top-3 h-3 w-3 pointer-events-none"
+                  style={{
+                    borderLeft: `2px solid ${rank.color}`,
+                    borderTop: `2px solid ${rank.color}`,
+                    opacity: 0.35,
+                  }}
+                />
+                <div
+                  className="absolute right-3 top-3 h-3 w-3 pointer-events-none"
+                  style={{
+                    borderRight: `2px solid ${rank.color}`,
+                    borderTop: `2px solid ${rank.color}`,
+                    opacity: 0.35,
+                  }}
+                />
+                <div
+                  className="absolute left-3 bottom-3 h-3 w-3 pointer-events-none"
+                  style={{
+                    borderLeft: `2px solid ${rank.color}`,
+                    borderBottom: `2px solid ${rank.color}`,
+                    opacity: 0.35,
+                  }}
+                />
+                <div
+                  className="absolute right-3 bottom-3 h-3 w-3 pointer-events-none"
+                  style={{
+                    borderRight: `2px solid ${rank.color}`,
+                    borderBottom: `2px solid ${rank.color}`,
+                    opacity: 0.35,
+                  }}
+                />
+
+                <div className="relative p-6 h-full flex flex-col">
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-white/80 truncate">
+                        {rank.displayName}
+                      </div>
+                      <div className="mt-1 text-xs text-white/55">Level {level}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-white tabular-nums">{mmr}</div>
+                      <div className="text-xs text-white/55">MMR</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 flex items-center justify-center">
+                    <div
+                      className="h-20 w-20 rounded-full flex items-center justify-center"
+                      style={{
+                        background:
+                          'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 65%, rgba(0,0,0,0.15) 100%)',
+                        border: `1px solid ${rank.color}`,
+                        boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.5)',
+                      }}
+                    >
+                      <span className="text-3xl font-bold text-white">{initial}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 text-center">
+                    <div className="text-2xl font-bold text-white">{username}</div>
+                    <div className="text-sm text-white/55">{rank.displayName}</div>
+                  </div>
+
+                  <div className="mt-auto pt-8 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => navigate('/profile')}
+                      className="text-xs font-medium transition-colors text-white/60 hover:text-white"
+                    >
+                      Customize Card
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/progression')}
+                      className="text-xs font-medium transition-colors text-white/60 hover:text-white"
+                    >
+                      View Progression
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <div className="mt-6 text-center">
-                <div className="text-2xl font-bold text-white">{username}</div>
-                <div className="text-sm text-white/55">{rank.displayName}</div>
-              </div>
-
-              <div className="mt-auto pt-8 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => navigate('/profile')}
-                  className="text-xs font-medium transition-colors text-white/60 hover:text-white"
-                >
-                  Customize Card
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate('/progression')}
-                  className="text-xs font-medium transition-colors text-white/60 hover:text-white"
-                >
-                  View Progression
-                </button>
               </div>
             </div>
           </motion.div>
