@@ -327,6 +327,18 @@ export default function Home() {
                     'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -18px 30px rgba(0,0,0,0.35)',
                 }}
               >
+                {/* Soft toon-shading (robot vibe) */}
+                <div
+                  className="absolute inset-0 pointer-events-none opacity-30"
+                  style={{
+                    background: [
+                      'radial-gradient(500px 380px at 18% 20%, rgba(56, 189, 248, 0.16) 0%, transparent 60%)',
+                      'radial-gradient(460px 360px at 82% 30%, rgba(147, 197, 253, 0.10) 0%, transparent 58%)',
+                      'radial-gradient(520px 420px at 50% 88%, rgba(56, 189, 248, 0.10) 0%, transparent 62%)',
+                    ].join(','),
+                  }}
+                />
+
                 {/* Matte grain (subtle) */}
                 <svg className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none">
                   <filter id="homeCardNoise">
@@ -339,6 +351,38 @@ export default function Home() {
                     <feColorMatrix type="saturate" values="0" />
                   </filter>
                   <rect width="100%" height="100%" filter="url(#homeCardNoise)" />
+                </svg>
+
+                {/* Robot watermark (inspired, original vector) */}
+                <svg
+                  className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.10]"
+                  viewBox="0 0 100 140"
+                  preserveAspectRatio="xMidYMid meet"
+                >
+                  {/* Head */}
+                  <rect x="18" y="18" width="64" height="46" rx="18" fill="rgba(56,189,248,0.08)" />
+                  <rect x="22" y="22" width="56" height="38" rx="14" fill="rgba(255,255,255,0.04)" />
+                  {/* Ears */}
+                  <circle cx="16" cy="41" r="10" fill="rgba(56,189,248,0.06)" />
+                  <circle cx="84" cy="41" r="10" fill="rgba(56,189,248,0.06)" />
+                  <circle cx="16" cy="41" r="6" fill="rgba(255,255,255,0.04)" />
+                  <circle cx="84" cy="41" r="6" fill="rgba(255,255,255,0.04)" />
+
+                  {/* Eyes */}
+                  <rect x="38" y="36" width="8" height="14" rx="4" fill="rgba(255,255,255,0.55)" />
+                  <rect x="54" y="36" width="8" height="14" rx="4" fill="rgba(255,255,255,0.55)" />
+
+                  {/* Body */}
+                  <rect x="28" y="66" width="44" height="44" rx="18" fill="rgba(56,189,248,0.05)" />
+                  <rect x="32" y="70" width="36" height="36" rx="14" fill="rgba(255,255,255,0.03)" />
+
+                  {/* Antenna (to avoid copying the reference) */}
+                  <path d="M50 14 v-6" stroke="rgba(56,189,248,0.35)" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx="50" cy="6" r="3" fill="rgba(56,189,248,0.30)" />
+
+                  {/* Outline strokes */}
+                  <rect x="18" y="18" width="64" height="46" rx="18" fill="none" stroke="rgba(56,189,248,0.35)" strokeWidth="2" />
+                  <rect x="28" y="66" width="44" height="44" rx="18" fill="none" stroke="rgba(56,189,248,0.28)" strokeWidth="2" />
                 </svg>
 
                 {/* Etched inner border + corner ticks */}
