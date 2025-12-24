@@ -14,9 +14,9 @@ type ElevatorShutterContextValue = {
 
 const ElevatorShutterContext = createContext<ElevatorShutterContextValue | null>(null);
 
-// Matte light-sky ceramic (theme-matched)
-const CERAMIC_SKY = '#E6F6FF';
-const CERAMIC_SKY_DARK = '#D5EEFF';
+// Matte sky ceramic (theme-matched, darker)
+const CERAMIC_SKY = '#B7D6EA';
+const CERAMIC_SKY_DARK = '#8FB8D3';
 
 export function ElevatorShutterProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
@@ -159,15 +159,60 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           style={{ willChange: 'opacity, transform' }}
         >
           <div
-            className="text-center"
+            className="relative text-center"
             style={{
               color: '#0B1220',
               textShadow:
                 '0 0 18px rgba(56,189,248,0.85), 0 0 48px rgba(56,189,248,0.35)',
             }}
           >
-            <div className="text-3xl md:text-4xl font-extrabold tracking-wider">
+            {/* Subtle animated glow blob behind text (transform/opacity only for 60fps) */}
+            <motion.div
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+              style={{
+                width: 520,
+                height: 220,
+                background: 'rgba(56, 189, 248, 0.25)',
+              }}
+              animate={
+                active
+                  ? { opacity: [0.18, 0.32, 0.18], scale: [1, 1.08, 1] }
+                  : { opacity: 0, scale: 1 }
+              }
+              transition={{
+                duration: 1.1,
+                repeat: active ? Infinity : 0,
+                ease: 'easeInOut',
+              }}
+            />
+
+            <motion.div
+              className="text-3xl md:text-4xl font-extrabold tracking-wider relative"
+              animate={active ? { y: [0, -2, 0] } : { y: 0 }}
+              transition={{
+                duration: 0.85,
+                repeat: active ? Infinity : 0,
+                ease: 'easeInOut',
+              }}
+            >
               {message}
+            </motion.div>
+
+            {/* Small scan line animation */}
+            <div className="mt-4 h-px w-64 mx-auto bg-black/10 overflow-hidden">
+              <motion.div
+                className="h-full w-24"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(56,189,248,0), rgba(56,189,248,0.95), rgba(56,189,248,0))',
+                }}
+                animate={active ? { x: ['-40%', '160%'] } : { x: '-40%' }}
+                transition={{
+                  duration: 1.15,
+                  repeat: active ? Infinity : 0,
+                  ease: 'easeInOut',
+                }}
+              />
             </div>
           </div>
         </motion.div>
