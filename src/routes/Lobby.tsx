@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SolarSystemBackground } from '@/components/SolarSystemBackground';
+import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { supabase } from '@/integrations/supabase/client';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
 import { useActivePlayerCount } from '@/hooks/useActivePlayerCount';
@@ -94,7 +94,7 @@ export default function Lobby() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      <SolarSystemBackground />
+      <StudyPatternBackground />
 
       <div className="absolute top-4 left-4 z-20">
         <Button
