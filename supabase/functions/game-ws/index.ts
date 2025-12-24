@@ -1422,7 +1422,17 @@ function coerceTimeLimitSeconds(raw: any, fallback: number): number {
 function coerceCorrectAnswerIndex(step: any): number {
   const raw = step?.correct_answer?.correctIndex ?? step?.correctAnswer ?? step?.correct_answer
   const n = Number(raw)
-  return Number.isFinite(n) && n >= 0 && n <= 3 ? n : 0
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return 0
+
+  // Variable MCQ options: allow up to 6 options (0-5). Prefer clamping to the
+  // actual option array length when available.
+  const opts = step?.options
+  const hardMax = 5
+  const maxIndex = Array.isArray(opts)
+    ? Math.max(0, Math.min(hardMax, opts.length - 1))
+    : hardMax
+
+  return n <= maxIndex ? n : 0
 }
 
 function coercePrompt(step: any): string {
@@ -2452,11 +2462,11 @@ async function handleSubmitAnswer(
 ): Promise<void> {
   console.log(`[${matchId}] SUBMIT_ANSWER from player ${playerId}, answer: ${answer}`)
 
-  // Validate answer index
-  if (typeof answer !== 'number' || !Number.isFinite(answer) || !Number.isInteger(answer) || answer < 0 || answer > 3) {
+  // Validate answer index (MCQ can be 2–6 options, so allow 0-5; DB will validate against actual option count)
+  if (typeof answer !== 'number' || !Number.isFinite(answer) || !Number.isInteger(answer) || answer < 0 || answer > 5) {
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
-      message: 'Invalid answer: must be an integer 0-3'
+      message: 'Invalid answer: must be an integer 0-5'
     } as GameErrorEvent))
     return
   }
@@ -2648,11 +2658,11 @@ async function handleSubmitAnswerV2(
 ): Promise<void> {
   console.log(`[${matchId}] [V2] SUBMIT_ANSWER from player ${playerId}, answer: ${answer}`)
 
-  // Validate answer index
-  if (typeof answer !== 'number' || !Number.isFinite(answer) || !Number.isInteger(answer) || answer < 0 || answer > 3) {
+  // Validate answer index (MCQ can be 2–6 options, so allow 0-5; DB will validate against actual option count)
+  if (typeof answer !== 'number' || !Number.isFinite(answer) || !Number.isInteger(answer) || answer < 0 || answer > 5) {
     socket.send(JSON.stringify({
       type: 'GAME_ERROR',
-      message: 'Invalid answer: must be an integer 0-3'
+      message: 'Invalid answer: must be an integer 0-5'
     } as GameErrorEvent))
     return
   }

@@ -27,8 +27,8 @@ export interface QuestionStep {
   type: 'mcq' | 'true_false';        // Multiple choice question or True/False
   title: string;                     // Step heading (e.g., "Find the derivative")
   prompt: string;                    // The actual question text for this step
-  options: [string, string, string, string];  // EXACTLY 4 options (TF uses first 2)
-  correctAnswer: 0 | 1 | 2 | 3;      // Index of correct option
+  options: string[];                 // MCQ: 2–6 options, True/False: exactly 2 options
+  correctAnswer: number;             // Index of correct option (0 <= correctAnswer < options.length)
   timeLimitSeconds: number | null;   // Time limit for this step (null = no limit)
   marks: number;                     // Points awarded for this step
   explanation: string | null;        // Explanation shown after answering
@@ -132,7 +132,7 @@ export interface AnswerSubmitPayload {
   type: 'answer_submit';
   question_id: string;
   step_id: string;
-  answer: number;  // 0-3
+  answer: number;  // 0-5 (A-F) depending on option count
 }
 
 /**
@@ -187,18 +187,28 @@ export function validateQuestionStep(step: QuestionStep, stepIndex: number): str
     errors.push(`Step ${stepIndex}: prompt is required`);
   }
 
-  if (!Array.isArray(step.options) || step.options.length !== 4) {
-    errors.push(`Step ${stepIndex}: must have exactly 4 options`);
+  if (!Array.isArray(step.options)) {
+    errors.push(`Step ${stepIndex}: options must be an array`);
   } else {
+    const optionCount = step.options.length;
+    const optionCountOk = step.type === 'true_false'
+      ? optionCount === 2
+      : optionCount >= 2 && optionCount <= 6;
+    if (!optionCountOk) {
+      errors.push(`Step ${stepIndex}: invalid option count for type "${step.type}" (got ${optionCount})`);
+    }
+
     step.options.forEach((opt, i) => {
       if (typeof opt !== 'string' || !opt.trim()) {
         errors.push(`Step ${stepIndex}, option ${i}: must be non-empty string`);
       }
     });
-  }
 
-  if (![0, 1, 2, 3].includes(step.correctAnswer)) {
-    errors.push(`Step ${stepIndex}: correctAnswer must be 0, 1, 2, or 3`);
+    if (!Number.isInteger(step.correctAnswer)) {
+      errors.push(`Step ${stepIndex}: correctAnswer must be an integer`);
+    } else if (step.correctAnswer < 0 || step.correctAnswer >= optionCount) {
+      errors.push(`Step ${stepIndex}: correctAnswer out of range (0-${Math.max(0, optionCount - 1)})`);
+    }
   }
 
   if (step.marks <= 0) {

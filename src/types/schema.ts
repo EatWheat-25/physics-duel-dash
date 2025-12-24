@@ -19,7 +19,7 @@ export interface Question {
 export interface QuestionSteps {
   type: 'mcq' // Multiple choice question
   options: string[] // Array of answer options
-  answer: number // Index of correct answer (0-3)
+  answer: number // Index of correct answer (0-5) depending on option count
 }
 
 // Matchmaking queue entry

@@ -45,8 +45,8 @@ type EditorMode = 'idle' | 'creating' | 'editing';
 type FormSubStep = {
   type: 'mcq' | 'true_false';
   prompt: string;
-  options: [string, string, string, string];
-  correctAnswer: 0 | 1 | 2 | 3;
+  options: string[];
+  correctAnswer: number;
   timeLimitSeconds: number | null;
   explanation: string;
 };
@@ -56,8 +56,8 @@ type FormStep = {
   type: 'mcq' | 'true_false';
   title: string;
   prompt: string;
-  options: [string, string, string, string];
-  correctAnswer: 0 | 1 | 2 | 3;
+  options: string[];
+  correctAnswer: number;
   marks: number;
   timeLimitSeconds: number | null;
   explanation: string;
@@ -225,16 +225,49 @@ export default function AdminQuestions() {
         type: s.type || 'mcq',
         title: s.title,
         prompt: s.prompt,
-        options: [s.options[0] || '', s.options[1] || '', s.options[2] || '', s.options[3] || ''],
-        correctAnswer: s.correctAnswer,
+        options: (() => {
+          const t: 'mcq' | 'true_false' = (s.type === 'true_false' ? 'true_false' : 'mcq')
+          const raw = Array.isArray(s.options) ? s.options : []
+          if (t === 'true_false') {
+            return [raw[0] || 'True', raw[1] || 'False']
+          }
+          // MCQ: keep up to 6; default to 4 slots for easier editing if missing
+          return raw.length > 0 ? raw.slice(0, 6) : ['', '', '', '']
+        })(),
+        correctAnswer: (() => {
+          const t: 'mcq' | 'true_false' = (s.type === 'true_false' ? 'true_false' : 'mcq')
+          const rawOptions = Array.isArray(s.options) ? s.options : []
+          const optionCount = t === 'true_false'
+            ? 2
+            : Math.max(2, Math.min(6, rawOptions.length || 4))
+          const maxIndex = optionCount - 1
+          const v = typeof s.correctAnswer === 'number' ? s.correctAnswer : 0
+          return Math.max(0, Math.min(maxIndex, Math.floor(v)))
+        })(),
         marks: s.marks,
         timeLimitSeconds: s.timeLimitSeconds,
         explanation: s.explanation || '',
         subSteps: (s.subSteps ?? []).map(sub => ({
           type: sub.type || 'true_false',
           prompt: sub.prompt || '',
-          options: [sub.options?.[0] || '', sub.options?.[1] || '', sub.options?.[2] || '', sub.options?.[3] || ''],
-          correctAnswer: sub.correctAnswer ?? 0,
+          options: (() => {
+            const t: 'mcq' | 'true_false' = (sub.type === 'true_false' ? 'true_false' : 'mcq')
+            const raw = Array.isArray(sub.options) ? sub.options : []
+            if (t === 'true_false') {
+              return [raw[0] || 'True', raw[1] || 'False']
+            }
+            return raw.length > 0 ? raw.slice(0, 6) : ['', '', '', '']
+          })(),
+          correctAnswer: (() => {
+            const t: 'mcq' | 'true_false' = (sub.type === 'true_false' ? 'true_false' : 'mcq')
+            const rawOptions = Array.isArray(sub.options) ? sub.options : []
+            const optionCount = t === 'true_false'
+              ? 2
+              : Math.max(2, Math.min(6, rawOptions.length || 4))
+            const maxIndex = optionCount - 1
+            const v = typeof sub.correctAnswer === 'number' ? sub.correctAnswer : 0
+            return Math.max(0, Math.min(maxIndex, Math.floor(v)))
+          })(),
           timeLimitSeconds: sub.timeLimitSeconds ?? 5,
           explanation: sub.explanation || ''
         }))
@@ -261,7 +294,7 @@ export default function AdminQuestions() {
         type: s.type,
         title: s.title,
         prompt: s.prompt,
-        options: s.options as [string, string, string, string],
+        options: s.options,
         correctAnswer: s.correctAnswer,
         marks: s.marks,
         timeLimitSeconds: s.timeLimitSeconds,
@@ -345,14 +378,18 @@ export default function AdminQuestions() {
     
     // When changing type to true_false, set default options and limit correctAnswer
     if (field === 'type' && value === 'true_false') {
-      updatedStep.options = ['True', 'False', '', ''];
+      updatedStep.options = ['True', 'False'];
       if (updatedStep.correctAnswer > 1) {
         updatedStep.correctAnswer = 0;
       }
     } else if (field === 'type' && value === 'mcq') {
-      // When changing to MCQ, ensure we have 4 options
-      if (!updatedStep.options[2] && !updatedStep.options[3]) {
-        updatedStep.options = [updatedStep.options[0] || '', updatedStep.options[1] || '', '', ''];
+      // When changing to MCQ, ensure option count is 2–6
+      const next = Array.isArray(updatedStep.options) ? [...updatedStep.options] : []
+      while (next.length < 2) next.push('')
+      if (next.length > 6) next.splice(6)
+      updatedStep.options = next
+      if (updatedStep.correctAnswer < 0 || updatedStep.correctAnswer >= next.length) {
+        updatedStep.correctAnswer = 0
       }
     }
     
@@ -368,8 +405,65 @@ export default function AdminQuestions() {
     const newSteps = [...form.steps];
     const options = [...newSteps[stepIndex].options];
     options[optionIndex] = value;
-    newSteps[stepIndex] = { ...newSteps[stepIndex], options: options as [string, string, string, string] };
+    newSteps[stepIndex] = { ...newSteps[stepIndex], options };
     setForm({ ...form, steps: newSteps });
+  }
+
+  function handleAddStepOption(stepIndex: number) {
+    const newSteps = [...form.steps]
+    const step = newSteps[stepIndex]
+    if (!step || step.type !== 'mcq') return
+    if (step.options.length >= 6) return
+
+    const nextOptions = [...step.options, '']
+    newSteps[stepIndex] = {
+      ...step,
+      options: nextOptions,
+      correctAnswer: Math.max(0, Math.min(step.correctAnswer, nextOptions.length - 1))
+    }
+    setForm({ ...form, steps: newSteps })
+  }
+
+  function handleRemoveStepOption(stepIndex: number) {
+    const newSteps = [...form.steps]
+    const step = newSteps[stepIndex]
+    if (!step || step.type !== 'mcq') return
+    if (step.options.length <= 2) return
+
+    const nextOptions = step.options.slice(0, -1)
+    const nextCorrect = Math.max(0, Math.min(step.correctAnswer, nextOptions.length - 1))
+    newSteps[stepIndex] = { ...step, options: nextOptions, correctAnswer: nextCorrect }
+    setForm({ ...form, steps: newSteps })
+  }
+
+  function handleAddSubStepOption(stepIndex: number, subStepIndex: number) {
+    const newSteps = [...form.steps]
+    const step = newSteps[stepIndex]
+    const subs = Array.isArray(step?.subSteps) ? [...step.subSteps] : []
+    const sub = subs[subStepIndex]
+    if (!step || !sub || sub.type !== 'mcq') return
+    if (sub.options.length >= 6) return
+
+    const nextOptions = [...sub.options, '']
+    const nextCorrect = Math.max(0, Math.min(sub.correctAnswer, nextOptions.length - 1))
+    subs[subStepIndex] = { ...sub, options: nextOptions, correctAnswer: nextCorrect }
+    newSteps[stepIndex] = { ...step, subSteps: subs }
+    setForm({ ...form, steps: newSteps })
+  }
+
+  function handleRemoveSubStepOption(stepIndex: number, subStepIndex: number) {
+    const newSteps = [...form.steps]
+    const step = newSteps[stepIndex]
+    const subs = Array.isArray(step?.subSteps) ? [...step.subSteps] : []
+    const sub = subs[subStepIndex]
+    if (!step || !sub || sub.type !== 'mcq') return
+    if (sub.options.length <= 2) return
+
+    const nextOptions = sub.options.slice(0, -1)
+    const nextCorrect = Math.max(0, Math.min(sub.correctAnswer, nextOptions.length - 1))
+    subs[subStepIndex] = { ...sub, options: nextOptions, correctAnswer: nextCorrect }
+    newSteps[stepIndex] = { ...step, subSteps: subs }
+    setForm({ ...form, steps: newSteps })
   }
 
   function handleAddSubStep(stepIndex: number) {
@@ -388,7 +482,7 @@ export default function AdminQuestions() {
       {
         type: 'true_false',
         prompt: '',
-        options: ['True', 'False', '', ''],
+        options: ['True', 'False'],
         correctAnswer: 0,
         timeLimitSeconds: 5,
         explanation: ''
@@ -436,12 +530,14 @@ export default function AdminQuestions() {
 
     // When changing type to true_false, set default options and limit correctAnswer
     if (field === 'type' && value === 'true_false') {
-      updated.options = ['True', 'False', '', ''];
+      updated.options = ['True', 'False'];
       if (updated.correctAnswer > 1) updated.correctAnswer = 0;
     } else if (field === 'type' && value === 'mcq') {
-      if (!updated.options[2] && !updated.options[3]) {
-        updated.options = [updated.options[0] || '', updated.options[1] || '', '', ''];
-      }
+      const next = Array.isArray(updated.options) ? [...updated.options] : []
+      while (next.length < 2) next.push('')
+      if (next.length > 6) next.splice(6)
+      updated.options = next
+      if (updated.correctAnswer < 0 || updated.correctAnswer >= next.length) updated.correctAnswer = 0;
     }
 
     current[subStepIndex] = updated;
@@ -456,7 +552,7 @@ export default function AdminQuestions() {
     const sub = current[subStepIndex];
     const options = [...sub.options];
     options[optionIndex] = value;
-    current[subStepIndex] = { ...sub, options: options as [string, string, string, string] };
+    current[subStepIndex] = { ...sub, options };
     newSteps[stepIndex] = { ...step, subSteps: current };
     setForm({ ...form, steps: newSteps });
   }
@@ -488,8 +584,9 @@ export default function AdminQuestions() {
       
       if (step.type === 'true_false') {
         // True/False: need exactly 2 non-empty options
-        const nonEmptyOptions = step.options.slice(0, 2).filter(opt => opt.trim());
-        if (nonEmptyOptions.length !== 2) {
+        const o0 = (step.options[0] || '').trim()
+        const o1 = (step.options[1] || '').trim()
+        if (!o0 || !o1) {
           toast.error(`Step ${i + 1}: True/False questions need exactly 2 options (True and False)`);
           return false;
         }
@@ -498,12 +595,8 @@ export default function AdminQuestions() {
           return false;
         }
       } else {
-        const trimmed: [string, string, string, string] = [
-          step.options[0].trim(),
-          step.options[1].trim(),
-          step.options[2].trim(),
-          step.options[3].trim(),
-        ];
+        const raw = Array.isArray(step.options) ? step.options : []
+        const trimmed = raw.map((o) => String(o ?? '').trim()).slice(0, 6)
 
         // MCQ: require at least A + B
         if (!trimmed[0] || !trimmed[1]) {
@@ -511,18 +604,29 @@ export default function AdminQuestions() {
           return false;
         }
 
-        // Disallow gaps (e.g. D filled while C empty)
-        if (!trimmed[2] && trimmed[3]) {
-          toast.error(`Step ${i + 1}: Fill option C before option D`);
+        // No gaps: once an option is empty, all following must be empty
+        const lastNonEmpty = (() => {
+          for (let k = trimmed.length - 1; k >= 0; k--) {
+            if (trimmed[k]) return k
+          }
+          return -1
+        })()
+        const effective = trimmed.slice(0, lastNonEmpty + 1)
+        if (effective.length < 2) {
+          toast.error(`Step ${i + 1}: MCQ needs at least 2 options (A and B)`);
+          return false;
+        }
+        if (effective.some((o) => !o)) {
+          toast.error(`Step ${i + 1}: MCQ options cannot have gaps (fill A..last option with no empty in between)`);
           return false;
         }
 
-        const maxIndex = trimmed[3] ? 3 : trimmed[2] ? 2 : 1;
+        const maxIndex = effective.length - 1;
         if (step.correctAnswer < 0 || step.correctAnswer > maxIndex) {
           toast.error(`Step ${i + 1}: correct answer must be between 0 and ${maxIndex}`);
           return false;
         }
-        if (!trimmed[step.correctAnswer]) {
+        if (!effective[step.correctAnswer]) {
           toast.error(`Step ${i + 1}: correct answer cannot point to an empty option`);
           return false;
         }
@@ -538,8 +642,9 @@ export default function AdminQuestions() {
         }
 
         if (sub.type === 'true_false') {
-          const nonEmptyOptions = sub.options.slice(0, 2).filter(opt => opt.trim());
-          if (nonEmptyOptions.length !== 2) {
+          const o0 = (sub.options[0] || '').trim()
+          const o1 = (sub.options[1] || '').trim()
+          if (!o0 || !o1) {
             toast.error(`Step ${i + 1} Sub-step ${j + 1}: True/False needs exactly 2 options (True and False)`);
             return false;
           }
@@ -548,12 +653,8 @@ export default function AdminQuestions() {
             return false;
           }
         } else {
-          const trimmed: [string, string, string, string] = [
-            sub.options[0].trim(),
-            sub.options[1].trim(),
-            sub.options[2].trim(),
-            sub.options[3].trim(),
-          ];
+          const raw = Array.isArray(sub.options) ? sub.options : []
+          const trimmed = raw.map((o) => String(o ?? '').trim()).slice(0, 6)
 
           // MCQ: require at least A + B
           if (!trimmed[0] || !trimmed[1]) {
@@ -561,18 +662,28 @@ export default function AdminQuestions() {
             return false;
           }
 
-          // Disallow gaps (e.g. D filled while C empty)
-          if (!trimmed[2] && trimmed[3]) {
-            toast.error(`Step ${i + 1} Sub-step ${j + 1}: Fill option C before option D`);
+          const lastNonEmpty = (() => {
+            for (let k = trimmed.length - 1; k >= 0; k--) {
+              if (trimmed[k]) return k
+            }
+            return -1
+          })()
+          const effective = trimmed.slice(0, lastNonEmpty + 1)
+          if (effective.length < 2) {
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: MCQ needs at least 2 options (A and B)`);
+            return false;
+          }
+          if (effective.some((o) => !o)) {
+            toast.error(`Step ${i + 1} Sub-step ${j + 1}: MCQ options cannot have gaps (fill A..last option with no empty in between)`);
             return false;
           }
 
-          const maxIndex = trimmed[3] ? 3 : trimmed[2] ? 2 : 1;
+          const maxIndex = effective.length - 1;
           if (sub.correctAnswer < 0 || sub.correctAnswer > maxIndex) {
             toast.error(`Step ${i + 1} Sub-step ${j + 1}: correct answer must be between 0 and ${maxIndex}`);
             return false;
           }
-          if (!trimmed[sub.correctAnswer]) {
+          if (!effective[sub.correctAnswer]) {
             toast.error(`Step ${i + 1} Sub-step ${j + 1}: correct answer cannot point to an empty option`);
             return false;
           }
@@ -594,100 +705,115 @@ export default function AdminQuestions() {
         .filter(t => t.length > 0);
 
       const stepsPayload: QuestionStep[] = form.steps.map((s, i) => {
-        const trimmed: [string, string, string, string] = [
-          s.options[0].trim(),
-          s.options[1].trim(),
-          s.options[2].trim(),
-          s.options[3].trim(),
-        ];
+        const raw = Array.isArray(s.options) ? s.options : []
+        const trimmed = raw.map((o) => String(o ?? '').trim()).slice(0, 6)
+
+        const correct = Number(s.correctAnswer)
+        if (!Number.isInteger(correct)) {
+          throw new Error(`Step ${i + 1}: correctAnswer must be an integer`)
+        }
+
+        let optionsToSave: string[] = []
 
         if (s.type === 'true_false') {
-          if (!trimmed[0] || !trimmed[1]) {
-            throw new Error(`Step ${i + 1}: True/False questions must have 2 options (True and False)`);
+          const o0 = trimmed[0] || ''
+          const o1 = trimmed[1] || ''
+          if (!o0 || !o1) {
+            throw new Error(`Step ${i + 1}: True/False questions must have 2 options (True and False)`)
           }
+          if (correct < 0 || correct > 1) {
+            throw new Error(`Step ${i + 1}: True/False correct answer must be 0 or 1`)
+          }
+          optionsToSave = [o0, o1]
         } else {
           if (!trimmed[0] || !trimmed[1]) {
-            throw new Error(`Step ${i + 1}: MCQ questions must have at least 2 options (A and B)`);
+            throw new Error(`Step ${i + 1}: MCQ questions must have at least 2 options (A and B)`)
           }
-          if (!trimmed[2] && trimmed[3]) {
-            throw new Error(`Step ${i + 1}: Fill option C before option D`);
+
+          const lastNonEmpty = (() => {
+            for (let k = trimmed.length - 1; k >= 0; k--) {
+              if (trimmed[k]) return k
+            }
+            return -1
+          })()
+
+          const effective = trimmed.slice(0, lastNonEmpty + 1)
+          if (effective.length < 2) {
+            throw new Error(`Step ${i + 1}: MCQ questions must have at least 2 options (A and B)`)
           }
-        }
-        
-        // Validate correctAnswer range
-        const correct = Number(s.correctAnswer);
-        if (Number.isNaN(correct)) {
-          throw new Error(`Step ${i + 1}: correctAnswer missing`);
-        }
-        if (s.type === 'true_false' && (correct < 0 || correct > 1)) {
-          throw new Error(`Step ${i + 1}: True/False correct answer must be 0 or 1`);
-        }
-        if (s.type === 'mcq') {
-          const maxIndex = trimmed[3] ? 3 : trimmed[2] ? 2 : 1;
+          if (effective.some((o) => !o)) {
+            throw new Error(`Step ${i + 1}: MCQ options cannot have gaps (fill A..last option with no empty in between)`)
+          }
+          if (effective.length > 6) {
+            throw new Error(`Step ${i + 1}: MCQ cannot exceed 6 options`)
+          }
+
+          const maxIndex = effective.length - 1
           if (correct < 0 || correct > maxIndex) {
-            throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${maxIndex})`);
+            throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${maxIndex})`)
           }
-          if (!trimmed[correct as 0 | 1 | 2 | 3]) {
-            throw new Error(`Step ${i + 1}: correctAnswer cannot point to an empty option`);
-          }
+          optionsToSave = effective
         }
-        
-        // Store options as fixed A/B/C/D (True/False keeps C/D empty)
-        const paddedOptions: [string, string, string, string] =
-          s.type === 'true_false'
-            ? [trimmed[0], trimmed[1], '', '']
-            : trimmed;
 
         const subStepsPayload = (Array.isArray(s.subSteps) ? s.subSteps : [])
           .filter((sub) => sub.prompt.trim().length > 0)
           .map((sub, j) => {
-            const subTrimmed: [string, string, string, string] = [
-              sub.options[0].trim(),
-              sub.options[1].trim(),
-              sub.options[2].trim(),
-              sub.options[3].trim(),
-            ];
+            const rawSub = Array.isArray(sub.options) ? sub.options : []
+            const subTrimmed = rawSub.map((o) => String(o ?? '').trim()).slice(0, 6)
+
+            const subCorrect = Number(sub.correctAnswer)
+            if (!Number.isInteger(subCorrect)) {
+              throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer must be an integer`)
+            }
+
+            let subOptionsToSave: string[] = []
 
             if (sub.type === 'true_false') {
-              if (!subTrimmed[0] || !subTrimmed[1]) {
-                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False must have 2 options (True and False)`);
+              const o0 = subTrimmed[0] || ''
+              const o1 = subTrimmed[1] || ''
+              if (!o0 || !o1) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False must have 2 options (True and False)`)
               }
+              if (subCorrect < 0 || subCorrect > 1) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False correct answer must be 0 or 1`)
+              }
+              subOptionsToSave = [o0, o1]
             } else {
               if (!subTrimmed[0] || !subTrimmed[1]) {
-                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: MCQ must have at least 2 options (A and B)`);
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: MCQ must have at least 2 options (A and B)`)
               }
-              if (!subTrimmed[2] && subTrimmed[3]) {
-                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: Fill option C before option D`);
-              }
-            }
 
-            const subCorrect = Number(sub.correctAnswer);
-            if (Number.isNaN(subCorrect)) {
-              throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer missing`);
-            }
-            if (sub.type === 'true_false' && (subCorrect < 0 || subCorrect > 1)) {
-              throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False correct answer must be 0 or 1`);
-            }
-            if (sub.type === 'mcq') {
-              const maxIndex = subTrimmed[3] ? 3 : subTrimmed[2] ? 2 : 1;
+              const lastNonEmpty = (() => {
+                for (let k = subTrimmed.length - 1; k >= 0; k--) {
+                  if (subTrimmed[k]) return k
+                }
+                return -1
+              })()
+
+              const effective = subTrimmed.slice(0, lastNonEmpty + 1)
+              if (effective.length < 2) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: MCQ must have at least 2 options (A and B)`)
+              }
+              if (effective.some((o) => !o)) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: MCQ options cannot have gaps (fill A..last option with no empty in between)`)
+              }
+              if (effective.length > 6) {
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: MCQ cannot exceed 6 options`)
+              }
+
+              const maxIndex = effective.length - 1
               if (subCorrect < 0 || subCorrect > maxIndex) {
-                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer out of range (must be 0-${maxIndex})`);
+                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer out of range (must be 0-${maxIndex})`)
               }
-              if (!subTrimmed[subCorrect as 0 | 1 | 2 | 3]) {
-                throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer cannot point to an empty option`);
-              }
-            }
 
-            const subPaddedOptions: [string, string, string, string] =
-              sub.type === 'true_false'
-                ? [subTrimmed[0], subTrimmed[1], '', '']
-                : subTrimmed;
+              subOptionsToSave = effective
+            }
 
             return {
               type: sub.type,
               prompt: sub.prompt,
-              options: subPaddedOptions,
-              correctAnswer: subCorrect as 0 | 1 | 2 | 3,
+              options: subOptionsToSave,
+              correctAnswer: subCorrect,
               timeLimitSeconds: sub.timeLimitSeconds ?? 5,
               explanation: sub.explanation || null
             };
@@ -699,8 +825,8 @@ export default function AdminQuestions() {
           type: s.type,
           title: s.title,
           prompt: s.prompt,
-          options: paddedOptions,
-          correctAnswer: correct as 0 | 1 | 2 | 3,
+          options: optionsToSave,
+          correctAnswer: correct,
           timeLimitSeconds: s.timeLimitSeconds ?? null,
           marks: s.marks,
           explanation: s.explanation || null,
@@ -1506,7 +1632,10 @@ export default function AdminQuestions() {
                             </div>
 
                             <div className={`grid gap-4 bg-gradient-to-br from-black/30 to-black/10 p-5 rounded-xl border-2 ${step.type === 'true_false' ? 'grid-cols-2 border-green-500/20' : 'grid-cols-2 border-blue-500/20'}`}>
-                              {(step.type === 'true_false' ? [0, 1] : [0, 1, 2, 3]).map((optIdx) => (
+                              {(step.type === 'true_false'
+                                ? [0, 1]
+                                : Array.from({ length: step.options.length }, (_, i) => i)
+                              ).map((optIdx) => (
                                 <div key={optIdx} className={`p-3 rounded-lg border-2 transition-all ${
                                   step.correctAnswer === optIdx
                                     ? 'bg-green-500/20 border-green-500/50'
@@ -1529,7 +1658,7 @@ export default function AdminQuestions() {
                                       {String.fromCharCode(65 + optIdx)}
                                     </div>
                                     <Input
-                                      value={step.options[optIdx]}
+                                      value={step.options[optIdx] || ''}
                                       onChange={e => updateStepOption(index, optIdx, e.target.value)}
                                       className={`${glassInput} h-10 text-sm flex-1`}
                                       placeholder={step.type === 'true_false' && optIdx === 0 ? 'True' : step.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
@@ -1539,20 +1668,52 @@ export default function AdminQuestions() {
                               ))}
                             </div>
 
+                            {step.type === 'mcq' && (
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-xs text-white/50 font-mono">
+                                  Options: {step.options.length} (min 2, max 6)
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    className="bg-white/10 text-white border border-white/10 hover:bg-white/15"
+                                    onClick={() => handleRemoveStepOption(index)}
+                                    disabled={step.options.length <= 2}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" /> Remove Option
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    className="bg-white/10 text-white border border-white/10 hover:bg-white/15"
+                                    onClick={() => handleAddStepOption(index)}
+                                    disabled={step.options.length >= 6}
+                                  >
+                                    <Plus className="w-4 h-4 mr-2" /> Add Option
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
                             <div className="grid grid-cols-3 gap-4">
                               <div>
                                 <label className={labelStyle}>Correct Answer</label>
                                 <Select value={step.correctAnswer.toString()} onValueChange={(v) => updateStepField(index, 'correctAnswer', parseInt(v))}>
                                   <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                                   <SelectContent className="bg-gray-900 border-white/10 text-white">
-                                    <SelectItem value="0">Option A{step.type === 'true_false' ? ' (True)' : ''}</SelectItem>
-                                    <SelectItem value="1">Option B{step.type === 'true_false' ? ' (False)' : ''}</SelectItem>
-                                    {step.type === 'mcq' && (
-                                      <>
-                                        <SelectItem value="2">Option C</SelectItem>
-                                        <SelectItem value="3">Option D</SelectItem>
-                                      </>
-                                    )}
+                                    {(step.type === 'true_false'
+                                      ? [0, 1]
+                                      : Array.from({ length: step.options.length }, (_, i) => i)
+                                    ).map((optIdx) => (
+                                      <SelectItem key={optIdx} value={optIdx.toString()}>
+                                        Option {String.fromCharCode(65 + optIdx)}
+                                        {step.type === 'true_false' && optIdx === 0 ? ' (True)' : ''}
+                                        {step.type === 'true_false' && optIdx === 1 ? ' (False)' : ''}
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -1695,7 +1856,10 @@ export default function AdminQuestions() {
                                         </div>
 
                                         <div className={`grid gap-4 bg-gradient-to-br from-black/30 to-black/10 p-4 rounded-xl border-2 ${sub.type === 'true_false' ? 'grid-cols-2 border-green-500/20' : 'grid-cols-2 border-blue-500/20'}`}>
-                                          {(sub.type === 'true_false' ? [0, 1] : [0, 1, 2, 3]).map((optIdx) => (
+                                          {(sub.type === 'true_false'
+                                            ? [0, 1]
+                                            : Array.from({ length: sub.options.length }, (_, i) => i)
+                                          ).map((optIdx) => (
                                             <div key={optIdx} className={`p-3 rounded-lg border-2 transition-all ${
                                               sub.correctAnswer === optIdx
                                                 ? 'bg-green-500/20 border-green-500/50'
@@ -1718,7 +1882,7 @@ export default function AdminQuestions() {
                                                   {String.fromCharCode(65 + optIdx)}
                                                 </div>
                                                 <Input
-                                                  value={sub.options[optIdx]}
+                                                  value={sub.options[optIdx] || ''}
                                                   onChange={e => updateSubStepOption(index, subIdx, optIdx, e.target.value)}
                                                   className={`${glassInput} h-10 text-sm flex-1`}
                                                   placeholder={sub.type === 'true_false' && optIdx === 0 ? 'True' : sub.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
@@ -1727,6 +1891,36 @@ export default function AdminQuestions() {
                                             </div>
                                           ))}
                                         </div>
+
+                                        {sub.type === 'mcq' && (
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="text-xs text-white/50 font-mono">
+                                              Options: {sub.options.length} (min 2, max 6)
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="secondary"
+                                                className="bg-white/10 text-white border border-white/10 hover:bg-white/15"
+                                                onClick={() => handleRemoveSubStepOption(index, subIdx)}
+                                                disabled={sub.options.length <= 2}
+                                              >
+                                                <Trash2 className="w-4 h-4 mr-2" /> Remove Option
+                                              </Button>
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="secondary"
+                                                className="bg-white/10 text-white border border-white/10 hover:bg-white/15"
+                                                onClick={() => handleAddSubStepOption(index, subIdx)}
+                                                disabled={sub.options.length >= 6}
+                                              >
+                                                <Plus className="w-4 h-4 mr-2" /> Add Option
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        )}
 
                                         <div className="grid grid-cols-2 gap-4">
                                           <div>
@@ -1737,14 +1931,16 @@ export default function AdminQuestions() {
                                             >
                                               <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                                               <SelectContent className="bg-gray-900 border-white/10 text-white">
-                                                <SelectItem value="0">Option A{sub.type === 'true_false' ? ' (True)' : ''}</SelectItem>
-                                                <SelectItem value="1">Option B{sub.type === 'true_false' ? ' (False)' : ''}</SelectItem>
-                                                {sub.type === 'mcq' && (
-                                                  <>
-                                                    <SelectItem value="2">Option C</SelectItem>
-                                                    <SelectItem value="3">Option D</SelectItem>
-                                                  </>
-                                                )}
+                                                {(sub.type === 'true_false'
+                                                  ? [0, 1]
+                                                  : Array.from({ length: sub.options.length }, (_, i) => i)
+                                                ).map((optIdx) => (
+                                                  <SelectItem key={optIdx} value={optIdx.toString()}>
+                                                    Option {String.fromCharCode(65 + optIdx)}
+                                                    {sub.type === 'true_false' && optIdx === 0 ? ' (True)' : ''}
+                                                    {sub.type === 'true_false' && optIdx === 1 ? ' (False)' : ''}
+                                                  </SelectItem>
+                                                ))}
                                               </SelectContent>
                                             </Select>
                                           </div>
@@ -1853,7 +2049,12 @@ export default function AdminQuestions() {
                                 </p>
                                 
                                 <div className="space-y-2">
-                                  {(step.type === 'true_false' ? [0, 1] : [0, 1, 2, 3].filter(i => step.options[i]?.trim())).map((optIdx) => (
+                                  {(step.type === 'true_false'
+                                    ? [0, 1]
+                                    : step.options
+                                        .map((opt, i) => (String(opt ?? '').trim() ? i : null))
+                                        .filter((i): i is number => i !== null)
+                                  ).map((optIdx) => (
                                     <div
                                       key={optIdx}
                                       className={`p-3 rounded-lg border-2 transition-all ${

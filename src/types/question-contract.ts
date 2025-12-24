@@ -35,11 +35,15 @@ export interface QuestionStep {
     /** The actual question text for this step */
     prompt: string;
 
-    /** Exactly 4 multiple choice options */
-    options: [string, string, string, string];
+    /**
+     * Answer options.
+     * - MCQ: 2–6 options
+     * - True/False: exactly 2 options
+     */
+    options: string[];
 
-    /** Index of correct option (0, 1, 2, or 3) */
-    correctAnswer: 0 | 1 | 2 | 3;
+    /** Index of correct option (0 <= correctAnswer < options.length) */
+    correctAnswer: number;
 
     /** Time limit for this step in seconds (null = no limit) */
     timeLimitSeconds: number | null;
@@ -69,11 +73,15 @@ export interface QuestionSubStep {
     /** The actual question text for the sub-step */
     prompt: string;
 
-    /** Exactly 4 options (TF uses first 2; C/D can be empty strings) */
-    options: [string, string, string, string];
+    /**
+     * Answer options.
+     * - MCQ: 2–6 options
+     * - True/False: exactly 2 options
+     */
+    options: string[];
 
-    /** Index of correct option (0, 1, 2, or 3) */
-    correctAnswer: 0 | 1 | 2 | 3;
+    /** Index of correct option (0 <= correctAnswer < options.length) */
+    correctAnswer: number;
 
     /** Time limit for this sub-step in seconds (default: 5; null = no limit) */
     timeLimitSeconds: number | null;
@@ -128,36 +136,45 @@ export interface StepBasedQuestion {
  * Type guard to validate if an object is a valid QuestionStep
  */
 export function isValidQuestionStep(obj: any): obj is QuestionStep {
-    return (
-        typeof obj === 'object' &&
-        typeof obj.id === 'string' &&
-        typeof obj.index === 'number' &&
-        (obj.type === 'mcq' || obj.type === 'true_false') &&
-        typeof obj.title === 'string' &&
-        typeof obj.prompt === 'string' &&
-        Array.isArray(obj.options) &&
-        obj.options.length === 4 &&
-        typeof obj.correctAnswer === 'number' &&
-        obj.correctAnswer >= 0 &&
-        obj.correctAnswer <= 3 &&
-        typeof obj.marks === 'number' &&
-        (
-            obj.subSteps == null ||
-            (
-                Array.isArray(obj.subSteps) &&
-                obj.subSteps.every((s: any) => (
-                    typeof s === 'object' &&
-                    (s.type === 'mcq' || s.type === 'true_false') &&
-                    typeof s.prompt === 'string' &&
-                    Array.isArray(s.options) &&
-                    s.options.length === 4 &&
-                    typeof s.correctAnswer === 'number' &&
-                    s.correctAnswer >= 0 &&
-                    s.correctAnswer <= 3
-                ))
-            )
-        )
-    );
+    if (!obj || typeof obj !== 'object') return false;
+    if (typeof obj.id !== 'string') return false;
+    if (typeof obj.index !== 'number') return false;
+    if (obj.type !== 'mcq' && obj.type !== 'true_false') return false;
+    if (typeof obj.title !== 'string') return false;
+    if (typeof obj.prompt !== 'string') return false;
+
+    if (!Array.isArray(obj.options) || !obj.options.every((o: any) => typeof o === 'string')) return false;
+    const optionCount = obj.options.length;
+    const optionCountOk = obj.type === 'true_false'
+        ? optionCount === 2
+        : optionCount >= 2 && optionCount <= 6;
+    if (!optionCountOk) return false;
+
+    if (typeof obj.correctAnswer !== 'number' || !Number.isInteger(obj.correctAnswer)) return false;
+    if (obj.correctAnswer < 0 || obj.correctAnswer >= optionCount) return false;
+
+    if (typeof obj.marks !== 'number') return false;
+
+    if (obj.subSteps != null) {
+        if (!Array.isArray(obj.subSteps)) return false;
+        const isValidSub = (s: any) => {
+            if (!s || typeof s !== 'object') return false;
+            if (s.type !== 'mcq' && s.type !== 'true_false') return false;
+            if (typeof s.prompt !== 'string') return false;
+            if (!Array.isArray(s.options) || !s.options.every((o: any) => typeof o === 'string')) return false;
+            const subCount = s.options.length;
+            const subCountOk = s.type === 'true_false'
+                ? subCount === 2
+                : subCount >= 2 && subCount <= 6;
+            if (!subCountOk) return false;
+            if (typeof s.correctAnswer !== 'number' || !Number.isInteger(s.correctAnswer)) return false;
+            if (s.correctAnswer < 0 || s.correctAnswer >= subCount) return false;
+            return true;
+        };
+        if (!obj.subSteps.every(isValidSub)) return false;
+    }
+
+    return true;
 }
 
 /**

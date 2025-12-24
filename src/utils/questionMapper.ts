@@ -43,10 +43,14 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
   }
 
   /**
-   * Normalize options array - handles TF vs MCQ differently
+   * Normalize options array.
+   * - True/False: exactly 2 options
+   * - MCQ: 2–6 options
+   *
+   * Note: We trim empty strings and preserve ordering (no padding/truncation to 4).
    */
   const normalizeOptions = (step: any): string[] => {
-    let opts: string[] = [];
+    let opts: string[] = []
     
     if (Array.isArray(step.options) && step.options.length > 0) {
       const firstOpt = step.options[0];
@@ -69,9 +73,11 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
       }
     }
     
-    // ✅ If TF type, NEVER pad
+    // ✅ If TF type, always return exactly 2 options (no padding)
     if (step.type === 'true_false') {
-      return opts.slice(0, 2);
+      const two = opts.slice(0, 2)
+      while (two.length < 2) two.push('')
+      return two
     }
     
     // ✅ If it *looks* TF (exactly 2 options that are "True"/"False"), don't pad
@@ -82,12 +88,10 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
       }
     }
     
-    // 🟦 Otherwise MCQ rules: pad to 4
-    const padded = [...opts];
-    while (padded.length < 4) {
-      padded.push('');
-    }
-    return padded.slice(0, 4);
+    // 🟦 Otherwise MCQ rules: keep up to 6 options, no padding
+    const mcq = [...opts].slice(0, 6)
+    while (mcq.length < 2) mcq.push('')
+    return mcq
   };
 
   const steps: QuestionStep[] = rawSteps.map((s: any, fallbackIndex: number) => {
@@ -100,9 +104,6 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
     const optionsArray = normalizeOptions(s);
     
     // Map all possible field name variations
-    // Note: For TF questions, normalizeOptions returns exactly 2 options (no padding)
-    // We pad to 4 only for type compatibility, but the actual meaningful options are only 2
-    // The UI will filter out empty options to get the real count
     const stepType = (s.type === 'true_false' || s.type === 'mcq') ? s.type : 'mcq';
     const step: QuestionStep = {
       id: String(s.id || s.step_id || `${id}-step-${fallbackIndex}`),
@@ -110,11 +111,8 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
       type: stepType,
       title: String(s.title || ''),
       prompt: String(s.prompt || s.question || ''),
-      // Pad to 4 only for type safety - UI will filter empty strings
-      options: (optionsArray.length === 2 
-        ? [...optionsArray, '', ''] as [string, string, string, string]
-        : optionsArray as [string, string, string, string]),
-      correctAnswer: extractCorrectAnswer(s),
+      options: optionsArray,
+      correctAnswer: extractCorrectAnswer(s, optionsArray.length),
       timeLimitSeconds: s.timeLimitSeconds ?? s.time_limit_seconds ?? null,
       marks: Number(s.marks || 1),
       explanation: s.explanation || null,
@@ -155,28 +153,28 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
 /**
  * Extract correctAnswer from various possible formats.
  */
-function extractCorrectAnswer(step: any): 0 | 1 | 2 | 3 {
+function extractCorrectAnswer(step: any, optionsLength: number): number {
   // Try direct number field
   if (typeof step.correctAnswer === 'number') {
-    return clampAnswer(step.correctAnswer);
+    return clampAnswer(step.correctAnswer, optionsLength);
   }
 
   // Try snake_case
   if (typeof step.correct_answer === 'number') {
-    return clampAnswer(step.correct_answer);
+    return clampAnswer(step.correct_answer, optionsLength);
   }
 
   // Try JSONB object format: { correctIndex: N }
   if (step.correct_answer && typeof step.correct_answer === 'object') {
     const idx = step.correct_answer.correctIndex;
     if (typeof idx === 'number') {
-      return clampAnswer(idx);
+      return clampAnswer(idx, optionsLength);
     }
   }
 
   // Try legacy field
   if (typeof step.correctAnswerIndex === 'number') {
-    return clampAnswer(step.correctAnswerIndex);
+    return clampAnswer(step.correctAnswerIndex, optionsLength);
   }
 
   // Default to 0 if no valid answer found
@@ -185,11 +183,14 @@ function extractCorrectAnswer(step: any): 0 | 1 | 2 | 3 {
 }
 
 /**
- * Clamp answer to valid range 0-3.
+ * Clamp answer to valid range for the current options array.
+ * For MCQ we support up to 6 options (0-5). For TF we expect 2 (0-1).
  */
-function clampAnswer(value: number): 0 | 1 | 2 | 3 {
-  const clamped = Math.max(0, Math.min(3, Math.floor(value)));
-  return clamped as 0 | 1 | 2 | 3;
+function clampAnswer(value: number, optionsLength: number): number {
+  const hardMax = 5
+  const maxIndex = Math.max(0, Math.min(hardMax, Math.floor(optionsLength - 1)))
+  const clamped = Math.max(0, Math.min(maxIndex, Math.floor(value)))
+  return clamped
 }
 
 /**

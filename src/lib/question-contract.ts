@@ -179,9 +179,18 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
     if (!Array.isArray(rawStep.options)) {
         warn('Options missing; defaulting to empty array');
     }
-    options = options.map(opt => (opt ?? '').toString());
-    while (options.length < 4) options.push('');
-    if (options.length > 4) options = options.slice(0, 4);
+    options = options.map(opt => (opt ?? '').toString()).map(o => o.trim()).filter(Boolean);
+
+    // Variable option count:
+    // - true_false: exactly 2
+    // - mcq: 2–6
+    if (type === 'true_false') {
+        options = options.slice(0, 2);
+        while (options.length < 2) options.push('');
+    } else {
+        options = options.slice(0, 6);
+        while (options.length < 2) options.push('');
+    }
 
     let correctAnswer: number | undefined;
     if (typeof rawStep.correctAnswer === 'number') {
@@ -191,9 +200,15 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
     } else if (rawStep.correct_answer && typeof rawStep.correct_answer === 'object') {
         correctAnswer = rawStep.correct_answer.correctIndex;
     }
-    if (typeof correctAnswer !== 'number' || correctAnswer < 0 || correctAnswer > 3) {
+    if (typeof correctAnswer !== 'number' || !Number.isInteger(correctAnswer)) {
         warn(`correctAnswer invalid "${correctAnswer}", defaulting to 0`);
         correctAnswer = 0;
+    } else {
+        const maxIndex = Math.max(0, options.length - 1);
+        if (correctAnswer < 0 || correctAnswer > maxIndex) {
+            warn(`correctAnswer out of range "${correctAnswer}" (max=${maxIndex}), defaulting to 0`);
+            correctAnswer = 0;
+        }
     }
 
     const marks = typeof rawStep.marks === 'number' && rawStep.marks > 0
@@ -206,8 +221,8 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
         type: type as 'mcq' | 'true_false',
         title,
         prompt,
-        options: options as [string, string, string, string],
-        correctAnswer: correctAnswer as 0 | 1 | 2 | 3,
+        options,
+        correctAnswer,
         timeLimitSeconds: rawStep.timeLimitSeconds || rawStep.time_limit_seconds || null,
         marks,
         explanation: rawStep.explanation || null,
@@ -261,9 +276,15 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
                     : '';
 
             let subOptions = Array.isArray(rawSub.options) ? rawSub.options : [];
-            subOptions = subOptions.map((opt: any) => (opt ?? '').toString());
-            while (subOptions.length < 4) subOptions.push('');
-            if (subOptions.length > 4) subOptions = subOptions.slice(0, 4);
+            subOptions = subOptions.map((opt: any) => (opt ?? '').toString()).map((o: string) => o.trim()).filter(Boolean);
+
+            if (subType === 'true_false') {
+                subOptions = subOptions.slice(0, 2);
+                while (subOptions.length < 2) subOptions.push('');
+            } else {
+                subOptions = subOptions.slice(0, 6);
+                while (subOptions.length < 2) subOptions.push('');
+            }
 
             let subCorrectAnswer: number | undefined;
             if (typeof rawSub.correctAnswer === 'number') {
@@ -273,9 +294,15 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
             } else if (rawSub.correct_answer && typeof rawSub.correct_answer === 'object') {
                 subCorrectAnswer = rawSub.correct_answer.correctIndex;
             }
-            if (typeof subCorrectAnswer !== 'number' || subCorrectAnswer < 0 || subCorrectAnswer > 3) {
+            if (typeof subCorrectAnswer !== 'number' || !Number.isInteger(subCorrectAnswer)) {
                 warn(`subSteps[${i}].correctAnswer invalid "${subCorrectAnswer}", defaulting to 0`);
                 subCorrectAnswer = 0;
+            } else {
+                const subMaxIndex = Math.max(0, subOptions.length - 1);
+                if (subCorrectAnswer < 0 || subCorrectAnswer > subMaxIndex) {
+                    warn(`subSteps[${i}].correctAnswer out of range "${subCorrectAnswer}" (max=${subMaxIndex}), defaulting to 0`);
+                    subCorrectAnswer = 0;
+                }
             }
 
             const rawSubTime = rawSub.timeLimitSeconds ?? rawSub.time_limit_seconds;
@@ -284,8 +311,8 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
             mapped.push({
                 type: subType as 'mcq' | 'true_false',
                 prompt: subPrompt,
-                options: subOptions as [string, string, string, string],
-                correctAnswer: subCorrectAnswer as 0 | 1 | 2 | 3,
+                options: subOptions,
+                correctAnswer: subCorrectAnswer,
                 timeLimitSeconds: subTimeLimitSeconds,
                 explanation: rawSub.explanation || null
             });

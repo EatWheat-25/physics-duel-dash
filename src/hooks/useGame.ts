@@ -1016,23 +1016,34 @@ export function useGame(match: MatchRow | null) {
         // Track canonical current round identity for match_rounds Realtime sync
         if (newPayload?.current_round_id && newPayload.current_round_id !== currentRoundIdRef.current) {
           currentRoundIdRef.current = newPayload.current_round_id
-          setState(prev => ({
-            ...prev,
-            currentRoundId: newPayload.current_round_id,
-            currentRoundNumber: newPayload.current_round_number ?? prev.currentRoundNumber,
-            nextRoundCountdown: null,
-            // Clear step-phase state; it will be rehydrated from match_rounds updates
-            mainQuestionEndsAt: null,
-            stepEndsAt: null,
-            mainQuestionTimeLeft: null,
-            stepTimeLeft: null,
-            currentStepIndex: 0,
-            currentStep: null,
-            answerSubmitted: false,
-            waitingForOpponent: false,
-            allStepsComplete: false,
-            waitingForOpponentToCompleteSteps: false
-          }))
+          setState(prev => {
+            // If the DB advances the round while we are still on results, we may have missed
+            // the WS broadcast (Edge instances are not shared). Kick a re-sync by forcing
+            // the READY_FOR_NEXT_ROUND auto-send path (nextRoundCountdown === 0).
+            const shouldKickNextRound =
+              prev.status === 'results' &&
+              !prev.matchOver
+
+            return ({
+              ...prev,
+              currentRoundId: newPayload.current_round_id,
+              currentRoundNumber: newPayload.current_round_number ?? prev.currentRoundNumber,
+              nextRoundCountdown: shouldKickNextRound ? 0 : null,
+              resultsAcknowledged: shouldKickNextRound ? false : prev.resultsAcknowledged,
+              waitingForOpponentToAcknowledge: shouldKickNextRound ? false : prev.waitingForOpponentToAcknowledge,
+              // Clear step-phase state; it will be rehydrated from match_rounds updates
+              mainQuestionEndsAt: null,
+              stepEndsAt: null,
+              mainQuestionTimeLeft: null,
+              stepTimeLeft: null,
+              currentStepIndex: 0,
+              currentStep: null,
+              answerSubmitted: false,
+              waitingForOpponent: false,
+              allStepsComplete: false,
+              waitingForOpponentToCompleteSteps: false
+            })
+          })
         } else if (newPayload?.current_round_number != null) {
           // Keep round number in sync even if round_id didn't change (rare but safe)
           setState(prev => (
@@ -1306,9 +1317,13 @@ export function useGame(match: MatchRow | null) {
         ws.send(JSON.stringify(submitMessage))
       } else {
         // Single-step answer
-        // Single-step rounds can be True/False or MCQ. Accept A-D (0-3).
-        if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex > 3) {
-          console.error('[useGame] Invalid answer index (expected 0-3):', answerIndex)
+        // Single-step rounds can be True/False or MCQ. Accept A-F (0-5) based on option count.
+        const optionCount = Array.isArray(prev.question?.steps?.[0]?.options)
+          ? prev.question.steps[0].options.length
+          : 4
+        const maxIndex = Math.max(0, Math.min(5, optionCount - 1))
+        if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex > maxIndex) {
+          console.error('[useGame] Invalid answer index (expected 0-' + maxIndex + '):', answerIndex)
           return prev
         }
         const submitMessage = {

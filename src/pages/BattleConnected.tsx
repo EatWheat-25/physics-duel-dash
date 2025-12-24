@@ -83,6 +83,7 @@ export default function BattleConnected() {
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, subStepTimeLeft, currentStep, currentSegment, currentSubStepIndex,
     submitEarlyAnswer, submitStepAnswer,
+    readyForNextRound,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
     nextRoundCountdown,
     isWebSocketConnected, waitingForOpponent,
@@ -684,9 +685,11 @@ export default function BattleConnected() {
                         {(() => {
                           const myAnswer = playerRole === 'player1' ? results.player1_answer : results.player2_answer
                           const myCorrect = (playerRole === 'player1' && results.player1_correct) || (playerRole === 'player2' && results.player2_correct)
-                          // Handle both boolean (0/1) and multi-option (0-3) answers
+                          // Handle both boolean (0/1) and multi-option (0-5) answers
                           const answerDisplay = myAnswer !== null && myAnswer !== undefined 
-                            ? (myAnswer === 0 ? 'A' : myAnswer === 1 ? 'B' : myAnswer === 2 ? 'C' : myAnswer === 3 ? 'D' : String(myAnswer))
+                            ? (typeof myAnswer === 'number' && Number.isInteger(myAnswer) && myAnswer >= 0
+                                ? String.fromCharCode(65 + myAnswer)
+                                : String(myAnswer))
                             : 'N/A'
                           return (
                             <>
@@ -710,9 +713,11 @@ export default function BattleConnected() {
                         {(() => {
                           const oppAnswer = playerRole === 'player1' ? results.player2_answer : results.player1_answer
                           const oppCorrect = (playerRole === 'player1' && results.player2_correct) || (playerRole === 'player2' && results.player1_correct)
-                          // Handle both boolean (0/1) and multi-option (0-3) answers
+                          // Handle both boolean (0/1) and multi-option (0-5) answers
                           const answerDisplay = oppAnswer !== null && oppAnswer !== undefined 
-                            ? (oppAnswer === 0 ? 'A' : oppAnswer === 1 ? 'B' : oppAnswer === 2 ? 'C' : oppAnswer === 3 ? 'D' : String(oppAnswer))
+                            ? (typeof oppAnswer === 'number' && Number.isInteger(oppAnswer) && oppAnswer >= 0
+                                ? String.fromCharCode(65 + oppAnswer)
+                                : String(oppAnswer))
                             : 'N/A'
                           return (
                             <>
@@ -763,6 +768,16 @@ export default function BattleConnected() {
                           <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
                           <div className="text-sm font-mono text-white/60">STARTING NEXT ROUND...</div>
                         </>
+                      )}
+
+                      {/* Manual safety net: if countdown is missing/stuck, allow player to re-request next round */}
+                      {isWebSocketConnected && nextRoundCountdown == null && (
+                        <button
+                          onClick={() => readyForNextRound()}
+                          className="mt-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                        >
+                          SYNC NEXT ROUND
+                        </button>
                       )}
                     </div>
                   </div>
