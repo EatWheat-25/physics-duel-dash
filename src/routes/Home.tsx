@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BottomNav } from '@/components/BottomNav';
 import { RankMenu } from '@/components/RankMenu';
 import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy } from 'lucide-react';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
@@ -11,6 +10,7 @@ import { useCharacter } from '@/hooks/useCharacter';
 import { useIsAdmin } from '@/hooks/useUserRole';
 import { getRankByPoints } from '@/types/ranking';
 import { useMatchmakingPrefs } from '@/store/useMatchmakingPrefs';
+import { useMatchmaking } from '@/hooks/useMatchmaking';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -19,8 +19,10 @@ export default function Home() {
   const { selectedCharacter } = useCharacter();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { subject: mmSubject, level: mmLevel } = useMatchmakingPrefs();
+  const { status: matchmakingStatus, startMatchmaking, leaveQueue } = useMatchmaking();
   const [rankMenuOpen, setRankMenuOpen] = useState(false);
   const [currentMMR, setCurrentMMR] = useState<number>(0);
+  const [queueTime, setQueueTime] = useState(0);
   const prefersReducedMotion = useMemo(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     []
@@ -104,6 +106,41 @@ export default function Home() {
         : 'Physics'
     : '';
   const levelLabel = mmLevel ? (mmLevel === 'Both' ? 'AS + A2' : mmLevel) : '';
+
+  useEffect(() => {
+    if (matchmakingStatus !== 'searching') {
+      setQueueTime(0);
+      return;
+    }
+
+    setQueueTime(0);
+    const interval = setInterval(() => {
+      setQueueTime((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [matchmakingStatus]);
+
+  const handleStartMatchmaking = () => {
+    if (matchmakingStatus === 'searching') return;
+
+    if (!hasMatchmakingPrefs) {
+      navigate('/matchmaking-new');
+      return;
+    }
+
+    const subject = mmSubject as string;
+    let level = mmLevel as string;
+    // Keep normalization consistent with LobbyNew
+    if (level === 'Both') level = 'A2';
+
+    startMatchmaking(subject, level);
+  };
+
+  const handleCancelMatchmaking = async () => {
+    await leaveQueue();
+    setQueueTime(0);
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white font-sans">
@@ -629,41 +666,64 @@ export default function Home() {
             whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
           >
             <motion.button
-              onClick={() => navigate(hasMatchmakingPrefs ? '/matchmaking-new?autostart=1' : '/matchmaking-new')}
+              onClick={handleStartMatchmaking}
+              disabled={matchmakingStatus === 'searching'}
               className="w-full px-8 py-6 text-2xl sm:text-3xl font-bold rounded"
               style={{
                 background: 'linear-gradient(135deg, #a3e635, #22c55e)',
                 color: '#0b1220',
                 border: '1px solid rgba(0,0,0,0.45)',
                 boxShadow: '0 18px 55px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
+                opacity: matchmakingStatus === 'searching' ? 0.75 : 1,
               }}
               aria-label="Start matchmaking"
           >
-            START
+            {matchmakingStatus === 'searching' ? 'SEARCHING…' : 'START'}
             </motion.button>
           </motion.div>
 
-          <motion.button
-            onClick={() => (window.location.href = '/dev/db-test')}
-            className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2"
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
-              border: '1px solid rgba(154, 91, 255, 0.22)',
-              boxShadow: '0 18px 55px rgba(0,0,0,0.35), 0 0 30px rgba(154,91,255,0.10)',
-              backdropFilter: 'blur(18px)',
-            }}
-            aria-label="Winner demo"
-          >
-            <Flame className="w-4 h-4 mr-2" />
-            WINNER DEMO
-          </motion.button>
+          {matchmakingStatus === 'searching' ? (
+            <div className="mt-3">
+              <div className="text-center text-sm text-white/70 tabular-nums">
+                {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
+              </div>
+              <motion.button
+                onClick={handleCancelMatchmaking}
+                className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2"
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
+                  boxShadow: '0 18px 55px rgba(0,0,0,0.35)',
+                  backdropFilter: 'blur(18px)',
+                }}
+                aria-label="Cancel matchmaking"
+                whileHover={prefersReducedMotion ? undefined : { scale: 1.01 }}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+              >
+                Cancel Search
+              </motion.button>
+            </div>
+          ) : (
+            <motion.button
+              onClick={() => (window.location.href = '/dev/db-test')}
+              className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2"
+              style={{
+                background:
+                  'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
+                border: '1px solid rgba(154, 91, 255, 0.22)',
+                boxShadow: '0 18px 55px rgba(0,0,0,0.35), 0 0 30px rgba(154,91,255,0.10)',
+                backdropFilter: 'blur(18px)',
+              }}
+              aria-label="Winner demo"
+            >
+              <Flame className="w-4 h-4 mr-2" />
+              WINNER DEMO
+            </motion.button>
+          )}
         </div>
 
-        {/* Mobile uses the dock nav; keep this screen consistent with the reference */}
       </main>
-
-        <BottomNav />
       <RankMenu open={rankMenuOpen} onOpenChange={setRankMenuOpen} currentMMR={currentMMR} />
     </div>
   );
