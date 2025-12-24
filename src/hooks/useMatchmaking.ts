@@ -82,7 +82,7 @@ export function useMatchmaking() {
         if (!transitionTriggeredRef.current) {
           transitionTriggeredRef.current = true;
           startMatch({
-            message: 'ENTERING ARENA',
+            message: 'MATCH FOUND',
             loadingMs: 2000,
             onClosed: () => {
               navigate(`/online-battle-new/${match.id}`, { state: { match } });
@@ -201,7 +201,7 @@ export function useMatchmaking() {
         if (!transitionTriggeredRef.current) {
           transitionTriggeredRef.current = true;
           startMatch({
-            message: 'ENTERING ARENA',
+            message: 'MATCH FOUND',
             loadingMs: 2000,
             onClosed: () => {
               navigate(`/online-battle-new/${match.id}`, { state: { match } });

@@ -14,11 +14,13 @@ type ElevatorShutterContextValue = {
 
 const ElevatorShutterContext = createContext<ElevatorShutterContextValue | null>(null);
 
-const CERAMIC = '#F0F2F5';
+// Matte light-sky ceramic (theme-matched)
+const CERAMIC_SKY = '#E6F6FF';
+const CERAMIC_SKY_DARK = '#D5EEFF';
 
 export function ElevatorShutterProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
-  const [message, setMessage] = useState('ENTERING ARENA');
+  const [message, setMessage] = useState('MATCH FOUND');
   const [isRunning, setIsRunning] = useState(false);
 
   const leftControls = useAnimation();
@@ -26,9 +28,11 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
   const textControls = useAnimation();
 
   const runningRef = useRef(false);
+  const noiseLeftId = useMemo(() => `shutterNoiseLeft-${Math.random().toString(36).slice(2, 9)}`, []);
+  const noiseRightId = useMemo(() => `shutterNoiseRight-${Math.random().toString(36).slice(2, 9)}`, []);
 
   const startMatch = useCallback(
-    async ({ message = 'ENTERING ARENA', loadingMs = 2000, onClosed }: StartMatchOptions = {}) => {
+    async ({ message = 'MATCH FOUND', loadingMs = 2000, onClosed }: StartMatchOptions = {}) => {
       if (runningRef.current) return;
       runningRef.current = true;
       setIsRunning(true);
@@ -89,29 +93,63 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
       >
         {/* Left door */}
         <motion.div
-          className="absolute left-0 top-0 h-full w-1/2"
+          className="absolute left-0 top-0 h-full w-1/2 overflow-hidden"
           initial={{ x: '-100%' }}
           animate={leftControls}
           style={{
-            background: `linear-gradient(180deg, ${CERAMIC} 0%, #E9EDF2 100%)`,
+            background: `linear-gradient(180deg, ${CERAMIC_SKY} 0%, ${CERAMIC_SKY_DARK} 100%)`,
             boxShadow:
-              'inset 0 0 0 1px rgba(0,0,0,0.06), inset -18px 0 26px rgba(0,0,0,0.10)',
+              'inset 0 0 0 1px rgba(0,0,0,0.06), inset -18px 0 28px rgba(0,0,0,0.12)',
             willChange: 'transform',
           }}
-        />
+        >
+          {/* Matte grain texture */}
+          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
+            <filter id={noiseLeftId}>
+              <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+              <feColorMatrix type="saturate" values="0" />
+            </filter>
+            <rect width="100%" height="100%" filter={`url(#${noiseLeftId})`} />
+          </svg>
+          {/* Soft toon-ish shading to feel more “ceramic” than flat */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-40"
+            style={{
+              background:
+                'radial-gradient(900px 700px at 18% 18%, rgba(56,189,248,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 85% 75%, rgba(125,211,252,0.14) 0%, transparent 60%)',
+            }}
+          />
+        </motion.div>
 
         {/* Right door */}
         <motion.div
-          className="absolute right-0 top-0 h-full w-1/2"
+          className="absolute right-0 top-0 h-full w-1/2 overflow-hidden"
           initial={{ x: '100%' }}
           animate={rightControls}
           style={{
-            background: `linear-gradient(180deg, ${CERAMIC} 0%, #E9EDF2 100%)`,
+            background: `linear-gradient(180deg, ${CERAMIC_SKY} 0%, ${CERAMIC_SKY_DARK} 100%)`,
             boxShadow:
-              'inset 0 0 0 1px rgba(0,0,0,0.06), inset 18px 0 26px rgba(0,0,0,0.10)',
+              'inset 0 0 0 1px rgba(0,0,0,0.06), inset 18px 0 28px rgba(0,0,0,0.12)',
             willChange: 'transform',
           }}
-        />
+        >
+          {/* Matte grain texture */}
+          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
+            <filter id={noiseRightId}>
+              <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+              <feColorMatrix type="saturate" values="0" />
+            </filter>
+            <rect width="100%" height="100%" filter={`url(#${noiseRightId})`} />
+          </svg>
+          {/* Soft toon-ish shading to feel more “ceramic” than flat */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-40"
+            style={{
+              background:
+                'radial-gradient(900px 700px at 82% 18%, rgba(56,189,248,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 18% 75%, rgba(125,211,252,0.14) 0%, transparent 60%)',
+            }}
+          />
+        </motion.div>
 
         {/* Center text */}
         <motion.div
