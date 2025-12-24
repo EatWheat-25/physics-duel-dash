@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/components/BottomNav';
 import { RankMenu } from '@/components/RankMenu';
-import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy } from 'lucide-react';
+import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy, Zap, Target, Award } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useCharacter } from '@/hooks/useCharacter';
@@ -94,310 +94,393 @@ export default function Home() {
   const initial = (username?.[0] || '?').toUpperCase();
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-white">
-      {/* Cleaner background like reference - dark navy/grey */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
-        }}
-      />
-      {/* Subtle radial highlights */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: [
-            'radial-gradient(1000px 500px at 20% 80%, rgba(56, 189, 248, 0.08) 0%, transparent 50%)',
-            'radial-gradient(800px 400px at 80% 20%, rgba(99, 102, 241, 0.06) 0%, transparent 50%)',
-          ].join(','),
-        }}
-      />
-      {/* Center vignette */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(800px 600px at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.25) 65%, rgba(0,0,0,0.6) 100%)',
-        }}
-      />
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950">
+      {/* Animated gradient background */}
+      <div className="absolute inset-0 overflow-hidden">
+        <motion.div
+          className="absolute inset-0"
+          animate={{
+            background: [
+              'radial-gradient(circle at 20% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%)',
+              'radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.15) 0%, transparent 50%)',
+              'radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.15) 0%, transparent 50%)',
+              'radial-gradient(circle at 20% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%)',
+            ],
+          }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            ease: 'linear',
+          }}
+        />
+      </div>
 
-      {/* Top bar (centered nav like reference) */}
-      <header className="relative z-30 w-full px-4 sm:px-6 pt-5">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-[180px]">
-            <div
-              className="h-10 w-10 rounded-2xl flex items-center justify-center"
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(18px)',
-              }}
+      {/* Floating particles effect */}
+      <div className="absolute inset-0 pointer-events-none">
+        {[...Array(20)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-1 h-1 bg-white/20 rounded-full"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
+            animate={{
+              y: [0, -30, 0],
+              opacity: [0.2, 0.5, 0.2],
+            }}
+            transition={{
+              duration: 3 + Math.random() * 2,
+              repeat: Infinity,
+              delay: Math.random() * 2,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Modern sleek header */}
+      <header className="relative z-30 w-full px-6 pt-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-4"
             >
-              <Sparkles className="w-4 h-4 text-white/90" />
-            </div>
-            <div className="leading-tight">
-              <div className="font-black tracking-widest uppercase text-sm sm:text-base">BattleNerds</div>
-              <div className="text-[10px] text-white/55 tracking-[0.24em] uppercase">Lobby</div>
-            </div>
-          </div>
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-2xl blur-xl opacity-50" />
+                <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                  <Zap className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <div>
+                <div className="text-xl font-black text-white tracking-tight">BattleNerds</div>
+                <div className="text-xs text-purple-300 font-medium">Play • Compete • Win</div>
+              </div>
+            </motion.div>
 
-          <nav className="hidden md:flex items-center justify-center gap-8" aria-label="Primary navigation">
-            {navItems.map((item) => {
-              const active = getNavActive(item);
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={item.onClick}
-                  className={`group relative py-2 text-[11px] font-black uppercase tracking-[0.28em] transition-colors ${
-                    active ? 'text-white' : 'text-white/70 hover:text-white'
-                  }`}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  <span
-                    className={`absolute -inset-x-4 -inset-y-2 rounded-full transition-opacity ${
-                      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            {/* Center nav */}
+            <nav className="hidden lg:flex items-center gap-2 bg-white/5 backdrop-blur-xl rounded-2xl p-1.5 border border-white/10">
+              {navItems.map((item, idx) => {
+                const active = getNavActive(item);
+                return (
+                  <motion.button
+                    key={item.label}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    onClick={item.onClick}
+                    className={`relative px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      active ? 'text-white' : 'text-white/60 hover:text-white'
                     }`}
-                    style={{
-                      background: active ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)',
-                      border: active ? '1px solid rgba(163,230,53,0.22)' : '1px solid rgba(255,255,255,0.10)',
-                      boxShadow: active ? '0 0 28px rgba(163,230,53,0.10)' : undefined,
-                    }}
-                    aria-hidden="true"
-                  />
-                  {item.label}
-                  {active && (
-                    <span
-                      className="absolute left-0 right-0 -bottom-1 mx-auto h-0.5 w-10 rounded-full"
-                      style={{
-                        background:
-                          'linear-gradient(90deg, rgba(163,230,53,0), rgba(163,230,53,1), rgba(163,230,53,0))',
-                      }}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </nav>
+                  >
+                    {active && (
+                      <motion.div
+                        layoutId="activeNav"
+                        className="absolute inset-0 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-xl"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    <span className="relative z-10">{item.label}</span>
+                  </motion.button>
+                );
+              })}
+            </nav>
 
-          <div className="flex items-center justify-end gap-2 min-w-[180px]">
-            <button
-              type="button"
-              onClick={() => navigate('/profile')}
-              className="hidden sm:flex items-center gap-3 px-3 py-2 rounded-2xl"
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(18px)',
-              }}
-              aria-label="Open profile"
+            {/* Right actions */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-3"
             >
-              <div
-                className="h-9 w-9 rounded-full flex items-center justify-center text-sm font-black"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.14)',
-                }}
-              >
-                {initial}
-              </div>
-              <div className="leading-tight text-left">
-                <div className="text-sm font-bold text-white">{username}</div>
-                <div className="text-[10px] text-white/60 tracking-[0.22em] uppercase">Lv {level}</div>
-              </div>
-            </button>
-
-            {!isAdminLoading && isAdmin && (
               <button
-                type="button"
-                onClick={() => navigate('/admin/dashboard')}
-                className="h-11 w-11 rounded-2xl flex items-center justify-center"
-                style={{
-                  background: 'rgba(234, 179, 8, 0.12)',
-                  border: '1px solid rgba(234, 179, 8, 0.35)',
-                  backdropFilter: 'blur(18px)',
-                }}
-                aria-label="Admin dashboard"
+                onClick={() => navigate('/profile')}
+                className="hidden sm:flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:bg-white/10 transition-all"
               >
-                <Shield className="w-4 h-4 text-yellow-200" />
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-sm font-black">
+                  {initial}
+                </div>
+                <div className="text-left">
+                  <div className="text-sm font-bold text-white">{username}</div>
+                  <div className="text-xs text-purple-300">Level {level}</div>
+                </div>
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => {}}
-              className="h-11 w-11 rounded-2xl flex items-center justify-center"
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(18px)',
-              }}
-              aria-label="Settings"
-            >
-              <Settings className="w-4 h-4 text-white/90" />
-            </button>
+              {!isAdminLoading && isAdmin && (
+                <button
+                  onClick={() => navigate('/admin/dashboard')}
+                  className="h-10 w-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/20 transition-all flex items-center justify-center"
+                >
+                  <Shield className="w-4 h-4 text-yellow-400" />
+                </button>
+              )}
 
-            <button
-              type="button"
-              onClick={signOut}
-              className="h-11 w-11 rounded-2xl flex items-center justify-center"
-          style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(18px)',
-              }}
-              aria-label="Sign out"
-            >
-              <LogOut className="w-4 h-4 text-white/90" />
-            </button>
+              <button
+                onClick={() => {}}
+                className="h-10 w-10 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center"
+              >
+                <Settings className="w-4 h-4 text-white/80" />
+              </button>
+
+              <button
+                onClick={signOut}
+                className="h-10 w-10 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:bg-red-500/20 transition-all flex items-center justify-center"
+              >
+                <LogOut className="w-4 h-4 text-white/80" />
+              </button>
+            </motion.div>
           </div>
         </div>
       </header>
 
-      <main className="relative z-20 min-h-[calc(100vh-120px)]">
-        {/* Clean lobby like reference - center card focus */}
+      <main className="relative z-20 px-6 py-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left: Stats & Quick Actions */}
+            <div className="lg:col-span-3 space-y-4">
+              {/* Player Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/20 p-6"
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 rounded-full blur-3xl" />
+                
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="px-3 py-1 rounded-full bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 border border-violet-500/30">
+                      <span className="text-xs font-bold text-violet-300">{rank.displayName.toUpperCase()}</span>
+                    </div>
+                    <Trophy className="w-5 h-5 text-yellow-400" />
+                  </div>
 
-        {/* Center player card (FLAT like reference) */}
-        <div className="absolute left-1/2 top-[48%] -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[360px] lg:w-[380px]">
-          <motion.div
-            initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-            className="relative rounded-2xl overflow-hidden"
-            style={{
-              background: 'linear-gradient(180deg, rgba(52, 64, 88, 0.70) 0%, rgba(23, 31, 48, 0.70) 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(22px)',
-              boxShadow: '0 22px 70px rgba(0,0,0,0.55)',
-            }}
-          >
-            <div
-              className="absolute inset-0 pointer-events-none opacity-60"
-              style={{
-                background: 'radial-gradient(600px 260px at 50% 15%, rgba(255,255,255,0.10), transparent 60%)',
-              }}
-            />
-            <div className="absolute inset-2 rounded-xl border border-white/10 pointer-events-none" />
+                  <div className="flex flex-col items-center py-6">
+                    <div className="relative mb-4">
+                      <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full blur-lg opacity-50" />
+                      <div className="relative h-20 w-20 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                        <span className="text-3xl font-black text-white">{initial}</span>
+                      </div>
+                    </div>
+                    
+                    <h3 className="text-xl font-black text-white mb-1">{username}</h3>
+                    <p className="text-sm text-purple-300 mb-4">Level {level}</p>
 
-            <div className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.28em] font-black"
-                    style={{ color: '#ef4444' }}
+                    <div className="w-full bg-white/10 rounded-full h-2 mb-2">
+                      <div 
+                        className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full"
+                        style={{ width: `${(mmr % 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-white/60">Next level in {100 - (mmr % 100)} XP</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10">
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-white">{mmr}</div>
+                      <div className="text-xs text-purple-300">MMR</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-white">0</div>
+                      <div className="text-xs text-purple-300">Wins</div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Quick Stats */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="rounded-3xl bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/20 p-6"
+              >
+                <h4 className="text-sm font-bold text-white/80 mb-4 flex items-center gap-2">
+                  <Award className="w-4 h-4" />
+                  Quick Stats
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-white/60">Win Rate</span>
+                    <span className="text-sm font-bold text-white">0%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-white/60">Games Played</span>
+                    <span className="text-sm font-bold text-white">0</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-white/60">Streak</span>
+                    <span className="text-sm font-bold text-emerald-400">0 🔥</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Center: Main Action Area */}
+            <div className="lg:col-span-6 space-y-6">
+              {/* Hero Banner */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+                className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-purple-600 p-8 min-h-[400px] flex flex-col justify-between"
+              >
+                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRjMC0yLjIxIDEuNzktNCA0LTRzNCAxLjc5IDQgNC0xLjc5IDQtNCA0LTQtMS43OS00LTR6bTAgMTBjMC0yLjIxIDEuNzktNCA0LTRzNCAxLjc5IDQgNC0xLjc5IDQtNCA0LTQtMS43OS00LTR6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-20" />
+                
+                <div className="relative z-10">
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
                   >
-                    {rank.displayName.toUpperCase()}
-                  </div>
-                  <div className="mt-2 text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
-                    LEVEL {level}
-                  </div>
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 backdrop-blur-sm mb-4">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-sm font-bold text-white">Ready to Battle</span>
+                    </div>
+                    <h1 className="text-5xl font-black text-white mb-3 leading-tight">
+                      Ready for Your<br />Next Challenge?
+                    </h1>
+                    <p className="text-lg text-white/80 max-w-md">
+                      Jump into intense 1v1 battles and prove your skills!
+                    </p>
+                  </motion.div>
                 </div>
-                <div className="text-right">
-                  <div
-                    className="text-2xl font-black text-white"
-                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+
+                <div className="relative z-10 space-y-3">
+                  <motion.button
+                    onClick={() => (window.location.href = '/matchmaking-new')}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-5 rounded-2xl bg-white text-purple-600 font-black text-xl flex items-center justify-center gap-3 shadow-2xl hover:shadow-purple-500/50 transition-all"
                   >
-                    {mmr}
+                    <Zap className="w-6 h-6" />
+                    START BATTLE
+                  </motion.button>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <motion.button
+                      onClick={() => navigate('/modes')}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="py-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 text-white font-bold text-sm hover:bg-white/20 transition-all"
+                    >
+                      Select Mode
+                    </motion.button>
+                    <motion.button
+                      onClick={() => (window.location.href = '/dev/db-test')}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="py-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 text-white font-bold text-sm hover:bg-white/20 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Flame className="w-4 h-4" />
+                      Winner Demo
+                    </motion.button>
                   </div>
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">MMR</div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="mt-8 flex items-center justify-center">
-                <div
-                  className="h-24 w-24 rounded-full flex items-center justify-center"
-                  style={{
-                    background: 'rgba(15, 23, 42, 0.70)',
-                    border: '2px solid rgba(255, 255, 255, 0.15)',
-                  }}
-                >
-                  <span className="text-4xl font-black text-white">{initial}</span>
-                </div>
-              </div>
-
-              <div className="mt-6 text-center">
-                <div className="text-2xl font-black text-white">{username}</div>
-                <div className="text-sm text-white/60 mt-1">{rank.displayName}</div>
-              </div>
-
-              <div className="mt-8 flex items-center justify-center gap-6">
+              {/* Mode Selection */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="grid grid-cols-2 gap-4"
+              >
                 <button
-                  type="button"
-                  onClick={() => navigate('/profile')}
-                  className="text-xs text-white/60 hover:text-white transition-colors"
+                  onClick={() => navigate('/modes')}
+                  className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600/20 to-cyan-600/20 backdrop-blur-xl border border-blue-500/30 p-6 hover:from-blue-600/30 hover:to-cyan-600/30 transition-all"
                 >
-                  Customize Card
+                  <Target className="w-8 h-8 text-blue-400 mb-3" />
+                  <h3 className="text-lg font-black text-white mb-1">Standard</h3>
+                  <p className="text-sm text-white/60">Classic 1v1 mode</p>
+                  <ChevronRight className="absolute top-6 right-6 w-5 h-5 text-white/40 group-hover:text-white/60 transition-all" />
+                </button>
+
+                <button
+                  onClick={() => navigate('/battle/queue')}
+                  className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-600/20 to-red-600/20 backdrop-blur-xl border border-orange-500/30 p-6 hover:from-orange-600/30 hover:to-red-600/30 transition-all"
+                >
+                  <Flame className="w-8 h-8 text-orange-400 mb-3" />
+                  <h3 className="text-lg font-black text-white mb-1">Ranked</h3>
+                  <p className="text-sm text-white/60">Competitive play</p>
+                  <ChevronRight className="absolute top-6 right-6 w-5 h-5 text-white/40 group-hover:text-white/60 transition-all" />
+                </button>
+              </motion.div>
+            </div>
+
+            {/* Right: Activity & News */}
+            <div className="lg:col-span-3 space-y-4">
+              {/* Leaderboard Preview */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="rounded-3xl bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/20 p-6"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-bold text-white/80 flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                    Leaderboard
+                  </h4>
+                  <button
+                    onClick={() => setRankMenuOpen(true)}
+                    className="text-xs font-bold text-violet-400 hover:text-violet-300"
+                  >
+                    View All
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {[1, 2, 3].map((pos) => (
+                    <div key={pos} className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center text-xs font-black">
+                        {pos}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-bold text-white">Player {pos}</div>
+                        <div className="text-xs text-white/60">{1000 + (4 - pos) * 100} MMR</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Activity */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="rounded-3xl bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/20 p-6"
+              >
+                <h4 className="text-sm font-bold text-white/80 mb-4">Recent Activity</h4>
+                <div className="space-y-3 text-sm text-white/60">
+                  <p>No recent matches</p>
+                  <p className="text-xs">Start battling to see your history!</p>
+                </div>
+              </motion.div>
+
+              {/* Quick Links */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="space-y-2"
+              >
+                <button
+                  onClick={() => navigate('/profile')}
+                  className="w-full py-3 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 text-white/80 text-sm font-bold hover:bg-white/10 transition-all"
+                >
+                  Customize Profile
                 </button>
                 <button
-                  type="button"
                   onClick={() => navigate('/progression')}
-                  className="text-xs text-white/60 hover:text-white transition-colors"
+                  className="w-full py-3 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 text-white/80 text-sm font-bold hover:bg-white/10 transition-all"
                 >
                   View Progression
                 </button>
-              </div>
+              </motion.div>
             </div>
-          </motion.div>
+          </div>
         </div>
-
-        {/* Bottom-left action stack (matches reference positioning) */}
-        <div className="absolute left-4 sm:left-6 bottom-32 sm:bottom-36 w-[240px] sm:w-[280px]">
-          <motion.button
-            type="button"
-            onClick={() => navigate('/modes')}
-            className="inline-flex items-center gap-2 rounded px-4 py-2 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.28em]"
-            style={{
-              background: '#facc15',
-              color: '#0b1220',
-              border: '1px solid rgba(0,0,0,0.35)',
-              boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
-              fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-            }}
-            whileHover={prefersReducedMotion ? undefined : { y: -1 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
-            aria-label="Standard mode"
-          >
-            STANDARD <span className="opacity-80">»</span>
-          </motion.button>
-
-          <motion.div
-            className="mt-3"
-            whileHover={prefersReducedMotion ? undefined : { scale: 1.01 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-          >
-            <motion.button
-              onClick={() => (window.location.href = '/matchmaking-new')}
-              className="w-full px-6 sm:px-8 py-5 sm:py-6 text-xl sm:text-2xl font-black uppercase tracking-widest rounded-lg"
-              style={{
-                background: 'linear-gradient(135deg, #a3e635, #22c55e)',
-                color: '#0b1220',
-                border: '1px solid rgba(0,0,0,0.45)',
-                boxShadow: '0 18px 55px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
-                fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-              }}
-              aria-label="Start matchmaking"
-          >
-            START
-            </motion.button>
-          </motion.div>
-
-          <motion.button
-            onClick={() => (window.location.href = '/dev/db-test')}
-            className="mt-3 w-full px-4 sm:px-6 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-[0.28em] flex items-center justify-center gap-2"
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
-              border: '1px solid rgba(154, 91, 255, 0.22)',
-              boxShadow: '0 18px 55px rgba(0,0,0,0.35), 0 0 30px rgba(154,91,255,0.10)',
-              backdropFilter: 'blur(18px)',
-            }}
-            aria-label="Winner demo"
-          >
-            <Flame className="w-4 h-4" />
-            WINNER DEMO
-          </motion.button>
-        </div>
-
-        {/* Mobile uses the dock nav; keep this screen consistent with the reference */}
       </main>
 
         <BottomNav />
