@@ -125,8 +125,8 @@ export function PlayerCard() {
 
   if (loading || !stats) {
     return (
-      <div className="w-full max-w-[48rem] mx-auto">
-        <div className="h-[32rem] rounded-2xl animate-pulse bg-card/20 backdrop-blur-xl" />
+      <div className="w-full max-w-[22rem] mx-auto">
+        <div className="aspect-[5/7] rounded-3xl animate-pulse bg-card/20 backdrop-blur-xl" />
       </div>
     );
   }
@@ -151,10 +151,10 @@ export function PlayerCard() {
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-      className="w-full max-w-[48rem] mx-auto"
+      className="w-full max-w-[22rem] mx-auto"
     >
       <div
-        className="relative rounded-2xl overflow-hidden"
+        className="relative rounded-3xl overflow-hidden flex flex-col aspect-[5/7]"
         style={{
           background: 'rgba(30, 41, 59, 0.9)',
           border: '2px solid rgba(255, 255, 255, 0.1)',
@@ -162,40 +162,40 @@ export function PlayerCard() {
         }}
       >
         {/* Top Stats Row */}
-        <div className="p-6 flex items-center justify-between border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">{getRankEmoji(rank.tier)}</div>
-            <div>
-              <div className="text-xl font-bold text-white uppercase">
+        <div className="p-4 flex items-center justify-between border-b border-white/10">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="text-xl">{getRankEmoji(rank.tier)}</div>
+            <div className="min-w-0">
+              <div className="text-lg font-bold text-white uppercase truncate">
                 {rank.tier} {rank.subRank}
               </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <div className="flex flex-col items-end">
-              <span className="text-lg font-bold text-white">LEVEL {stats.level || 1}</span>
+              <span className="text-sm font-bold text-white">LEVEL {stats.level || 1}</span>
             </div>
             {stats.mmr !== null && (
               <div className="flex flex-col items-end">
-                <span className="text-2xl font-bold text-white">{stats.mmr}</span>
-                <span className="text-xs uppercase tracking-wider text-white/70">MMR</span>
+                <span className="text-lg font-bold text-white">{stats.mmr}</span>
+                <span className="text-[10px] uppercase tracking-wider text-white/70">MMR</span>
               </div>
             )}
           </div>
         </div>
 
         {/* Main Avatar Section */}
-        <div className="relative h-[24rem] w-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+        <div className="relative flex-1 w-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
           {stats.avatar_url ? (
             <img
               src={stats.avatar_url}
               alt="Player avatar"
-              className="w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            <div className="w-32 h-32 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center border-4 border-white/20">
-              <span className="text-6xl font-bold text-white">
+            <div className="w-28 h-28 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center border-4 border-white/20">
+              <span className="text-5xl font-bold text-white">
                 {profile?.username?.[0]?.toUpperCase() || '?'}
               </span>
             </div>
@@ -203,21 +203,21 @@ export function PlayerCard() {
         </div>
 
         {/* Player Name Section */}
-        <div className="p-6 border-b border-white/10">
-          <div className="text-3xl font-bold text-white mb-1">
+        <div className="p-4 border-t border-white/10">
+          <div className="text-2xl font-bold text-white mb-1 truncate">
             {profile?.username || 'Player'}
           </div>
-          <div className="text-lg text-white/80">
+          <div className="text-sm text-white/80">
             {rank.tier} {rank.subRank}
           </div>
         </div>
 
         {/* Bottom Action Row */}
-        <div className="p-6 flex justify-between gap-3">
+        <div className="p-4 pt-3 grid grid-cols-1 gap-3">
           <Button
             variant="ghost"
             onClick={() => navigate('/profile')}
-            className="text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 border border-white/20"
+            className="w-full justify-center text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 border border-white/20"
             style={{
               background: 'rgba(255, 255, 255, 0.05)',
             }}
@@ -227,7 +227,7 @@ export function PlayerCard() {
           <Button
             variant="ghost"
             onClick={() => navigate('/progression')}
-            className="text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 border border-white/20"
+            className="w-full justify-center text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 border border-white/20"
             style={{
               background: 'rgba(255, 255, 255, 0.05)',
             }}
