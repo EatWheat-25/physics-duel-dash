@@ -95,30 +95,29 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
-      {/* Dark/blue blurred lobby background */}
+      {/* Cleaner background like reference - dark navy/grey */}
       <div
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(circle at 50% 45%, rgba(40, 55, 85, 0.35), transparent 55%), linear-gradient(135deg, #070a10 0%, #0a1324 45%, #060a12 100%)',
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
         }}
       />
+      {/* Subtle radial highlights */}
       <div
         className="absolute inset-0 pointer-events-none"
-      style={{
+        style={{
           background: [
-            'radial-gradient(1100px 560px at 18% 88%, rgba(56, 189, 248, 0.10) 0%, transparent 62%)',
-            'radial-gradient(900px 520px at 78% 24%, rgba(99, 102, 241, 0.10) 0%, transparent 62%)',
-            'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 45%, rgba(255,255,255,0.02) 100%)',
+            'radial-gradient(1000px 500px at 20% 80%, rgba(56, 189, 248, 0.08) 0%, transparent 50%)',
+            'radial-gradient(800px 400px at 80% 20%, rgba(99, 102, 241, 0.06) 0%, transparent 50%)',
           ].join(','),
-          filter: 'blur(0.35px)',
         }}
       />
-      {/* Note: keep background clean like the reference (no extra grid layer here) */}
+      {/* Center vignette */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(900px 600px at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 70%, rgba(0,0,0,0.7) 100%)',
+            'radial-gradient(800px 600px at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.25) 65%, rgba(0,0,0,0.6) 100%)',
         }}
       />
 
@@ -256,77 +255,10 @@ export default function Home() {
       </header>
 
       <main className="relative z-20 min-h-[calc(100vh-120px)]">
-        {/* Keep the lobby clean like the reference (no large character overlay) */}
-
-        {/* Left stack (reference-style tiles) */}
-        <div className="hidden lg:flex absolute left-6 top-28 w-[260px] flex-col gap-3">
-          <motion.button
-            type="button"
-            onClick={() => navigate('/modes')}
-            className="relative w-full rounded-2xl px-4 py-4 text-left"
-            style={{
-              background: 'rgba(15, 23, 42, 0.58)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(18px)',
-              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
-            }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-            aria-label="Selected mode"
-          >
-            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-lime-400/70" />
-            <div className="text-sm font-black uppercase tracking-widest text-white">UNRATED</div>
-            <div className="text-xs text-white/55 mt-1">Selected Mode</div>
-          </motion.button>
-
-          <motion.button
-            type="button"
-              onClick={() => setRankMenuOpen(true)}
-            className="relative w-full rounded-2xl px-4 py-4 text-left"
-            style={{
-              background: 'rgba(15, 23, 42, 0.58)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(18px)',
-              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
-            }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-            aria-label="Open leaderboard"
-          >
-            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-sky-400/70" />
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-black uppercase tracking-widest text-white">
-                  {rank.displayName.toUpperCase()}
-                </div>
-                <div className="text-xs text-white/55 mt-1">Grade Selected</div>
-              </div>
-              <Trophy className="w-4 h-4 text-white/80" />
-            </div>
-          </motion.button>
-
-          <motion.button
-            type="button"
-            onClick={() => navigate('/progression')}
-            className="relative w-full rounded-2xl px-4 py-4 text-left"
-            style={{
-              background: 'rgba(15, 23, 42, 0.58)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(18px)',
-              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
-            }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-            aria-label="Review last game"
-          >
-            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-white/30" />
-            <div className="text-sm font-black uppercase tracking-widest text-white">VICTORY</div>
-            <div className="text-xs text-white/55 mt-1">Review Last Game</div>
-          </motion.button>
-        </div>
+        {/* Clean lobby like reference - center card focus */}
 
         {/* Center player card (FLAT like reference) */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[360px]">
+        <div className="absolute left-1/2 top-[48%] -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[360px] lg:w-[380px]">
           <motion.div
             initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
             animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
@@ -350,7 +282,9 @@ export default function Home() {
             <div className="p-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
+                  <div className="text-[10px] uppercase tracking-[0.28em] font-black"
+                    style={{ color: '#ef4444' }}
+                  >
                     {rank.displayName.toUpperCase()}
                   </div>
                   <div className="mt-2 text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
@@ -370,22 +304,22 @@ export default function Home() {
 
               <div className="mt-8 flex items-center justify-center">
                 <div
-                  className="h-20 w-20 rounded-full flex items-center justify-center"
+                  className="h-24 w-24 rounded-full flex items-center justify-center"
                   style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    background: 'rgba(15, 23, 42, 0.70)',
+                    border: '2px solid rgba(255, 255, 255, 0.15)',
                   }}
                 >
-                  <span className="text-3xl font-black text-white">{initial}</span>
+                  <span className="text-4xl font-black text-white">{initial}</span>
                 </div>
               </div>
 
               <div className="mt-6 text-center">
                 <div className="text-2xl font-black text-white">{username}</div>
-                <div className="text-sm text-white/60">{rank.displayName}</div>
+                <div className="text-sm text-white/60 mt-1">{rank.displayName}</div>
               </div>
 
-              <div className="mt-8 flex items-center justify-between">
+              <div className="mt-8 flex items-center justify-center gap-6">
                 <button
                   type="button"
                   onClick={() => navigate('/profile')}
@@ -405,106 +339,12 @@ export default function Home() {
           </motion.div>
         </div>
 
-        {/* Right widgets (merge from bright reference; subtle in dark theme) */}
-        <div className="hidden lg:flex absolute right-6 top-28 w-[340px] flex-col gap-3">
-          <motion.button
-            type="button"
-            onClick={() => navigate('/progression')}
-            className="w-full text-left rounded-2xl overflow-hidden"
-            style={{
-              background: 'rgba(15, 23, 42, 0.58)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(18px)',
-              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
-            }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-            aria-label="Battle pass"
-          >
-            <div className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">Battle Pass</div>
-                  <div className="mt-1 text-lg font-black uppercase tracking-widest text-white">Season Rewards</div>
-                </div>
-                <div
-                  className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white"
-                  style={{
-                    background: 'rgba(56, 189, 248, 0.16)',
-                    border: '1px solid rgba(56, 189, 248, 0.28)',
-                  }}
-                >
-                  LVL 2
-                </div>
-              </div>
-              <div className="mt-4">
-                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full w-[42%] rounded-full bg-sky-400/70" />
-                </div>
-              </div>
-            </div>
-          </motion.button>
-
-          <motion.button
-            type="button"
-            onClick={() => navigate('/challenges')}
-            className="w-full text-left rounded-2xl p-4"
-            style={{
-              background: 'rgba(15, 23, 42, 0.58)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(18px)',
-              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
-            }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-            aria-label="Challenges"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">Challenges</div>
-                <div className="mt-1 text-lg font-black uppercase tracking-widest text-white">Daily Ops</div>
-              </div>
-              <div className="text-sm font-black text-white/90">3/5</div>
-            </div>
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full w-[60%] rounded-full bg-indigo-400/70" />
-              </div>
-              <span className="text-[10px] text-white/55 uppercase tracking-[0.28em]">60%</span>
-            </div>
-          </motion.button>
-
-          <motion.button
-            type="button"
-            onClick={() => navigate('/battle/queue')}
-            className="w-full text-left rounded-2xl p-4"
-            style={{
-              background: 'rgba(15, 23, 42, 0.58)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(18px)',
-              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
-            }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-            aria-label="Activity"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">Activity</div>
-                <div className="mt-1 text-lg font-black uppercase tracking-widest text-white">Queue</div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-white/60" />
-            </div>
-            <div className="mt-3 text-sm text-white/65">Jump in and find an opponent.</div>
-          </motion.button>
-        </div>
-
         {/* Bottom-left action stack (matches reference positioning) */}
-        <div className="absolute left-6 bottom-44 w-[280px] sm:w-[320px]">
+        <div className="absolute left-4 sm:left-6 bottom-32 sm:bottom-36 w-[240px] sm:w-[280px]">
           <motion.button
             type="button"
             onClick={() => navigate('/modes')}
-            className="inline-flex items-center gap-2 rounded px-3 py-2 text-[11px] font-black uppercase tracking-[0.28em]"
+            className="inline-flex items-center gap-2 rounded px-4 py-2 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.28em]"
             style={{
               background: '#facc15',
               color: '#0b1220',
@@ -526,7 +366,7 @@ export default function Home() {
           >
             <motion.button
               onClick={() => (window.location.href = '/matchmaking-new')}
-              className="w-full px-8 py-6 text-2xl sm:text-3xl font-black uppercase tracking-widest rounded"
+              className="w-full px-6 sm:px-8 py-5 sm:py-6 text-xl sm:text-2xl font-black uppercase tracking-widest rounded-lg"
               style={{
                 background: 'linear-gradient(135deg, #a3e635, #22c55e)',
                 color: '#0b1220',
@@ -542,7 +382,7 @@ export default function Home() {
 
           <motion.button
             onClick={() => (window.location.href = '/dev/db-test')}
-            className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-black uppercase tracking-[0.28em] flex items-center justify-center gap-2"
+            className="mt-3 w-full px-4 sm:px-6 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-[0.28em] flex items-center justify-center gap-2"
             style={{
               background:
                 'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
@@ -552,7 +392,7 @@ export default function Home() {
             }}
             aria-label="Winner demo"
           >
-            <Flame className="w-4 h-4 mr-2" />
+            <Flame className="w-4 h-4" />
             WINNER DEMO
           </motion.button>
         </div>
