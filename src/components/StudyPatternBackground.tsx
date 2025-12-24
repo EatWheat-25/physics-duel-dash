@@ -15,38 +15,50 @@ import {
   Zap,
   Trophy,
   GraduationCap,
-  Library
+  Library,
+  Lightbulb,
+  Target,
+  Rocket,
+  Pencil,
+  Search,
+  Laptop,
+  Code2,
+  Puzzle,
+  Globe,
+  Award
 } from 'lucide-react';
 
 export const StudyPatternBackground = () => {
-  // Array of study-related icons to tile
+  // Expanded array of study-related icons for more variety
   const icons = [
     Atom, Calculator, BookOpen, Brain, 
     FlaskConical, Microscope, Pi, Sigma,
     Binary, Dna, Compass, Ruler,
-    Zap, Trophy, GraduationCap, Library
+    Zap, Trophy, GraduationCap, Library,
+    Lightbulb, Target, Rocket, Pencil,
+    Search, Laptop, Code2, Puzzle,
+    Globe, Award
   ];
 
-  // Create a grid of icons
-  // We'll repeat the icon set multiple times to fill the screen
-  const gridIcons = Array.from({ length: 100 }).map((_, i) => {
+  // Create a larger, denser grid
+  const gridIcons = Array.from({ length: 140 }).map((_, i) => {
     const Icon = icons[i % icons.length];
     return Icon;
   });
 
   return (
-    <div className="fixed inset-0 z-[-1] overflow-hidden bg-slate-950">
-      {/* 1. Deep Dark Base */}
+    <div className="fixed inset-0 z-[-1] overflow-hidden bg-black">
+      {/* 1. High Contrast Dark Base (Black/Dark Slate) */}
       <div 
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(circle at 50% 50%, #1e1b4b 0%, #020617 100%)',
+          background: 'radial-gradient(circle at 50% 50%, #0f172a 0%, #000000 100%)',
         }}
       />
 
-      {/* 2. Pattern Overlay */}
+      {/* 2. Pattern Overlay - Cyan/Light Blue Icons */}
       <div 
-        className="absolute inset-0 flex flex-wrap justify-center items-center gap-12 sm:gap-16 opacity-[0.03] p-8 -rotate-12 scale-125 origin-center"
+        className="absolute inset-0 flex flex-wrap justify-center items-center gap-8 sm:gap-12 opacity-[0.08] p-4 -rotate-12 scale-125 origin-center"
         style={{
           width: '150%',
           height: '150%',
@@ -57,23 +69,30 @@ export const StudyPatternBackground = () => {
         {gridIcons.map((Icon, index) => (
           <div 
             key={index} 
-            className="flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16"
+            className="flex items-center justify-center w-10 h-10 sm:w-14 sm:h-14"
           >
             <Icon 
-              className="w-full h-full text-white" 
+              className="w-full h-full text-cyan-400" 
               strokeWidth={1.5}
             />
           </div>
         ))}
       </div>
 
-      {/* 3. Subtle Vignette & Gradient Overlay for depth */}
-      <div className="absolute inset-0 bg-[radial-gradient(transparent_0%,#020617_100%)] opacity-80 pointer-events-none" />
+      {/* 3. Stronger Vignette for focus */}
+      <div className="absolute inset-0 bg-[radial-gradient(transparent_30%,#000000_100%)] opacity-90 pointer-events-none" />
       
-      {/* 4. Optional: Very slow drift animation to keep it alive */}
+      {/* 4. Electric Blue Glow Drifts */}
       <div 
-        className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-0 animate-pulse" 
-        style={{ animationDuration: '8s' }}
+        className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-20 animate-blob-float"
+        style={{ background: '#06b6d4' }} // Cyan-500
+      />
+      <div 
+        className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-10 animate-blob-float"
+        style={{ 
+          background: '#3b82f6', // Blue-500
+          animationDelay: '-5s' 
+        }} 
       />
     </div>
   );
