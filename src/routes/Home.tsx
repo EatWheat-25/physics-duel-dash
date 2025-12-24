@@ -326,12 +326,12 @@ export default function Home() {
         </div>
 
         {/* Center player card (FLAT like reference) */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[360px]">
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[clamp(280px,40vh,360px)] max-w-[90vw] aspect-[5/7]">
           <motion.div
             initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
             animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
             transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-            className="relative rounded-2xl overflow-hidden"
+            className="relative rounded-3xl overflow-hidden h-full w-full"
             style={{
               background: 'linear-gradient(180deg, rgba(52, 64, 88, 0.70) 0%, rgba(23, 31, 48, 0.70) 100%)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -345,9 +345,9 @@ export default function Home() {
                 background: 'radial-gradient(600px 260px at 50% 15%, rgba(255,255,255,0.10), transparent 60%)',
               }}
             />
-            <div className="absolute inset-2 rounded-xl border border-white/10 pointer-events-none" />
+            <div className="absolute inset-2 rounded-2xl border border-white/10 pointer-events-none" />
 
-            <div className="p-6">
+            <div className="p-6 h-full flex flex-col">
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
@@ -385,7 +385,7 @@ export default function Home() {
                 <div className="text-sm text-white/60">{rank.displayName}</div>
               </div>
 
-              <div className="mt-8 flex items-center justify-between">
+              <div className="mt-auto pt-8 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => navigate('/profile')}
