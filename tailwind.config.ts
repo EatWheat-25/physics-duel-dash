@@ -109,10 +109,9 @@ export default {
 					'50%': { transform: 'translate(-20px, 20px) scale(0.9)' },
 					'75%': { transform: 'translate(20px, 20px) scale(1.05)' },
 				},
-				'nebula-drift': {
-					'0%': { transform: 'rotate(0deg) scale(1)' },
-					'50%': { transform: 'rotate(180deg) scale(1.1)' },
-					'100%': { transform: 'rotate(360deg) scale(1)' },
+				'orbit': {
+					'0%': { transform: 'rotate(0deg)' },
+					'100%': { transform: 'rotate(360deg)' },
 				}
 			},
 			animation: {
@@ -120,6 +119,7 @@ export default {
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'blob-float': 'blob-float 20s infinite ease-in-out',
 				'nebula-drift': 'nebula-drift 40s infinite linear',
+				'orbit': 'orbit linear infinite',
 			}
 		}
 	},

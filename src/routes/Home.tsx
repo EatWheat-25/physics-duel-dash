@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/components/BottomNav';
 import { RankMenu } from '@/components/RankMenu';
 import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy } from 'lucide-react';
-import { SciFiBackground } from '@/components/SciFiBackground';
+import { SolarSystemBackground } from '@/components/SolarSystemBackground';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useCharacter } from '@/hooks/useCharacter';
@@ -96,8 +96,8 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
-      {/* Cinematic Sci-Fi Background */}
-      <SciFiBackground />
+      {/* Stylized Solar System Background */}
+      <SolarSystemBackground />
 
       {/* Top bar (centered nav like reference) */}
       <header className="relative z-30 w-full px-4 sm:px-6 pt-5">
