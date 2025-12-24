@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/components/BottomNav';
 import { RankMenu } from '@/components/RankMenu';
 import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy } from 'lucide-react';
+import { SciFiBackground } from '@/components/SciFiBackground';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useCharacter } from '@/hooks/useCharacter';
@@ -29,7 +30,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) return;
-
+    
     const fetchMMR = async () => {
       try {
         const { data } = await supabase
@@ -95,32 +96,8 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
-      {/* Dark/blue blurred lobby background */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: 'radial-gradient(circle at 50% 45%, rgba(40, 55, 85, 0.35), transparent 55%), linear-gradient(135deg, #070a10 0%, #0a1324 45%, #060a12 100%)',
-        }}
-      />
-      <div
-        className="absolute inset-0 pointer-events-none"
-      style={{
-          background: [
-            'radial-gradient(1100px 560px at 18% 88%, rgba(56, 189, 248, 0.10) 0%, transparent 62%)',
-            'radial-gradient(900px 520px at 78% 24%, rgba(99, 102, 241, 0.10) 0%, transparent 62%)',
-            'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 45%, rgba(255,255,255,0.02) 100%)',
-          ].join(','),
-          filter: 'blur(0.35px)',
-        }}
-      />
-      {/* Note: keep background clean like the reference (no extra grid layer here) */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(900px 600px at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 70%, rgba(0,0,0,0.7) 100%)',
-        }}
-      />
+      {/* Cinematic Sci-Fi Background */}
+      <SciFiBackground />
 
       {/* Top bar (centered nav like reference) */}
       <header className="relative z-30 w-full px-4 sm:px-6 pt-5">

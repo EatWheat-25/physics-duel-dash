@@ -102,11 +102,24 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'blob-float': {
+					'0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+					'25%': { transform: 'translate(20px, -20px) scale(1.1)' },
+					'50%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+					'75%': { transform: 'translate(20px, 20px) scale(1.05)' },
+				},
+				'nebula-drift': {
+					'0%': { transform: 'rotate(0deg) scale(1)' },
+					'50%': { transform: 'rotate(180deg) scale(1.1)' },
+					'100%': { transform: 'rotate(360deg) scale(1)' },
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'blob-float': 'blob-float 20s infinite ease-in-out',
+				'nebula-drift': 'nebula-drift 40s infinite linear',
 			}
 		}
 	},
