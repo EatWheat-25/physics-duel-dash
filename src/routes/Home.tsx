@@ -95,7 +95,7 @@ export default function Home() {
   const initial = (username?.[0] || '?').toUpperCase();
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-white">
+    <div className="relative min-h-screen overflow-hidden text-white font-sans">
       {/* Study Icons Pattern Background */}
       <StudyPatternBackground />
 
@@ -114,8 +114,8 @@ export default function Home() {
               <Sparkles className="w-4 h-4 text-white/90" />
             </div>
             <div className="leading-tight">
-              <div className="font-black tracking-widest uppercase text-sm sm:text-base">BattleNerds</div>
-              <div className="text-[10px] text-white/55 tracking-[0.24em] uppercase">Lobby</div>
+              <div className="font-semibold text-sm sm:text-base">BattleNerds</div>
+              <div className="text-xs text-white/60">Lobby</div>
             </div>
           </div>
 
@@ -127,7 +127,7 @@ export default function Home() {
                   key={item.label}
                   type="button"
                   onClick={item.onClick}
-                  className={`group relative py-2 text-[11px] font-black uppercase tracking-[0.28em] transition-colors ${
+                  className={`group relative py-2 text-sm font-medium transition-colors ${
                     active ? 'text-white' : 'text-white/70 hover:text-white'
                   }`}
                   aria-current={active ? 'page' : undefined}
@@ -171,7 +171,7 @@ export default function Home() {
               aria-label="Open profile"
             >
               <div
-                className="h-9 w-9 rounded-full flex items-center justify-center text-sm font-black"
+                className="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold"
                 style={{
                   background: 'rgba(255, 255, 255, 0.08)',
                   border: '1px solid rgba(255, 255, 255, 0.14)',
@@ -181,7 +181,7 @@ export default function Home() {
               </div>
               <div className="leading-tight text-left">
                 <div className="text-sm font-bold text-white">{username}</div>
-                <div className="text-[10px] text-white/60 tracking-[0.22em] uppercase">Lv {level}</div>
+                <div className="text-xs text-white/60">Lv {level}</div>
               </div>
             </button>
 
@@ -252,7 +252,7 @@ export default function Home() {
             aria-label="Selected mode"
           >
             <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-lime-400/70" />
-            <div className="text-sm font-black uppercase tracking-widest text-white">UNRATED</div>
+            <div className="text-sm font-semibold text-white">UNRATED</div>
             <div className="text-xs text-white/55 mt-1">Selected Mode</div>
           </motion.button>
 
@@ -273,9 +273,7 @@ export default function Home() {
             <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-sky-400/70" />
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-black uppercase tracking-widest text-white">
-                  {rank.displayName.toUpperCase()}
-                </div>
+                <div className="text-sm font-semibold text-white">{rank.displayName}</div>
                 <div className="text-xs text-white/55 mt-1">Grade Selected</div>
               </div>
               <Trophy className="w-4 h-4 text-white/80" />
@@ -297,7 +295,7 @@ export default function Home() {
             aria-label="Review last game"
           >
             <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-white/30" />
-            <div className="text-sm font-black uppercase tracking-widest text-white">VICTORY</div>
+            <div className="text-sm font-semibold text-white">VICTORY</div>
             <div className="text-xs text-white/55 mt-1">Review Last Game</div>
           </motion.button>
         </div>
@@ -339,35 +337,12 @@ export default function Home() {
             <div className="p-6 h-full flex flex-col">
               <div className="flex items-start justify-between">
                 <div>
-                  <div
-                    className="text-[10px] uppercase tracking-[0.32em] text-white/60 font-black"
-                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
-                  >
-                    {rank.displayName.toUpperCase()}
-                  </div>
-                  <div
-                    className="mt-2 text-[10px] uppercase tracking-[0.32em] text-white/55 font-black"
-                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
-                  >
-                    LEVEL {level}
-                  </div>
+                  <div className="text-xs font-semibold text-white/70">{rank.displayName}</div>
+                  <div className="mt-1 text-xs text-white/55">Level {level}</div>
                 </div>
                 <div className="text-right">
-                  <div
-                    className="text-2xl font-black text-white"
-                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
-                  >
-                    {mmr}
-                  </div>
-                  <div
-                    className="text-[10px] uppercase tracking-[0.32em] font-black"
-                    style={{
-                      fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                      color: 'rgba(255,255,255,0.55)',
-                    }}
-                  >
-                    MMR
-                  </div>
+                  <div className="text-2xl font-bold text-white">{mmr}</div>
+                  <div className="text-xs text-white/55">MMR</div>
                 </div>
               </div>
 
@@ -380,45 +355,27 @@ export default function Home() {
                     boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.45)',
                   }}
                 >
-                  <span
-                    className="text-3xl font-black text-white"
-                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
-                  >
-                    {initial}
-                  </span>
+                  <span className="text-3xl font-bold text-white">{initial}</span>
                 </div>
               </div>
 
               <div className="mt-6 text-center">
-                <div
-                  className="text-2xl font-black text-white"
-                  style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
-                >
-                  {username}
-                </div>
-                <div className="text-sm uppercase tracking-wider text-white/55">
-                  {rank.displayName}
-                </div>
+                <div className="text-2xl font-bold text-white">{username}</div>
+                <div className="text-sm text-white/55">{rank.displayName}</div>
               </div>
 
               <div className="mt-auto pt-8 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => navigate('/profile')}
-                  className="text-[10px] uppercase tracking-[0.18em] font-black transition-colors text-white/55 hover:text-white"
-                  style={{
-                    fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                  }}
+                  className="text-xs font-medium transition-colors text-white/60 hover:text-white"
                 >
                   Customize Card
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/progression')}
-                  className="text-[10px] uppercase tracking-[0.18em] font-black transition-colors text-white/55 hover:text-white"
-                  style={{
-                    fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                  }}
+                  className="text-xs font-medium transition-colors text-white/60 hover:text-white"
                 >
                   View Progression
                 </button>
@@ -446,11 +403,11 @@ export default function Home() {
             <div className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">Battle Pass</div>
-                  <div className="mt-1 text-lg font-black uppercase tracking-widest text-white">Season Rewards</div>
+                  <div className="text-xs text-white/60">Battle Pass</div>
+                  <div className="mt-1 text-lg font-bold text-white">Season Rewards</div>
                 </div>
                 <div
-                  className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white"
+                  className="px-3 py-1 rounded-full text-xs font-semibold text-white"
                   style={{
                     background: 'rgba(56, 189, 248, 0.16)',
                     border: '1px solid rgba(56, 189, 248, 0.28)',
@@ -483,16 +440,16 @@ export default function Home() {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">Challenges</div>
-                <div className="mt-1 text-lg font-black uppercase tracking-widest text-white">Daily Ops</div>
+                <div className="text-xs text-white/60">Challenges</div>
+                <div className="mt-1 text-lg font-bold text-white">Daily Ops</div>
               </div>
-              <div className="text-sm font-black text-white/90">3/5</div>
+              <div className="text-sm font-semibold text-white/90">3/5</div>
             </div>
             <div className="mt-4 flex items-center justify-between gap-3">
               <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
                 <div className="h-full w-[60%] rounded-full bg-indigo-400/70" />
               </div>
-              <span className="text-[10px] text-white/55 uppercase tracking-[0.28em]">60%</span>
+              <span className="text-xs text-white/60">60%</span>
             </div>
           </motion.button>
 
@@ -512,8 +469,8 @@ export default function Home() {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">Activity</div>
-                <div className="mt-1 text-lg font-black uppercase tracking-widest text-white">Queue</div>
+                <div className="text-xs text-white/60">Activity</div>
+                <div className="mt-1 text-lg font-bold text-white">Queue</div>
               </div>
               <ChevronRight className="w-4 h-4 text-white/60" />
             </div>
@@ -526,13 +483,12 @@ export default function Home() {
           <motion.button
             type="button"
             onClick={() => navigate('/modes')}
-            className="inline-flex items-center gap-2 rounded px-3 py-2 text-[11px] font-black uppercase tracking-[0.28em]"
+            className="inline-flex items-center gap-2 rounded px-3 py-2 text-xs font-semibold"
             style={{
               background: '#facc15',
               color: '#0b1220',
               border: '1px solid rgba(0,0,0,0.35)',
               boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
-              fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
             }}
             whileHover={prefersReducedMotion ? undefined : { y: -1 }}
             whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
@@ -548,13 +504,12 @@ export default function Home() {
           >
             <motion.button
               onClick={() => (window.location.href = '/matchmaking-new')}
-              className="w-full px-8 py-6 text-2xl sm:text-3xl font-black uppercase tracking-widest rounded"
+              className="w-full px-8 py-6 text-2xl sm:text-3xl font-bold rounded"
               style={{
                 background: 'linear-gradient(135deg, #a3e635, #22c55e)',
                 color: '#0b1220',
                 border: '1px solid rgba(0,0,0,0.45)',
                 boxShadow: '0 18px 55px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
-                fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
               }}
               aria-label="Start matchmaking"
           >
@@ -564,7 +519,7 @@ export default function Home() {
 
           <motion.button
             onClick={() => (window.location.href = '/dev/db-test')}
-            className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-black uppercase tracking-[0.28em] flex items-center justify-center gap-2"
+            className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2"
             style={{
               background:
                 'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
