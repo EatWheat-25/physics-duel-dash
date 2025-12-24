@@ -1,50 +1,71 @@
 import React from 'react';
-import { 
-  Atom, 
-  BookOpen, 
-  Calculator, 
-  Brain, 
-  FlaskConical, 
-  Microscope, 
-  Pi, 
-  Sigma, 
-  Binary, 
-  Dna,
-  Compass,
-  Ruler,
-  Zap,
-  Trophy,
-  GraduationCap,
-  Library,
-  Lightbulb,
-  Target,
-  Rocket,
-  Pencil,
-  Search,
-  Laptop,
-  Code2,
-  Puzzle,
-  Globe,
-  Award
-} from 'lucide-react';
 
 export const StudyPatternBackground = () => {
-  // Expanded array of study-related icons for more variety
-  const icons = [
-    Atom, Calculator, BookOpen, Brain, 
-    FlaskConical, Microscope, Pi, Sigma,
-    Binary, Dna, Compass, Ruler,
-    Zap, Trophy, GraduationCap, Library,
-    Lightbulb, Target, Rocket, Pencil,
-    Search, Laptop, Code2, Puzzle,
-    Globe, Award
-  ];
+  // Dense, repeating "study doodles" pattern (original vector, inspired by your reference wallpaper)
+  const patternSvg = encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+      <g fill="none" stroke="#22d3ee" stroke-opacity="0.30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Book -->
+        <path d="M26 34h34c6 0 10 4 10 10v44c0-6-4-10-10-10H26z"/>
+        <path d="M26 34v44"/>
+        <path d="M60 34v44"/>
+        <path d="M40 44h18"/>
 
-  // Create a larger, denser grid
-  const gridIcons = Array.from({ length: 140 }).map((_, i) => {
-    const Icon = icons[i % icons.length];
-    return Icon;
-  });
+        <!-- Calculator -->
+        <rect x="154" y="28" width="48" height="58" rx="10"/>
+        <rect x="164" y="38" width="28" height="10" rx="4"/>
+        <g>
+          <rect x="164" y="54" width="10" height="10" rx="3"/>
+          <rect x="178" y="54" width="10" height="10" rx="3"/>
+          <rect x="192" y="54" width="10" height="10" rx="3"/>
+          <rect x="164" y="68" width="10" height="10" rx="3"/>
+          <rect x="178" y="68" width="10" height="10" rx="3"/>
+          <rect x="192" y="68" width="10" height="10" rx="3"/>
+        </g>
+
+        <!-- Atom -->
+        <circle cx="64" cy="150" r="5"/>
+        <path d="M64 134c22 0 40 7 40 16s-18 16-40 16-40-7-40-16 18-16 40-16z"/>
+        <path d="M44 140c10-16 28-26 40-22 12 4 14 22 4 38s-28 26-40 22c-12-4-14-22-4-38z"/>
+        <path d="M84 140c-10-16-28-26-40-22-12 4-14 22-4 38s28 26 40 22c12-4 14-22 4-38z"/>
+
+        <!-- Flask -->
+        <path d="M170 126h24"/>
+        <path d="M178 126v18l-20 34c-2 4 1 8 6 8h44c5 0 8-4 6-8l-20-34v-18"/>
+        <path d="M168 172h44"/>
+
+        <!-- Pencil -->
+        <path d="M34 212l40-40 10 10-40 40H34z"/>
+        <path d="M74 172l10 10"/>
+        <path d="M30 216l4-4"/>
+
+        <!-- Ruler -->
+        <rect x="120" y="200" width="74" height="16" rx="6"/>
+        <path d="M132 200v8"/>
+        <path d="M144 200v6"/>
+        <path d="M156 200v8"/>
+        <path d="M168 200v6"/>
+        <path d="M180 200v8"/>
+
+        <!-- Lightbulb -->
+        <path d="M206 120c0-10-8-18-18-18s-18 8-18 18c0 7 4 13 9 16v6h18v-6c5-3 9-9 9-16z"/>
+        <path d="M178 148h20"/>
+        <path d="M180 156h16"/>
+
+        <!-- Graph -->
+        <path d="M26 124v34h34"/>
+        <path d="M30 152l10-12 10 8 10-18"/>
+
+        <!-- Small stars/dots -->
+        <path d="M116 44l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>
+        <circle cx="112" cy="92" r="2"/>
+        <circle cx="122" cy="108" r="2"/>
+        <circle cx="102" cy="110" r="2"/>
+        <path d="M214 96l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>
+      </g>
+    </svg>
+  `);
+  const patternUrl = `url("data:image/svg+xml,${patternSvg}")`;
 
   return (
     <div className="fixed inset-0 z-[-1] overflow-hidden bg-black">
@@ -56,28 +77,22 @@ export const StudyPatternBackground = () => {
         }}
       />
 
-      {/* 2. Pattern Overlay - Cyan/Light Blue Icons */}
-      <div 
-        className="absolute inset-0 flex flex-wrap justify-center items-center gap-8 sm:gap-12 opacity-[0.08] p-4 -rotate-12 scale-125 origin-center"
+      {/* 2. Dense repeating pattern overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none"
         style={{
-          width: '150%',
-          height: '150%',
-          left: '-25%',
-          top: '-25%',
+          width: '160%',
+          height: '160%',
+          left: '-30%',
+          top: '-30%',
+          transform: 'rotate(-12deg) scale(1.2)',
+          transformOrigin: 'center',
+          backgroundImage: patternUrl,
+          backgroundRepeat: 'repeat',
+          backgroundSize: '170px 170px',
+          opacity: 0.14,
         }}
-      >
-        {gridIcons.map((Icon, index) => (
-          <div 
-            key={index} 
-            className="flex items-center justify-center w-10 h-10 sm:w-14 sm:h-14"
-          >
-            <Icon 
-              className="w-full h-full text-cyan-400" 
-              strokeWidth={1.5}
-            />
-          </div>
-        ))}
-      </div>
+      />
 
       {/* 3. Stronger Vignette for focus */}
       <div className="absolute inset-0 bg-[radial-gradient(transparent_30%,#000000_100%)] opacity-90 pointer-events-none" />
