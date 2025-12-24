@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
-import { motion, useMotionTemplate, useMotionValue, useSpring } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/components/BottomNav';
 import { RankMenu } from '@/components/RankMenu';
@@ -93,42 +92,6 @@ export default function Home() {
   const level = Math.max(1, Math.floor(mmr / 100) + 1);
   const username = profile?.username || user?.email?.split('@')[0] || 'Guest';
   const initial = (username?.[0] || '?').toUpperCase();
-
-  // 3D card tilt + interactive holographic glare
-  const tiltX = useMotionValue(0);
-  const tiltY = useMotionValue(0);
-  const glareX = useMotionValue(52);
-  const glareY = useMotionValue(30);
-  const tiltXSpring = useSpring(tiltX, { stiffness: 220, damping: 22, mass: 0.65 });
-  const tiltYSpring = useSpring(tiltY, { stiffness: 220, damping: 22, mass: 0.65 });
-
-  const glare = useMotionTemplate`
-    radial-gradient(560px 240px at ${glareX}% ${glareY}%, rgba(88,196,255,0.22), transparent 60%),
-    radial-gradient(520px 240px at ${glareX}% ${glareY}%, rgba(154,91,255,0.16), transparent 62%)
-  `;
-
-  const onCardPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (prefersReducedMotion) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width;
-    const py = (e.clientY - rect.top) / rect.height;
-
-    // Card tilt (subtle, premium)
-    const rotateY = (px - 0.5) * 10; // -5..5
-    const rotateX = (0.5 - py) * 10; // -5..5
-    tiltX.set(rotateX);
-    tiltY.set(rotateY);
-
-    glareX.set(Math.max(0, Math.min(100, px * 100)));
-    glareY.set(Math.max(0, Math.min(100, py * 100)));
-  };
-
-  const onCardPointerLeave = () => {
-    tiltX.set(0);
-    tiltY.set(0);
-    glareX.set(52);
-    glareY.set(30);
-  };
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
@@ -362,173 +325,84 @@ export default function Home() {
           </motion.button>
         </div>
 
-        {/* Center player card (portrait trading-card shape) */}
-        <div className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[360px] lg:w-[380px] aspect-[5/7]">
-          <div className="relative" style={{ perspective: 1100 }}>
-            <motion.div
-              onPointerMove={onCardPointerMove}
-              onPointerLeave={onCardPointerLeave}
-              initial={prefersReducedMotion ? undefined : { opacity: 0, y: 10, scale: 0.98 }}
-              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
-              whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
-              className="lobby-3d h-full overflow-hidden"
-              style={{
-                rotateX: tiltXSpring,
-                rotateY: tiltYSpring,
-                borderRadius: 16,
-                background: 'rgba(24, 33, 48, 0.72)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(26px)',
-                boxShadow: '0 26px 90px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.06)',
-              }}
-            >
-              {/* Interactive glare (pointer-based) */}
-              <motion.div className="absolute inset-0 pointer-events-none" style={{ background: glare, opacity: 0.35 }} />
-              <div
-                className="absolute inset-0 pointer-events-none opacity-35"
-                style={{
-                  background:
-                    'radial-gradient(500px 220px at 50% 20%, rgba(255,255,255,0.10), transparent 60%)',
-                }}
-              />
-
-              {/* Inner frame */}
-              <div className="absolute inset-3 rounded-[14px] border border-white/10 pointer-events-none" />
-              <div
-                className="absolute inset-6 rounded-[12px] pointer-events-none"
-                style={{
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
-                }}
-              />
-
-              {/* Corner ticks */}
-              <div className="absolute left-4 top-4 h-4 w-4 border-l border-t border-white/20 pointer-events-none" />
-              <div className="absolute right-4 top-4 h-4 w-4 border-r border-t border-white/20 pointer-events-none" />
-              <div className="absolute left-4 bottom-4 h-4 w-4 border-l border-b border-white/20 pointer-events-none" />
-              <div className="absolute right-4 bottom-4 h-4 w-4 border-r border-b border-white/20 pointer-events-none" />
-
-              <div className="relative z-10 p-7 sm:p-8 h-full flex flex-col">
-                <div className="flex items-start justify-between gap-6">
-                  <div className="flex flex-col gap-2">
-                    <span
-                      className="inline-flex items-center rounded px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em]"
-                      style={{
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                      }}
-                    >
-                      {rank.displayName.toUpperCase()}
-                    </span>
-                    <span
-                      className="inline-flex items-center rounded px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em]"
-                      style={{
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                      }}
-                    >
-                      LV&nbsp;{level}
-                    </span>
-                  </div>
-
-                  <div className="text-right">
-                    <div
-                      className="text-3xl font-black"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif', letterSpacing: '0.02em' }}
-                    >
-                      {mmr}
-                    </div>
-                    <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">MMR</div>
-                  </div>
-                </div>
-
-                {/* Main portrait area */}
-                <div className="flex-1 flex flex-col items-center justify-center">
-                  {/* Avatar plate */}
-                  <div
-                    className="relative h-28 w-28 rounded-full flex items-center justify-center"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.14)',
-                      boxShadow:
-                        '0 18px 40px rgba(0,0,0,0.5), 0 0 35px rgba(88,196,255,0.12), inset 0 1px 0 rgba(255,255,255,0.06)',
-                    }}
-                  >
-                    <div
-                      className="absolute inset-[-2px] rounded-full opacity-60 pointer-events-none"
-                      style={{
-                        background:
-                          'linear-gradient(135deg, rgba(163,230,53,0.55), rgba(34,197,94,0.45), rgba(163,230,53,0.55))',
-                        filter: 'blur(10px)',
-                      }}
-                    />
-                    <div
-                      className="absolute inset-0 rounded-full pointer-events-none"
-                      style={{
-                        background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.12), transparent 60%)',
-                      }}
-                    />
-                    <span
-                      className="relative z-10 text-4xl font-black"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
-                    >
-                      {initial}
-                    </span>
-                  </div>
-                  <div className="mt-6 text-center">
-                    <div
-                      className="text-2xl font-black"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif', letterSpacing: '0.03em' }}
-                    >
-                      {username}
-                    </div>
-                    <div className="mt-2 text-sm text-white/65 tech-text">
-                      {selectedCharacter?.name || 'Selected Agent'} • {rank.displayName}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/profile')}
-                    className="w-full rounded px-3 py-3 text-[10px] font-black uppercase tracking-[0.28em]"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                    }}
-                  >
-                    Customize
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/progression')}
-                    className="w-full rounded px-3 py-3 text-[10px] font-black uppercase tracking-[0.28em]"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                    }}
-                  >
-                    Progress
-                  </button>
-                </div>
-              </div>
-          </motion.div>
-
-            {/* Shadow “lift” */}
+        {/* Center player card (FLAT like reference) */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[360px]">
+          <motion.div
+            initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
+            animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
+            transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+            className="relative rounded-2xl overflow-hidden"
+            style={{
+              background: 'linear-gradient(180deg, rgba(52, 64, 88, 0.70) 0%, rgba(23, 31, 48, 0.70) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(22px)',
+              boxShadow: '0 22px 70px rgba(0,0,0,0.55)',
+            }}
+          >
             <div
-              className="absolute -inset-6 -z-10 rounded-[32px] blur-3xl opacity-40 pointer-events-none"
+              className="absolute inset-0 pointer-events-none opacity-60"
               style={{
-                background:
-                  'radial-gradient(circle at 40% 30%, rgba(88,196,255,0.22), transparent 55%), radial-gradient(circle at 70% 70%, rgba(154,91,255,0.18), transparent 55%)',
+                background: 'radial-gradient(600px 260px at 50% 15%, rgba(255,255,255,0.10), transparent 60%)',
               }}
             />
-          </div>
+            <div className="absolute inset-2 rounded-xl border border-white/10 pointer-events-none" />
+
+            <div className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
+                    {rank.displayName.toUpperCase()}
+                  </div>
+                  <div className="mt-2 text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
+                    LEVEL {level}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div
+                    className="text-2xl font-black text-white"
+                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                  >
+                    {mmr}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">MMR</div>
+                </div>
+              </div>
+
+              <div className="mt-8 flex items-center justify-center">
+                <div
+                  className="h-20 w-20 rounded-full flex items-center justify-center"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                  }}
+                >
+                  <span className="text-3xl font-black text-white">{initial}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <div className="text-2xl font-black text-white">{username}</div>
+                <div className="text-sm text-white/60">{rank.displayName}</div>
+              </div>
+
+              <div className="mt-8 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => navigate('/profile')}
+                  className="text-xs text-white/60 hover:text-white transition-colors"
+                >
+                  Customize Card
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/progression')}
+                  className="text-xs text-white/60 hover:text-white transition-colors"
+                >
+                  View Progression
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
 
         {/* Right widgets (merge from bright reference; subtle in dark theme) */}
