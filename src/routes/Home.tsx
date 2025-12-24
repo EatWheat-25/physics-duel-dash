@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/components/BottomNav';
 import { RankMenu } from '@/components/RankMenu';
-import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy, Zap, Target, Award } from 'lucide-react';
+import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useCharacter } from '@/hooks/useCharacter';
@@ -94,264 +94,470 @@ export default function Home() {
   const initial = (username?.[0] || '?').toUpperCase();
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-black text-white">
-      {/* Dark professional background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-zinc-950 via-black to-zinc-950" />
-      
-      {/* Subtle grid overlay */}
-      <div 
-        className="absolute inset-0 opacity-[0.02]"
+    <div className="relative min-h-screen overflow-hidden text-white">
+      {/* Dark/blue blurred lobby background */}
+      <div
+        className="absolute inset-0"
         style={{
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-                           linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)`,
-          backgroundSize: '50px 50px',
+          background: 'radial-gradient(circle at 50% 45%, rgba(40, 55, 85, 0.35), transparent 55%), linear-gradient(135deg, #070a10 0%, #0a1324 45%, #060a12 100%)',
+        }}
+      />
+      <div
+        className="absolute inset-0 pointer-events-none"
+      style={{
+          background: [
+            'radial-gradient(1100px 560px at 18% 88%, rgba(56, 189, 248, 0.10) 0%, transparent 62%)',
+            'radial-gradient(900px 520px at 78% 24%, rgba(99, 102, 241, 0.10) 0%, transparent 62%)',
+            'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 45%, rgba(255,255,255,0.02) 100%)',
+          ].join(','),
+          filter: 'blur(0.35px)',
+        }}
+      />
+      {/* Note: keep background clean like the reference (no extra grid layer here) */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(900px 600px at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 70%, rgba(0,0,0,0.7) 100%)',
         }}
       />
 
-      {/* Minimal accent glow */}
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[150px]" />
-      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[150px]" />
-
-      {/* Tactical professional header */}
-      <header className="relative z-30 border-b border-white/5">
-        <div className="max-w-[1600px] mx-auto px-8 py-4">
-          <div className="flex items-center justify-between">
-            {/* Logo */}
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
-                <Zap className="w-5 h-5 text-cyan-400" />
-              </div>
-              <div>
-                <div className="text-lg font-bold text-white tracking-tight">BATTLENERDS</div>
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Competitive Arena</div>
-              </div>
+      {/* Top bar (centered nav like reference) */}
+      <header className="relative z-30 w-full px-4 sm:px-6 pt-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-[180px]">
+            <div
+              className="h-10 w-10 rounded-2xl flex items-center justify-center"
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(18px)',
+              }}
+            >
+              <Sparkles className="w-4 h-4 text-white/90" />
             </div>
+            <div className="leading-tight">
+              <div className="font-black tracking-widest uppercase text-sm sm:text-base">BattleNerds</div>
+              <div className="text-[10px] text-white/55 tracking-[0.24em] uppercase">Lobby</div>
+            </div>
+          </div>
 
-            {/* Center nav - minimalist */}
-            <nav className="hidden lg:flex items-center gap-1">
-              {navItems.map((item) => {
-                const active = getNavActive(item);
-                return (
-                  <button
-                    key={item.label}
-                    onClick={item.onClick}
-                    className={`relative px-6 py-2 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-                      active ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
-                    }`}
-                  >
-                    {item.label}
-                    {active && (
-                      <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-cyan-400" />
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
-
-            {/* Right actions */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate('/profile')}
-                className="hidden sm:flex items-center gap-3 px-4 py-2 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-              >
-                <div className="h-8 w-8 bg-zinc-800 border border-zinc-700 flex items-center justify-center text-sm font-bold">
-                  {initial}
-                </div>
-                <div className="text-left">
-                  <div className="text-sm font-semibold text-white">{username}</div>
-                  <div className="text-xs text-zinc-500">LVL {level}</div>
-                </div>
-              </button>
-
-              {!isAdminLoading && isAdmin && (
+          <nav className="hidden md:flex items-center justify-center gap-8" aria-label="Primary navigation">
+            {navItems.map((item) => {
+              const active = getNavActive(item);
+              return (
                 <button
-                  onClick={() => navigate('/admin/dashboard')}
-                  className="h-10 w-10 bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/20 transition-colors flex items-center justify-center"
+                  key={item.label}
+                  type="button"
+                  onClick={item.onClick}
+                  className={`group relative py-2 text-[11px] font-black uppercase tracking-[0.28em] transition-colors ${
+                    active ? 'text-white' : 'text-white/70 hover:text-white'
+                  }`}
+                  aria-current={active ? 'page' : undefined}
                 >
-                  <Shield className="w-4 h-4 text-yellow-500" />
+                  <span
+                    className={`absolute -inset-x-4 -inset-y-2 rounded-full transition-opacity ${
+                      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                    style={{
+                      background: active ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)',
+                      border: active ? '1px solid rgba(163,230,53,0.22)' : '1px solid rgba(255,255,255,0.10)',
+                      boxShadow: active ? '0 0 28px rgba(163,230,53,0.10)' : undefined,
+                    }}
+                    aria-hidden="true"
+                  />
+                  {item.label}
+                  {active && (
+                    <span
+                      className="absolute left-0 right-0 -bottom-1 mx-auto h-0.5 w-10 rounded-full"
+                      style={{
+                        background:
+                          'linear-gradient(90deg, rgba(163,230,53,0), rgba(163,230,53,1), rgba(163,230,53,0))',
+                      }}
+                    />
+                  )}
                 </button>
-              )}
+              );
+            })}
+          </nav>
 
-              <button
-                onClick={() => {}}
-                className="h-10 w-10 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center justify-center"
+          <div className="flex items-center justify-end gap-2 min-w-[180px]">
+            <button
+              type="button"
+              onClick={() => navigate('/profile')}
+              className="hidden sm:flex items-center gap-3 px-3 py-2 rounded-2xl"
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(18px)',
+              }}
+              aria-label="Open profile"
+            >
+              <div
+                className="h-9 w-9 rounded-full flex items-center justify-center text-sm font-black"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
+                }}
               >
-                <Settings className="w-4 h-4 text-zinc-400" />
-              </button>
+                {initial}
+              </div>
+              <div className="leading-tight text-left">
+                <div className="text-sm font-bold text-white">{username}</div>
+                <div className="text-[10px] text-white/60 tracking-[0.22em] uppercase">Lv {level}</div>
+              </div>
+            </button>
 
+            {!isAdminLoading && isAdmin && (
               <button
-                onClick={signOut}
-                className="h-10 w-10 bg-white/5 border border-white/10 hover:bg-red-500/20 transition-colors flex items-center justify-center"
+                type="button"
+                onClick={() => navigate('/admin/dashboard')}
+                className="h-11 w-11 rounded-2xl flex items-center justify-center"
+                style={{
+                  background: 'rgba(234, 179, 8, 0.12)',
+                  border: '1px solid rgba(234, 179, 8, 0.35)',
+                  backdropFilter: 'blur(18px)',
+                }}
+                aria-label="Admin dashboard"
               >
-                <LogOut className="w-4 h-4 text-zinc-400" />
+                <Shield className="w-4 h-4 text-yellow-200" />
               </button>
-            </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {}}
+              className="h-11 w-11 rounded-2xl flex items-center justify-center"
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(18px)',
+              }}
+              aria-label="Settings"
+            >
+              <Settings className="w-4 h-4 text-white/90" />
+            </button>
+
+            <button
+              type="button"
+              onClick={signOut}
+              className="h-11 w-11 rounded-2xl flex items-center justify-center"
+          style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(18px)',
+              }}
+              aria-label="Sign out"
+            >
+              <LogOut className="w-4 h-4 text-white/90" />
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="relative z-20 px-8 py-12">
-        <div className="max-w-[1600px] mx-auto">
-          {/* Hero Section - Clean and Direct */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-            {/* Player Stats Card - Left */}
-            <div className="lg:col-span-1">
-              <div className="bg-zinc-900/50 border border-white/10 p-6">
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Rank</div>
-                    <div className="text-sm font-bold text-cyan-400">{rank.displayName.toUpperCase()}</div>
-                  </div>
-                  <Trophy className="w-5 h-5 text-zinc-600" />
-                </div>
+      <main className="relative z-20 min-h-[calc(100vh-120px)]">
+        {/* Keep the lobby clean like the reference (no large character overlay) */}
 
-                <div className="flex flex-col items-center py-6 border-y border-white/10">
-                  <div className="h-24 w-24 bg-zinc-800 border-2 border-cyan-500/20 flex items-center justify-center mb-4">
-                    <span className="text-4xl font-bold text-white">{initial}</span>
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-1">{username}</h3>
-                  <p className="text-sm text-zinc-500">Level {level}</p>
-                </div>
+        {/* Left stack (reference-style tiles) */}
+        <div className="hidden lg:flex absolute left-6 top-28 w-[260px] flex-col gap-3">
+          <motion.button
+            type="button"
+            onClick={() => navigate('/modes')}
+            className="relative w-full rounded-2xl px-4 py-4 text-left"
+            style={{
+              background: 'rgba(15, 23, 42, 0.58)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(18px)',
+              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
+            }}
+            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            aria-label="Selected mode"
+          >
+            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-lime-400/70" />
+            <div className="text-sm font-black uppercase tracking-widest text-white">UNRATED</div>
+            <div className="text-xs text-white/55 mt-1">Selected Mode</div>
+          </motion.button>
 
-                <div className="grid grid-cols-2 gap-4 mt-6">
-                  <div className="text-center p-3 bg-black/50 border border-white/5">
-                    <div className="text-2xl font-bold text-white">{mmr}</div>
-                    <div className="text-xs text-zinc-500 uppercase tracking-wider">MMR</div>
-                  </div>
-                  <div className="text-center p-3 bg-black/50 border border-white/5">
-                    <div className="text-2xl font-bold text-white">0</div>
-                    <div className="text-xs text-zinc-500 uppercase tracking-wider">Wins</div>
-                  </div>
+          <motion.button
+            type="button"
+              onClick={() => setRankMenuOpen(true)}
+            className="relative w-full rounded-2xl px-4 py-4 text-left"
+            style={{
+              background: 'rgba(15, 23, 42, 0.58)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(18px)',
+              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
+            }}
+            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            aria-label="Open leaderboard"
+          >
+            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-sky-400/70" />
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-black uppercase tracking-widest text-white">
+                  {rank.displayName.toUpperCase()}
                 </div>
-
-                <div className="mt-6 space-y-2">
-                  <button
-                    onClick={() => navigate('/profile')}
-                    className="w-full py-2.5 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm font-medium text-white"
-                  >
-                    Customize Profile
-                  </button>
-                  <button
-                    onClick={() => navigate('/progression')}
-                    className="w-full py-2.5 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm font-medium text-white"
-                  >
-                    View Stats
-                  </button>
-                </div>
+                <div className="text-xs text-white/55 mt-1">Grade Selected</div>
               </div>
+              <Trophy className="w-4 h-4 text-white/80" />
             </div>
+          </motion.button>
 
-            {/* Main Action - Center */}
-            <div className="lg:col-span-2">
-              <div className="relative bg-zinc-900/30 border border-white/10 p-12 min-h-[500px] flex flex-col justify-between">
-                {/* Subtle accent line */}
-                <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
-                
-                <div>
-                  <div className="inline-block px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 mb-6">
-                    <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Ready</span>
-                  </div>
-                  <h1 className="text-5xl lg:text-6xl font-bold text-white mb-4 leading-tight">
-                    Enter the<br />Arena
-                  </h1>
-                  <p className="text-lg text-zinc-400 max-w-xl">
-                    Test your skills in competitive 1v1 battles. Climb the ranks and prove yourself.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <button
-                    onClick={() => (window.location.href = '/matchmaking-new')}
-                    className="group w-full py-6 bg-cyan-500 hover:bg-cyan-400 border-2 border-cyan-400 transition-colors flex items-center justify-center gap-3"
-                  >
-                    <span className="text-xl font-bold text-black uppercase tracking-wider">Start Match</span>
-                    <ChevronRight className="w-6 h-6 text-black group-hover:translate-x-1 transition-transform" />
-                  </button>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={() => navigate('/modes')}
-                      className="py-4 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm font-semibold text-white uppercase tracking-wider"
-                    >
-                      Game Modes
-                    </button>
-                    <button
-                      onClick={() => (window.location.href = '/dev/db-test')}
-                      className="py-4 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm font-semibold text-white uppercase tracking-wider flex items-center justify-center gap-2"
-                    >
-                      <Flame className="w-4 h-4" />
-                      Demo
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mode Cards */}
-              <div className="grid grid-cols-2 gap-6 mt-8">
-                <button
-                  onClick={() => navigate('/modes')}
-                  className="group text-left p-6 bg-zinc-900/50 border border-white/10 hover:border-cyan-500/50 transition-all"
-                >
-                  <Target className="w-8 h-8 text-zinc-600 group-hover:text-cyan-500 mb-4 transition-colors" />
-                  <h3 className="text-lg font-bold text-white mb-2">Standard</h3>
-                  <p className="text-sm text-zinc-500">Classic competitive mode</p>
-                </button>
-
-                <button
-                  onClick={() => navigate('/battle/queue')}
-                  className="group text-left p-6 bg-zinc-900/50 border border-white/10 hover:border-orange-500/50 transition-all"
-                >
-                  <Flame className="w-8 h-8 text-zinc-600 group-hover:text-orange-500 mb-4 transition-colors" />
-                  <h3 className="text-lg font-bold text-white mb-2">Ranked</h3>
-                  <p className="text-sm text-zinc-500">Climb the leaderboard</p>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Leaderboard Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 bg-zinc-900/30 border border-white/10 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-white uppercase tracking-wider">Recent Activity</h3>
-                <button className="text-xs text-cyan-400 hover:text-cyan-300 uppercase tracking-wider">View All</button>
-              </div>
-              <div className="text-center py-12">
-                <Target className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-                <p className="text-sm text-zinc-600">No matches yet</p>
-                <p className="text-xs text-zinc-700 mt-1">Your match history will appear here</p>
-              </div>
-            </div>
-
-            <div className="bg-zinc-900/30 border border-white/10 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-yellow-600" />
-                  Top Players
-                </h3>
-                <button
-                  onClick={() => setRankMenuOpen(true)}
-                  className="text-xs text-cyan-400 hover:text-cyan-300 uppercase tracking-wider"
-                >
-                  Full Board
-                </button>
-              </div>
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((pos) => (
-                  <div key={pos} className="flex items-center gap-3 p-3 bg-black/30 border border-white/5">
-                    <div className="w-8 h-8 bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-400">
-                      {pos}
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-white">Player {pos}</div>
-                      <div className="text-xs text-zinc-600">{1500 - pos * 50} MMR</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <motion.button
+            type="button"
+            onClick={() => navigate('/progression')}
+            className="relative w-full rounded-2xl px-4 py-4 text-left"
+            style={{
+              background: 'rgba(15, 23, 42, 0.58)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(18px)',
+              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
+            }}
+            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            aria-label="Review last game"
+          >
+            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-white/30" />
+            <div className="text-sm font-black uppercase tracking-widest text-white">VICTORY</div>
+            <div className="text-xs text-white/55 mt-1">Review Last Game</div>
+          </motion.button>
         </div>
+
+        {/* Center player card (FLAT like reference) */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[360px]">
+          <motion.div
+            initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
+            animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
+            transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+            className="relative rounded-2xl overflow-hidden"
+            style={{
+              background: 'linear-gradient(180deg, rgba(52, 64, 88, 0.70) 0%, rgba(23, 31, 48, 0.70) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(22px)',
+              boxShadow: '0 22px 70px rgba(0,0,0,0.55)',
+            }}
+          >
+            <div
+              className="absolute inset-0 pointer-events-none opacity-60"
+              style={{
+                background: 'radial-gradient(600px 260px at 50% 15%, rgba(255,255,255,0.10), transparent 60%)',
+              }}
+            />
+            <div className="absolute inset-2 rounded-xl border border-white/10 pointer-events-none" />
+
+            <div className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
+                    {rank.displayName.toUpperCase()}
+                  </div>
+                  <div className="mt-2 text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
+                    LEVEL {level}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div
+                    className="text-2xl font-black text-white"
+                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                  >
+                    {mmr}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">MMR</div>
+                </div>
+              </div>
+
+              <div className="mt-8 flex items-center justify-center">
+                <div
+                  className="h-20 w-20 rounded-full flex items-center justify-center"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                  }}
+                >
+                  <span className="text-3xl font-black text-white">{initial}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <div className="text-2xl font-black text-white">{username}</div>
+                <div className="text-sm text-white/60">{rank.displayName}</div>
+              </div>
+
+              <div className="mt-8 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => navigate('/profile')}
+                  className="text-xs text-white/60 hover:text-white transition-colors"
+                >
+                  Customize Card
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/progression')}
+                  className="text-xs text-white/60 hover:text-white transition-colors"
+                >
+                  View Progression
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Right widgets (merge from bright reference; subtle in dark theme) */}
+        <div className="hidden lg:flex absolute right-6 top-28 w-[340px] flex-col gap-3">
+          <motion.button
+            type="button"
+            onClick={() => navigate('/progression')}
+            className="w-full text-left rounded-2xl overflow-hidden"
+            style={{
+              background: 'rgba(15, 23, 42, 0.58)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(18px)',
+              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
+            }}
+            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            aria-label="Battle pass"
+          >
+            <div className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">Battle Pass</div>
+                  <div className="mt-1 text-lg font-black uppercase tracking-widest text-white">Season Rewards</div>
+                </div>
+                <div
+                  className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white"
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.16)',
+                    border: '1px solid rgba(56, 189, 248, 0.28)',
+                  }}
+                >
+                  LVL 2
+                </div>
+              </div>
+              <div className="mt-4">
+                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full w-[42%] rounded-full bg-sky-400/70" />
+                </div>
+              </div>
+            </div>
+          </motion.button>
+
+          <motion.button
+            type="button"
+            onClick={() => navigate('/challenges')}
+            className="w-full text-left rounded-2xl p-4"
+            style={{
+              background: 'rgba(15, 23, 42, 0.58)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(18px)',
+              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
+            }}
+            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            aria-label="Challenges"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">Challenges</div>
+                <div className="mt-1 text-lg font-black uppercase tracking-widest text-white">Daily Ops</div>
+              </div>
+              <div className="text-sm font-black text-white/90">3/5</div>
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full w-[60%] rounded-full bg-indigo-400/70" />
+              </div>
+              <span className="text-[10px] text-white/55 uppercase tracking-[0.28em]">60%</span>
+            </div>
+          </motion.button>
+
+          <motion.button
+            type="button"
+            onClick={() => navigate('/battle/queue')}
+            className="w-full text-left rounded-2xl p-4"
+            style={{
+              background: 'rgba(15, 23, 42, 0.58)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(18px)',
+              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
+            }}
+            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            aria-label="Activity"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[10px] text-white/55 uppercase tracking-[0.28em]">Activity</div>
+                <div className="mt-1 text-lg font-black uppercase tracking-widest text-white">Queue</div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-white/60" />
+            </div>
+            <div className="mt-3 text-sm text-white/65">Jump in and find an opponent.</div>
+          </motion.button>
+        </div>
+
+        {/* Bottom-left action stack (matches reference positioning) */}
+        <div className="absolute left-6 bottom-44 w-[280px] sm:w-[320px]">
+          <motion.button
+            type="button"
+            onClick={() => navigate('/modes')}
+            className="inline-flex items-center gap-2 rounded px-3 py-2 text-[11px] font-black uppercase tracking-[0.28em]"
+            style={{
+              background: '#facc15',
+              color: '#0b1220',
+              border: '1px solid rgba(0,0,0,0.35)',
+              boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
+              fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+            }}
+            whileHover={prefersReducedMotion ? undefined : { y: -1 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+            aria-label="Standard mode"
+          >
+            STANDARD <span className="opacity-80">»</span>
+          </motion.button>
+
+          <motion.div
+            className="mt-3"
+            whileHover={prefersReducedMotion ? undefined : { scale: 1.01 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+          >
+            <motion.button
+              onClick={() => (window.location.href = '/matchmaking-new')}
+              className="w-full px-8 py-6 text-2xl sm:text-3xl font-black uppercase tracking-widest rounded"
+              style={{
+                background: 'linear-gradient(135deg, #a3e635, #22c55e)',
+                color: '#0b1220',
+                border: '1px solid rgba(0,0,0,0.45)',
+                boxShadow: '0 18px 55px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
+                fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+              }}
+              aria-label="Start matchmaking"
+          >
+            START
+            </motion.button>
+          </motion.div>
+
+          <motion.button
+            onClick={() => (window.location.href = '/dev/db-test')}
+            className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-black uppercase tracking-[0.28em] flex items-center justify-center gap-2"
+            style={{
+              background:
+                'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
+              border: '1px solid rgba(154, 91, 255, 0.22)',
+              boxShadow: '0 18px 55px rgba(0,0,0,0.35), 0 0 30px rgba(154,91,255,0.10)',
+              backdropFilter: 'blur(18px)',
+            }}
+            aria-label="Winner demo"
+          >
+            <Flame className="w-4 h-4 mr-2" />
+            WINNER DEMO
+          </motion.button>
+        </div>
+
+        {/* Mobile uses the dock nav; keep this screen consistent with the reference */}
       </main>
 
         <BottomNav />
