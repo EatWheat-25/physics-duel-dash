@@ -51,6 +51,18 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
         rightControls.start({ x: '0%', transition: { duration: 0.8, ease: 'easeInOut' } }),
       ]);
 
+      // Micro recoil/settle for impact when doors meet
+      await Promise.all([
+        leftControls.start({
+          x: ['0%', '0.6%', '0%'],
+          transition: { duration: 0.18, ease: 'easeInOut' },
+        }),
+        rightControls.start({
+          x: ['0%', '-0.6%', '0%'],
+          transition: { duration: 0.18, ease: 'easeInOut' },
+        }),
+      ]);
+
       // Show loading text once closed
       await textControls.start({ opacity: 1, scale: 1, transition: { duration: 0.2, ease: 'easeOut' } });
 
@@ -103,20 +115,6 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             willChange: 'transform',
           }}
         >
-          {/* White dot texture (subtle) */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: [
-                'radial-gradient(circle, rgba(255,255,255,0.16) 1px, transparent 1.2px)',
-                'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1.2px)',
-              ].join(','),
-              backgroundSize: '18px 18px, 28px 28px',
-              backgroundPosition: '0 0, 9px 11px',
-              opacity: 0.55,
-            }}
-          />
-
           {/* Matte grain texture */}
           <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
             <filter id={noiseLeftId}>
@@ -147,20 +145,6 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             willChange: 'transform',
           }}
         >
-          {/* White dot texture (subtle) */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: [
-                'radial-gradient(circle, rgba(255,255,255,0.16) 1px, transparent 1.2px)',
-                'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1.2px)',
-              ].join(','),
-              backgroundSize: '18px 18px, 28px 28px',
-              backgroundPosition: '4px 6px, 15px 2px',
-              opacity: 0.55,
-            }}
-          />
-
           {/* Matte grain texture */}
           <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
             <filter id={noiseRightId}>
