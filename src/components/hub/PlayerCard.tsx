@@ -156,17 +156,48 @@ export function PlayerCard() {
       <div
         className="relative rounded-3xl overflow-hidden flex flex-col aspect-[5/7]"
         style={{
-          background: 'rgba(30, 41, 59, 0.9)',
-          border: '2px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+          background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         }}
       >
+        {/* Matte Texture Overlay */}
+        <svg className="absolute inset-0 w-full h-full opacity-[0.03] pointer-events-none">
+          <filter id="noiseFilter">
+            <feTurbulence 
+              type="fractalNoise" 
+              baseFrequency="0.9" 
+              numOctaves="3" 
+              stitchTiles="stitch" 
+            />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#noiseFilter)" />
+        </svg>
+
+        {/* Subtle Highlight Gradient */}
+        <div 
+          className="absolute inset-0 pointer-events-none opacity-30"
+          style={{
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 50%)',
+          }}
+        />
+
+        {/* Inner Border Ring for Depth */}
+        <div className="absolute inset-[1px] rounded-[calc(1.5rem-1px)] border border-white/5 pointer-events-none" />
+
         {/* Top Stats Row */}
-        <div className="p-4 flex items-center justify-between border-b border-white/10">
+        <div className="relative p-4 flex items-center justify-between border-b border-white/5">
           <div className="flex items-center gap-3 min-w-0">
             <div className="text-xl">{getRankEmoji(rank.tier)}</div>
             <div className="min-w-0">
-              <div className="text-lg font-bold text-white uppercase truncate">
+              <div 
+                className="text-lg font-bold text-white uppercase truncate"
+                style={{ 
+                  fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                  letterSpacing: '0.05em'
+                }}
+              >
                 {rank.tier} {rank.subRank}
               </div>
             </div>
@@ -174,19 +205,37 @@ export function PlayerCard() {
           
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-end">
-              <span className="text-sm font-bold text-white">LEVEL {stats.level || 1}</span>
+              <span 
+                className="text-sm font-bold text-white/90"
+                style={{ 
+                  fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                  letterSpacing: '0.1em'
+                }}
+              >
+                LEVEL {stats.level || 1}
+              </span>
             </div>
             {stats.mmr !== null && (
               <div className="flex flex-col items-end">
-                <span className="text-lg font-bold text-white">{stats.mmr}</span>
-                <span className="text-[10px] uppercase tracking-wider text-white/70">MMR</span>
+                <span 
+                  className="text-lg font-bold text-white"
+                  style={{ 
+                    fontFamily: 'Orbitron, Inter, system-ui, sans-serif'
+                  }}
+                >
+                  {stats.mmr}
+                </span>
+                <span className="text-[10px] uppercase tracking-wider text-white/60">MMR</span>
               </div>
             )}
           </div>
         </div>
 
         {/* Main Avatar Section */}
-        <div className="relative flex-1 w-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+        <div className="relative flex-1 w-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+          {/* Inner Shadow for Depth */}
+          <div className="absolute inset-0 shadow-[inset_0_2px_8px_rgba(0,0,0,0.4)] pointer-events-none" />
+          
           {stats.avatar_url ? (
             <img
               src={stats.avatar_url}
@@ -194,8 +243,20 @@ export function PlayerCard() {
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            <div className="w-28 h-28 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center border-4 border-white/20">
-              <span className="text-5xl font-bold text-white">
+            <div 
+              className="relative w-28 h-28 rounded-full flex items-center justify-center border-2 border-white/10"
+              style={{
+                background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.3), rgba(153, 27, 27, 0.4))',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3), 0 4px 12px rgba(220,38,38,0.2)',
+              }}
+            >
+              <span 
+                className="text-5xl font-bold text-white"
+                style={{ 
+                  fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.5)'
+                }}
+              >
                 {profile?.username?.[0]?.toUpperCase() || '?'}
               </span>
             </div>
@@ -203,23 +264,31 @@ export function PlayerCard() {
         </div>
 
         {/* Player Name Section */}
-        <div className="p-4 border-t border-white/10">
-          <div className="text-2xl font-bold text-white mb-1 truncate">
+        <div className="relative p-4 border-t border-white/5">
+          <div 
+            className="text-2xl font-bold text-white mb-1 truncate"
+            style={{ 
+              fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+              letterSpacing: '0.02em'
+            }}
+          >
             {profile?.username || 'Player'}
           </div>
-          <div className="text-sm text-white/80">
+          <div className="text-sm text-white/70 uppercase tracking-wider">
             {rank.tier} {rank.subRank}
           </div>
         </div>
 
         {/* Bottom Action Row */}
-        <div className="p-4 pt-3 grid grid-cols-1 gap-3">
+        <div className="relative p-4 pt-3 grid grid-cols-1 gap-3">
           <Button
             variant="ghost"
             onClick={() => navigate('/profile')}
-            className="w-full justify-center text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 border border-white/20"
+            className="w-full justify-center text-sm font-medium text-white/80 hover:text-white border border-white/10 hover:border-white/20 transition-all"
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(8px)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
             }}
           >
             Customize Card
@@ -227,9 +296,11 @@ export function PlayerCard() {
           <Button
             variant="ghost"
             onClick={() => navigate('/progression')}
-            className="w-full justify-center text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 border border-white/20"
+            className="w-full justify-center text-sm font-medium text-white/80 hover:text-white border border-white/10 hover:border-white/20 transition-all"
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(8px)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
             }}
           >
             View Progression

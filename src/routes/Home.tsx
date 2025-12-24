@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/components/BottomNav';
 import { RankMenu } from '@/components/RankMenu';
+import { PlayerCard } from '@/components/hub/PlayerCard';
 import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy } from 'lucide-react';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { useAuth } from '@/contexts/AuthContext';
@@ -302,84 +303,9 @@ export default function Home() {
           </motion.button>
         </div>
 
-        {/* Center player card (FLAT like reference) */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[clamp(280px,40vh,360px)] max-w-[90vw] aspect-[5/7]">
-          <motion.div
-            initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-            className="relative rounded-3xl overflow-hidden h-full w-full"
-            style={{
-              background: 'linear-gradient(180deg, rgba(52, 64, 88, 0.70) 0%, rgba(23, 31, 48, 0.70) 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(22px)',
-              boxShadow: '0 22px 70px rgba(0,0,0,0.55)',
-            }}
-          >
-            <div
-              className="absolute inset-0 pointer-events-none opacity-60"
-              style={{
-                background: 'radial-gradient(600px 260px at 50% 15%, rgba(255,255,255,0.10), transparent 60%)',
-              }}
-            />
-            <div className="absolute inset-2 rounded-2xl border border-white/10 pointer-events-none" />
-
-            <div className="p-6 h-full flex flex-col">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
-                    {rank.displayName.toUpperCase()}
-                  </div>
-                  <div className="mt-2 text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">
-                    LEVEL {level}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div
-                    className="text-2xl font-black text-white"
-                    style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
-                  >
-                    {mmr}
-                  </div>
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/60 font-black">MMR</div>
-                </div>
-              </div>
-
-              <div className="mt-8 flex items-center justify-center">
-                <div
-                  className="h-20 w-20 rounded-full flex items-center justify-center"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                  }}
-                >
-                  <span className="text-3xl font-black text-white">{initial}</span>
-                </div>
-              </div>
-
-              <div className="mt-6 text-center">
-                <div className="text-2xl font-black text-white">{username}</div>
-                <div className="text-sm text-white/60">{rank.displayName}</div>
-              </div>
-
-              <div className="mt-auto pt-8 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => navigate('/profile')}
-                  className="text-xs text-white/60 hover:text-white transition-colors"
-                >
-                  Customize Card
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate('/progression')}
-                  className="text-xs text-white/60 hover:text-white transition-colors"
-                >
-                  View Progression
-                </button>
-              </div>
-            </div>
-          </motion.div>
+        {/* Center player card - Premium Matte Design */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <PlayerCard />
         </div>
 
         {/* Right widgets (merge from bright reference; subtle in dark theme) */}
