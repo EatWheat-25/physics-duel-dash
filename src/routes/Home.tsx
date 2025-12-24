@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { RankMenu } from '@/components/RankMenu';
-import { ChevronRight, Flame, LogOut, Settings, Shield, Sparkles, Trophy } from 'lucide-react';
+import { ChevronRight, History, LogOut, Plus, Settings, Shield, Sparkles, Trophy, X } from 'lucide-react';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -624,8 +624,8 @@ export default function Home() {
           </motion.button>
         </div>
 
-        {/* Bottom-left action stack (matches reference positioning) */}
-        <div className="absolute left-6 bottom-44 w-[280px] sm:w-[320px]">
+        {/* Bottom-left actions (START + quick actions) */}
+        <div className="absolute left-6 bottom-8 w-[560px] max-w-[calc(100vw-3rem)]">
           <motion.button
             type="button"
             onClick={() => navigate('/modes')}
@@ -660,15 +660,18 @@ export default function Home() {
             </div>
           )}
 
-          <motion.div
-            className="mt-3"
-            whileHover={prefersReducedMotion ? undefined : { scale: 1.01 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-          >
+          {matchmakingStatus === 'searching' && (
+            <div className="mt-3 text-xs text-white/70 tabular-nums">
+              Searching… {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
+            </div>
+          )}
+
+          <div className="mt-3 flex items-stretch gap-3">
+            {/* START (primary) */}
             <motion.button
               onClick={handleStartMatchmaking}
               disabled={matchmakingStatus === 'searching'}
-              className="w-full px-8 py-6 text-2xl sm:text-3xl font-bold rounded"
+              className="flex-1 min-w-[260px] px-8 py-6 text-2xl sm:text-3xl font-bold rounded-2xl"
               style={{
                 background: 'linear-gradient(135deg, #a3e635, #22c55e)',
                 color: '#0b1220',
@@ -676,51 +679,86 @@ export default function Home() {
                 boxShadow: '0 18px 55px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
                 opacity: matchmakingStatus === 'searching' ? 0.75 : 1,
               }}
+              whileHover={prefersReducedMotion || matchmakingStatus === 'searching' ? undefined : { scale: 1.01 }}
+              whileTap={prefersReducedMotion || matchmakingStatus === 'searching' ? undefined : { scale: 0.99 }}
               aria-label="Start matchmaking"
-          >
-            {matchmakingStatus === 'searching' ? 'SEARCHING…' : 'START'}
-            </motion.button>
-          </motion.div>
-
-          {matchmakingStatus === 'searching' ? (
-            <div className="mt-3">
-              <div className="text-center text-sm text-white/70 tabular-nums">
-                {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
-              </div>
-              <motion.button
-                onClick={handleCancelMatchmaking}
-                className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2"
-                style={{
-                  background:
-                    'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.14)',
-                  boxShadow: '0 18px 55px rgba(0,0,0,0.35)',
-                  backdropFilter: 'blur(18px)',
-                }}
-                aria-label="Cancel matchmaking"
-                whileHover={prefersReducedMotion ? undefined : { scale: 1.01 }}
-                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-              >
-                Cancel Search
-              </motion.button>
-            </div>
-          ) : (
-            <motion.button
-              onClick={() => (window.location.href = '/dev/db-test')}
-              className="mt-3 w-full px-6 py-4 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2"
-              style={{
-                background:
-                  'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.06) 100%)',
-                border: '1px solid rgba(154, 91, 255, 0.22)',
-                boxShadow: '0 18px 55px rgba(0,0,0,0.35), 0 0 30px rgba(154,91,255,0.10)',
-                backdropFilter: 'blur(18px)',
-              }}
-              aria-label="Winner demo"
             >
-              <Flame className="w-4 h-4 mr-2" />
-              WINNER DEMO
+              {matchmakingStatus === 'searching' ? 'SEARCHING…' : 'START'}
             </motion.button>
-          )}
+
+            {/* Slot 1: Career */}
+            <motion.button
+              type="button"
+              onClick={() => navigate('/career')}
+              className="h-[76px] w-[76px] rounded-2xl flex flex-col items-center justify-center gap-1"
+              style={{
+                background: 'rgba(15, 23, 42, 0.58)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(18px)',
+                boxShadow: '0 14px 44px rgba(0,0,0,0.35)',
+              }}
+              whileHover={prefersReducedMotion ? undefined : { y: -1 }}
+              whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+              aria-label="Career"
+            >
+              <History className="w-5 h-5 text-white/85" />
+              <span className="text-[10px] font-semibold text-white/70">Career</span>
+            </motion.button>
+
+            {/* Slot 2: Placeholder */}
+            <motion.button
+              type="button"
+              disabled
+              className="h-[76px] w-[76px] rounded-2xl flex flex-col items-center justify-center gap-1 opacity-70 cursor-not-allowed"
+              style={{
+                background: 'rgba(15, 23, 42, 0.58)',
+                border: '1px solid rgba(255, 255, 255, 0.10)',
+                backdropFilter: 'blur(18px)',
+                boxShadow: '0 14px 44px rgba(0,0,0,0.25)',
+              }}
+              aria-label="Coming soon"
+            >
+              <Plus className="w-5 h-5 text-white/70" />
+              <span className="text-[10px] font-semibold text-white/60">Soon</span>
+            </motion.button>
+
+            {/* Slot 3: Placeholder / Cancel while searching */}
+            {matchmakingStatus === 'searching' ? (
+              <motion.button
+                type="button"
+                onClick={handleCancelMatchmaking}
+                className="h-[76px] w-[76px] rounded-2xl flex flex-col items-center justify-center gap-1"
+                style={{
+                  background: 'rgba(15, 23, 42, 0.58)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
+                  backdropFilter: 'blur(18px)',
+                  boxShadow: '0 14px 44px rgba(0,0,0,0.35)',
+                }}
+                whileHover={prefersReducedMotion ? undefined : { y: -1 }}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+                aria-label="Cancel matchmaking"
+              >
+                <X className="w-5 h-5 text-white/85" />
+                <span className="text-[10px] font-semibold text-white/70">Cancel</span>
+              </motion.button>
+            ) : (
+              <motion.button
+                type="button"
+                disabled
+                className="h-[76px] w-[76px] rounded-2xl flex flex-col items-center justify-center gap-1 opacity-70 cursor-not-allowed"
+                style={{
+                  background: 'rgba(15, 23, 42, 0.58)',
+                  border: '1px solid rgba(255, 255, 255, 0.10)',
+                  backdropFilter: 'blur(18px)',
+                  boxShadow: '0 14px 44px rgba(0,0,0,0.25)',
+                }}
+                aria-label="Coming soon"
+              >
+                <Plus className="w-5 h-5 text-white/70" />
+                <span className="text-[10px] font-semibold text-white/60">Soon</span>
+              </motion.button>
+            )}
+          </div>
         </div>
 
       </main>

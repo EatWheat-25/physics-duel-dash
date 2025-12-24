@@ -19,6 +19,7 @@ import Shop from "./routes/Shop";
 import Customize from "./routes/Customize";
 import Loadout from "./routes/Loadout";
 import Profile from "./pages/Profile";
+import Career from "./pages/Career";
 import NotFound from "./pages/NotFound";
 import ModeSelection from "./pages/ModeSelection";
 import GameModes from "./components/GameModes";
@@ -72,6 +73,7 @@ const App = () => {
                 <Route path="/customize" element={<Customize />} />
                 <Route path="/loadout" element={<Loadout />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/career" element={<Career />} />
                 <Route path="/old-home" element={<Index />} />
                 <Route path="/modes" element={<ModeSelection />} />
                 <Route path="/game-modes" element={<GameModes />} />
