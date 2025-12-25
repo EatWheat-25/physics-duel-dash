@@ -97,6 +97,19 @@ export default function BattleQueue() {
       <Starfield />
 
       <div className="relative z-10 min-h-screen px-4 sm:px-6 lg:px-8 py-8">
+        {status === 'searching' && (
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+            <div className="px-6 py-4 rounded-2xl bg-card/80 backdrop-blur-xl border border-border text-center shadow-xl">
+              <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Matchmaking Time
+              </div>
+              <div className="mt-1 text-4xl md:text-5xl font-black tabular-nums text-foreground">
+                {formatElapsed(elapsedTime)}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Back Button & Mode Selector - Top Left */}
         <div className="max-w-7xl mx-auto mb-8">
           <div className="flex items-center gap-2">
@@ -191,7 +204,7 @@ export default function BattleQueue() {
 
             {/* Battle Button or Queue Status */}
             <div className="flex flex-col items-center gap-4 mt-8">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <Button
                   onClick={handleStartBattle}
                   disabled={status === 'searching' || status === 'matched' || (!selectedMode && !levelParam)}
@@ -219,7 +232,7 @@ export default function BattleQueue() {
                 {status === 'searching' && (
                   <Button
                     onClick={handleLeaveQueue}
-                    variant="outline"
+                    variant="destructive"
                     size="lg"
                     className="py-6 rounded-2xl"
                   >
