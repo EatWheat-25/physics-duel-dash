@@ -6,14 +6,59 @@ import { Starfield } from '@/components/Starfield';
 import { GameMode } from '@/types/gameMode';
 import { Button } from '@/components/ui/button';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
+import { loadMatchmakingPrefs, saveMatchmakingPrefs } from '@/utils/matchmakingPrefs';
+
+const AVAILABLE_MODES: { id: GameMode; title: string; emoji: string }[] = [
+  { id: 'A1-Only', title: 'A1-Only Mode', emoji: '📐' },
+  { id: 'A2-Only', title: 'A2-Only Mode', emoji: '🧮' },
+  { id: 'All-Maths', title: 'All-Maths Mode', emoji: '🎯' },
+];
+
+function isGameMode(value: string | null): value is GameMode {
+  return AVAILABLE_MODES.some((m) => m.id === value);
+}
+
+function normalizeSubject(subject: string): string {
+  // Backend normalizes maths → math, so do it here too for consistency.
+  return subject === 'maths' ? 'math' : subject;
+}
+
+function normalizeLevel(level: string | null): 'A1' | 'A2' | null {
+  if (!level) return null;
+  const upper = level.toUpperCase();
+  if (upper === 'A1') return 'A1';
+  if (upper === 'A2') return 'A2';
+  return null;
+}
+
+function levelFromMode(mode: GameMode | null): 'A1' | 'A2' | null {
+  if (!mode) return null;
+  return mode === 'A1-Only' ? 'A1' : 'A2';
+}
+
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 export default function BattleQueue() {
   const [searchParams] = useSearchParams();
+  const [prefs] = useState(() => loadMatchmakingPrefs());
   const navigate = useNavigate();
-  const subject = searchParams.get('subject') || 'physics';
-  const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
+  const subject = normalizeSubject(searchParams.get('subject') || prefs?.subject || 'physics');
+  const levelParam = normalizeLevel(searchParams.get('level') ?? prefs?.level ?? null);
+  const modeParam = searchParams.get('mode');
+  const initialModeFromParams: GameMode | null = (() => {
+    if (levelParam === 'A1') return 'A1-Only';
+    if (levelParam === 'A2') return 'A2-Only';
+    if (isGameMode(modeParam)) return modeParam;
+    return null;
+  })();
+
+  const [selectedMode, setSelectedMode] = useState<GameMode | null>(initialModeFromParams);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const { status, joinQueue, leaveQueue, queueStartTime } = useMatchmaking();
+  const { status, startMatchmaking, leaveQueue, queueStartTime, error } = useMatchmaking();
   const [elapsedTime, setElapsedTime] = useState(0);
 
   useEffect(() => {
@@ -21,31 +66,31 @@ export default function BattleQueue() {
   }, []);
 
   useEffect(() => {
-    if (status === 'queuing' && queueStartTime) {
+    if (status === 'searching' && queueStartTime) {
       const interval = setInterval(() => {
         setElapsedTime(Math.floor((Date.now() - queueStartTime) / 1000));
       }, 1000);
       return () => clearInterval(interval);
     }
+
+    // Reset when not searching
+    setElapsedTime(0);
   }, [status, queueStartTime]);
 
   const handleStartBattle = async () => {
-    if (!selectedMode) return;
+    if (status === 'searching' || status === 'matched') return;
 
-    const chapter = selectedMode;
-    await joinQueue({ subject, chapter });
+    const level = levelParam ?? levelFromMode(selectedMode);
+    if (!level) return;
+
+    saveMatchmakingPrefs({ subject, level });
+    await startMatchmaking(subject, level);
   };
 
   const handleLeaveQueue = async () => {
     await leaveQueue();
     setElapsedTime(0);
   };
-
-  const modes: { id: GameMode; title: string; emoji: string }[] = [
-    { id: 'A1-Only', title: 'A1-Only Mode', emoji: '📐' },
-    { id: 'A2-Only', title: 'A2-Only Mode', emoji: '🧮' },
-    { id: 'All-Maths', title: 'All-Maths Mode', emoji: '🎯' },
-  ];
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background">
@@ -68,13 +113,14 @@ export default function BattleQueue() {
             <div className="relative inline-block">
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              disabled={status === 'searching' || status === 'matched'}
               className="flex items-center gap-3 px-6 py-3 rounded-2xl text-sm font-bold uppercase tracking-wider transition-all duration-300 bg-card/80 backdrop-blur-xl border border-border hover:border-primary/40 text-foreground"
             >
               <span className="text-xl">
-                {selectedMode ? modes.find(m => m.id === selectedMode)?.emoji : '🎮'}
+                {selectedMode ? AVAILABLE_MODES.find(m => m.id === selectedMode)?.emoji : '🎮'}
               </span>
               <span>
-                {selectedMode ? modes.find(m => m.id === selectedMode)?.title : 'Select Mode'}
+                {selectedMode ? AVAILABLE_MODES.find(m => m.id === selectedMode)?.title : 'Select Mode'}
               </span>
               <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -87,7 +133,7 @@ export default function BattleQueue() {
                   exit={{ opacity: 0, y: -10 }}
                   className="absolute top-full mt-2 left-0 w-64 bg-card/95 backdrop-blur-xl border border-border rounded-2xl overflow-hidden shadow-xl z-50"
                 >
-                  {modes.map((mode) => (
+                  {AVAILABLE_MODES.map((mode) => (
                     <button
                       key={mode.id}
                       onClick={() => {
@@ -145,46 +191,56 @@ export default function BattleQueue() {
 
             {/* Battle Button or Queue Status */}
             <div className="flex flex-col items-center gap-4 mt-8">
-              {status === 'idle' || status === 'error' ? (
+              <div className="flex items-center gap-3">
                 <Button
                   onClick={handleStartBattle}
-                  disabled={!selectedMode}
+                  disabled={status === 'searching' || status === 'matched' || (!selectedMode && !levelParam)}
                   className={`px-12 py-6 text-lg font-bold uppercase tracking-wider rounded-2xl transition-all duration-500 ${
-                    selectedMode
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/50 hover:shadow-xl hover:shadow-purple-500/60 hover:scale-105'
-                      : 'bg-muted text-muted-foreground cursor-not-allowed'
+                    status === 'searching' || status === 'matched'
+                      ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                      : selectedMode || levelParam
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/50 hover:shadow-xl hover:shadow-purple-500/60 hover:scale-105'
+                        : 'bg-muted text-muted-foreground cursor-not-allowed'
                   }`}
                 >
                   <Swords className="w-5 h-5 mr-2 inline-block" />
-                  {selectedMode ? 'Start Battle' : 'Select a Mode'}
+                  {status === 'searching' ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Searching {formatElapsed(elapsedTime)}
+                    </span>
+                  ) : selectedMode || levelParam ? (
+                    'Start Battle'
+                  ) : (
+                    'Select a Mode'
+                  )}
                 </Button>
-              ) : status === 'queuing' ? (
-                <div className="flex flex-col items-center gap-4">
-                  <div className="flex items-center gap-3 text-lg">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                    <span className="font-bold">Searching for opponent...</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Time in queue: {elapsedTime}s
-                  </div>
+
+                {status === 'searching' && (
                   <Button
                     onClick={handleLeaveQueue}
                     variant="outline"
-                    size="sm"
-                    className="mt-2"
+                    size="lg"
+                    className="py-6 rounded-2xl"
                   >
-                    Cancel Search
+                    Cancel
                   </Button>
-                </div>
-              ) : status === 'matched' ? (
+                )}
+              </div>
+
+              {status === 'matched' ? (
                 <div className="flex items-center gap-3 text-lg text-green-500 font-bold">
                   <Swords className="w-6 h-6" />
                   Match found! Connecting...
                 </div>
               ) : null}
+
+              {error && status === 'idle' && (
+                <div className="text-sm text-red-400">{error}</div>
+              )}
             </div>
 
-            {!selectedMode && (
+            {!selectedMode && !levelParam && (
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
