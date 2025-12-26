@@ -149,8 +149,3 @@ export function MathText({
 }
 
 
-
-
-
-
-

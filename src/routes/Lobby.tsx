@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Starfield } from '@/components/Starfield';
+import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { supabase } from '@/integrations/supabase/client';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
 import { useActivePlayerCount } from '@/hooks/useActivePlayerCount';
@@ -35,15 +35,6 @@ export default function Lobby() {
   useEffect(() => {
     document.title = 'Battle Lobby | BattleNerds';
   }, []);
-
-  // Navigate to battle when matched
-  useEffect(() => {
-    if (status === 'matched' && match) {
-      navigate(`/online-battle-new/${match.id}`, {
-        state: { match }
-      });
-    }
-  }, [status, match, navigate]);
 
   // Update queue time when searching
   useEffect(() => {
@@ -94,7 +85,7 @@ export default function Lobby() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      <Starfield />
+      <StudyPatternBackground />
 
       <div className="absolute top-4 left-4 z-20">
         <Button

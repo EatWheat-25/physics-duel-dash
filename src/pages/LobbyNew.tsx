@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useRef, useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Zap, ArrowLeft, BookOpen, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
-import { Starfield } from '@/components/Starfield';
 import { toast } from 'sonner';
+import { StudyPatternBackground } from '@/components/StudyPatternBackground';
+import { useMatchmakingPrefs } from '@/store/useMatchmakingPrefs';
 
 type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'A1' | 'A2' | 'Both';
@@ -24,21 +25,58 @@ const grades = [
 
 export default function LobbyNew() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<'subject' | 'grade' | 'ready'>('subject');
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
   const [queueTime, setQueueTime] = useState(0);
   const [isButtonLoading, setIsButtonLoading] = useState(false);
   const { status, startMatchmaking, leaveQueue, match } = useMatchmaking();
+  const autostart = useMemo(() => searchParams.get('autostart') === '1', [searchParams]);
+  const autostartedRef = useRef(false);
 
-  // Navigate to battle when matched
+  const {
+    subject: prefSubject,
+    level: prefLevel,
+    setSubject: setPrefSubject,
+    setLevel: setPrefLevel,
+  } = useMatchmakingPrefs();
+
+  // Hydrate selection from persisted prefs
   useEffect(() => {
-    if (status === 'matched' && match) {
-      navigate(`/online-battle-new/${match.id}`, {
-        state: { match }
-      });
+    if (prefSubject) setSelectedSubject(prefSubject);
+    if (prefLevel) setSelectedGrade(prefLevel);
+
+    if (prefSubject && prefLevel) {
+      setStep('ready');
+    } else if (prefSubject && !prefLevel) {
+      setStep('grade');
     }
-  }, [status, match, navigate]);
+  }, [prefSubject, prefLevel]);
+
+  // Auto-start matchmaking when navigated from Home with autostart=1
+  useEffect(() => {
+    if (!autostart) return;
+    if (autostartedRef.current) return;
+    if (!prefSubject || !prefLevel) return;
+    if (status === 'searching') return;
+
+    autostartedRef.current = true;
+    setSelectedSubject(prefSubject);
+    setSelectedGrade(prefLevel);
+    setStep('ready');
+    setIsButtonLoading(true);
+
+    let subject = prefSubject as string;
+    let level = prefLevel as string;
+    if (subject === 'maths') subject = 'math';
+    if (level === 'Both') level = 'A2';
+
+    startMatchmaking(subject, level).catch((error) => {
+      console.error('[LobbyNew] Autostart matchmaking error:', error);
+      setIsButtonLoading(false);
+    });
+  }, [autostart, prefSubject, prefLevel, status, startMatchmaking]);
 
   // Reset button loading state when status changes
   useEffect(() => {
@@ -63,11 +101,15 @@ export default function LobbyNew() {
 
   const handleSubjectSelect = (subject: Subject) => {
     setSelectedSubject(subject);
+    setPrefSubject(subject);
+    setSelectedGrade(null);
+    setPrefLevel(null);
     setStep('grade');
   };
 
   const handleGradeSelect = (grade: Grade) => {
     setSelectedGrade(grade);
+    setPrefLevel(grade);
     setStep('ready');
   };
 
@@ -117,25 +159,20 @@ export default function LobbyNew() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      {/* Grid overlay for game aesthetic */}
-      <div 
-        className="absolute inset-0 opacity-20"
+    <div className="relative min-h-screen overflow-hidden text-white font-sans">
+      <StudyPatternBackground />
+      <div
+        className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: `
-            linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px)
-          `,
-          backgroundSize: '50px 50px',
+          background:
+            'radial-gradient(900px 650px at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 70%, rgba(0,0,0,0.75) 100%)',
         }}
       />
-      
-      <Starfield />
       
       <div className="absolute top-4 left-4 z-20">
         <motion.button
           onClick={handleBack}
-          className="gap-2 px-4 py-2 font-bold uppercase tracking-wider bg-slate-800/80 backdrop-blur-sm border-2 border-slate-600 text-white hover:border-blue-400 hover:bg-slate-700/80 transition-all"
+          className="gap-2 px-4 py-2 font-semibold bg-white/5 backdrop-blur-xl border border-white/15 text-white hover:bg-white/10 transition-all rounded-xl"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
@@ -163,16 +200,11 @@ export default function LobbyNew() {
                     className="mb-8"
                   >
                     <div className="relative inline-block">
-                      <BookOpen className="w-20 h-20 mx-auto text-blue-400 drop-shadow-[0_0_20px_rgba(96,165,250,0.8)]" />
-                      <motion.div
-                        className="absolute inset-0 bg-blue-400 rounded-full blur-2xl opacity-50"
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.3, 0.5] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      />
+                      <BookOpen className="w-16 h-16 mx-auto text-cyan-300" />
                     </div>
                   </motion.div>
                   <motion.h1 
-                    className="text-5xl md:text-6xl font-bold mb-4 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+                    className="text-4xl md:text-5xl font-bold mb-3 text-white"
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
@@ -180,7 +212,7 @@ export default function LobbyNew() {
                     CHOOSE YOUR SUBJECT
                   </motion.h1>
                   <motion.p 
-                    className="text-xl text-slate-300 font-mono"
+                    className="text-lg text-white/70"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4 }}
@@ -194,60 +226,37 @@ export default function LobbyNew() {
                     <motion.button
                       key={subject.id}
                       onClick={() => handleSubjectSelect(subject.id)}
-                      className="relative p-8 rounded-lg bg-slate-800/90 border-2 border-slate-600 text-white overflow-hidden group backdrop-blur-sm"
+                      className="relative p-7 rounded-2xl text-white overflow-hidden group"
                       style={{
-                        boxShadow: `0 0 30px ${subject.glow}, inset 0 0 20px rgba(0,0,0,0.3)`,
+                        background: 'rgba(15, 23, 42, 0.62)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        backdropFilter: 'blur(18px)',
+                        boxShadow: '0 14px 44px rgba(0,0,0,0.45)',
                       }}
                       initial={{ opacity: 0, y: 50 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.1 * index, type: 'spring' }}
-                      whileHover={{ 
-                        scale: 1.05,
-                        borderColor: subject.color,
-                        boxShadow: `0 0 50px ${subject.glow}, 0 0 100px ${subject.glow}, inset 0 0 20px rgba(0,0,0,0.3)`,
-                      }}
+                      whileHover={{ scale: 1.03, y: -2 }}
                       whileTap={{ scale: 0.95 }}
                     >
-                      {/* Animated border glow */}
-                      <motion.div
-                        className="absolute inset-0 rounded-lg"
-                        style={{
-                          border: `2px solid ${subject.color}`,
-                          opacity: 0,
-                        }}
-                        animate={{
-                          opacity: [0, 0.8, 0],
-                        }}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          ease: 'easeInOut',
-                        }}
-                      />
+                      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: subject.glow }} />
                       
                       <div className="relative z-10">
-                        <motion.div 
-                          className="text-6xl mb-4"
-                          animate={{ 
-                            y: [0, -5, 0],
-                            rotate: [0, 5, -5, 0],
-                          }}
-                          transition={{
-                            duration: 3,
-                            repeat: Infinity,
-                            ease: 'easeInOut',
-                          }}
-                        >
+                        <div className="text-5xl mb-3">
                           {subject.icon}
-                        </motion.div>
-                        <h2 className="text-2xl font-bold font-mono uppercase tracking-wider">{subject.name}</h2>
+                        </div>
+                        <h2 className="text-xl font-semibold">{subject.name}</h2>
                       </div>
                       
                       {/* Hover effect overlay */}
                       <motion.div
-                        className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-blue-500/20"
+                        className="absolute inset-0"
                         initial={{ opacity: 0 }}
                         whileHover={{ opacity: 1 }}
+                        style={{
+                          background:
+                            'radial-gradient(500px 260px at 50% 0%, rgba(56,189,248,0.08), transparent 60%)',
+                        }}
                       />
                     </motion.button>
                   ))}
@@ -271,16 +280,11 @@ export default function LobbyNew() {
                     className="mb-8"
                   >
                     <div className="relative inline-block">
-                      <GraduationCap className="w-20 h-20 mx-auto text-blue-400 drop-shadow-[0_0_20px_rgba(96,165,250,0.8)]" />
-                      <motion.div
-                        className="absolute inset-0 bg-blue-400 rounded-full blur-2xl opacity-50"
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.3, 0.5] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      />
+                      <GraduationCap className="w-16 h-16 mx-auto text-cyan-300" />
                     </div>
                   </motion.div>
                   <motion.h1 
-                    className="text-5xl md:text-6xl font-bold mb-4 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+                    className="text-4xl md:text-5xl font-bold mb-3 text-white"
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
@@ -288,7 +292,7 @@ export default function LobbyNew() {
                     CHOOSE YOUR LEVEL
                   </motion.h1>
                   <motion.p 
-                    className="text-xl text-slate-300 font-mono"
+                    className="text-lg text-white/70"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4 }}
@@ -302,43 +306,35 @@ export default function LobbyNew() {
                     <motion.button
                       key={grade.id}
                       onClick={() => handleGradeSelect(grade.id)}
-                      className="relative p-8 rounded-lg bg-slate-800/90 border-2 border-slate-600 text-white overflow-hidden group backdrop-blur-sm"
+                      className="relative p-7 rounded-2xl text-white overflow-hidden group"
                       style={{
-                        boxShadow: '0 0 30px rgba(59, 130, 246, 0.3), inset 0 0 20px rgba(0,0,0,0.3)',
+                        background: 'rgba(15, 23, 42, 0.62)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        backdropFilter: 'blur(18px)',
+                        boxShadow: '0 14px 44px rgba(0,0,0,0.45)',
                       }}
                       initial={{ opacity: 0, y: 50 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.1 * index, type: 'spring' }}
-                      whileHover={{ 
-                        scale: 1.05,
-                        borderColor: '#3b82f6',
-                        boxShadow: '0 0 50px rgba(59, 130, 246, 0.6), 0 0 100px rgba(59, 130, 246, 0.4), inset 0 0 20px rgba(0,0,0,0.3)',
-                      }}
+                      whileHover={{ scale: 1.03, y: -2 }}
                       whileTap={{ scale: 0.95 }}
                     >
-                      {/* Animated border glow */}
-                      <motion.div
-                        className="absolute inset-0 rounded-lg border-2 border-blue-400"
-                        animate={{
-                          opacity: [0, 0.8, 0],
-                        }}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          ease: 'easeInOut',
-                        }}
-                      />
+                      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-cyan-400/50" />
                       
                       <div className="relative z-10">
-                        <h2 className="text-2xl font-bold mb-2 font-mono uppercase tracking-wider">{grade.name}</h2>
-                        <p className="text-slate-300 font-mono">{grade.description}</p>
+                        <h2 className="text-xl font-semibold mb-2">{grade.name}</h2>
+                        <p className="text-white/65">{grade.description}</p>
                       </div>
                       
                       {/* Hover effect overlay */}
                       <motion.div
-                        className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-blue-500/20"
+                        className="absolute inset-0"
                         initial={{ opacity: 0 }}
                         whileHover={{ opacity: 1 }}
+                        style={{
+                          background:
+                            'radial-gradient(500px 260px at 50% 0%, rgba(56,189,248,0.08), transparent 60%)',
+                        }}
                       />
                     </motion.button>
                   ))}

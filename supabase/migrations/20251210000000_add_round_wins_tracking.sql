@@ -30,8 +30,3 @@ COMMENT ON COLUMN public.matches.target_rounds_to_win IS 'Number of rounds neede
 
 
 
-
-
-
-
-
