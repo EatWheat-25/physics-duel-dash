@@ -23,8 +23,14 @@ export default function BattleConnected() {
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
+  const prevRoundIntroRoundRef = useRef<number | null>(null);
+  const showRoundIntroRef = useRef<boolean>(false);
   const hasSignaledShutterReadyRef = useRef<boolean>(false);
   const { isRunning: isShutterRunning, signalReady } = useElevatorShutter();
+
+  useEffect(() => {
+    showRoundIntroRef.current = showRoundIntro;
+  }, [showRoundIntro]);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -104,12 +110,12 @@ export default function BattleConnected() {
     const canReveal =
       status === 'playing' &&
       !!question &&
+      !showRoundIntro &&
       (phase === 'main_question' || phase === 'question' || phase === 'steps') &&
       (phase !== 'steps' || !!currentStep || (allStepsComplete && waitingForOpponentToCompleteSteps));
 
     if (!canReveal) return;
     if (hasSignaledShutterReadyRef.current) return;
-    hasSignaledShutterReadyRef.current = true;
 
     let cancelled = false;
 
@@ -137,6 +143,9 @@ export default function BattleConnected() {
       await new Promise<void>((r) => setTimeout(r, 1000));
 
       if (cancelled) return;
+      // Safety: if the round intro became active while we were waiting, don't open.
+      if (showRoundIntroRef.current) return;
+      hasSignaledShutterReadyRef.current = true;
       signalReady();
     };
 
@@ -154,6 +163,7 @@ export default function BattleConnected() {
     allStepsComplete,
     waitingForOpponentToCompleteSteps,
     signalReady,
+    showRoundIntro,
   ]);
 
   // Track round wins for animation
@@ -180,12 +190,24 @@ export default function BattleConnected() {
 
   // Round Intro Effect
   useEffect(() => {
-    if (roundNumber && roundNumber > 0 && status === 'playing') {
+    const rn = typeof roundNumber === 'number' ? roundNumber : null
+    const prevRn = prevRoundIntroRoundRef.current
+    prevRoundIntroRoundRef.current = rn
+
+    // Only show the round intro when the round number actually changes.
+    if (rn === null || rn <= 0) return
+    if (status !== 'playing') return
+    if (prevRn === rn) return
+
+    // If the elevator shutter is running (match start), keep the round intro hidden behind it.
+    if (isShutterRunning) return
+
+    if (rn && rn > 0) {
       setShowRoundIntro(true);
       const timer = setTimeout(() => setShowRoundIntro(false), 2000);
       return () => clearTimeout(timer);
     }
-  }, [roundNumber, status]);
+  }, [roundNumber, status, isShutterRunning]);
 
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
@@ -243,7 +265,7 @@ export default function BattleConnected() {
       
       {/* Round Intro Overlay */}
       <AnimatePresence>
-        {showRoundIntro && (
+        {showRoundIntro && !isShutterRunning && (
           <motion.div
             initial={{ opacity: 0, scale: 1.2 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -400,9 +422,9 @@ export default function BattleConnected() {
         <div className="flex-1 relative flex items-center justify-center">
           <AnimatePresence mode="wait">
             {/* CONNECTING STATE */}
-            {(status === 'connecting' || status === 'connected' || status === 'both_connected') && (
+            {(status === 'connecting' || status === 'connected' || status === 'both_connected') && !isShutterRunning && (
               <motion.div
-                key="connecting"
+                key="loading-match"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
@@ -411,17 +433,12 @@ export default function BattleConnected() {
                 <div className="relative w-32 h-32 mx-auto mb-8">
                   <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full" />
                   <div className="absolute inset-0 border-2 border-t-blue-500 rounded-full animate-spin" />
-                  {status === 'both_connected' && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Check className="w-12 h-12 text-blue-500" />
-                    </div>
-                  )}
                 </div>
                 <h2 className="text-3xl font-bold mb-3 tracking-tight">
-                  {status === 'both_connected' ? 'OPPONENT LOCKED' : 'SEARCHING FOR TARGET'}
+                  LOADING MATCH...
                 </h2>
                 <p className="text-white/40 font-mono text-sm">
-                  {status === 'both_connected' ? 'INITIATING COMBAT SEQUENCE...' : 'SCANNING FREQUENCIES...'}
+                  SYNCING BATTLE STATE
                 </p>
               </motion.div>
             )}
