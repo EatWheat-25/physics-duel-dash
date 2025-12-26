@@ -119,6 +119,12 @@ export interface StepBasedQuestion {
     /** Main question context/setup/stem */
     stem: string;
 
+    /**
+     * Time limit (seconds) for the main question phase (before steps begin).
+     * Server-enforced; Admin-configurable; clamped to a safe range.
+     */
+    mainQuestionTimerSeconds: number;
+
     /** Total marks (sum of all step marks) */
     totalMarks: number;
 

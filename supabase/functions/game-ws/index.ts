@@ -632,8 +632,25 @@ async function broadcastQuestion(
       gameState.p2AllStepsComplete = false
     }
 
-    // Read main question timer from metadata or default to 60 seconds
-    const mainQuestionTimerSeconds = questionDb.main_question_timer_seconds || 60
+    // Read main question timer from metadata or default to 90 seconds (clamped 5–600)
+    const rawMainTimer = (questionDb as any)?.main_question_timer_seconds
+    let mainQuestionTimerSeconds =
+      typeof rawMainTimer === 'number' && Number.isFinite(rawMainTimer)
+        ? rawMainTimer
+        : Number.parseInt(String(rawMainTimer ?? 90), 10)
+
+    if (!Number.isFinite(mainQuestionTimerSeconds)) {
+      mainQuestionTimerSeconds = 90
+    }
+
+    mainQuestionTimerSeconds = Math.floor(mainQuestionTimerSeconds)
+
+    if (mainQuestionTimerSeconds < 5 || mainQuestionTimerSeconds > 600) {
+      console.warn(
+        `[${matchId}] ⚠️ main_question_timer_seconds out of range (${rawMainTimer}). Clamping to 5–600.`
+      )
+      mainQuestionTimerSeconds = Math.max(5, Math.min(600, mainQuestionTimerSeconds))
+    }
     const mainQuestionEndsAt = new Date(Date.now() + mainQuestionTimerSeconds * 1000).toISOString()
     gameState.mainQuestionEndsAt = mainQuestionEndsAt
 

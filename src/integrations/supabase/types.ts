@@ -688,6 +688,7 @@ export type Database = {
           difficulty: string
           id: string
           image_url: string | null
+          main_question_timer_seconds: number
           level: string
           rank_tier: string | null
           stem: string
@@ -704,6 +705,7 @@ export type Database = {
           difficulty: string
           id?: string
           image_url?: string | null
+          main_question_timer_seconds?: number
           level: string
           rank_tier?: string | null
           stem: string
@@ -720,6 +722,7 @@ export type Database = {
           difficulty?: string
           id?: string
           image_url?: string | null
+          main_question_timer_seconds?: number
           level?: string
           rank_tier?: string | null
           stem?: string

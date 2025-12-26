@@ -59,6 +59,18 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
             ? payload.question_text
             : (warn(`Question ${id}: missing stem/question_text, using empty string`), '');
 
+    const rawMainTimer = payload.mainQuestionTimerSeconds ?? payload.main_question_timer_seconds;
+    let mainQuestionTimerSeconds =
+        typeof rawMainTimer === 'number' && Number.isFinite(rawMainTimer)
+            ? Math.floor(rawMainTimer)
+            : 90;
+    if (mainQuestionTimerSeconds < 5 || mainQuestionTimerSeconds > 600) {
+        warn(
+            `Question ${id}: mainQuestionTimerSeconds "${rawMainTimer}" out of range (5–600). Clamping.`
+        );
+        mainQuestionTimerSeconds = Math.max(5, Math.min(600, mainQuestionTimerSeconds));
+    }
+
     const rawSteps = Array.isArray(payload.steps) ? payload.steps : [];
     if (!Array.isArray(payload.steps)) {
         warn(`Question ${id}: steps missing or not array; defaulting to empty`);
@@ -101,6 +113,7 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
         difficulty,
         rankTier: payload.rankTier || payload.rank_tier || undefined,
         stem,
+        mainQuestionTimerSeconds,
         totalMarks,
         topicTags,
         steps,

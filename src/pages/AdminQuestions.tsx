@@ -72,6 +72,7 @@ type QuestionForm = {
   difficulty: 'easy' | 'medium' | 'hard';
   rankTier: string;
   stem: string;
+  mainQuestionTimerSeconds: number;
   totalMarks: number;
   topicTags: string; // Comma-separated string for editing
   steps: FormStep[];
@@ -137,6 +138,7 @@ export default function AdminQuestions() {
       difficulty: 'medium',
       rankTier: '',
       stem: '',
+      mainQuestionTimerSeconds: 90,
       totalMarks: 1,
       topicTags: '',
       steps: [{
@@ -218,6 +220,7 @@ export default function AdminQuestions() {
       difficulty: q.difficulty,
       rankTier: q.rankTier || '',
       stem: q.stem,
+      mainQuestionTimerSeconds: q.mainQuestionTimerSeconds,
       totalMarks: q.totalMarks,
       topicTags: q.topicTags.join(', '),
       steps: q.steps.map(s => ({
@@ -848,6 +851,7 @@ export default function AdminQuestions() {
         difficulty: form.difficulty,
         rank_tier: form.rankTier || null,
         stem: form.stem,
+        main_question_timer_seconds: form.mainQuestionTimerSeconds,
         total_marks: form.totalMarks,
         topic_tags: topicTagsArray,
         steps: stepsPayload,
@@ -1502,6 +1506,26 @@ export default function AdminQuestions() {
                         />
                         <p className="text-xs text-white/40 mt-1">
                           Auto-calculated: {form.steps.reduce((sum, s) => sum + s.marks, 0)} marks
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className={labelStyle}>Main Question Timer (seconds)</label>
+                        <Input
+                          type="number"
+                          min={5}
+                          max={600}
+                          value={form.mainQuestionTimerSeconds}
+                          onChange={e => {
+                            const raw = e.target.value ? parseInt(e.target.value) : 90;
+                            const next = Math.max(5, Math.min(600, Number.isFinite(raw) ? raw : 90));
+                            setForm({ ...form, mainQuestionTimerSeconds: next });
+                          }}
+                          className={glassInput}
+                          placeholder="90"
+                        />
+                        <p className="text-xs text-white/40 mt-1">
+                          Main question phase before steps. 5–600s (default 90s).
                         </p>
                       </div>
 
