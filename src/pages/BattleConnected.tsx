@@ -10,6 +10,8 @@ import { Starfield } from '@/components/Starfield';
 import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
 import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
+import { BattleDoorOverlay } from '@/components/battle/BattleDoorOverlay';
+import { useDomRenderSettled } from '@/hooks/useDomRenderSettled';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -22,6 +24,17 @@ export default function BattleConnected() {
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
+  const lastTimeoutToastAtRef = useRef<number>(0);
+  const [isDoorOpen, setIsDoorOpen] = useState<boolean>(false);
+  const isExitingRef = useRef<boolean>(false);
+  const exitTimeoutRef = useRef<number | null>(null);
+  const openDoorTimeoutRef = useRef<number | null>(null);
+  const autoReturnTimeoutRef = useRef<number | null>(null);
+  const contentRootRef = useRef<HTMLDivElement | null>(null);
+  const DOOR_DURATION_MS = 420;
+  const OPEN_DELAY_MS = 1000;
+  const AUTO_RETURN_AFTER_MS = 2500;
+  const AUTO_RETURN_HOLD_MS = 600;
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -82,13 +95,171 @@ export default function BattleConnected() {
     matchFinished, matchWinner, timeRemaining, submitAnswer,
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, subStepTimeLeft, currentStep, currentSegment, currentSubStepIndex,
+    lastStepAdvanceReason, lastStepAdvanceAt,
     submitEarlyAnswer, submitStepAnswer,
     readyForNextRound,
-    currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
+    currentRoundId, currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
     nextRoundCountdown,
     isWebSocketConnected, waitingForOpponent,
     allStepsComplete, waitingForOpponentToCompleteSteps
   } = useGame(match);
+
+  // Close door overlay before leaving battle (then navigate).
+  const closeDoorAndExitToLobby = (opts?: { holdMs?: number }) => {
+    if (isExitingRef.current) return;
+    isExitingRef.current = true;
+    setIsDoorOpen(false);
+    if (openDoorTimeoutRef.current) {
+      window.clearTimeout(openDoorTimeoutRef.current);
+      openDoorTimeoutRef.current = null;
+    }
+    if (autoReturnTimeoutRef.current) {
+      window.clearTimeout(autoReturnTimeoutRef.current);
+      autoReturnTimeoutRef.current = null;
+    }
+    if (exitTimeoutRef.current) {
+      window.clearTimeout(exitTimeoutRef.current);
+      exitTimeoutRef.current = null;
+    }
+    const holdMs = Math.max(0, opts?.holdMs ?? 0);
+    exitTimeoutRef.current = window.setTimeout(() => {
+      navigate('/matchmaking-new');
+    }, DOOR_DURATION_MS + holdMs);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (exitTimeoutRef.current) {
+        window.clearTimeout(exitTimeoutRef.current);
+        exitTimeoutRef.current = null;
+      }
+      if (openDoorTimeoutRef.current) {
+        window.clearTimeout(openDoorTimeoutRef.current);
+        openDoorTimeoutRef.current = null;
+      }
+      if (autoReturnTimeoutRef.current) {
+        window.clearTimeout(autoReturnTimeoutRef.current);
+        autoReturnTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  // When steps auto-advance due to timer expiry, surface it so it doesn't feel like a random desync.
+  useEffect(() => {
+    if (lastStepAdvanceReason !== 'timeout') return
+    if (!lastStepAdvanceAt) return
+    if (lastStepAdvanceAt <= lastTimeoutToastAtRef.current) return
+    lastTimeoutToastAtRef.current = lastStepAdvanceAt
+    toast('Time expired — advancing to the next part')
+  }, [lastStepAdvanceReason, lastStepAdvanceAt])
+
+  // Door gating key: close the door whenever the rendered content changes meaningfully.
+  const doorKey = (() => {
+    if (isExitingRef.current) return 'exiting';
+    const q: any = question as any;
+    const qid =
+      q?.id ??
+      q?.question_id ??
+      q?.questionId ??
+      q?.question?.id ??
+      q?.question?.question_id ??
+      q?.question?.questionId ??
+      null;
+    const roundKey = currentRoundId ?? currentRoundNumber ?? roundNumber ?? '0';
+    if (!qid) return `${status}|${phase}|round:${roundKey}|no-qid`;
+    if (status !== 'playing') return `${status}|${qid}|round:${roundKey}`;
+    if (phase === 'steps') {
+      const sub = currentSegment === 'sub' ? currentSubStepIndex : 0;
+      return `steps|${qid}|round:${roundKey}|${currentStepIndex}|${currentSegment}|${sub}|${allStepsComplete ? 'done' : 'live'}`;
+    }
+    return `${phase}|${qid}|round:${roundKey}`;
+  })();
+
+  const domSettled = useDomRenderSettled(contentRootRef.current, doorKey, {
+    quietWindowMs: 180,
+    waitForFonts: true,
+  });
+
+  // When the content changes, re-close the door to hide render jank.
+  useEffect(() => {
+    if (isExitingRef.current) return;
+    // Only re-close doors while we're rendering question/step content.
+    // Keep doors open for RESULTS and MATCH_FINISHED screens so players can see them.
+    if (status !== 'playing') return;
+
+    setIsDoorOpen(false);
+    if (openDoorTimeoutRef.current) {
+      window.clearTimeout(openDoorTimeoutRef.current);
+      openDoorTimeoutRef.current = null;
+    }
+  }, [doorKey, status]);
+
+  // Safety: ensure error/results screens are visible (doors should be open there unless exiting).
+  useEffect(() => {
+    if (isExitingRef.current) return;
+    if (status === 'error' || status === 'results' || status === 'match_finished') {
+      setIsDoorOpen(true);
+    }
+  }, [status]);
+
+  // Only open once (a) we're actually in a battle phase we render, and (b) the DOM has settled.
+  const shouldOpenDoor =
+    !isExitingRef.current &&
+    status === 'playing' &&
+    !!question &&
+    !showRoundIntro &&
+    (phase === 'main_question' || phase === 'question' || phase === 'steps') &&
+    (phase !== 'steps' || (allStepsComplete && waitingForOpponentToCompleteSteps) || !!currentStep);
+
+  useEffect(() => {
+    if (openDoorTimeoutRef.current) {
+      window.clearTimeout(openDoorTimeoutRef.current);
+      openDoorTimeoutRef.current = null;
+    }
+    if (!shouldOpenDoor) return;
+    if (!domSettled) return;
+
+    openDoorTimeoutRef.current = window.setTimeout(() => {
+      if (isExitingRef.current) return;
+      setIsDoorOpen(true);
+      openDoorTimeoutRef.current = null;
+    }, OPEN_DELAY_MS);
+
+    return () => {
+      if (openDoorTimeoutRef.current) {
+        window.clearTimeout(openDoorTimeoutRef.current);
+        openDoorTimeoutRef.current = null;
+      }
+    };
+  }, [shouldOpenDoor, domSettled, doorKey]);
+
+  // Match finished → auto-return to lobby (keep button as an instant skip).
+  useEffect(() => {
+    if (isExitingRef.current) return;
+
+    const shouldAutoReturn = !!matchOver || status === 'match_finished';
+    if (!shouldAutoReturn) {
+      if (autoReturnTimeoutRef.current) {
+        window.clearTimeout(autoReturnTimeoutRef.current);
+        autoReturnTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Schedule once per match-finished state.
+    if (autoReturnTimeoutRef.current) return;
+    autoReturnTimeoutRef.current = window.setTimeout(() => {
+      autoReturnTimeoutRef.current = null;
+      closeDoorAndExitToLobby({ holdMs: AUTO_RETURN_HOLD_MS });
+    }, AUTO_RETURN_AFTER_MS);
+
+    return () => {
+      if (autoReturnTimeoutRef.current) {
+        window.clearTimeout(autoReturnTimeoutRef.current);
+        autoReturnTimeoutRef.current = null;
+      }
+    };
+  }, [matchOver, status]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -129,6 +300,35 @@ export default function BattleConnected() {
   const isPlayer1 = match?.player1_id === currentUser;
   const opponentId = isPlayer1 ? match?.player2_id : match?.player1_id;
 
+  // Door overlay status content (shown while doors are closed).
+  const doorOverlayContent = (() => {
+    if (isExitingRef.current) {
+      return { title: 'RETURNING TO LOBBY', subtitle: 'PLEASE WAIT', showSpinner: true };
+    }
+    if (status === 'connecting') {
+      return { title: 'ESTABLISHING LINK', subtitle: 'CONNECTING...', showSpinner: true };
+    }
+    if (status === 'connected') {
+      return { title: 'AWAITING TARGET', subtitle: 'WAITING FOR OPPONENT...', showSpinner: true };
+    }
+    if (status === 'both_connected') {
+      return { title: 'LOCKING TARGET', subtitle: 'INITIALIZING MATCH...', showSpinner: true };
+    }
+    if (status === 'playing') {
+      if (!question) {
+        return { title: 'LOADING QUESTION', subtitle: 'FETCHING DATA...', showSpinner: true };
+      }
+      if (!domSettled) {
+        return { title: 'RENDERING QUESTION', subtitle: 'PREPARING DISPLAY...', showSpinner: true };
+      }
+      // During the intentional reveal delay window.
+      if (!isDoorOpen && shouldOpenDoor) {
+        return { title: 'TARGET LOCKED', subtitle: 'OPENING DOORS...', showSpinner: false };
+      }
+    }
+    return { title: undefined, subtitle: undefined, showSpinner: false };
+  })();
+
   if (!match || !currentUser) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center relative overflow-hidden">
@@ -157,12 +357,20 @@ export default function BattleConnected() {
           <h2 className="text-xl font-bold text-white mb-2">CONNECTION LOST</h2>
           <p className="text-red-200/60 mb-8 text-sm">{errorMessage || 'The neural link was severed.'}</p>
           <button 
-            onClick={() => navigate('/matchmaking-new')}
+            onClick={closeDoorAndExitToLobby}
             className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-colors"
           >
             RETURN TO LOBBY
           </button>
         </div>
+        <BattleDoorOverlay
+          isOpen={isDoorOpen}
+          durationMs={DOOR_DURATION_MS}
+          zIndex={70}
+          title={doorOverlayContent.title}
+          subtitle={doorOverlayContent.subtitle}
+          showSpinner={doorOverlayContent.showSpinner}
+        />
       </div>
     );
   }
@@ -211,7 +419,7 @@ export default function BattleConnected() {
       {/* Header */}
       <header className="relative z-20 w-full max-w-7xl mx-auto p-4 md:p-6 flex justify-between items-center">
         <button 
-          onClick={() => navigate('/matchmaking-new')}
+          onClick={closeDoorAndExitToLobby}
           className="flex items-center gap-2 text-white/40 hover:text-white transition-colors group"
         >
           <div className="p-2 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
@@ -332,36 +540,11 @@ export default function BattleConnected() {
 
         {/* Game Content */}
         <div className="flex-1 relative flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            {/* CONNECTING STATE */}
-            {(status === 'connecting' || status === 'connected' || status === 'both_connected') && (
-              <motion.div
-                key="connecting"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
-                className="text-center"
-              >
-                <div className="relative w-32 h-32 mx-auto mb-8">
-                  <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full" />
-                  <div className="absolute inset-0 border-2 border-t-blue-500 rounded-full animate-spin" />
-                  {status === 'both_connected' && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Check className="w-12 h-12 text-blue-500" />
-                    </div>
-                  )}
-                </div>
-                <h2 className="text-3xl font-bold mb-3 tracking-tight">
-                  {status === 'both_connected' ? 'OPPONENT LOCKED' : 'SEARCHING FOR TARGET'}
-                </h2>
-                <p className="text-white/40 font-mono text-sm">
-                  {status === 'both_connected' ? 'INITIATING COMBAT SEQUENCE...' : 'SCANNING FREQUENCIES...'}
-                </p>
-              </motion.div>
-            )}
+          <div ref={contentRootRef} className="w-full h-full flex items-center justify-center">
+            <AnimatePresence mode="wait">
 
             {/* MAIN QUESTION PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
+            {status === 'playing' && question && phase === 'main_question' && (
               <MainQuestionCard
                 key="main-question"
                 stem={question.stem || question.questionText || question.title}
@@ -379,7 +562,7 @@ export default function BattleConnected() {
             )}
 
             {/* STEPS PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
+            {status === 'playing' && question && phase === 'steps' && currentStep && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
               <StepCard
                 key="steps"
                 stepIndex={currentStepIndex}
@@ -420,7 +603,7 @@ export default function BattleConnected() {
             )}
 
             {/* PLAYING STATE (Single-step) */}
-            {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
+            {status === 'playing' && question && phase === 'question' && (
               <SingleStepCard
                 key="playing"
                 questionText={question.stem || question.questionText || question.title}
@@ -785,7 +968,7 @@ export default function BattleConnected() {
                 {matchOver && (
                   <div className="mt-4">
                     <button
-                      onClick={() => navigate('/matchmaking-new')}
+                      onClick={closeDoorAndExitToLobby}
                       className="px-6 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]"
                     >
                       RETURN TO LOBBY
@@ -810,16 +993,26 @@ export default function BattleConnected() {
                   </h1>
                 </div>
                 <button 
-                  onClick={() => navigate('/matchmaking-new')}
+                  onClick={closeDoorAndExitToLobby}
                   className="px-8 py-4 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]"
                 >
                   RETURN TO BASE
                 </button>
               </motion.div>
             )}
-          </AnimatePresence>
+            </AnimatePresence>
+          </div>
         </div>
       </main>
+
+      <BattleDoorOverlay
+        isOpen={isDoorOpen}
+        durationMs={DOOR_DURATION_MS}
+        zIndex={70}
+        title={doorOverlayContent.title}
+        subtitle={doorOverlayContent.subtitle}
+        showSpinner={doorOverlayContent.showSpinner}
+      />
     </div>
   );
 }

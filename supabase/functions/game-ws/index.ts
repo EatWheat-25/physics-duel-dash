@@ -1516,6 +1516,7 @@ async function transitionToSteps(
             .update({
               current_step_index: 0,
               current_segment: 'main',
+              current_sub_step_index: 0,
               segment_ends_at: stepEndsAt,
               updated_at: new Date().toISOString()
             })

@@ -75,6 +75,9 @@ interface ConnectionState {
   currentSegment: 'main' | 'sub'
   currentSubStepIndex: number
   currentSubStep: any | null
+  // UX/debug: track when we auto-advance due to a timer (so it doesn't feel like a random desync)
+  lastStepAdvanceReason: 'timeout' | null
+  lastStepAdvanceAt: number | null
   // Match-level state (rounds system)
   currentRoundId: string | null
   currentRoundNumber: number
@@ -148,6 +151,8 @@ export function useGame(match: MatchRow | null) {
     currentSubStepIndex: 0,
     currentSubStep: null,
     subStepTimeLeft: null,
+    lastStepAdvanceReason: null,
+    lastStepAdvanceAt: null,
     // Match-level state (rounds system)
     currentRoundId: null,
     currentRoundNumber: 1,
@@ -630,6 +635,8 @@ export function useGame(match: MatchRow | null) {
                   currentSubStepIndex: 0,
                   currentSubStep: null,
                   subStepTimeLeft: null,
+                  lastStepAdvanceReason: null,
+                  lastStepAdvanceAt: null,
                   // Match-level info (used by UI scoreboard)
                   currentRoundId: resolvedRoundId ?? prev.currentRoundId,
                   currentRoundNumber: Number.isFinite(roundStartEvent.roundIndex)
@@ -671,23 +678,57 @@ export function useGame(match: MatchRow | null) {
             } else if (message.type === 'PHASE_CHANGE') {
               console.log('[useGame] PHASE_CHANGE message received', message)
               if (message.phase === 'steps') {
-                setState(prev => ({
-                  ...prev,
-                  phase: 'steps',
-                  stepProgressMode: (message as any).progressMode === 'async' ? 'async' : prev.stepProgressMode,
-                  currentStepIndex: message.stepIndex ?? message.currentStepIndex ?? 0,
-                  totalSteps: message.totalSteps ?? prev.totalSteps,
-                  stepEndsAt: message.stepEndsAt || null,
-                  currentStep: message.currentStep || null,
-                  currentSegment: (message.segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub',
-                  currentSubStepIndex: Number.isFinite((message as any).subStepIndex) ? (message as any).subStepIndex : 0,
-                  currentSubStep: (message.segment === 'sub' ? (message.currentStep || null) : null),
-                  subStepTimeLeft: null,
-                  answerSubmitted: false,
-                  waitingForOpponent: false,
-                  allStepsComplete: false,
-                  waitingForOpponentToCompleteSteps: false
-                }))
+                setState(prev => {
+                  const nextStepIndex = message.stepIndex ?? message.currentStepIndex ?? 0
+                  const nextSegment = (message.segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'
+                  const rawSubIdx = Number.isFinite((message as any).subStepIndex) ? (message as any).subStepIndex : 0
+                  const nextSubStepIndex = nextSegment === 'sub' ? rawSubIdx : 0
+
+                  const prevKey = `${prev.currentStepIndex}|${prev.currentSegment}|${prev.currentSubStepIndex}`
+                  const nextKey = `${nextStepIndex}|${nextSegment}|${nextSubStepIndex}`
+                  const segmentChanged = prev.phase === 'steps' && prevKey !== nextKey
+
+                  // Detect likely timeout-driven advancement: segment changed while we had not submitted,
+                  // and the prior segment deadline has passed.
+                  const nowMs = Date.now()
+                  const prevEndsAtMs = prev.stepEndsAt ? new Date(prev.stepEndsAt).getTime() : null
+                  const likelyTimedOut =
+                    segmentChanged &&
+                    !prev.answerSubmitted &&
+                    prevEndsAtMs !== null &&
+                    nowMs >= (prevEndsAtMs - 250) // allow small client/server skew
+
+                  // Only update the "advance reason" when we actually moved to a different segment.
+                  const nextAdvanceReason = segmentChanged ? (likelyTimedOut ? 'timeout' : null) : prev.lastStepAdvanceReason
+                  const nextAdvanceAt = segmentChanged ? (likelyTimedOut ? nowMs : null) : prev.lastStepAdvanceAt
+
+                  const nextProgressMode =
+                    (message as any).progressMode === 'async'
+                      ? 'async'
+                      : (message as any).progressMode === 'shared'
+                        ? 'shared'
+                        : prev.stepProgressMode
+
+                  return {
+                    ...prev,
+                    phase: 'steps',
+                    stepProgressMode: nextProgressMode,
+                    currentStepIndex: nextStepIndex,
+                    totalSteps: message.totalSteps ?? prev.totalSteps,
+                    stepEndsAt: message.stepEndsAt || null,
+                    currentStep: message.currentStep || null,
+                    currentSegment: nextSegment,
+                    currentSubStepIndex: nextSubStepIndex,
+                    currentSubStep: nextSegment === 'sub' ? (message.currentStep || null) : null,
+                    subStepTimeLeft: null,
+                    answerSubmitted: false,
+                    waitingForOpponent: false,
+                    allStepsComplete: false,
+                    waitingForOpponentToCompleteSteps: false,
+                    lastStepAdvanceReason: nextAdvanceReason,
+                    lastStepAdvanceAt: nextAdvanceAt
+                  }
+                })
               } else {
                 // Other phase changes (choosing, result)
                 setState(prev => ({
@@ -1652,6 +1693,8 @@ export function useGame(match: MatchRow | null) {
     currentSegment: state.currentSegment,
     currentSubStepIndex: state.currentSubStepIndex,
     currentSubStep: state.currentSubStep,
+    lastStepAdvanceReason: state.lastStepAdvanceReason,
+    lastStepAdvanceAt: state.lastStepAdvanceAt,
     submitEarlyAnswer,
     submitStepAnswer,
     readyForNextRound,
