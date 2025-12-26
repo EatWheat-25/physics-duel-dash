@@ -3,12 +3,22 @@ import { motion, useAnimation } from 'framer-motion';
 
 type StartMatchOptions = {
   message?: string;
+  /**
+   * When waitForReady is false: how long to keep doors closed after onClosed (fixed delay).
+   * When waitForReady is true: a timeout fallback (doors open when ready is signaled or when this elapses).
+   */
   loadingMs?: number;
   onClosed?: () => void;
+  /**
+   * If true, keep doors closed until someone calls signalReady() (or loadingMs timeout elapses).
+   * This is used to ensure the first question is fully rendered before revealing the battle screen.
+   */
+  waitForReady?: boolean;
 };
 
 type ElevatorShutterContextValue = {
   startMatch: (options?: StartMatchOptions) => Promise<void>;
+  signalReady: () => void;
   isRunning: boolean;
 };
 
@@ -28,14 +38,42 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
   const textControls = useAnimation();
 
   const runningRef = useRef(false);
+  const readyResolveRef = useRef<(() => void) | null>(null);
+  const readyTokenRef = useRef<number>(0);
   const noiseLeftId = useMemo(() => `shutterNoiseLeft-${Math.random().toString(36).slice(2, 9)}`, []);
   const noiseRightId = useMemo(() => `shutterNoiseRight-${Math.random().toString(36).slice(2, 9)}`, []);
 
+  const signalReady = useCallback(() => {
+    const resolve = readyResolveRef.current;
+    if (!resolve) return;
+    readyResolveRef.current = null;
+    resolve();
+  }, []);
+
   const startMatch = useCallback(
-    async ({ message = 'MATCH FOUND', loadingMs = 2000, onClosed }: StartMatchOptions = {}) => {
+    async ({
+      message = 'MATCH FOUND',
+      loadingMs = 2000,
+      onClosed,
+      waitForReady = false,
+    }: StartMatchOptions = {}) => {
       if (runningRef.current) return;
       runningRef.current = true;
       setIsRunning(true);
+
+      // Create a fresh "ready" signal for this run (used when waitForReady=true).
+      readyTokenRef.current += 1;
+      const token = readyTokenRef.current;
+      const readyPromise =
+        waitForReady
+          ? new Promise<void>((resolve) => {
+              readyResolveRef.current = () => {
+                // Ignore stale resolves from older runs.
+                if (readyTokenRef.current !== token) return;
+                resolve();
+              };
+            })
+          : null;
 
       setMessage(message);
       setActive(true);
@@ -69,8 +107,20 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
       // Navigate behind the shutter while fully closed
       onClosed?.();
 
-      // Simulated loading time
-      await new Promise((r) => setTimeout(r, loadingMs));
+      // Hold closed:
+      // - If waitForReady: open as soon as signalReady() is called, with a timeout fallback (loadingMs).
+      // - Otherwise: fixed delay (loadingMs).
+      if (waitForReady && readyPromise) {
+        await Promise.race([
+          readyPromise,
+          new Promise<void>((r) => setTimeout(r, Math.max(0, loadingMs))),
+        ]);
+      } else {
+        await new Promise<void>((r) => setTimeout(r, Math.max(0, loadingMs)));
+      }
+
+      // Clear any lingering resolver before opening (prevents accidental future resolves).
+      if (readyResolveRef.current) readyResolveRef.current = null;
 
       // Hide text before opening
       await textControls.start({ opacity: 0, transition: { duration: 0.15, ease: 'easeIn' } });
@@ -88,7 +138,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
     [leftControls, rightControls, textControls]
   );
 
-  const value = useMemo(() => ({ startMatch, isRunning }), [startMatch, isRunning]);
+  const value = useMemo(() => ({ startMatch, signalReady, isRunning }), [startMatch, signalReady, isRunning]);
 
   return (
     <ElevatorShutterContext.Provider value={value}>

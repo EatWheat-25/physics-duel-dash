@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { MatchRow } from '@/types/schema';
+import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 
 interface MatchmakingState {
   status: 'idle' | 'searching' | 'matched';
@@ -12,6 +13,7 @@ interface MatchmakingState {
 
 export function useMatchmaking() {
   const navigate = useNavigate();
+  const { startMatch } = useElevatorShutter();
   const [state, setState] = useState<MatchmakingState>({
     status: 'idle',
     match: null,
@@ -23,6 +25,24 @@ export function useMatchmaking() {
   const queueStartTimeRef = useRef<number | null>(null);
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
+
+  const runMatchFoundTransition = useCallback(
+    (match: MatchRow) => {
+      // Purple elevator shutter: close doors, navigate behind, then open once BattleConnected signals question is rendered.
+      void startMatch({
+        message: 'MATCH FOUND',
+        // Timeout fallback so we never hang forever if the battle page fails to signal readiness.
+        loadingMs: 15000,
+        waitForReady: true,
+        onClosed: () => {
+          navigate(`/online-battle-new/${match.id}`, {
+            state: { match },
+          });
+        },
+      });
+    },
+    [navigate, startMatch]
+  );
 
   // Poll for matches when in searching state
   useEffect(() => {
@@ -90,10 +110,7 @@ export function useMatchmaking() {
           queueStartTimeRef.current = null;
 
           toast.success('Match found! Starting battle...');
-          
-          navigate(`/online-battle-new/${match.id}`, {
-            state: { match },
-          });
+          runMatchFoundTransition(match);
         } else {
           console.log('[MATCHMAKING] Poll: No match found yet, continuing to wait...');
         }
@@ -112,7 +129,7 @@ export function useMatchmaking() {
         pollIntervalRef.current = null;
       }
     };
-  }, [state.status, navigate]);
+  }, [state.status, runMatchFoundTransition]);
 
   const startMatchmaking = useCallback(async (subject: string, level: string) => {
     if (isSearchingRef.current) {
@@ -194,10 +211,7 @@ export function useMatchmaking() {
         queueStartTimeRef.current = null;
 
         toast.success('Match found! Starting battle...');
-        
-        navigate(`/online-battle-new/${match.id}`, {
-          state: { match },
-        });
+        runMatchFoundTransition(match);
       } else if (data?.matched === false && data?.queued === true) {
         // Queued - stay in searching state and let polling handle match detection
         console.log('[MATCHMAKING] Queued, will poll for match...');
@@ -237,7 +251,7 @@ export function useMatchmaking() {
     } finally {
       isSearchingRef.current = false;
     }
-  }, [state.status, navigate]);
+  }, [state.status, runMatchFoundTransition]);
 
   const leaveQueue = useCallback(async () => {
     console.log('[MATCHMAKING] Leaving queue');

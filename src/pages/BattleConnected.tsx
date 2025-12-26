@@ -10,6 +10,7 @@ import { Starfield } from '@/components/Starfield';
 import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
 import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
+import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -22,6 +23,8 @@ export default function BattleConnected() {
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
+  const hasSignaledShutterReadyRef = useRef<boolean>(false);
+  const { isRunning: isShutterRunning, signalReady } = useElevatorShutter();
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -89,6 +92,69 @@ export default function BattleConnected() {
     isWebSocketConnected, waitingForOpponent,
     allStepsComplete, waitingForOpponentToCompleteSteps
   } = useGame(match);
+
+  // If we arrived here via the purple elevator shutter transition, only open it once the
+  // first question has had a chance to render (fonts/KaTeX/layout) + a small delay.
+  useEffect(() => {
+    if (!isShutterRunning) {
+      hasSignaledShutterReadyRef.current = false;
+      return;
+    }
+
+    const canReveal =
+      status === 'playing' &&
+      !!question &&
+      (phase === 'main_question' || phase === 'question' || phase === 'steps') &&
+      (phase !== 'steps' || !!currentStep || (allStepsComplete && waitingForOpponentToCompleteSteps));
+
+    if (!canReveal) return;
+    if (hasSignaledShutterReadyRef.current) return;
+    hasSignaledShutterReadyRef.current = true;
+
+    let cancelled = false;
+
+    const waitRaf = () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+
+    const run = async () => {
+      // Wait for fonts (KaTeX) when available.
+      try {
+        const fonts = (document as any).fonts;
+        if (fonts?.ready && typeof fonts.ready.then === 'function') {
+          await fonts.ready;
+        }
+      } catch {
+        // ignore
+      }
+
+      // Let layout/paint catch up a couple frames.
+      await waitRaf();
+      await waitRaf();
+
+      // Small intentional delay so the reveal feels clean (and avoids “question pops in”).
+      await new Promise<void>((r) => setTimeout(r, 1000));
+
+      if (cancelled) return;
+      signalReady();
+    };
+
+    run().catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isShutterRunning,
+    status,
+    question,
+    phase,
+    currentStep,
+    allStepsComplete,
+    waitingForOpponentToCompleteSteps,
+    signalReady,
+  ]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -183,7 +249,7 @@ export default function BattleConnected() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8, filter: 'blur(20px)' }}
             transition={{ duration: 0.5 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto"
           >
             <div className="text-center">
               <motion.div 
@@ -361,7 +427,7 @@ export default function BattleConnected() {
             )}
 
             {/* MAIN QUESTION PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
+            {status === 'playing' && question && phase === 'main_question' && (
               <MainQuestionCard
                 key="main-question"
                 stem={question.stem || question.questionText || question.title}
@@ -379,7 +445,7 @@ export default function BattleConnected() {
             )}
 
             {/* STEPS PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
+            {status === 'playing' && question && phase === 'steps' && currentStep && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
               <StepCard
                 key="steps"
                 stepIndex={currentStepIndex}
@@ -420,7 +486,7 @@ export default function BattleConnected() {
             )}
 
             {/* PLAYING STATE (Single-step) */}
-            {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
+            {status === 'playing' && question && phase === 'question' && (
               <SingleStepCard
                 key="playing"
                 questionText={question.stem || question.questionText || question.title}
