@@ -29,25 +29,12 @@ export function useMatchmaking() {
 
   const transitionToBattle = useCallback(
     (match: MatchRow) => {
-      const { id: shutterGateId, promise } = createShutterGate();
-
-      // Close shutter, navigate behind it, then open only when the battle client resolves the gate.
-      startShutterMatch({
-        message: 'MATCH FOUND',
-        waitFor: promise,
-        onClosed: () => {
-          navigate(`/online-battle-new/${match.id}`, {
-            state: { match, shutterGateId },
-          });
-        },
-      }).catch((err) => {
-        console.error('[MATCHMAKING] Shutter transition failed, falling back to direct navigation', err);
-        navigate(`/online-battle-new/${match.id}`, {
-          state: { match },
-        });
+      // Navigate to versus screen first, which will then transition to battle
+      navigate(`/versus/${match.id}`, {
+        state: { match },
       });
     },
-    [navigate, startShutterMatch]
+    [navigate]
   );
 
   // Poll for matches when in searching state
