@@ -1511,12 +1511,12 @@ export default function AdminQuestions() {
                       </div>
 
                       <div className="col-span-2">
-                        <label className={labelStyle}>Main Question Timer (seconds)</label>
+                        <label className={labelStyle}>Main Question Timer (mm:ss)</label>
                         <div className="mt-2 flex items-center gap-4">
                           <Slider
                             min={5}
                             max={600}
-                            step={5}
+                            step={1}
                             value={[form.mainQuestionTimerSeconds]}
                             onValueChange={(v) => {
                               const raw = Array.isArray(v) ? v[0] : 90;
@@ -1525,25 +1525,42 @@ export default function AdminQuestions() {
                             }}
                             className="flex-1"
                           />
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
                             <Input
                               type="number"
-                              min={5}
-                              max={600}
-                              value={form.mainQuestionTimerSeconds}
-                              onChange={e => {
-                                const raw = e.target.value ? parseInt(e.target.value) : 90;
-                                const next = Math.max(5, Math.min(600, Number.isFinite(raw) ? raw : 90));
+                              min={0}
+                              max={10}
+                              value={Math.floor(form.mainQuestionTimerSeconds / 60)}
+                              onChange={(e) => {
+                                const min = e.target.value ? parseInt(e.target.value) : 0;
+                                const minutes = Number.isFinite(min) ? Math.max(0, min) : 0;
+                                const seconds = form.mainQuestionTimerSeconds % 60;
+                                const next = Math.max(5, Math.min(600, minutes * 60 + seconds));
                                 setForm({ ...form, mainQuestionTimerSeconds: next });
                               }}
-                              className={`${glassInput} w-28`}
-                              placeholder="90"
+                              className={`${glassInput} w-16 text-center tabular-nums`}
+                              aria-label="Main question minutes"
                             />
-                            <span className="text-xs text-white/60 font-mono">s</span>
+                            <span className="text-sm text-white/60 font-mono">:</span>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={59}
+                              value={form.mainQuestionTimerSeconds % 60}
+                              onChange={(e) => {
+                                const sec = e.target.value ? parseInt(e.target.value) : 0;
+                                const seconds = Number.isFinite(sec) ? Math.max(0, Math.min(59, sec)) : 0;
+                                const minutes = Math.floor(form.mainQuestionTimerSeconds / 60);
+                                const next = Math.max(5, Math.min(600, minutes * 60 + seconds));
+                                setForm({ ...form, mainQuestionTimerSeconds: next });
+                              }}
+                              className={`${glassInput} w-16 text-center tabular-nums`}
+                              aria-label="Main question seconds"
+                            />
                           </div>
                         </div>
                         <p className="text-xs text-white/40 mt-1">
-                          Main question phase before steps. 5–600s (default 90s). Slider steps in 5s increments.
+                          Main question phase before steps. Range 0:05–10:00 (default 1:30).
                         </p>
                       </div>
 
