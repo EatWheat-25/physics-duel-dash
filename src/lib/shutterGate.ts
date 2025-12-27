@@ -2,7 +2,6 @@ type Gate = {
   promise: Promise<void>;
   resolve: () => void;
   resolved: boolean;
-  cleanupTimer: number | null;
 };
 
 const gates = new Map<string, Gate>();
@@ -41,16 +40,9 @@ export function createShutterGate(): { id: string; promise: Promise<void> } {
         resolveFn?.();
       } finally {
         resolveFn = null;
-        if (gate.cleanupTimer != null) {
-          clearTimeout(gate.cleanupTimer);
-        }
         gates.delete(id);
       }
     },
-    // Safety cleanup so we never leak gates forever. This should be longer than any shutter max.
-    cleanupTimer: window.setTimeout(() => {
-      gates.delete(id);
-    }, 120_000),
   };
 
   gates.set(id, gate);

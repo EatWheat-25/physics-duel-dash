@@ -100,17 +100,24 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
       // Wait for the game to be ready (or a fixed delay if no gate provided)
       if (waitFor) {
         const minMs = Math.max(0, minLoadingMs ?? loadingMs ?? 0);
-        const maxMs = Math.max(minMs, maxLoadingMs ?? 12000);
         const startedAt = Date.now();
 
-        await Promise.race([
-          waitFor.catch((err) => {
+        if (maxLoadingMs == null) {
+          // Wait indefinitely until the gate resolves (or rejects).
+          await waitFor.catch((err) => {
             console.warn('[ElevatorShutter] waitFor rejected; opening anyway', err);
-          }),
-          sleep(maxMs).then(() => {
-            console.warn('[ElevatorShutter] waitFor timed out; opening anyway', { maxMs });
-          }),
-        ]);
+          });
+        } else {
+          const maxMs = Math.max(minMs, maxLoadingMs);
+          await Promise.race([
+            waitFor.catch((err) => {
+              console.warn('[ElevatorShutter] waitFor rejected; opening anyway', err);
+            }),
+            sleep(maxMs).then(() => {
+              console.warn('[ElevatorShutter] waitFor timed out; opening anyway', { maxMs });
+            }),
+          ]);
+        }
 
         const elapsed = Date.now() - startedAt;
         if (elapsed < minMs) {

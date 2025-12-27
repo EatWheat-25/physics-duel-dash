@@ -7,6 +7,8 @@ import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Starfield } from '@/components/Starfield';
+import { MatchupIntro } from '@/components/battle/MatchupIntro';
+import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 import { resolveShutterGate } from '@/lib/shutterGate';
 
 export default function BattleConnected() {
@@ -14,15 +16,30 @@ export default function BattleConnected() {
   const navigate = useNavigate();
   const location = useLocation();
   const shutterGateId = (location.state as { shutterGateId?: string } | null)?.shutterGateId;
+  const { isRunning: isShutterRunning } = useElevatorShutter();
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
+  const [myDisplayName, setMyDisplayName] = useState<string>('YOU');
+  const [oppDisplayName, setOppDisplayName] = useState<string>('OPPONENT');
+  const [showMatchupIntro, setShowMatchupIntro] = useState<boolean>(true);
+  const [matchupShouldStart, setMatchupShouldStart] = useState<boolean>(false);
+  const [matchupActive, setMatchupActive] = useState<boolean>(false);
+  const matchupHideScheduledRef = useRef(false);
   const [shouldAnimateMyWins, setShouldAnimateMyWins] = useState<boolean>(false);
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
 
   // --- Data Fetching (Keep existing logic) ---
+  useEffect(() => {
+    // If the route param changes, reset the VS intro state for the new match.
+    matchupHideScheduledRef.current = false;
+    setShowMatchupIntro(true);
+    setMatchupShouldStart(false);
+    setMatchupActive(false);
+  }, [matchId]);
+
   useEffect(() => {
     const stateMatch = location.state?.match as MatchRow | undefined;
     if (stateMatch && stateMatch.id === matchId) {
@@ -87,6 +104,65 @@ export default function BattleConnected() {
     allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
 
+  // Fetch display names for VS intro (profiles.display_name ?? profiles.username).
+  useEffect(() => {
+    if (!match || !currentUser) return;
+
+    const myId = currentUser;
+    const opponentUserId = match.player1_id === myId ? match.player2_id : match.player1_id;
+    const ids = [myId, opponentUserId].filter(Boolean) as string[];
+    if (ids.length === 0) return;
+
+    let cancelled = false;
+
+    const fetchNames = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, display_name, username')
+        .in('id', ids);
+
+      if (cancelled) return;
+
+      if (error || !data) {
+        console.warn('[BattleConnected] Failed to fetch profile names', error);
+        setMyDisplayName('YOU');
+        setOppDisplayName('OPPONENT');
+        return;
+      }
+
+      const byId = new Map<string, string>();
+      data.forEach((p: any) => {
+        const name = (p.display_name ?? p.username ?? 'Player') as string;
+        byId.set(p.id, name);
+      });
+
+      setMyDisplayName(byId.get(myId) ?? 'YOU');
+      if (opponentUserId) {
+        setOppDisplayName(byId.get(opponentUserId) ?? 'OPPONENT');
+      } else {
+        setOppDisplayName('OPPONENT');
+      }
+    };
+
+    fetchNames();
+    return () => {
+      cancelled = true;
+    };
+  }, [match, currentUser]);
+
+  // Trigger the VS animation once the first question is ready, and only after the shutter has finished opening.
+  useEffect(() => {
+    if (status === 'playing' && question) {
+      setMatchupShouldStart(true);
+    }
+  }, [status, question]);
+
+  useEffect(() => {
+    if (!matchupShouldStart) return;
+    if (isShutterRunning) return;
+    setMatchupActive(true);
+  }, [matchupShouldStart, isShutterRunning]);
+
   // Resolve shutter gate once the first question is actually ready (or fail-safe on error).
   useEffect(() => {
     if (!shutterGateId) return;
@@ -98,13 +174,6 @@ export default function BattleConnected() {
       resolveShutterGate(shutterGateId);
     }
   }, [shutterGateId, status, question]);
-
-  // Extra fail-safe: never keep shutter closed indefinitely if something goes wrong.
-  useEffect(() => {
-    if (!shutterGateId) return;
-    const t = window.setTimeout(() => resolveShutterGate(shutterGateId), 15000);
-    return () => clearTimeout(t);
-  }, [shutterGateId]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -348,34 +417,33 @@ export default function BattleConnected() {
 
         {/* Game Content */}
         <div className="flex-1 relative flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            {/* CONNECTING STATE */}
-            {(status === 'connecting' || status === 'connected' || status === 'both_connected') && (
+          {/* VS intro overlay (replaces the old SEARCHING/OPPONENT LOCKED screen) */}
+          <AnimatePresence>
+            {showMatchupIntro && (
               <motion.div
-                key="connecting"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
-                className="text-center"
+                key="matchup-intro"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, filter: 'blur(12px)' }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
               >
-                <div className="relative w-32 h-32 mx-auto mb-8">
-                  <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full" />
-                  <div className="absolute inset-0 border-2 border-t-blue-500 rounded-full animate-spin" />
-                  {status === 'both_connected' && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Check className="w-12 h-12 text-blue-500" />
-                    </div>
-                  )}
-                </div>
-                <h2 className="text-3xl font-bold mb-3 tracking-tight">
-                  {status === 'both_connected' ? 'OPPONENT LOCKED' : 'SEARCHING FOR TARGET'}
-                </h2>
-                <p className="text-white/40 font-mono text-sm">
-                  {status === 'both_connected' ? 'INITIATING COMBAT SEQUENCE...' : 'SCANNING FREQUENCIES...'}
-                </p>
+                <MatchupIntro
+                  left={{ name: myDisplayName, subtitle: 'YOU' }}
+                  right={{ name: oppDisplayName, subtitle: 'OPPONENT' }}
+                  active={matchupActive}
+                  onComplete={() => {
+                    if (matchupHideScheduledRef.current) return;
+                    if (status !== 'playing' || !question) return;
+                    matchupHideScheduledRef.current = true;
+                    window.setTimeout(() => setShowMatchupIntro(false), 650);
+                  }}
+                />
               </motion.div>
             )}
+          </AnimatePresence>
 
+          <AnimatePresence mode="wait">
             {/* MAIN QUESTION PHASE (Multi-step) */}
             {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
               <motion.div

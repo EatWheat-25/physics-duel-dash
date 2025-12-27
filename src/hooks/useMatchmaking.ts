@@ -35,8 +35,6 @@ export function useMatchmaking() {
       startShutterMatch({
         message: 'MATCH FOUND',
         waitFor: promise,
-        // Safety fallback: don't get stuck closed forever.
-        maxLoadingMs: 12000,
         onClosed: () => {
           navigate(`/online-battle-new/${match.id}`, {
             state: { match, shutterGateId },
