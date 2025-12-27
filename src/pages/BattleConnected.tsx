@@ -7,15 +7,13 @@ import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Starfield } from '@/components/Starfield';
-import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
-import { StepCard } from '@/components/battle/StepCard';
-import { SingleStepCard } from '@/components/battle/SingleStepCard';
-import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
+import { resolveShutterGate } from '@/lib/shutterGate';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const shutterGateId = (location.state as { shutterGateId?: string } | null)?.shutterGateId;
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
@@ -23,8 +21,6 @@ export default function BattleConnected() {
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
-  const hasSignaledShutterReadyRef = useRef<boolean>(false);
-  const { isRunning: isShutterRunning, signalReady } = useElevatorShutter();
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -86,75 +82,29 @@ export default function BattleConnected() {
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, subStepTimeLeft, currentStep, currentSegment, currentSubStepIndex,
     submitEarlyAnswer, submitStepAnswer,
-    readyForNextRound,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
-    nextRoundCountdown,
-    isWebSocketConnected, waitingForOpponent,
-    allStepsComplete, waitingForOpponentToCompleteSteps
+    isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
+    allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
 
-  // If we arrived here via the purple elevator shutter transition, only open it once the
-  // first question has had a chance to render (fonts/KaTeX/layout) + a small delay.
+  // Resolve shutter gate once the first question is actually ready (or fail-safe on error).
   useEffect(() => {
-    if (!isShutterRunning) {
-      hasSignaledShutterReadyRef.current = false;
+    if (!shutterGateId) return;
+    if (status === 'playing' && question) {
+      resolveShutterGate(shutterGateId);
       return;
     }
+    if (status === 'error') {
+      resolveShutterGate(shutterGateId);
+    }
+  }, [shutterGateId, status, question]);
 
-    const canReveal =
-      status === 'playing' &&
-      !!question &&
-      (phase === 'main_question' || phase === 'question' || phase === 'steps') &&
-      (phase !== 'steps' || !!currentStep || (allStepsComplete && waitingForOpponentToCompleteSteps));
-
-    if (!canReveal) return;
-    if (hasSignaledShutterReadyRef.current) return;
-    hasSignaledShutterReadyRef.current = true;
-
-    let cancelled = false;
-
-    const waitRaf = () =>
-      new Promise<void>((resolve) => {
-        requestAnimationFrame(() => resolve());
-      });
-
-    const run = async () => {
-      // Wait for fonts (KaTeX) when available.
-      try {
-        const fonts = (document as any).fonts;
-        if (fonts?.ready && typeof fonts.ready.then === 'function') {
-          await fonts.ready;
-        }
-      } catch {
-        // ignore
-      }
-
-      // Let layout/paint catch up a couple frames.
-      await waitRaf();
-      await waitRaf();
-
-      // Small intentional delay so the reveal feels clean (and avoids “question pops in”).
-      await new Promise<void>((r) => setTimeout(r, 1000));
-
-      if (cancelled) return;
-      signalReady();
-    };
-
-    run().catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    isShutterRunning,
-    status,
-    question,
-    phase,
-    currentStep,
-    allStepsComplete,
-    waitingForOpponentToCompleteSteps,
-    signalReady,
-  ]);
+  // Extra fail-safe: never keep shutter closed indefinitely if something goes wrong.
+  useEffect(() => {
+    if (!shutterGateId) return;
+    const t = window.setTimeout(() => resolveShutterGate(shutterGateId), 15000);
+    return () => clearTimeout(t);
+  }, [shutterGateId]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -249,7 +199,7 @@ export default function BattleConnected() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8, filter: 'blur(20px)' }}
             transition={{ duration: 0.5 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none"
           >
             <div className="text-center">
               <motion.div 
@@ -427,37 +377,139 @@ export default function BattleConnected() {
             )}
 
             {/* MAIN QUESTION PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'main_question' && (
-              <MainQuestionCard
+            {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
+              <motion.div
                 key="main-question"
-                stem={question.stem || question.questionText || question.title}
-                imageUrl={question.imageUrl || (question as any).image_url || null}
-                totalSteps={totalSteps}
-                isWebSocketConnected={isWebSocketConnected}
-                onSubmitEarly={() => {
-                  if (!isWebSocketConnected) {
-                    toast.error('Connection lost. Please wait for reconnection...');
-                    return;
-                  }
-                  submitEarlyAnswer();
-                }}
-              />
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full max-w-3xl"
+              >
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  
+                  <div className="text-center">
+                    <div className="text-sm text-blue-400/60 font-mono mb-4 uppercase tracking-wider">
+                      Main Question
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
+                      {question.stem || question.questionText || question.title}
+                    </h3>
+                    <div className="mt-6 text-sm text-white/40">
+                      {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Separate Early Answer Button - OUTSIDE card */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="w-full max-w-3xl mt-6"
+                >
+                  <button
+                    onClick={() => {
+                      if (!isWebSocketConnected) {
+                        toast.error('Connection lost. Please wait for reconnection...');
+                        return;
+                      }
+                      submitEarlyAnswer();
+                    }}
+                    disabled={!isWebSocketConnected}
+                    className={`w-full py-6 px-8 rounded-xl font-bold text-xl transition-all shadow-lg ${
+                      isWebSocketConnected
+                        ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
+                        : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
+                  </button>
+                </motion.div>
+              </motion.div>
             )}
 
             {/* STEPS PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'steps' && currentStep && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
-              <StepCard
+            {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
+              <motion.div
                 key="steps"
-                stepIndex={currentStepIndex}
-                totalSteps={totalSteps}
-                segment={currentSegment}
-                subStepIndex={currentSubStepIndex}
-                prompt={currentStep.prompt || currentStep.question}
-                options={currentStep.options}
-                answerSubmitted={answerSubmitted}
-                disabled={stepTimeLeft !== null && stepTimeLeft <= 0}
-                onSelectOption={(idx) => submitStepAnswer(currentStepIndex, idx)}
-              />
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full max-w-3xl"
+              >
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50" />
+                  
+                  <div className="text-center mb-6">
+                    <div className="text-sm text-amber-400/60 font-mono mb-2 uppercase tracking-wider">
+                      {currentSegment === 'sub'
+                        ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
+                        : `Step ${currentStepIndex + 1} of ${totalSteps}`}
+                    </div>
+                    <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
+                      {currentStep.prompt || currentStep.question}
+                    </h3>
+                    {currentSegment === 'sub' && (
+                      <p className="text-xs text-white/50 mt-3 font-mono">
+                        QUICK CHECK — must be correct to earn this step&apos;s marks
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => !answerSubmitted && submitStepAnswer(currentStepIndex, idx)}
+                        disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)}
+                        className={`
+                          relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
+                          ${answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)
+                            ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
+                            : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
+                          }
+                        `}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center gap-4 relative z-10">
+                          <div className={`
+                            w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
+                            ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'}
+                          `}>
+                            {String.fromCharCode(65 + idx)}
+                          </div>
+                          <span className="text-lg font-medium">{option}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {answerSubmitted && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }} 
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6 text-center"
+                    >
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-400 rounded-full text-sm font-medium border border-amber-500/20 backdrop-blur-sm">
+                        {/* During steps, always show "ANSWER SUBMITTED" - no waiting message */}
+                        {(phase === 'steps' || !waitingForOpponent) ? (
+                          <>
+                            <Check className="w-4 h-4" />
+                            ANSWER SUBMITTED
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            WAITING FOR OPPONENT...
+                          </>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
             )}
 
             {/* WAITING FOR OPPONENT TO COMPLETE ALL STEPS */}
@@ -486,15 +538,66 @@ export default function BattleConnected() {
             )}
 
             {/* PLAYING STATE (Single-step) */}
-            {status === 'playing' && question && phase === 'question' && (
-              <SingleStepCard
+            {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
+              <motion.div
                 key="playing"
-                questionText={question.stem || question.questionText || question.title}
-                imageUrl={question.imageUrl || (question as any).image_url || null}
-                options={question.steps?.[0]?.options ?? []}
-                answerSubmitted={answerSubmitted}
-                onSelectOption={(idx) => submitAnswer(idx)}
-              />
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full max-w-3xl"
+              >
+                {/* Question Card */}
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  
+                  <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
+                    {question.stem || question.questionText}
+                  </h3>
+                </div>
+
+                {/* Answers Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {question.steps?.[0]?.options?.filter(o => String(o).trim()).map((option, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => !answerSubmitted && submitAnswer(idx)}
+                      disabled={answerSubmitted}
+                      className={`
+                        relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
+                        ${answerSubmitted 
+                          ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
+                          : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-blue-500/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] active:scale-[0.98]'
+                        }
+                      `}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="flex items-center gap-4 relative z-10">
+                        <div className={`
+                          w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
+                          ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-blue-500 group-hover:text-white'}
+                        `}>
+                          {String.fromCharCode(65 + idx)}
+                        </div>
+                        <span className="text-lg font-medium">{option}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {answerSubmitted && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-6 text-center"
+                  >
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      AWAITING RESULT CONFIRMATION
+                    </div>
+                  </motion.div>
+                )}
+              </motion.div>
             )}
 
             {/* RESULTS STATE */}
@@ -554,7 +657,7 @@ export default function BattleConnected() {
                         {results.round_winner === currentUser ? 'ROUND SECURED' : results.round_winner === null ? 'STALEMATE' : 'ROUND LOST'}
                       </h2>
                       <div className="text-sm text-white/60 font-mono mb-2">
-                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 3} needed
+                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
                       </div>
                       {results.p1Score !== undefined && results.p2Score !== undefined && (
                         <div className="text-lg font-bold mb-2">
@@ -576,46 +679,17 @@ export default function BattleConnected() {
                   <div className="mb-8">
                     {/* Calculate parts correct for each player */}
                     {(() => {
-                      const totalParts =
-                        typeof results.totalParts === 'number' && Number.isFinite(results.totalParts) && results.totalParts > 0
-                          ? results.totalParts
-                          : results.stepResults.length;
-
-                      const hasAggregateParts =
-                        typeof results.p1PartsCorrect === 'number' && typeof results.p2PartsCorrect === 'number';
-
-                      const getMainAnswer = (stepResult: any, which: 'p1' | 'p2') =>
-                        which === 'p1'
-                          ? (stepResult.p1MainAnswerIndex ?? stepResult.p1AnswerIndex)
-                          : (stepResult.p2MainAnswerIndex ?? stepResult.p2AnswerIndex);
-
-                      const getMainCorrect = (stepResult: any) =>
-                        stepResult.mainCorrectAnswer ?? stepResult.correctAnswer;
-
-                      const myPartsCorrect = hasAggregateParts
-                        ? (isPlayer1 ? results.p1PartsCorrect : results.p2PartsCorrect)
-                        : results.stepResults.filter((stepResult: any) => {
-                            const myPartCorrect = isPlayer1 ? stepResult.p1PartCorrect : stepResult.p2PartCorrect;
-                            if (typeof myPartCorrect === 'boolean') return myPartCorrect;
-
-                            // Legacy fallback (main-only)
-                            const myAnswer = getMainAnswer(stepResult, isPlayer1 ? 'p1' : 'p2');
-                            const correct = getMainCorrect(stepResult);
-                            return myAnswer !== null && myAnswer !== undefined && correct !== null && correct !== undefined && myAnswer === correct;
-                          }).length;
-
-                      const oppPartsCorrect = hasAggregateParts
-                        ? (isPlayer1 ? results.p2PartsCorrect : results.p1PartsCorrect)
-                        : results.stepResults.filter((stepResult: any) => {
-                            const oppPartCorrect = isPlayer1 ? stepResult.p2PartCorrect : stepResult.p1PartCorrect;
-                            if (typeof oppPartCorrect === 'boolean') return oppPartCorrect;
-
-                            // Legacy fallback (main-only)
-                            const oppAnswer = getMainAnswer(stepResult, isPlayer1 ? 'p2' : 'p1');
-                            const correct = getMainCorrect(stepResult);
-                            return oppAnswer !== null && oppAnswer !== undefined && correct !== null && correct !== undefined && oppAnswer === correct;
-                          }).length;
-
+                      const myPartsCorrect = results.stepResults.filter((stepResult) => {
+                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
+                        return myAnswer === stepResult.correctAnswer;
+                      }).length;
+                      
+                      const oppPartsCorrect = results.stepResults.filter((stepResult) => {
+                        const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
+                        return oppAnswer === stepResult.correctAnswer;
+                      }).length;
+                      
+                      const totalSteps = results.stepResults.length;
                       const iWon = myPartsCorrect > oppPartsCorrect;
                       const isTie = myPartsCorrect === oppPartsCorrect;
                       
@@ -640,10 +714,10 @@ export default function BattleConnected() {
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
-                                {myPartsCorrect} out of {totalParts}
+                                {myPartsCorrect} out of {totalSteps}
                               </div>
                               <div className="text-sm text-white/60 font-mono">
-                                {myPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - myPartsCorrect} incorrect`}
+                                {myPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - myPartsCorrect} incorrect`}
                               </div>
                             </motion.div>
                             
@@ -664,10 +738,10 @@ export default function BattleConnected() {
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
-                                {oppPartsCorrect} out of {totalParts}
+                                {oppPartsCorrect} out of {totalSteps}
                               </div>
                               <div className="text-sm text-white/60 font-mono">
-                                {oppPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - oppPartsCorrect} incorrect`}
+                                {oppPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - oppPartsCorrect} incorrect`}
                               </div>
                             </motion.div>
                           </div>
@@ -698,20 +772,9 @@ export default function BattleConnected() {
                             </summary>
                             <div className="space-y-2 mt-3">
                               {results.stepResults.map((stepResult, idx) => {
-                                const myPartCorrect = isPlayer1 ? stepResult.p1PartCorrect : stepResult.p2PartCorrect
-                                const myCorrect = typeof myPartCorrect === 'boolean'
-                                  ? myPartCorrect
-                                  : (() => {
-                                      const myAnswer = isPlayer1
-                                        ? (stepResult.p1MainAnswerIndex ?? stepResult.p1AnswerIndex)
-                                        : (stepResult.p2MainAnswerIndex ?? stepResult.p2AnswerIndex)
-                                      const correct = stepResult.mainCorrectAnswer ?? stepResult.correctAnswer
-                                      return myAnswer !== null && myAnswer !== undefined && correct !== null && correct !== undefined && myAnswer === correct
-                                    })()
-
-                                const myAwarded = isPlayer1
-                                  ? (stepResult.p1StepAwarded ?? stepResult.p1Marks ?? 0)
-                                  : (stepResult.p2StepAwarded ?? stepResult.p2Marks ?? 0)
+                                const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
+                                const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
+                                const myCorrect = myAnswer === stepResult.correctAnswer
                                 return (
                                   <div
                                     key={idx}
@@ -722,7 +785,7 @@ export default function BattleConnected() {
                                     <div className="flex items-center justify-between">
                                       <span className="font-bold">Step {stepResult.stepIndex + 1}</span>
                                       <span className="font-mono">
-                                        {myCorrect ? '✓' : '✗'} {myAwarded} pts
+                                        {myCorrect ? '✓' : '✗'} {myMarks} pts
                                       </span>
                                     </div>
                                   </div>
@@ -751,11 +814,9 @@ export default function BattleConnected() {
                         {(() => {
                           const myAnswer = playerRole === 'player1' ? results.player1_answer : results.player2_answer
                           const myCorrect = (playerRole === 'player1' && results.player1_correct) || (playerRole === 'player2' && results.player2_correct)
-                          // Handle both boolean (0/1) and multi-option (0-5) answers
+                          // Handle both boolean (0/1) and multi-option (0-3) answers
                           const answerDisplay = myAnswer !== null && myAnswer !== undefined 
-                            ? (typeof myAnswer === 'number' && Number.isInteger(myAnswer) && myAnswer >= 0
-                                ? String.fromCharCode(65 + myAnswer)
-                                : String(myAnswer))
+                            ? (myAnswer === 0 ? 'A' : myAnswer === 1 ? 'B' : myAnswer === 2 ? 'C' : myAnswer === 3 ? 'D' : String(myAnswer))
                             : 'N/A'
                           return (
                             <>
@@ -779,11 +840,9 @@ export default function BattleConnected() {
                         {(() => {
                           const oppAnswer = playerRole === 'player1' ? results.player2_answer : results.player1_answer
                           const oppCorrect = (playerRole === 'player1' && results.player2_correct) || (playerRole === 'player2' && results.player1_correct)
-                          // Handle both boolean (0/1) and multi-option (0-5) answers
+                          // Handle both boolean (0/1) and multi-option (0-3) answers
                           const answerDisplay = oppAnswer !== null && oppAnswer !== undefined 
-                            ? (typeof oppAnswer === 'number' && Number.isInteger(oppAnswer) && oppAnswer >= 0
-                                ? String.fromCharCode(65 + oppAnswer)
-                                : String(oppAnswer))
+                            ? (oppAnswer === 0 ? 'A' : oppAnswer === 1 ? 'B' : oppAnswer === 2 ? 'C' : oppAnswer === 3 ? 'D' : String(oppAnswer))
                             : 'N/A'
                           return (
                             <>
@@ -811,41 +870,30 @@ export default function BattleConnected() {
 
                 {!matchOver && (
                   <div className="mt-6">
-                    <div className="flex flex-col items-center gap-3">
-                      {!isWebSocketConnected ? (
-                        <>
-                          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                          <div className="text-sm font-mono text-white/60">CONNECTING...</div>
-                        </>
-                      ) : typeof nextRoundCountdown === 'number' ? (
-                        nextRoundCountdown > 0 ? (
-                          <>
-                            <div className="text-xs font-mono text-white/50 tracking-widest">NEXT ROUND IN</div>
-                            <div className="text-5xl font-black tracking-tight">{nextRoundCountdown}s</div>
-                          </>
-                        ) : (
-                          <>
-                            <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                            <div className="text-sm font-mono text-white/60">STARTING NEXT ROUND...</div>
-                          </>
-                        )
-                      ) : (
-                        <>
-                          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                          <div className="text-sm font-mono text-white/60">STARTING NEXT ROUND...</div>
-                        </>
-                      )}
-
-                      {/* Manual safety net: if countdown is missing/stuck, allow player to re-request next round */}
-                      {isWebSocketConnected && nextRoundCountdown == null && (
-                        <button
-                          onClick={() => readyForNextRound()}
-                          className="mt-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono text-white/70 hover:bg-white/10 hover:text-white transition-colors"
-                        >
-                          SYNC NEXT ROUND
-                        </button>
-                      )}
-                    </div>
+                    {!resultsAcknowledged ? (
+                      <button
+                        onClick={readyForNextRound}
+                        disabled={!isWebSocketConnected}
+                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-all shadow-lg ${
+                          isWebSocketConnected
+                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
+                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                        }`}
+                      >
+                        {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
+                      </button>
+                    ) : waitingForOpponentToAcknowledge ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                        <div className="text-sm font-mono text-white/60">
+                          WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm font-mono text-white/60 text-center">
+                        BOTH PLAYERS READY - STARTING NEXT ROUND...
+                      </div>
+                    )}
                   </div>
                 )}
                 {matchOver && (

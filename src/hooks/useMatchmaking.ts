@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { MatchRow } from '@/types/schema';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
+import { createShutterGate } from '@/lib/shutterGate';
 
 interface MatchmakingState {
   status: 'idle' | 'searching' | 'matched';
@@ -13,7 +14,7 @@ interface MatchmakingState {
 
 export function useMatchmaking() {
   const navigate = useNavigate();
-  const { startMatch } = useElevatorShutter();
+  const { startMatch: startShutterMatch } = useElevatorShutter();
   const [state, setState] = useState<MatchmakingState>({
     status: 'idle',
     match: null,
@@ -26,22 +27,29 @@ export function useMatchmaking() {
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
 
-  const runMatchFoundTransition = useCallback(
+  const transitionToBattle = useCallback(
     (match: MatchRow) => {
-      // Purple elevator shutter: close doors, navigate behind, then open once BattleConnected signals question is rendered.
-      void startMatch({
+      const { id: shutterGateId, promise } = createShutterGate();
+
+      // Close shutter, navigate behind it, then open only when the battle client resolves the gate.
+      startShutterMatch({
         message: 'MATCH FOUND',
-        // Timeout fallback so we never hang forever if the battle page fails to signal readiness.
-        loadingMs: 15000,
-        waitForReady: true,
+        waitFor: promise,
+        // Safety fallback: don't get stuck closed forever.
+        maxLoadingMs: 12000,
         onClosed: () => {
           navigate(`/online-battle-new/${match.id}`, {
-            state: { match },
+            state: { match, shutterGateId },
           });
         },
+      }).catch((err) => {
+        console.error('[MATCHMAKING] Shutter transition failed, falling back to direct navigation', err);
+        navigate(`/online-battle-new/${match.id}`, {
+          state: { match },
+        });
       });
     },
-    [navigate, startMatch]
+    [navigate, startShutterMatch]
   );
 
   // Poll for matches when in searching state
@@ -110,7 +118,8 @@ export function useMatchmaking() {
           queueStartTimeRef.current = null;
 
           toast.success('Match found! Starting battle...');
-          runMatchFoundTransition(match);
+
+          transitionToBattle(match);
         } else {
           console.log('[MATCHMAKING] Poll: No match found yet, continuing to wait...');
         }
@@ -129,7 +138,7 @@ export function useMatchmaking() {
         pollIntervalRef.current = null;
       }
     };
-  }, [state.status, runMatchFoundTransition]);
+  }, [state.status, transitionToBattle]);
 
   const startMatchmaking = useCallback(async (subject: string, level: string) => {
     if (isSearchingRef.current) {
@@ -211,7 +220,8 @@ export function useMatchmaking() {
         queueStartTimeRef.current = null;
 
         toast.success('Match found! Starting battle...');
-        runMatchFoundTransition(match);
+
+        transitionToBattle(match);
       } else if (data?.matched === false && data?.queued === true) {
         // Queued - stay in searching state and let polling handle match detection
         console.log('[MATCHMAKING] Queued, will poll for match...');
@@ -251,7 +261,7 @@ export function useMatchmaking() {
     } finally {
       isSearchingRef.current = false;
     }
-  }, [state.status, runMatchFoundTransition]);
+  }, [state.status, navigate, transitionToBattle]);
 
   const leaveQueue = useCallback(async () => {
     console.log('[MATCHMAKING] Leaving queue');
