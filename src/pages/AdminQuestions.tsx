@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
 import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Filter, Eye, CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -1509,23 +1510,40 @@ export default function AdminQuestions() {
                         </p>
                       </div>
 
-                      <div>
+                      <div className="col-span-2">
                         <label className={labelStyle}>Main Question Timer (seconds)</label>
-                        <Input
-                          type="number"
-                          min={5}
-                          max={600}
-                          value={form.mainQuestionTimerSeconds}
-                          onChange={e => {
-                            const raw = e.target.value ? parseInt(e.target.value) : 90;
-                            const next = Math.max(5, Math.min(600, Number.isFinite(raw) ? raw : 90));
-                            setForm({ ...form, mainQuestionTimerSeconds: next });
-                          }}
-                          className={glassInput}
-                          placeholder="90"
-                        />
+                        <div className="mt-2 flex items-center gap-4">
+                          <Slider
+                            min={5}
+                            max={600}
+                            step={5}
+                            value={[form.mainQuestionTimerSeconds]}
+                            onValueChange={(v) => {
+                              const raw = Array.isArray(v) ? v[0] : 90;
+                              const next = Math.max(5, Math.min(600, Number.isFinite(raw) ? Math.floor(raw) : 90));
+                              setForm({ ...form, mainQuestionTimerSeconds: next });
+                            }}
+                            className="flex-1"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min={5}
+                              max={600}
+                              value={form.mainQuestionTimerSeconds}
+                              onChange={e => {
+                                const raw = e.target.value ? parseInt(e.target.value) : 90;
+                                const next = Math.max(5, Math.min(600, Number.isFinite(raw) ? raw : 90));
+                                setForm({ ...form, mainQuestionTimerSeconds: next });
+                              }}
+                              className={`${glassInput} w-28`}
+                              placeholder="90"
+                            />
+                            <span className="text-xs text-white/60 font-mono">s</span>
+                          </div>
+                        </div>
                         <p className="text-xs text-white/40 mt-1">
-                          Main question phase before steps. 5–600s (default 90s).
+                          Main question phase before steps. 5–600s (default 90s). Slider steps in 5s increments.
                         </p>
                       </div>
 
