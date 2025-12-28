@@ -7,7 +7,7 @@ type MatchupSide = {
   rank?: string; // e.g. 'Gold III'
   level?: number; // player level
   mmr?: number; // player MMR
-  color?: string; // player card color (e.g. '#10B981' for green)
+  color?: string; // CSS color (e.g. 'hsl(var(--battle-primary))' or '#10B981')
 };
 
 type MatchupPayload = {
@@ -142,6 +142,35 @@ function getInitials(name: string): string {
   const letters = cleaned.replace(/[^a-zA-Z0-9]/g, '');
   const first = letters.slice(0, 2);
   return (first.length > 0 ? first : cleaned.slice(0, 2)).toUpperCase();
+}
+
+function withAlpha(color: string | undefined, alpha: number): string | undefined {
+  if (!color) return undefined;
+  const c = color.trim();
+  if (!c) return undefined;
+
+  // Modern hsl() (including hsl(var(--token))) → inject slash alpha.
+  if (/^hsl\(/i.test(c) && !c.includes('/')) {
+    return c.replace(/\)\s*$/, ` / ${alpha})`);
+  }
+
+  // Hex → rgba()
+  if (c.startsWith('#')) {
+    const hex = c.slice(1);
+    const isShort = hex.length === 3;
+    const isLong = hex.length === 6;
+    if (isShort || isLong) {
+      const expand = (s: string) => (isShort ? s.split('').map((ch) => ch + ch).join('') : s);
+      const full = expand(hex);
+      const r = parseInt(full.slice(0, 2), 16);
+      const g = parseInt(full.slice(2, 4), 16);
+      const b = parseInt(full.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+  }
+
+  // Best-effort fallback for named colors / rgb() strings.
+  return `color-mix(in srgb, ${c} ${Math.round(alpha * 100)}%, transparent)`;
 }
 
 // Simpler dark base
@@ -293,7 +322,11 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           animate={leftControls}
           style={{
             background: `linear-gradient(180deg, ${DOOR_BASE} 0%, ${DOOR_BASE_BOTTOM} 100%)`,
-            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.03)',
+            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.03), inset -3px 0 0 ${
+              withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.55) ?? 'rgba(16,185,129,0.55)'
+            }, inset -44px 0 90px ${
+              withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.08) ?? 'rgba(16,185,129,0.08)'
+            }`,
             willChange: 'transform',
           }}
         >
@@ -311,17 +344,18 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             <div
               className="absolute inset-0 flex flex-col items-center justify-center px-8"
               style={{
-                background: matchup.left.color
-                  ? `linear-gradient(135deg, ${matchup.left.color}08 0%, transparent 70%)`
-                  : undefined,
+                background: `linear-gradient(135deg, ${
+                  withAlpha(matchup.left.color ?? 'hsl(var(--battle-primary))', 0.12) ??
+                  'rgba(16,185,129,0.12)'
+                } 0%, transparent 70%)`,
               }}
             >
               {/* Player label */}
               <div
-                className="text-xs md:text-sm font-mono tracking-[0.4em] uppercase mb-4"
+                className="text-xs md:text-sm font-semibold tracking-widest uppercase mb-4"
                 style={{
-                  color: matchup.left.color || '#10B981',
-                  opacity: 0.7,
+                  color: matchup.left.color ?? 'hsl(var(--battle-primary))',
+                  opacity: 0.85,
                 }}
               >
                 {matchup.left.label || 'YOU'}
@@ -329,11 +363,8 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
 
               {/* Player name */}
               <div
-                className="text-4xl md:text-6xl font-black tracking-tight text-white mb-6 text-center"
-                style={{
-                  fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                  textShadow: `0 0 40px ${matchup.left.color || '#10B981'}40`,
-                }}
+                className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 text-center"
+                style={{ textShadow: `0 0 40px ${withAlpha(matchup.left.color ?? 'hsl(var(--battle-primary))', 0.22) ?? 'rgba(16,185,129,0.22)'}` }}
               >
                 {clampName(matchup.left.username)}
               </div>
@@ -342,10 +373,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               <div className="flex flex-col gap-3 items-center">
                 {matchup.left.rank && (
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider">Rank</div>
+                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">Rank</div>
                     <div
-                      className="text-xl font-bold text-white"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                      className="text-xl font-black tracking-tight text-white"
                     >
                       {matchup.left.rank}
                     </div>
@@ -353,10 +383,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
                 )}
                 {matchup.left.level && (
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider">Level</div>
+                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">Level</div>
                     <div
-                      className="text-xl font-bold text-white"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                      className="text-xl font-black tracking-tight text-white"
                     >
                       {matchup.left.level}
                     </div>
@@ -364,10 +393,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
                 )}
                 {matchup.left.mmr && (
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider">MMR</div>
+                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">MMR</div>
                     <div
-                      className="text-xl font-bold text-white"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                      className="text-xl font-black tracking-tight text-white"
                     >
                       {matchup.left.mmr}
                     </div>
@@ -385,7 +413,11 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           animate={rightControls}
           style={{
             background: `linear-gradient(180deg, ${DOOR_BASE} 0%, ${DOOR_BASE_BOTTOM} 100%)`,
-            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.03)',
+            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.03), inset 3px 0 0 ${
+              withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.55) ?? 'rgba(239,68,68,0.55)'
+            }, inset 44px 0 90px ${
+              withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.08) ?? 'rgba(239,68,68,0.08)'
+            }`,
             willChange: 'transform',
           }}
         >
@@ -403,17 +435,18 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             <div
               className="absolute inset-0 flex flex-col items-center justify-center px-8"
               style={{
-                background: matchup.right.color
-                  ? `linear-gradient(225deg, ${matchup.right.color}08 0%, transparent 70%)`
-                  : undefined,
+                background: `linear-gradient(225deg, ${
+                  withAlpha(matchup.right.color ?? 'hsl(var(--battle-danger))', 0.12) ??
+                  'rgba(239,68,68,0.12)'
+                } 0%, transparent 70%)`,
               }}
             >
               {/* Player label */}
               <div
-                className="text-xs md:text-sm font-mono tracking-[0.4em] uppercase mb-4"
+                className="text-xs md:text-sm font-semibold tracking-widest uppercase mb-4"
                 style={{
-                  color: matchup.right.color || '#EF4444',
-                  opacity: 0.7,
+                  color: matchup.right.color ?? 'hsl(var(--battle-danger))',
+                  opacity: 0.85,
                 }}
               >
                 {matchup.right.label || 'OPPONENT'}
@@ -421,11 +454,8 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
 
               {/* Player name */}
               <div
-                className="text-4xl md:text-6xl font-black tracking-tight text-white mb-6 text-center"
-                style={{
-                  fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                  textShadow: `0 0 40px ${matchup.right.color || '#EF4444'}40`,
-                }}
+                className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 text-center"
+                style={{ textShadow: `0 0 40px ${withAlpha(matchup.right.color ?? 'hsl(var(--battle-danger))', 0.22) ?? 'rgba(239,68,68,0.22)'}` }}
               >
                 {clampName(matchup.right.username)}
               </div>
@@ -434,10 +464,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               <div className="flex flex-col gap-3 items-center">
                 {matchup.right.rank && (
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider">Rank</div>
+                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">Rank</div>
                     <div
-                      className="text-xl font-bold text-white"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                      className="text-xl font-black tracking-tight text-white"
                     >
                       {matchup.right.rank}
                     </div>
@@ -445,10 +474,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
                 )}
                 {matchup.right.level && (
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider">Level</div>
+                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">Level</div>
                     <div
-                      className="text-xl font-bold text-white"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                      className="text-xl font-black tracking-tight text-white"
                     >
                       {matchup.right.level}
                     </div>
@@ -456,10 +484,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
                 )}
                 {matchup.right.mmr && (
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider">MMR</div>
+                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">MMR</div>
                     <div
-                      className="text-xl font-bold text-white"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                      className="text-xl font-black tracking-tight text-white"
                     >
                       {matchup.right.mmr}
                     </div>
@@ -489,9 +516,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               }
               className="absolute left-1/2 top-0 -translate-x-1/2 h-full w-[4px]"
               style={{
-                background: `linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.85) 18%, ${theme.accentSoft} 50%, rgba(255,255,255,0.55) 82%, transparent 100%)`,
+                background: `linear-gradient(180deg, transparent 0%, ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.35) ?? 'rgba(16,185,129,0.35)'} 28%, rgba(255,255,255,0.85) 50%, ${withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.35) ?? 'rgba(239,68,68,0.35)'} 72%, transparent 100%)`,
                 filter: 'blur(0.2px)',
-                boxShadow: `0 0 26px ${theme.accentSoft}, 0 0 60px rgba(255,255,255,0.12)`,
+                boxShadow: `0 0 26px ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.22) ?? 'rgba(16,185,129,0.22)'}, 0 0 26px ${withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.22) ?? 'rgba(239,68,68,0.22)'}, 0 0 60px rgba(255,255,255,0.12)`,
                 transformOrigin: 'center',
               }}
             />
@@ -505,7 +532,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], times: [0, 0.18, 1] }}
                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[160px] rounded-full"
                 style={{
-                  background: `linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.42) 32%, ${theme.accentSoft} 50%, rgba(255,255,255,0.32) 68%, rgba(255,255,255,0) 100%)`,
+                  background: `linear-gradient(90deg, rgba(255,255,255,0) 0%, ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.35) ?? 'rgba(16,185,129,0.35)'} 34%, rgba(255,255,255,0.42) 50%, ${withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.32) ?? 'rgba(239,68,68,0.32)'} 66%, rgba(255,255,255,0) 100%)`,
                   filter: 'blur(10px)',
                   mixBlendMode: 'screen',
                   willChange: 'transform, opacity',
@@ -530,7 +557,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             }}
           >
             <motion.div
-              className="text-5xl md:text-7xl font-extrabold tracking-wide relative"
+              className="text-6xl md:text-7xl font-black tracking-tighter relative"
               animate={active ? { y: [0, -2, 0] } : { y: 0 }}
               transition={{
                 duration: 0.85,
@@ -542,7 +569,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             </motion.div>
 
             {matchup && (matchup.center?.subtitle ?? 'LOADING') ? (
-              <div className="mt-2 text-[10px] md:text-xs text-white/50 font-mono tracking-[0.35em] uppercase">
+              <div className="mt-2 text-[10px] md:text-xs text-white/50 font-semibold tracking-widest uppercase">
                 {matchup.center?.subtitle ?? 'LOADING'}
               </div>
             ) : null}

@@ -93,11 +93,13 @@ export default function BattleConnected() {
     if (!shutterGateId) return;
     if (shutterResolvedRef.current) return;
 
-    if (isWebSocketConnected || status === 'playing' || status === 'results') {
+    // Prefer waiting for the first question to be ready before opening the doors.
+    // Safety fallback still exists via the shutter maxLoadingMs timeout.
+    if (status === 'error' || Boolean(question)) {
       shutterResolvedRef.current = true;
       resolveShutterGate(shutterGateId);
     }
-  }, [isWebSocketConnected, shutterGateId, status]);
+  }, [question, shutterGateId, status]);
 
   // Track round wins for animation
   useEffect(() => {

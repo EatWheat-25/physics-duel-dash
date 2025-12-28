@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import type { MatchRow } from '@/types/schema';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 import { createShutterGate } from '@/lib/shutterGate';
+import { getRankByPoints } from '@/types/ranking';
 
 interface MatchmakingState {
   status: 'idle' | 'searching' | 'matched';
@@ -27,18 +28,6 @@ export function useMatchmaking() {
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
 
-  const fetchUsername = useCallback(async (userId: string): Promise<string> => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('id', userId)
-      .maybeSingle();
-    if (error) {
-      console.warn('[MATCHMAKING] Failed to fetch username, using fallback', { userId, error });
-    }
-    return data?.username || 'Player';
-  }, []);
-
   const fetchPlayerStats = useCallback(async (userId: string) => {
     const [profileData, playerData] = await Promise.all([
       supabase.from('profiles').select('username').eq('id', userId).maybeSingle(),
@@ -48,14 +37,7 @@ export function useMatchmaking() {
     const username = profileData.data?.username || 'Player';
     const mmr = playerData.data?.mmr || 1000;
     
-    // Calculate rank and level from MMR (same logic as PlayerCard)
-    const getRankByPoints = (points: number) => {
-      if (points >= 2000) return { tier: 'Diamond', subRank: 'I', color: '#60A5FA' };
-      if (points >= 1800) return { tier: 'Gold', subRank: 'I', color: '#FBBF24' };
-      if (points >= 1600) return { tier: 'Silver', subRank: 'I', color: '#9CA3AF' };
-      return { tier: 'Bronze', subRank: 'I', color: '#CD7F32' };
-    };
-
+    // Rank/level (reuse game ranking logic)
     const rank = getRankByPoints(mmr);
     const level = Math.max(1, Math.floor(mmr / 100) + 1);
 
@@ -64,7 +46,6 @@ export function useMatchmaking() {
       mmr,
       rank: `${rank.tier} ${rank.subRank}`,
       level,
-      color: rank.color,
     };
   }, []);
 
@@ -94,7 +75,7 @@ export function useMatchmaking() {
             rank: myStats.rank, 
             level: myStats.level,
             mmr: myStats.mmr,
-            color: myStats.color,
+            color: 'hsl(var(--battle-primary))',
           },
           right: { 
             label: 'OPPONENT', 
@@ -102,7 +83,7 @@ export function useMatchmaking() {
             rank: opponentStats.rank, 
             level: opponentStats.level,
             mmr: opponentStats.mmr,
-            color: opponentStats.color,
+            color: 'hsl(var(--battle-danger))',
           },
           center: { title: 'VS', subtitle },
         },
