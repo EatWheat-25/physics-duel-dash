@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import type { MatchRow } from '@/types/schema'
 
 interface MatchmakingState {
-  status: 'idle' | 'queuing' | 'matched'
+  status: 'idle' | 'queuing' | 'searching' | 'matched'
   matchId: string | null
   error: string | null
 }

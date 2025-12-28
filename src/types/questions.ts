@@ -23,15 +23,16 @@ export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Diamond' | 'Unbeatable' |
  */
 export interface QuestionStep {
   id: string;
-  index: number;                    // 0-based display order
-  type: 'mcq' | 'true_false';        // Multiple choice question or True/False
-  title: string;                     // Step heading (e.g., "Find the derivative")
-  prompt: string;                    // The actual question text for this step
+  index?: number;                    // 0-based display order (optional for legacy data)
+  type?: 'mcq' | 'true_false';       // Multiple choice question or True/False (optional for legacy)
+  title?: string;                    // Step heading (e.g., "Find the derivative")
+  prompt?: string;                   // The actual question text for this step
+  question?: string;                 // Alias for prompt (backwards compatibility)
   options: string[];                 // MCQ: 2–6 options, True/False: exactly 2 options
   correctAnswer: number;             // Index of correct option (0 <= correctAnswer < options.length)
-  timeLimitSeconds: number | null;   // Time limit for this step (null = no limit)
+  timeLimitSeconds?: number | null;  // Time limit for this step (null = no limit)
   marks: number;                     // Points awarded for this step
-  explanation: string | null;        // Explanation shown after answering
+  explanation?: string | null;       // Explanation shown after answering
 }
 
 /**
@@ -46,11 +47,37 @@ export interface StepBasedQuestion {
   level: QuestionLevel;
   difficulty: QuestionDifficulty;
   rankTier?: RankTier;
-  stem: string;                      // Main question context/setup
+  rank_tier?: string | null;         // Alias for rankTier (DB compatibility)
+  stem?: string;                     // Main question context/setup (optional for legacy data)
+  questionText?: string;             // Alias for stem (backwards compatibility)
   totalMarks: number;                // Sum of all step marks
-  topicTags: string[];               // e.g., ["integration", "by-parts"]
+  topicTags?: string[];              // e.g., ["integration", "by-parts"] (optional for legacy)
+  topic_tags?: string[];             // Alias for topicTags (DB compatibility)
   steps: QuestionStep[];             // ALWAYS sorted by index (0..n)
   imageUrl?: string;                 // Optional question image
+}
+
+export interface BattleProgress {
+  currentStepIndex: number;
+  totalSteps: number;
+  score: number;
+  opponentScore: number;
+  isComplete: boolean;
+}
+
+export interface StepResult {
+  stepIndex?: number;
+  stepId?: string;                   // Optional step ID
+  playerAnswer: number | null;
+  opponentAnswer: number | null;
+  correctAnswer?: number;
+  playerCorrect?: boolean;
+  opponentCorrect?: boolean;
+  correct?: boolean;                 // Alias for playerCorrect (backwards compatibility)
+  playerMarks?: number;
+  opponentMarks?: number;
+  marksEarned?: number;              // Alias for playerMarks (backwards compatibility)
+  explanation?: string | null;       // Step explanation
 }
 
 // ============================================================================
