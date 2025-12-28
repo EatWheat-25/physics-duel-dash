@@ -21,15 +21,21 @@ export default function VersusScreen() {
   const [matchupActive, setMatchupActive] = useState<boolean>(false);
   const [hasNavigated, setHasNavigated] = useState<boolean>(false);
 
+  console.log('[VersusScreen] Component rendered', { matchId, hasMatch: !!match, hasUser: !!currentUser });
+
   // Fetch match data
   useEffect(() => {
+    console.log('[VersusScreen] Mounted with matchId:', matchId, 'location.state:', location.state);
+    
     const stateMatch = location.state?.match as MatchRow | undefined;
     if (stateMatch && stateMatch.id === matchId) {
+      console.log('[VersusScreen] Using match from location.state:', stateMatch.id);
       setMatch(stateMatch);
       return;
     }
 
     if (!matchId) {
+      console.error('[VersusScreen] No match ID provided');
       toast.error('No match ID provided');
       navigate('/matchmaking-new');
       return;
@@ -49,7 +55,10 @@ export default function VersusScreen() {
         .eq('id', matchId)
         .maybeSingle();
 
+      console.log('[VersusScreen] Fetched match:', { data: data?.id, error });
+
       if (error || !data) {
+        console.error('[VersusScreen] Match not found:', error);
         toast.error('Match not found');
         navigate('/matchmaking-new');
         return;

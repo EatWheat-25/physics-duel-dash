@@ -30,6 +30,7 @@ export function useMatchmaking() {
   const transitionToBattle = useCallback(
     (match: MatchRow) => {
       // Navigate to versus screen first, which will then transition to battle
+      console.log('[MATCHMAKING] Navigating to versus screen:', `/versus/${match.id}`, { match });
       navigate(`/versus/${match.id}`, {
         state: { match },
       });
