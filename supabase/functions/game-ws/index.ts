@@ -1434,47 +1434,6 @@ async function handleStepAnswer(
   } catch (err) {
     console.error(`[${matchId}] ❌ [STEP] Failed to start DB upsert for step ${stepIndex}:`, err)
   }
-  const p1KeysBefore = Array.from((state.playerStepAnswers.get(state.p1Id || '') || new Map()).keys())
-  const p2KeysBefore = Array.from((state.playerStepAnswers.get(state.p2Id || '') || new Map()).keys())
-  console.log(`[${matchId}] ✅ [STEP] Step ${stepIndex} answer stored in local state for player ${playerId}: ${answerIndex}`)
-  console.log(`[${matchId}] 📊 [STEP] Local state - p1Answers: [${p1KeysBefore.join(', ')}], p2Answers: [${p2KeysBefore.join(', ')}]`)
-
-  // Fire-and-forget DB upsert (for cross-instance consistency) - do NOT await for completion check
-  try {
-    const steps = Array.isArray(state.currentQuestion.steps)
-      ? state.currentQuestion.steps
-      : JSON.parse(state.currentQuestion.steps ?? '[]')
-    const step = steps[stepIndex]
-    const correctAnswer = step?.correct_answer?.correctIndex ?? step?.correctAnswer ?? 0
-    const roundIndex = Math.max(0, (state.roundNumber || 1) - 1)
-    const isCorrect = answerIndex === correctAnswer
-
-    supabase
-      .from('match_step_answers_v2')
-      .upsert({
-        match_id: matchId,
-        round_index: roundIndex,
-        question_id: state.currentQuestion?.id ?? '',
-        player_id: playerId,
-        step_index: stepIndex,
-        selected_option: answerIndex,
-        is_correct: isCorrect,
-        response_time_ms: 0
-      })
-      .then(({ error }) => {
-        if (error) {
-          console.error(`[${matchId}] ❌ [STEP] DB upsert error for step ${stepIndex}:`, error)
-        } else {
-          console.log(`[${matchId}] ✅ [STEP] DB upsert stored step ${stepIndex} for player ${playerId}`)
-        }
-      })
-      .catch((err) => {
-        console.error(`[${matchId}] ❌ [STEP] DB upsert exception for step ${stepIndex}:`, err)
-      })
-  } catch (err) {
-    console.error(`[${matchId}] ❌ [STEP] Failed to start DB upsert for step ${stepIndex}:`, err)
->>>>>>> cbb141a (Add async DB upsert for step answers + richer logging)
-  }
 
   // #region agent log
   fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1442',message:'ANSWER STORED',data:{matchId,playerId,stepIndex,answerIndex,p1Id:state.p1Id,p2Id:state.p2Id,allPlayerIds:Array.from(state.playerStepAnswers.keys()),p1AnswersKeys:Array.from((state.playerStepAnswers.get(state.p1Id||'')||new Map()).keys()),p2AnswersKeys:Array.from((state.playerStepAnswers.get(state.p2Id||'')||new Map()).keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
