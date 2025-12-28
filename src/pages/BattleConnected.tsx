@@ -7,15 +7,14 @@ import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Starfield } from '@/components/Starfield';
-import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 import { resolveShutterGate } from '@/lib/shutterGate';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const shutterGateId = (location.state as { shutterGateId?: string } | null)?.shutterGateId;
-  const { isRunning: isShutterRunning } = useElevatorShutter();
+  const shutterGateId = (location.state as any)?.shutterGateId as string | undefined;
+  const shutterResolvedRef = useRef(false);
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
@@ -89,17 +88,16 @@ export default function BattleConnected() {
     allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
 
-  // Resolve shutter gate once the first question is actually ready (or fail-safe on error).
+  // Open the shutter as soon as the battle client has something to show.
   useEffect(() => {
     if (!shutterGateId) return;
-    if (status === 'playing' && question) {
+    if (shutterResolvedRef.current) return;
+
+    if (isWebSocketConnected || status === 'playing' || status === 'results') {
+      shutterResolvedRef.current = true;
       resolveShutterGate(shutterGateId);
-      return;
     }
-    if (status === 'error') {
-      resolveShutterGate(shutterGateId);
-    }
-  }, [shutterGateId, status, question]);
+  }, [isWebSocketConnected, shutterGateId, status]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -344,6 +342,33 @@ export default function BattleConnected() {
         {/* Game Content */}
         <div className="flex-1 relative flex items-center justify-center">
           <AnimatePresence mode="wait">
+            {/* CONNECTING STATE */}
+            {(status === 'connecting' || status === 'connected' || status === 'both_connected') && (
+              <motion.div
+                key="connecting"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
+                className="text-center"
+              >
+                <div className="relative w-32 h-32 mx-auto mb-8">
+                  <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full" />
+                  <div className="absolute inset-0 border-2 border-t-blue-500 rounded-full animate-spin" />
+                  {status === 'both_connected' && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Check className="w-12 h-12 text-blue-500" />
+                    </div>
+                  )}
+                </div>
+                <h2 className="text-3xl font-bold mb-3 tracking-tight">
+                  {status === 'both_connected' ? 'OPPONENT LOCKED' : 'SEARCHING FOR TARGET'}
+                </h2>
+                <p className="text-white/40 font-mono text-sm">
+                  {status === 'both_connected' ? 'INITIATING COMBAT SEQUENCE...' : 'SCANNING FREQUENCIES...'}
+                </p>
+              </motion.div>
+            )}
+
             {/* MAIN QUESTION PHASE (Multi-step) */}
             {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
               <motion.div
