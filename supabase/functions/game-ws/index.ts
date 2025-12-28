@@ -567,6 +567,73 @@ async function selectAndBroadcastQuestion(
     // Calculate new round number
     const newRoundNumber = (match.current_round_number || 0) + 1
 
+    // ===== IDEMPOTENCY CHECK: If match_rounds row already exists for this round, just broadcast it =====
+    const { data: existingRound, error: existingRoundError } = await supabase
+      .from('match_rounds')
+      .select('id, question_id, round_number, status')
+      .eq('match_id', matchId)
+      .eq('round_number', newRoundNumber)
+      .maybeSingle()
+
+    if (existingRoundError && existingRoundError.code !== 'PGRST116') {
+      // PGRST116 = no rows returned, which is fine
+      console.warn(`[${matchId}] ⚠️ Error checking existing round (non-fatal):`, existingRoundError)
+    }
+
+    if (existingRound && existingRound.question_id) {
+      // Round already exists - fetch question and broadcast it (idempotent)
+      console.log(`[${matchId}] ✅ Round ${newRoundNumber} already exists (id: ${existingRound.id}), fetching question...`)
+      
+      const { data: existingQuestion, error: fetchExistingError } = await supabase
+        .from('questions_v2')
+        .select('*')
+        .eq('id', existingRound.question_id)
+        .single()
+
+      if (fetchExistingError || !existingQuestion) {
+        console.error(`[${matchId}] ❌ Failed to fetch existing question from round:`, fetchExistingError)
+        throw new Error(`Failed to fetch question ${existingRound.question_id} from existing round`)
+      }
+
+      // Update gameState if needed
+      const existingGameState = gameStates.get(matchId)
+      if (existingGameState) {
+        existingGameState.currentQuestion = existingQuestion
+        existingGameState.roundNumber = newRoundNumber
+      } else {
+        // Get match players for game state initialization
+        const { data: matchData } = await supabase
+          .from('matches')
+          .select('player1_id, player2_id')
+          .eq('id', matchId)
+          .single()
+        
+        const newGameState: GameState = {
+          currentPhase: 'question',
+          currentStepIndex: 0,
+          mainQuestionTimer: null,
+          stepTimers: new Map(),
+          mainQuestionEndsAt: null,
+          stepEndsAt: null,
+          playerStepAnswers: new Map(),
+          currentQuestion: existingQuestion,
+          p1Id: matchData?.player1_id || null,
+          p2Id: matchData?.player2_id || null,
+          eliminatedPlayers: new Set(),
+          roundNumber: newRoundNumber,
+          targetRoundsToWin: match.target_rounds_to_win || 4,
+          playerRoundWins: new Map(),
+          p1AllStepsComplete: false,
+          p2AllStepsComplete: false
+        }
+        gameStates.set(matchId, newGameState)
+      }
+
+      console.log(`[${matchId}] ✅ Broadcasting existing question from round ${newRoundNumber}: ${existingQuestion.id}`)
+      await broadcastQuestion(matchId, existingQuestion, supabase)
+      return // Early return - question already selected and broadcast
+    }
+
     // Select question (reuse existing logic)
     let questionDb: any = null
 
@@ -717,6 +784,50 @@ async function selectAndBroadcastQuestion(
       .single()
 
     if (roundError || !newRound) {
+      // Check if error is due to duplicate (race condition - another instance created it)
+      if (roundError?.code === '23505' || roundError?.message?.includes('duplicate') || roundError?.message?.includes('unique')) {
+        console.log(`[${matchId}] ⚠️ Race condition: match_rounds row already exists for round ${newRoundNumber}, fetching existing...`)
+        
+        // Race condition - fetch existing round and broadcast
+        const { data: raceRound, error: raceFetchError } = await supabase
+          .from('match_rounds')
+          .select('id, question_id, round_number')
+          .eq('match_id', matchId)
+          .eq('round_number', newRoundNumber)
+          .single()
+
+        if (raceFetchError || !raceRound?.question_id) {
+          console.error(`[${matchId}] ❌ Failed to fetch race-created round:`, raceFetchError)
+          throw new Error('Failed to create or fetch match_rounds row after race condition')
+        }
+
+        const { data: raceQuestion, error: raceQuestionError } = await supabase
+          .from('questions_v2')
+          .select('*')
+          .eq('id', raceRound.question_id)
+          .single()
+
+        if (raceQuestionError || !raceQuestion) {
+          console.error(`[${matchId}] ❌ Failed to fetch question from race-created round:`, raceQuestionError)
+          throw new Error(`Failed to fetch question ${raceRound.question_id} from race-created round`)
+        }
+
+        questionDb = raceQuestion
+        console.log(`[${matchId}] ✅ Using question from race-created round: ${questionDb.id}`)
+        
+        // Update gameState
+        const existingGameState = gameStates.get(matchId)
+        if (existingGameState) {
+          existingGameState.currentQuestion = questionDb
+          existingGameState.roundNumber = newRoundNumber
+        }
+
+        // Continue to broadcast (skip the match update since round already exists)
+        console.log(`[${matchId}] ✅ Broadcasting question from race-created round: ${questionDb.id}`)
+        await broadcastQuestion(matchId, questionDb, supabase)
+        return // Early return - question already selected and broadcast
+      }
+
       console.error(`[${matchId}] ❌ Failed to create match_rounds row:`, roundError)
       throw roundError || new Error('Failed to create match_rounds row')
     }
@@ -735,11 +846,12 @@ async function selectAndBroadcastQuestion(
       .eq('id', matchId)
 
     if (updateError) {
-      console.error(`[${matchId}] ❌ Failed to update matches with round info:`, updateError)
-      throw updateError
+      // Non-fatal - round was created, just log the warning
+      console.warn(`[${matchId}] ⚠️ Failed to update matches with round info (non-fatal):`, updateError)
+      // Continue anyway - the round exists and we can still broadcast
+    } else {
+      console.log(`[${matchId}] ✅ Updated matches.current_round_id = ${newRound.id}, current_round_number = ${newRoundNumber}`)
     }
-
-    console.log(`[${matchId}] ✅ Updated matches.current_round_id = ${newRound.id}, current_round_number = ${newRoundNumber}`)
 
     // After obtaining questionDb, set it in gameState for idempotency
     const existingGameState = gameStates.get(matchId)

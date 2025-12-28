@@ -76,7 +76,8 @@ export function useMatchmaking() {
             rank: myStats.rank, 
             level: myStats.level,
             mmr: myStats.mmr,
-            color: 'hsl(var(--battle-primary))',
+            // Blue for YOU (ally)
+            color: 'var(--blue)',
           },
           right: { 
             label: 'OPPONENT', 
@@ -84,8 +85,8 @@ export function useMatchmaking() {
             rank: opponentStats.rank, 
             level: opponentStats.level,
             mmr: opponentStats.mmr,
-            // User-requested: blue + green theme (opponent is blue instead of red)
-            color: 'var(--blue)',
+            // Red for opponent
+            color: 'hsl(var(--battle-danger))',
           },
           center: { title: 'VS', subtitle },
         },
