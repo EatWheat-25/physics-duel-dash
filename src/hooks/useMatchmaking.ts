@@ -27,15 +27,53 @@ export function useMatchmaking() {
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
 
-  const transitionToBattle = useCallback(
-    (match: MatchRow) => {
-      // Navigate to versus screen first, which will then transition to battle
-      console.log('[MATCHMAKING] Navigating to versus screen:', `/versus/${match.id}`, { match });
-      navigate(`/versus/${match.id}`, {
-        state: { match },
+  const fetchUsername = useCallback(async (userId: string): Promise<string> => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) {
+      console.warn('[MATCHMAKING] Failed to fetch username, using fallback', { userId, error });
+    }
+    return data?.username || 'Player';
+  }, []);
+
+  const playMatchFoundCinematic = useCallback(
+    async (match: MatchRow, currentUserId: string) => {
+      const opponentId = match.player1_id === currentUserId ? match.player2_id : match.player1_id;
+
+      const [myUsername, opponentUsername] = await Promise.all([
+        fetchUsername(currentUserId),
+        fetchUsername(opponentId),
+      ]);
+
+      const subtitleParts: string[] = [];
+      if (match.subject) subtitleParts.push(String(match.subject).toUpperCase());
+      // matches table has `mode`; MatchRow type may not include it in this repo’s schema typing.
+      if ((match as any).mode) subtitleParts.push(String((match as any).mode).toUpperCase());
+      const subtitle = subtitleParts.length ? subtitleParts.join(' • ') : undefined;
+
+      const gate = createShutterGate();
+
+      void startShutterMatch({
+        subject: match.subject,
+        matchup: {
+          left: { label: 'YOU', username: myUsername },
+          right: { label: 'OPPONENT', username: opponentUsername },
+          center: { title: 'VERSUS', subtitle },
+        },
+        minLoadingMs: 650,
+        maxLoadingMs: 8000,
+        waitFor: gate.promise,
+        onClosed: () => {
+          navigate(`/online-battle-new/${match.id}`, {
+            state: { match, shutterGateId: gate.id },
+          });
+        },
       });
     },
-    [navigate]
+    [fetchUsername, navigate, startShutterMatch]
   );
 
   // Poll for matches when in searching state
@@ -87,7 +125,7 @@ export function useMatchmaking() {
             }
           }
           
-          console.log(`[MATCHMAKING] ✅ Poll detected fresh match, navigating...`, match.id);
+          console.log(`[MATCHMAKING] ✅ Poll detected fresh match, starting shutter...`, match.id);
           
           // Clear polling
           if (pollIntervalRef.current) {
@@ -103,9 +141,8 @@ export function useMatchmaking() {
           setQueueStartTime(null);
           queueStartTimeRef.current = null;
 
-          toast.success('Match found! Starting battle...');
-
-          transitionToBattle(match);
+          // Let the shutter handle navigation while doors are closed.
+          await playMatchFoundCinematic(match, user.id);
         } else {
           console.log('[MATCHMAKING] Poll: No match found yet, continuing to wait...');
         }
@@ -124,7 +161,7 @@ export function useMatchmaking() {
         pollIntervalRef.current = null;
       }
     };
-  }, [state.status, transitionToBattle]);
+  }, [state.status, playMatchFoundCinematic]);
 
   const startMatchmaking = useCallback(async (subject: string, level: string) => {
     if (isSearchingRef.current) {
@@ -205,9 +242,8 @@ export function useMatchmaking() {
         setQueueStartTime(null);
         queueStartTimeRef.current = null;
 
-        toast.success('Match found! Starting battle...');
-
-        transitionToBattle(match);
+        // Let the shutter handle navigation while doors are closed.
+        await playMatchFoundCinematic(match, user.id);
       } else if (data?.matched === false && data?.queued === true) {
         // Queued - stay in searching state and let polling handle match detection
         console.log('[MATCHMAKING] Queued, will poll for match...');
@@ -247,7 +283,7 @@ export function useMatchmaking() {
     } finally {
       isSearchingRef.current = false;
     }
-  }, [state.status, navigate, transitionToBattle]);
+  }, [state.status, playMatchFoundCinematic]);
 
   const leaveQueue = useCallback(async () => {
     console.log('[MATCHMAKING] Leaving queue');
