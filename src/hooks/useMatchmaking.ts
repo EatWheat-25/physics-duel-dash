@@ -39,32 +39,75 @@ export function useMatchmaking() {
     return data?.username || 'Player';
   }, []);
 
+  const fetchPlayerStats = useCallback(async (userId: string) => {
+    const [profileData, playerData] = await Promise.all([
+      supabase.from('profiles').select('username').eq('id', userId).maybeSingle(),
+      supabase.from('players').select('mmr').eq('id', userId).maybeSingle(),
+    ]);
+
+    const username = profileData.data?.username || 'Player';
+    const mmr = playerData.data?.mmr || 1000;
+    
+    // Calculate rank and level from MMR (same logic as PlayerCard)
+    const getRankByPoints = (points: number) => {
+      if (points >= 2000) return { tier: 'Diamond', subRank: 'I', color: '#60A5FA' };
+      if (points >= 1800) return { tier: 'Gold', subRank: 'I', color: '#FBBF24' };
+      if (points >= 1600) return { tier: 'Silver', subRank: 'I', color: '#9CA3AF' };
+      return { tier: 'Bronze', subRank: 'I', color: '#CD7F32' };
+    };
+
+    const rank = getRankByPoints(mmr);
+    const level = Math.max(1, Math.floor(mmr / 100) + 1);
+
+    return {
+      username,
+      mmr,
+      rank: `${rank.tier} ${rank.subRank}`,
+      level,
+      color: rank.color,
+    };
+  }, []);
+
   const playMatchFoundCinematic = useCallback(
     async (match: MatchRow, currentUserId: string) => {
       const opponentId = match.player1_id === currentUserId ? match.player2_id : match.player1_id;
 
-      const [myUsername, opponentUsername] = await Promise.all([
-        fetchUsername(currentUserId),
-        fetchUsername(opponentId),
+      const [myStats, opponentStats] = await Promise.all([
+        fetchPlayerStats(currentUserId),
+        fetchPlayerStats(opponentId),
       ]);
 
       const subtitleParts: string[] = [];
       if (match.subject) subtitleParts.push(String(match.subject).toUpperCase());
-      // matches table has `mode`; MatchRow type may not include it in this repo’s schema typing.
+      // matches table has `mode`; MatchRow type may not include it in this repo's schema typing.
       if ((match as any).mode) subtitleParts.push(String((match as any).mode).toUpperCase());
-      const subtitle = subtitleParts.length ? subtitleParts.join(' • ') : undefined;
+      const subtitle = subtitleParts.length ? subtitleParts.join(' • ') : 'LOADING';
 
       const gate = createShutterGate();
 
       void startShutterMatch({
         subject: match.subject,
         matchup: {
-          left: { label: 'YOU', username: myUsername },
-          right: { label: 'OPPONENT', username: opponentUsername },
-          center: { title: 'VERSUS', subtitle },
+          left: { 
+            label: 'YOU', 
+            username: myStats.username, 
+            rank: myStats.rank, 
+            level: myStats.level,
+            mmr: myStats.mmr,
+            color: myStats.color,
+          },
+          right: { 
+            label: 'OPPONENT', 
+            username: opponentStats.username, 
+            rank: opponentStats.rank, 
+            level: opponentStats.level,
+            mmr: opponentStats.mmr,
+            color: opponentStats.color,
+          },
+          center: { title: 'VS', subtitle },
         },
-        minLoadingMs: 650,
-        maxLoadingMs: 8000,
+        minLoadingMs: 1200,
+        maxLoadingMs: 15000,
         waitFor: gate.promise,
         onClosed: () => {
           navigate(`/online-battle-new/${match.id}`, {
@@ -73,7 +116,7 @@ export function useMatchmaking() {
         },
       });
     },
-    [fetchUsername, navigate, startShutterMatch]
+    [fetchPlayerStats, navigate, startShutterMatch]
   );
 
   // Poll for matches when in searching state

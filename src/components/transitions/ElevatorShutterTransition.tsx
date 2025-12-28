@@ -4,13 +4,17 @@ import { motion, useAnimation } from 'framer-motion';
 type MatchupSide = {
   label: string; // e.g. 'YOU' | 'OPPONENT'
   username: string;
+  rank?: string; // e.g. 'Gold III'
+  level?: number; // player level
+  mmr?: number; // player MMR
+  color?: string; // player card color (e.g. '#10B981' for green)
 };
 
 type MatchupPayload = {
   left: MatchupSide;
   right: MatchupSide;
   center?: {
-    title?: string; // defaults to 'VERSUS'
+    title?: string; // defaults to 'VS'
     subtitle?: string; // optional smaller line under the title
   };
 };
@@ -23,7 +27,7 @@ type StartMatchOptions = {
    */
   subject?: string;
   /**
-   * Optional matchup payload to show "YOU vs OPPONENT" cards on the doors and a VS/VERSUS lockup in the center.
+   * Optional matchup payload to show "YOU vs OPPONENT" full-door info and a VS lockup in the center.
    */
   matchup?: MatchupPayload;
   /**
@@ -140,9 +144,9 @@ function getInitials(name: string): string {
   return (first.length > 0 ? first : cleaned.slice(0, 2)).toUpperCase();
 }
 
-// Darkrai-inspired near-black base (theme-matched)
-const DARKRAI_TOP = '#070610';
-const DARKRAI_BOTTOM = '#140B22';
+// Simpler dark base
+const DOOR_BASE = '#0A0A0F';
+const DOOR_BASE_BOTTOM = '#12121A';
 
 export function ElevatorShutterProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
@@ -288,94 +292,87 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '-100%' }}
           animate={leftControls}
           style={{
-            background: `linear-gradient(180deg, ${DARKRAI_TOP} 0%, ${DARKRAI_BOTTOM} 100%)`,
-            boxShadow:
-              `inset 0 0 0 1px rgba(255,255,255,0.04), inset -18px 0 28px rgba(0,0,0,0.55), inset -2px 0 0 ${theme.accentSofter}`,
+            background: `linear-gradient(180deg, ${DOOR_BASE} 0%, ${DOOR_BASE_BOTTOM} 100%)`,
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.03)',
             willChange: 'transform',
           }}
         >
-          {/* Matte grain texture */}
-          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
+          {/* Subtle grain texture */}
+          <svg className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none">
             <filter id={noiseLeftId}>
               <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
               <feColorMatrix type="saturate" values="0" />
             </filter>
             <rect width="100%" height="100%" filter={`url(#${noiseLeftId})`} />
           </svg>
-          {/* Subject texture accent (subtle) */}
-          {theme.patternImage ? (
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                backgroundImage: theme.patternImage,
-                backgroundSize: theme.patternSize ?? undefined,
-                backgroundRepeat: 'repeat',
-                backgroundPosition: '0 0',
-                opacity: theme.patternOpacity,
-                mixBlendMode: theme.patternBlendMode ?? 'screen',
-              }}
-            />
-          ) : null}
-          {/* Soft shading to feel more “ceramic/metal” than flat */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-40"
-            style={{
-              background:
-                `radial-gradient(900px 700px at 18% 18%, ${theme.accentSoft} 0%, transparent 58%), radial-gradient(900px 700px at 85% 75%, rgba(255,255,255,0.06) 0%, transparent 62%)`,
-            }}
-          />
 
-          {/* Matchup card (left / YOU) */}
+          {/* Full-door player info (left / YOU) */}
           {matchup ? (
             <div
-              className="absolute top-1/2 -translate-y-1/2 right-4 md:right-8"
-              style={{ width: 'min(86%, 340px)' }}
+              className="absolute inset-0 flex flex-col items-center justify-center px-8"
+              style={{
+                background: matchup.left.color
+                  ? `linear-gradient(135deg, ${matchup.left.color}08 0%, transparent 70%)`
+                  : undefined,
+              }}
             >
+              {/* Player label */}
               <div
-                className="relative rounded-2xl border border-white/10 bg-black/25 backdrop-blur-xl px-4 py-4 shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
+                className="text-xs md:text-sm font-mono tracking-[0.4em] uppercase mb-4"
                 style={{
-                  boxShadow:
-                    '0 24px 70px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06)',
+                  color: matchup.left.color || '#10B981',
+                  opacity: 0.7,
                 }}
               >
-                <div
-                  className="absolute inset-0 rounded-2xl pointer-events-none"
-                  style={{
-                    background:
-                      'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 55%)',
-                  }}
-                />
-                <div className="relative flex items-center gap-4 min-w-0">
-                  <div
-                    className="h-12 w-12 rounded-full flex items-center justify-center border shadow-[0_0_24px_rgba(16,185,129,0.18)]"
-                    style={{
-                      borderColor: 'rgba(16,185,129,0.45)',
-                      background:
-                        'radial-gradient(circle at 30% 30%, rgba(16,185,129,0.20) 0%, rgba(0,0,0,0.10) 60%)',
-                    }}
-                    aria-hidden
-                  >
-                    <span
-                      className="text-sm font-black text-white/95"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif', letterSpacing: '0.08em' }}
-                    >
-                      {getInitials(matchup.left.username)}
-                    </span>
-                  </div>
+                {matchup.left.label || 'YOU'}
+              </div>
 
-                  <div className="min-w-0">
-                    <div className="text-[10px] md:text-xs font-mono tracking-[0.35em] uppercase text-emerald-300/80">
-                      {matchup.left.label || 'YOU'}
-                    </div>
+              {/* Player name */}
+              <div
+                className="text-4xl md:text-6xl font-black tracking-tight text-white mb-6 text-center"
+                style={{
+                  fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                  textShadow: `0 0 40px ${matchup.left.color || '#10B981'}40`,
+                }}
+              >
+                {clampName(matchup.left.username)}
+              </div>
+
+              {/* Stats row */}
+              <div className="flex flex-col gap-3 items-center">
+                {matchup.left.rank && (
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-white/40 uppercase tracking-wider">Rank</div>
                     <div
-                      className="mt-1 text-lg md:text-2xl font-black tracking-tight text-white truncate"
+                      className="text-xl font-bold text-white"
                       style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
-                      title={clampName(matchup.left.username)}
                     >
-                      {clampName(matchup.left.username)}
+                      {matchup.left.rank}
                     </div>
                   </div>
-                </div>
+                )}
+                {matchup.left.level && (
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-white/40 uppercase tracking-wider">Level</div>
+                    <div
+                      className="text-xl font-bold text-white"
+                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                    >
+                      {matchup.left.level}
+                    </div>
+                  </div>
+                )}
+                {matchup.left.mmr && (
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-white/40 uppercase tracking-wider">MMR</div>
+                    <div
+                      className="text-xl font-bold text-white"
+                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                    >
+                      {matchup.left.mmr}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : null}
@@ -387,94 +384,87 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '100%' }}
           animate={rightControls}
           style={{
-            background: `linear-gradient(180deg, ${DARKRAI_TOP} 0%, ${DARKRAI_BOTTOM} 100%)`,
-            boxShadow:
-              `inset 0 0 0 1px rgba(255,255,255,0.04), inset 18px 0 28px rgba(0,0,0,0.55), inset 2px 0 0 ${theme.accentSofter}`,
+            background: `linear-gradient(180deg, ${DOOR_BASE} 0%, ${DOOR_BASE_BOTTOM} 100%)`,
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.03)',
             willChange: 'transform',
           }}
         >
-          {/* Matte grain texture */}
-          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
+          {/* Subtle grain texture */}
+          <svg className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none">
             <filter id={noiseRightId}>
               <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
               <feColorMatrix type="saturate" values="0" />
             </filter>
             <rect width="100%" height="100%" filter={`url(#${noiseRightId})`} />
           </svg>
-          {/* Subject texture accent (subtle) */}
-          {theme.patternImage ? (
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                backgroundImage: theme.patternImage,
-                backgroundSize: theme.patternSize ?? undefined,
-                backgroundRepeat: 'repeat',
-                backgroundPosition: '40px 30px',
-                opacity: theme.patternOpacity,
-                mixBlendMode: theme.patternBlendMode ?? 'screen',
-              }}
-            />
-          ) : null}
-          {/* Soft shading to feel more “ceramic/metal” than flat */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-40"
-            style={{
-              background:
-                `radial-gradient(900px 700px at 82% 18%, ${theme.accentSoft} 0%, transparent 58%), radial-gradient(900px 700px at 18% 75%, rgba(255,255,255,0.06) 0%, transparent 62%)`,
-            }}
-          />
 
-          {/* Matchup card (right / OPPONENT) */}
+          {/* Full-door player info (right / OPPONENT) */}
           {matchup ? (
             <div
-              className="absolute top-1/2 -translate-y-1/2 left-4 md:left-8"
-              style={{ width: 'min(86%, 340px)' }}
+              className="absolute inset-0 flex flex-col items-center justify-center px-8"
+              style={{
+                background: matchup.right.color
+                  ? `linear-gradient(225deg, ${matchup.right.color}08 0%, transparent 70%)`
+                  : undefined,
+              }}
             >
+              {/* Player label */}
               <div
-                className="relative rounded-2xl border border-white/10 bg-black/25 backdrop-blur-xl px-4 py-4 shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
+                className="text-xs md:text-sm font-mono tracking-[0.4em] uppercase mb-4"
                 style={{
-                  boxShadow:
-                    '0 24px 70px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06)',
+                  color: matchup.right.color || '#EF4444',
+                  opacity: 0.7,
                 }}
               >
-                <div
-                  className="absolute inset-0 rounded-2xl pointer-events-none"
-                  style={{
-                    background:
-                      'linear-gradient(225deg, rgba(255,255,255,0.06) 0%, transparent 55%)',
-                  }}
-                />
-                <div className="relative flex items-center gap-4 min-w-0">
-                  <div
-                    className="h-12 w-12 rounded-full flex items-center justify-center border shadow-[0_0_24px_rgba(239,68,68,0.18)]"
-                    style={{
-                      borderColor: 'rgba(239,68,68,0.45)',
-                      background:
-                        'radial-gradient(circle at 30% 30%, rgba(239,68,68,0.18) 0%, rgba(0,0,0,0.10) 60%)',
-                    }}
-                    aria-hidden
-                  >
-                    <span
-                      className="text-sm font-black text-white/95"
-                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif', letterSpacing: '0.08em' }}
-                    >
-                      {getInitials(matchup.right.username)}
-                    </span>
-                  </div>
+                {matchup.right.label || 'OPPONENT'}
+              </div>
 
-                  <div className="min-w-0">
-                    <div className="text-[10px] md:text-xs font-mono tracking-[0.35em] uppercase text-red-300/80">
-                      {matchup.right.label || 'OPPONENT'}
-                    </div>
+              {/* Player name */}
+              <div
+                className="text-4xl md:text-6xl font-black tracking-tight text-white mb-6 text-center"
+                style={{
+                  fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
+                  textShadow: `0 0 40px ${matchup.right.color || '#EF4444'}40`,
+                }}
+              >
+                {clampName(matchup.right.username)}
+              </div>
+
+              {/* Stats row */}
+              <div className="flex flex-col gap-3 items-center">
+                {matchup.right.rank && (
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-white/40 uppercase tracking-wider">Rank</div>
                     <div
-                      className="mt-1 text-lg md:text-2xl font-black tracking-tight text-white truncate"
+                      className="text-xl font-bold text-white"
                       style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
-                      title={clampName(matchup.right.username)}
                     >
-                      {clampName(matchup.right.username)}
+                      {matchup.right.rank}
                     </div>
                   </div>
-                </div>
+                )}
+                {matchup.right.level && (
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-white/40 uppercase tracking-wider">Level</div>
+                    <div
+                      className="text-xl font-bold text-white"
+                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                    >
+                      {matchup.right.level}
+                    </div>
+                  </div>
+                )}
+                {matchup.right.mmr && (
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-white/40 uppercase tracking-wider">MMR</div>
+                    <div
+                      className="text-xl font-bold text-white"
+                      style={{ fontFamily: 'Orbitron, Inter, system-ui, sans-serif' }}
+                    >
+                      {matchup.right.mmr}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : null}
@@ -536,32 +526,11 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             className="relative text-center"
             style={{
               color: '#F8FAFC',
-              textShadow:
-                `0 0 18px rgba(255,255,255,0.28), 0 0 54px ${theme.accentSoft}`,
+              textShadow: '0 0 12px rgba(255,255,255,0.2)',
             }}
           >
-            {/* Subtle animated glow blob behind text (transform/opacity only for 60fps) */}
             <motion.div
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
-              style={{
-                width: 520,
-                height: 220,
-                background: 'rgba(168, 85, 247, 0.25)',
-              }}
-              animate={
-                active
-                  ? { opacity: [0.18, 0.32, 0.18], scale: [1, 1.08, 1] }
-                  : { opacity: 0, scale: 1 }
-              }
-              transition={{
-                duration: 1.1,
-                repeat: active ? Infinity : 0,
-                ease: 'easeInOut',
-              }}
-            />
-
-            <motion.div
-              className="text-3xl md:text-4xl font-extrabold tracking-wider relative"
+              className="text-5xl md:text-7xl font-extrabold tracking-wide relative"
               animate={active ? { y: [0, -2, 0] } : { y: 0 }}
               transition={{
                 duration: 0.85,
@@ -569,31 +538,14 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
                 ease: 'easeInOut',
               }}
             >
-              {matchup ? (matchup.center?.title ?? 'VERSUS') : message}
+              {matchup ? (matchup.center?.title ?? 'VS') : message}
             </motion.div>
 
-            {matchup && (matchup.center?.subtitle ?? 'YOU VS OPPONENT') ? (
-              <div className="mt-2 text-[10px] md:text-xs text-white/60 font-mono tracking-[0.35em] uppercase">
-                {matchup.center?.subtitle ?? 'YOU VS OPPONENT'}
+            {matchup && (matchup.center?.subtitle ?? 'LOADING') ? (
+              <div className="mt-2 text-[10px] md:text-xs text-white/50 font-mono tracking-[0.35em] uppercase">
+                {matchup.center?.subtitle ?? 'LOADING'}
               </div>
             ) : null}
-
-            {/* Small scan line animation */}
-            <div className="mt-4 h-px w-64 mx-auto bg-black/10 overflow-hidden">
-              <motion.div
-                className="h-full w-24"
-                style={{
-                  background:
-                    'linear-gradient(90deg, rgba(196,181,253,0), rgba(196,181,253,0.95), rgba(196,181,253,0))',
-                }}
-                animate={active ? { x: ['-40%', '160%'] } : { x: '-40%' }}
-                transition={{
-                  duration: 1.15,
-                  repeat: active ? Infinity : 0,
-                  ease: 'easeInOut',
-                }}
-              />
-            </div>
           </div>
         </motion.div>
       </div>
