@@ -322,12 +322,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '-100%' }}
           animate={leftControls}
           style={{
-            background: `linear-gradient(180deg, ${DOOR_BASE} 0%, ${DOOR_BASE_BOTTOM} 100%)`,
-            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.03), inset -3px 0 0 ${
-              withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.55) ?? 'rgba(16,185,129,0.55)'
-            }, inset -44px 0 90px ${
-              withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.08) ?? 'rgba(16,185,129,0.08)'
-            }`,
+            // Full blue panel with matte gradient (darker to lighter for depth)
+            background: `linear-gradient(180deg, #2563EB 0%, #3B82F6 100%)`,
+            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.05)`,
             willChange: 'transform',
           }}
         >
@@ -413,12 +410,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '100%' }}
           animate={rightControls}
           style={{
-            background: `linear-gradient(180deg, ${DOOR_BASE} 0%, ${DOOR_BASE_BOTTOM} 100%)`,
-            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.03), inset 3px 0 0 ${
-              withAlpha(matchup?.right.color ?? 'var(--blue)', 0.55) ?? 'rgba(88,196,255,0.55)'
-            }, inset 44px 0 90px ${
-              withAlpha(matchup?.right.color ?? 'var(--blue)', 0.08) ?? 'rgba(88,196,255,0.08)'
-            }`,
+            // Full red panel with matte gradient (darker to lighter for depth)
+            background: `linear-gradient(180deg, #DC2626 0%, #EF4444 100%)`,
+            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.05)`,
             willChange: 'transform',
           }}
         >
