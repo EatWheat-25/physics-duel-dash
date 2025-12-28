@@ -174,8 +174,9 @@ function withAlpha(color: string | undefined, alpha: number): string | undefined
 }
 
 // Simpler dark base
-const DOOR_BASE = '#0A0A0F';
-const DOOR_BASE_BOTTOM = '#12121A';
+// User-requested: a bit lighter than Darkrai (still cyber/dark)
+const DOOR_BASE = '#10182A';
+const DOOR_BASE_BOTTOM = '#18213A';
 
 export function ElevatorShutterProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
@@ -414,9 +415,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           style={{
             background: `linear-gradient(180deg, ${DOOR_BASE} 0%, ${DOOR_BASE_BOTTOM} 100%)`,
             boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.03), inset 3px 0 0 ${
-              withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.55) ?? 'rgba(239,68,68,0.55)'
+              withAlpha(matchup?.right.color ?? 'var(--blue)', 0.55) ?? 'rgba(88,196,255,0.55)'
             }, inset 44px 0 90px ${
-              withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.08) ?? 'rgba(239,68,68,0.08)'
+              withAlpha(matchup?.right.color ?? 'var(--blue)', 0.08) ?? 'rgba(88,196,255,0.08)'
             }`,
             willChange: 'transform',
           }}
@@ -436,8 +437,8 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               className="absolute inset-0 flex flex-col items-center justify-center px-8"
               style={{
                 background: `linear-gradient(225deg, ${
-                  withAlpha(matchup.right.color ?? 'hsl(var(--battle-danger))', 0.12) ??
-                  'rgba(239,68,68,0.12)'
+                  withAlpha(matchup.right.color ?? 'var(--blue)', 0.12) ??
+                  'rgba(88,196,255,0.12)'
                 } 0%, transparent 70%)`,
               }}
             >
@@ -445,7 +446,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               <div
                 className="text-xs md:text-sm font-semibold tracking-widest uppercase mb-4"
                 style={{
-                  color: matchup.right.color ?? 'hsl(var(--battle-danger))',
+                  color: matchup.right.color ?? 'var(--blue)',
                   opacity: 0.85,
                 }}
               >
@@ -455,7 +456,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               {/* Player name */}
               <div
                 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 text-center"
-                style={{ textShadow: `0 0 40px ${withAlpha(matchup.right.color ?? 'hsl(var(--battle-danger))', 0.22) ?? 'rgba(239,68,68,0.22)'}` }}
+                style={{ textShadow: `0 0 40px ${withAlpha(matchup.right.color ?? 'var(--blue)', 0.22) ?? 'rgba(88,196,255,0.22)'}` }}
               >
                 {clampName(matchup.right.username)}
               </div>
@@ -516,9 +517,9 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               }
               className="absolute left-1/2 top-0 -translate-x-1/2 h-full w-[4px]"
               style={{
-                background: `linear-gradient(180deg, transparent 0%, ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.35) ?? 'rgba(16,185,129,0.35)'} 28%, rgba(255,255,255,0.85) 50%, ${withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.35) ?? 'rgba(239,68,68,0.35)'} 72%, transparent 100%)`,
+                background: `linear-gradient(180deg, transparent 0%, ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.35) ?? 'rgba(16,185,129,0.35)'} 28%, rgba(255,255,255,0.85) 50%, ${withAlpha(matchup?.right.color ?? 'var(--blue)', 0.35) ?? 'rgba(88,196,255,0.35)'} 72%, transparent 100%)`,
                 filter: 'blur(0.2px)',
-                boxShadow: `0 0 26px ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.22) ?? 'rgba(16,185,129,0.22)'}, 0 0 26px ${withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.22) ?? 'rgba(239,68,68,0.22)'}, 0 0 60px rgba(255,255,255,0.12)`,
+                boxShadow: `0 0 26px ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.22) ?? 'rgba(16,185,129,0.22)'}, 0 0 26px ${withAlpha(matchup?.right.color ?? 'var(--blue)', 0.22) ?? 'rgba(88,196,255,0.22)'}, 0 0 60px rgba(255,255,255,0.12)`,
                 transformOrigin: 'center',
               }}
             />
@@ -532,7 +533,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], times: [0, 0.18, 1] }}
                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[160px] rounded-full"
                 style={{
-                  background: `linear-gradient(90deg, rgba(255,255,255,0) 0%, ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.35) ?? 'rgba(16,185,129,0.35)'} 34%, rgba(255,255,255,0.42) 50%, ${withAlpha(matchup?.right.color ?? 'hsl(var(--battle-danger))', 0.32) ?? 'rgba(239,68,68,0.32)'} 66%, rgba(255,255,255,0) 100%)`,
+                  background: `linear-gradient(90deg, rgba(255,255,255,0) 0%, ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.35) ?? 'rgba(16,185,129,0.35)'} 34%, rgba(255,255,255,0.42) 50%, ${withAlpha(matchup?.right.color ?? 'var(--blue)', 0.32) ?? 'rgba(88,196,255,0.32)'} 66%, rgba(255,255,255,0) 100%)`,
                   filter: 'blur(10px)',
                   mixBlendMode: 'screen',
                   willChange: 'transform, opacity',
@@ -556,17 +557,12 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               textShadow: '0 0 12px rgba(255,255,255,0.2)',
             }}
           >
-            <motion.div
-              className="text-6xl md:text-7xl font-black tracking-tighter relative"
-              animate={active ? { y: [0, -2, 0] } : { y: 0 }}
-              transition={{
-                duration: 0.85,
-                repeat: active ? Infinity : 0,
-                ease: 'easeInOut',
-              }}
+            <div
+              className="text-6xl md:text-7xl font-black tracking-tighter italic bg-gradient-to-b from-white to-white/55 bg-clip-text text-transparent"
+              style={{ filter: 'drop-shadow(0 0 16px rgba(255,255,255,0.16))' }}
             >
               {matchup ? (matchup.center?.title ?? 'VS') : message}
-            </motion.div>
+            </div>
 
             {matchup && (matchup.center?.subtitle ?? 'LOADING') ? (
               <div className="mt-2 text-[10px] md:text-xs text-white/50 font-semibold tracking-widest uppercase">

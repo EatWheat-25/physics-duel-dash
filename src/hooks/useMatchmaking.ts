@@ -27,6 +27,7 @@ export function useMatchmaking() {
   const queueStartTimeRef = useRef<number | null>(null);
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
+  const lastSearchRef = useRef<{ subject: string; level: string } | null>(null);
 
   const fetchPlayerStats = useCallback(async (userId: string) => {
     const [profileData, playerData] = await Promise.all([
@@ -83,7 +84,8 @@ export function useMatchmaking() {
             rank: opponentStats.rank, 
             level: opponentStats.level,
             mmr: opponentStats.mmr,
-            color: 'hsl(var(--battle-danger))',
+            // User-requested: blue + green theme (opponent is blue instead of red)
+            color: 'var(--blue)',
           },
           center: { title: 'VS', subtitle },
         },
@@ -135,15 +137,44 @@ export function useMatchmaking() {
 
         if (matches && matches.length > 0) {
           const match = matches[0] as MatchRow;
-          
-          // Only navigate if match was created after we started searching
-          if (queueStartTimeRef.current) {
-            const matchCreatedAtMs = new Date(match.created_at).getTime();
-            if (matchCreatedAtMs < queueStartTimeRef.current) {
-              console.log('[MATCHMAKING] Poll: Found old match, ignoring...', {
+
+          // NOTE: Do NOT compare server `created_at` with client `Date.now()` to decide “freshness”.
+          // Clock skew can cause the *real* match to be incorrectly ignored for the first player.
+          // Instead: ignore only clearly stale matches and those that don't match the current search params.
+          const lastSearch = lastSearchRef.current;
+          if (lastSearch) {
+            const matchSubject = String((match as any).subject ?? '').toLowerCase();
+            const desiredSubject = String(lastSearch.subject ?? '').toLowerCase();
+            if (matchSubject && desiredSubject && matchSubject !== desiredSubject) {
+              console.log('[MATCHMAKING] Poll: Found match for different subject, ignoring...', {
                 matchId: match.id,
-                matchCreatedAt: match.created_at,
-                startedSearchingAt: new Date(queueStartTimeRef.current).toISOString(),
+                matchSubject,
+                desiredSubject,
+              });
+              return;
+            }
+
+            const matchMode = String((match as any).mode ?? '');
+            const desiredMode = String(lastSearch.level ?? '');
+            if (matchMode && desiredMode && matchMode !== desiredMode) {
+              console.log('[MATCHMAKING] Poll: Found match for different mode, ignoring...', {
+                matchId: match.id,
+                matchMode,
+                desiredMode,
+              });
+              return;
+            }
+          }
+
+          const createdAtMs = new Date((match as any).created_at ?? '').getTime();
+          if (Number.isFinite(createdAtMs)) {
+            const ageMs = Date.now() - createdAtMs;
+            const maxAgeMs = 1000 * 60 * 20; // 20 minutes
+            if (ageMs > maxAgeMs) {
+              console.log('[MATCHMAKING] Poll: Found stale pending match, ignoring...', {
+                matchId: match.id,
+                matchCreatedAt: (match as any).created_at,
+                ageMs,
               });
               return;
             }
@@ -164,6 +195,7 @@ export function useMatchmaking() {
           });
           setQueueStartTime(null);
           queueStartTimeRef.current = null;
+          lastSearchRef.current = null;
 
           // Let the shutter handle navigation while doors are closed.
           await playMatchFoundCinematic(match, user.id);
@@ -206,6 +238,7 @@ export function useMatchmaking() {
     queueStartTimeRef.current = startedAt;
     setQueueStartTime(startedAt);
     setState(prev => ({ ...prev, status: 'searching', error: null }));
+    lastSearchRef.current = { subject, level };
 
     try {
       // Get current user
@@ -265,6 +298,7 @@ export function useMatchmaking() {
         });
         setQueueStartTime(null);
         queueStartTimeRef.current = null;
+        lastSearchRef.current = null;
 
         // Let the shutter handle navigation while doors are closed.
         await playMatchFoundCinematic(match, user.id);
@@ -298,6 +332,7 @@ export function useMatchmaking() {
       toast.error(`Failed to start matchmaking. ${errorHint ? errorHint : 'Please try again.'}`);
       setQueueStartTime(null);
       queueStartTimeRef.current = null;
+      lastSearchRef.current = null;
       
       // Clear polling on error
       if (pollIntervalRef.current) {
@@ -342,6 +377,7 @@ export function useMatchmaking() {
     isSearchingRef.current = false;
     setQueueStartTime(null);
     queueStartTimeRef.current = null;
+    lastSearchRef.current = null;
   }, []);
 
   return {
