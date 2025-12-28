@@ -32,12 +32,22 @@ export interface MatchmakingQueueRow {
   created_at: string
 }
 
-// Match between two players
+// Match between two players (supports both old and new table schemas)
 export interface MatchRow {
   id: string
-  player1_id: string
-  player2_id: string
-  status: 'pending' | 'in_progress' | 'finished' | 'abandoned'
+  // New schema (matches_new table)
+  p1?: string
+  p2?: string
+  state?: string
+  chapter?: string
+  rank_tier?: string | null
+  p1_score?: number | null
+  p2_score?: number | null
+  ended_at?: string | null
+  // Old schema (matches table) - backwards compatibility
+  player1_id?: string
+  player2_id?: string
+  status?: 'pending' | 'in_progress' | 'finished' | 'abandoned'
   subject?: string // 'math' | 'physics' | 'chemistry'
   mode?: string // 'A1' | 'A2' (level)
   target_points?: number
@@ -49,7 +59,7 @@ export interface MatchRow {
   completed_at?: string
   current_round_number?: number
   rules_version?: number
-  created_at: string
+  created_at?: string
 }
 
 // Match round - tracks which question is assigned to a match

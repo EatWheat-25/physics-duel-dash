@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
 async function sendRoundStart(
   matchId: string,
   game: GameState,
-  supabase: ReturnType<typeof createClient>
+  supabase: any
 ) {
   try {
     console.log(`[${matchId}] Fetching question from battle_questions...`)

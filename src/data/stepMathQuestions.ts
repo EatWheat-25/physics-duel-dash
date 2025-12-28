@@ -18,7 +18,7 @@ import { dbRowsToQuestions } from '@/utils/questionMapper';
  * @returns Array of StepBasedQuestions, shuffled and limited
  */
 export async function getStepMathQuestions(filters: QuestionFilters): Promise<StepBasedQuestion[]> {
-  let query = supabase.from('questions').select('*');
+  let query = supabase.from('questions_v2').select('*');
 
   // Always filter by math (this file is for math questions)
   query = query.eq('subject', filters.subject || 'math');

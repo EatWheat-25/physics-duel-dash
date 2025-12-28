@@ -212,7 +212,7 @@ function broadcastToMatch(matchId: string, event: any): void {
 async function broadcastQuestion(
   matchId: string,
   questionDb: any,
-  supabase: ReturnType<typeof createClient>
+  supabase: any
 ): Promise<void> {
   const matchSockets = sockets.get(matchId)
   if (!matchSockets || matchSockets.size === 0) {
@@ -522,7 +522,7 @@ async function broadcastQuestion(
  */
 async function selectAndBroadcastQuestion(
   matchId: string,
-  supabase: ReturnType<typeof createClient>
+  supabase: any
 ): Promise<void> {
   console.log(`[${matchId}] 🔒 [WS] selectAndBroadcastQuestion called`)
   
