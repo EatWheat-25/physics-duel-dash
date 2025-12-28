@@ -173,9 +173,10 @@ function withAlpha(color: string | undefined, alpha: number): string | undefined
   return `color-mix(in srgb, ${c} ${Math.round(alpha * 100)}%, transparent)`;
 }
 
-// Lighter, matte base (user-requested: not too dark, simple/matte finish)
-const DOOR_BASE = '#2A2A3A';
-const DOOR_BASE_BOTTOM = '#323242';
+// Simpler dark base
+// User-requested: a bit lighter than Darkrai (still cyber/dark)
+const DOOR_BASE = '#10182A';
+const DOOR_BASE_BOTTOM = '#18213A';
 
 export function ElevatorShutterProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
@@ -322,9 +323,10 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           animate={leftControls}
           style={{
             background: `linear-gradient(180deg, ${DOOR_BASE} 0%, ${DOOR_BASE_BOTTOM} 100%)`,
-            // Matte finish with prominent blue accent border
-            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.02), inset -4px 0 0 ${
-              matchup?.left.color ?? '#3B82F6'
+            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.03), inset -3px 0 0 ${
+              withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.55) ?? 'rgba(16,185,129,0.55)'
+            }, inset -44px 0 90px ${
+              withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.08) ?? 'rgba(16,185,129,0.08)'
             }`,
             willChange: 'transform',
           }}
@@ -343,19 +345,18 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             <div
               className="absolute inset-0 flex flex-col items-center justify-center px-8"
               style={{
-                // Matte: simpler, flatter gradient overlay
                 background: `linear-gradient(135deg, ${
-                  withAlpha(matchup.left.color ?? 'var(--blue)', 0.08) ??
-                  'rgba(88,196,255,0.08)'
-                } 0%, transparent 60%)`,
+                  withAlpha(matchup.left.color ?? 'hsl(var(--battle-primary))', 0.12) ??
+                  'rgba(16,185,129,0.12)'
+                } 0%, transparent 70%)`,
               }}
             >
               {/* Player label */}
               <div
                 className="text-xs md:text-sm font-semibold tracking-widest uppercase mb-4"
                 style={{
-                  color: matchup.left.color ?? '#3B82F6', // Blue
-                  opacity: 1,
+                  color: matchup.left.color ?? 'hsl(var(--battle-primary))',
+                  opacity: 0.85,
                 }}
               >
                 {matchup.left.label || 'YOU'}
@@ -364,7 +365,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               {/* Player name */}
               <div
                 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 text-center"
-                style={{ textShadow: `0 0 40px ${withAlpha(matchup.left.color ?? '#3B82F6', 0.3) ?? 'rgba(59,130,246,0.3)'}` }}
+                style={{ textShadow: `0 0 40px ${withAlpha(matchup.left.color ?? 'hsl(var(--battle-primary))', 0.22) ?? 'rgba(16,185,129,0.22)'}` }}
               >
                 {clampName(matchup.left.username)}
               </div>
@@ -413,9 +414,10 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           animate={rightControls}
           style={{
             background: `linear-gradient(180deg, ${DOOR_BASE} 0%, ${DOOR_BASE_BOTTOM} 100%)`,
-            // Matte finish with prominent red accent border
-            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.02), inset 4px 0 0 ${
-              matchup?.right.color ?? '#EF4444'
+            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.03), inset 3px 0 0 ${
+              withAlpha(matchup?.right.color ?? 'var(--blue)', 0.55) ?? 'rgba(88,196,255,0.55)'
+            }, inset 44px 0 90px ${
+              withAlpha(matchup?.right.color ?? 'var(--blue)', 0.08) ?? 'rgba(88,196,255,0.08)'
             }`,
             willChange: 'transform',
           }}
@@ -434,19 +436,18 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             <div
               className="absolute inset-0 flex flex-col items-center justify-center px-8"
               style={{
-                // Matte: simpler, flatter gradient overlay
                 background: `linear-gradient(225deg, ${
-                  withAlpha(matchup.right.color ?? 'hsl(var(--battle-danger))', 0.08) ??
-                  'rgba(239,68,68,0.08)'
-                } 0%, transparent 60%)`,
+                  withAlpha(matchup.right.color ?? 'var(--blue)', 0.12) ??
+                  'rgba(88,196,255,0.12)'
+                } 0%, transparent 70%)`,
               }}
             >
               {/* Player label */}
               <div
                 className="text-xs md:text-sm font-semibold tracking-widest uppercase mb-4"
                 style={{
-                  color: matchup.right.color ?? '#EF4444', // Red
-                  opacity: 1,
+                  color: matchup.right.color ?? 'var(--blue)',
+                  opacity: 0.85,
                 }}
               >
                 {matchup.right.label || 'OPPONENT'}
@@ -455,7 +456,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               {/* Player name */}
               <div
                 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 text-center"
-                style={{ textShadow: `0 0 40px ${withAlpha(matchup.right.color ?? '#EF4444', 0.3) ?? 'rgba(239,68,68,0.3)'}` }}
+                style={{ textShadow: `0 0 40px ${withAlpha(matchup.right.color ?? 'var(--blue)', 0.22) ?? 'rgba(88,196,255,0.22)'}` }}
               >
                 {clampName(matchup.right.username)}
               </div>
