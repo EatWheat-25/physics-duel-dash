@@ -20,6 +20,7 @@ export default function BattleConnected() {
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
+  const handledStartFailureRef = useRef<boolean>(false);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -86,6 +87,17 @@ export default function BattleConnected() {
     allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
 
+  // If the server couldn't start the round (often a cross-instance race), don't show the scary
+  // "CONNECTION LOST" modal — just return to lobby with a toast.
+  useEffect(() => {
+    if (status !== 'error') return;
+    if (errorMessage !== 'Failed to select question') return;
+    if (handledStartFailureRef.current) return;
+    handledStartFailureRef.current = true;
+    toast.error('Match failed to start — please try again');
+    navigate('/matchmaking-new', { replace: true });
+  }, [status, errorMessage, navigate]);
+
   // Track round wins for animation
   useEffect(() => {
     const isPlayer1 = match?.player1_id === currentUser;
@@ -143,6 +155,19 @@ export default function BattleConnected() {
   }
 
   if (status === 'error') {
+    if (errorMessage === 'Failed to select question') {
+      return (
+        <div className="min-h-screen bg-[#050505] flex items-center justify-center relative overflow-hidden">
+          <Starfield />
+          <div className="flex flex-col items-center gap-4 relative z-10">
+            <Loader2 className="w-10 h-10 animate-spin text-blue-400" />
+            <p className="text-blue-200/60 font-mono tracking-widest text-xs">
+              RETURNING TO LOBBY…
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
         <Starfield />

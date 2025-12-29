@@ -212,7 +212,13 @@ function broadcastToMatch(matchId: string, event: any): void {
 async function broadcastQuestion(
   matchId: string,
   questionDb: any,
-  supabase: any
+  supabase: ReturnType<typeof createClient>,
+  opts: {
+    roundId?: string | null
+    roundNumber?: number | null
+    targetRoundsToWin?: number | null
+    questionSentAt?: string | null
+  } = {}
 ): Promise<void> {
   const matchSockets = sockets.get(matchId)
   if (!matchSockets || matchSockets.size === 0) {
@@ -246,10 +252,18 @@ async function broadcastQuestion(
     // Get or initialize match-level state
     let matchState = matchStates.get(matchId)
     if (!matchState) {
+      const resolvedRoundNumber =
+        typeof opts.roundNumber === 'number' && Number.isFinite(opts.roundNumber)
+          ? opts.roundNumber
+          : 1
+      const resolvedTargetRoundsToWin =
+        typeof opts.targetRoundsToWin === 'number' && Number.isFinite(opts.targetRoundsToWin)
+          ? opts.targetRoundsToWin
+          : 4
       // First round - initialize match state
       matchState = {
-        roundNumber: 1,
-        targetRoundsToWin: 4,
+        roundNumber: resolvedRoundNumber,
+        targetRoundsToWin: resolvedTargetRoundsToWin,
         playerRoundWins: new Map(),
         p1Id: matchData?.player1_id || null,
         p2Id: matchData?.player2_id || null,
@@ -259,8 +273,13 @@ async function broadcastQuestion(
       }
       matchStates.set(matchId, matchState)
     } else {
-      // New round - increment round number and reset readiness
-      matchState.roundNumber = (matchState.roundNumber || 0) + 1
+      // Reset readiness (round number comes from DB / caller; do NOT increment locally)
+      if (typeof opts.roundNumber === 'number' && Number.isFinite(opts.roundNumber)) {
+        matchState.roundNumber = opts.roundNumber
+      }
+      if (typeof opts.targetRoundsToWin === 'number' && Number.isFinite(opts.targetRoundsToWin)) {
+        matchState.targetRoundsToWin = opts.targetRoundsToWin
+      }
       matchState.p1ResultsAcknowledged = false
       matchState.p2ResultsAcknowledged = false
       matchState.roundTransitionInProgress = false
@@ -308,18 +327,24 @@ async function broadcastQuestion(
 
     // Read main question timer from metadata or default to 60 seconds
     const mainQuestionTimerSeconds = questionDb.main_question_timer_seconds || 60
-    const mainQuestionEndsAt = new Date(Date.now() + mainQuestionTimerSeconds * 1000).toISOString()
+    const baseMs = (() => {
+      if (opts.questionSentAt) {
+        const t = new Date(opts.questionSentAt).getTime()
+        if (Number.isFinite(t)) return t
+      }
+      return Date.now()
+    })()
+    const mainQuestionEndsAt = new Date(baseMs + mainQuestionTimerSeconds * 1000).toISOString()
     gameState.mainQuestionEndsAt = mainQuestionEndsAt
 
-    // Get round number from match state
-    const currentMatchState = matchStates.get(matchId)
-    const currentRoundNumber = currentMatchState?.roundNumber || 1
+    // Get round number from match state (already set above)
+    const currentRoundNumber = matchState.roundNumber || 1
 
     const roundStartEvent: RoundStartEvent = {
       type: 'ROUND_START',
       matchId,
-      roundId: matchId, // Using matchId as roundId for now
-      roundIndex: currentRoundNumber - 1, // roundIndex is 0-based
+      roundId: opts.roundId || matchId,
+      roundIndex: Math.max(0, currentRoundNumber - 1), // roundIndex is 0-based
       phase: 'main_question',
       question: {
         id: questionDb.id,
@@ -391,7 +416,14 @@ async function broadcastQuestion(
     const TIMEOUT_SECONDS = 60
     
     // Calculate timer end time (60 seconds from now)
-    const timerEndAt = new Date(Date.now() + TIMEOUT_SECONDS * 1000).toISOString()
+    const baseMs = (() => {
+      if (opts.questionSentAt) {
+        const t = new Date(opts.questionSentAt).getTime()
+        if (Number.isFinite(t)) return t
+      }
+      return Date.now()
+    })()
+    const timerEndAt = new Date(baseMs + TIMEOUT_SECONDS * 1000).toISOString()
     
     const questionReceivedEvent: QuestionReceivedEvent = {
       type: 'QUESTION_RECEIVED',
@@ -522,7 +554,7 @@ async function broadcastQuestion(
  */
 async function selectAndBroadcastQuestion(
   matchId: string,
-  supabase: any
+  supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   console.log(`[${matchId}] 🔒 [WS] selectAndBroadcastQuestion called`)
   
@@ -547,6 +579,42 @@ async function selectAndBroadcastQuestion(
     
     console.log(`[${matchId}] ✅ [WS] Match is ready (status: ${match.status}, winner: ${match.winner_id || 'none'})`)
 
+    // Fast-path: if an active round already exists (another instance started it),
+    // re-broadcast it to this instance's sockets and exit.
+    const { data: existingActiveRound, error: activeRoundError } = await supabase
+      .from('match_rounds')
+      .select('id, question_id, round_number, status')
+      .eq('match_id', matchId)
+      .in('status', ['main', 'steps'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (activeRoundError) {
+      console.warn(`[${matchId}] ⚠️ [WS] Failed to check active round (continuing):`, activeRoundError)
+    } else if (existingActiveRound?.question_id) {
+      console.log(
+        `[${matchId}] 🔁 [WS] Active round already exists (${existingActiveRound.id}, status=${existingActiveRound.status}) - rehydrating question broadcast`
+      )
+      const { data: activeQuestion, error: activeQuestionError } = await supabase
+        .from('questions_v2')
+        .select('*')
+        .eq('id', existingActiveRound.question_id)
+        .single()
+
+      if (activeQuestionError || !activeQuestion) {
+        console.error(`[${matchId}] ❌ [WS] Failed to fetch active round question:`, activeQuestionError)
+      } else {
+        await broadcastQuestion(matchId, activeQuestion, supabase, {
+          roundId: existingActiveRound.id,
+          roundNumber: existingActiveRound.round_number ?? match.current_round_number ?? 1,
+          targetRoundsToWin: match.target_rounds_to_win ?? 4,
+          questionSentAt: match.question_sent_at ?? null
+        })
+        return
+      }
+    }
+
     // ===== CRITICAL SEQUENCE: Clear old results first =====
     const previousRoundId = match.current_round_id
     if (previousRoundId) {
@@ -569,6 +637,7 @@ async function selectAndBroadcastQuestion(
 
     // Select question (reuse existing logic)
     let questionDb: any = null
+    let questionSentAt: string | null = match.question_sent_at ?? null
 
     if (match.question_id) {
       // Question already assigned, fetch it
@@ -656,10 +725,11 @@ async function selectAndBroadcastQuestion(
       console.log(`[${matchId}] 🎯 Selected question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
 
       // Atomic claim: UPDATE only if question_id IS NULL
+      const claimedSentAt = new Date().toISOString()
       const { data: lock, error: lockError } = await supabase
         .from('matches')
         .update({
-          question_sent_at: new Date().toISOString(),
+          question_sent_at: claimedSentAt,
           question_id: selectedQuestion.id,
         })
         .eq('id', matchId)
@@ -685,6 +755,7 @@ async function selectAndBroadcastQuestion(
         if (!matchAfterRace?.question_id) {
           throw new Error('Failed to claim question and no question found after race')
         }
+        questionSentAt = matchAfterRace.question_sent_at ?? null
 
         const { data: qAfterRace } = await supabase
           .from('questions_v2')
@@ -700,6 +771,7 @@ async function selectAndBroadcastQuestion(
         console.log(`[${matchId}] ✅ Using question claimed by other instance: ${questionDb.id}`)
       } else {
         questionDb = selectedQuestion
+        questionSentAt = claimedSentAt
         console.log(`[${matchId}] ✅ Won atomic lock, claimed question: ${questionDb.id}`)
       }
     }
@@ -716,9 +788,50 @@ async function selectAndBroadcastQuestion(
       .select('id')
       .single()
 
-    if (roundError || !newRound) {
+    if (roundError) {
       console.error(`[${matchId}] ❌ Failed to create match_rounds row:`, roundError)
-      throw roundError || new Error('Failed to create match_rounds row')
+      // Race: another instance already created the active round.
+      // Rehydrate instead of failing (prevents one-sided "connection lost").
+      if ((roundError as any)?.code === '23505') {
+        console.warn(`[${matchId}] ⚠️ match_rounds insert hit unique constraint (race). Rehydrating active round...`)
+        const { data: activeRound } = await supabase
+          .from('match_rounds')
+          .select('id, question_id, round_number, status')
+          .eq('match_id', matchId)
+          .in('status', ['main', 'steps'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (activeRound?.question_id) {
+          const shouldReuse = activeRound.question_id === questionDb?.id
+          let questionToBroadcast = questionDb
+          if (!shouldReuse) {
+            const { data: q, error: qErr } = await supabase
+              .from('questions_v2')
+              .select('*')
+              .eq('id', activeRound.question_id)
+              .single()
+            if (qErr || !q) {
+              console.error(`[${matchId}] ❌ Failed to fetch question for rehydrated active round:`, qErr)
+              throw roundError
+            }
+            questionToBroadcast = q
+          }
+          await broadcastQuestion(matchId, questionToBroadcast, supabase, {
+            roundId: activeRound.id,
+            roundNumber: activeRound.round_number ?? newRoundNumber,
+            targetRoundsToWin: match.target_rounds_to_win ?? 4,
+            questionSentAt
+          })
+          return
+        }
+      }
+      throw roundError
+    }
+
+    if (!newRound) {
+      throw new Error('Failed to create match_rounds row')
     }
 
     console.log(`[${matchId}] ✅ Created match_rounds row: ${newRound.id} for round ${newRoundNumber}`)
@@ -775,7 +888,12 @@ async function selectAndBroadcastQuestion(
     }
     
     console.log(`[${matchId}] ✅ Selected new question from DB: ${questionDb.id}`)
-    await broadcastQuestion(matchId, questionDb, supabase)
+    await broadcastQuestion(matchId, questionDb, supabase, {
+      roundId: newRound.id,
+      roundNumber: newRoundNumber,
+      targetRoundsToWin: match.target_rounds_to_win ?? 4,
+      questionSentAt
+    })
   } catch (error) {
     console.error(`[${matchId}] ❌ Error in atomic question selection:`, error)
     
@@ -2144,60 +2262,40 @@ async function handleJoinMatch(
   // This handles the case where the other player connects to a different instance
   if (!alreadyBothConnected) {
     let checkCount = 0
-    let checking = false
-
-    const startPolling = (intervalMs: number) => {
-      if (checkInterval !== null) {
+    const maxChecks = 20 // 20 checks × 500ms = 10 seconds max
+    
+    checkInterval = setInterval(async () => {
+      checkCount++
+      
+      // Stop if socket closed
+      if (socket.readyState !== WebSocket.OPEN) {
+        if (checkInterval !== null) {
+          clearInterval(checkInterval)
+          checkInterval = null
+        }
+        return
+      }
+      
+      // Stop after max checks
+      if (checkCount >= maxChecks) {
+        if (checkInterval !== null) {
+          clearInterval(checkInterval)
+          checkInterval = null
+        }
+        console.log(`[${matchId}] Stopped periodic connection check after ${maxChecks} attempts`)
+        return
+      }
+      
+      // Check connection - will stop interval if both connected
+      const connected = await checkConnection()
+      if (connected && checkInterval !== null) {
         clearInterval(checkInterval)
         checkInterval = null
       }
+    }, 500) as unknown as number // Deno uses number for intervals
 
-      checkInterval = setInterval(async () => {
-        // Prevent overlapping async checks (can happen if DB is slow)
-        if (checking) return
-        checking = true
-
-        try {
-          // Stop if socket closed
-          if (socket.readyState !== WebSocket.OPEN) {
-            if (checkInterval !== null) {
-              clearInterval(checkInterval)
-              checkInterval = null
-            }
-            return
-          }
-
-          // Check connection - checkConnection will stop the interval if it succeeds
-          const connected = await checkConnection()
-          if (connected) {
-            if (checkInterval !== null) {
-              clearInterval(checkInterval)
-              checkInterval = null
-            }
-            return
-          }
-
-          checkCount++
-
-          // Backoff to reduce DB load during long waits.
-          if (checkCount === 20 && intervalMs < 1500) {
-            console.log(`[${matchId}] ⏳ Still waiting for opponent - backing off connection checks to 1500ms`)
-            startPolling(1500)
-          } else if (checkCount === 120 && intervalMs < 2500) {
-            console.log(`[${matchId}] ⏳ Long wait - backing off connection checks to 2500ms`)
-            startPolling(2500)
-          }
-        } finally {
-          checking = false
-        }
-      }, intervalMs) as unknown as number // Deno uses number for intervals
-
-      // Store interval ID on socket for cleanup
-      ;(socket as any)._checkInterval = checkInterval
-    }
-
-    // Keep polling until BOTH_CONNECTED is successfully sent (or socket closes).
-    startPolling(500)
+    // Store interval ID on socket for cleanup
+    ;(socket as any)._checkInterval = checkInterval
   }
 }
 
