@@ -7,14 +7,12 @@ import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Starfield } from '@/components/Starfield';
-import { resolveShutterGate } from '@/lib/shutterGate';
+import { MathText } from '@/components/math/MathText';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const shutterGateId = (location.state as any)?.shutterGateId as string | undefined;
-  const shutterResolvedRef = useRef(false);
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
@@ -87,19 +85,6 @@ export default function BattleConnected() {
     isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
     allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
-
-  // Open the shutter as soon as the battle client has something to show.
-  useEffect(() => {
-    if (!shutterGateId) return;
-    if (shutterResolvedRef.current) return;
-
-    // Prefer waiting for the first question to be ready before opening the doors.
-    // Safety fallback still exists via the shutter maxLoadingMs timeout.
-    if (status === 'error' || Boolean(question)) {
-      shutterResolvedRef.current = true;
-      resolveShutterGate(shutterGateId);
-    }
-  }, [question, shutterGateId, status]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -389,7 +374,7 @@ export default function BattleConnected() {
                       Main Question
                     </div>
                     <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
-                      {question.stem || question.questionText || question.title}
+                      <MathText text={question.stem || question.questionText || question.title} />
                     </h3>
                     <div className="mt-6 text-sm text-white/40">
                       {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
@@ -444,7 +429,7 @@ export default function BattleConnected() {
                         : `Step ${currentStepIndex + 1} of ${totalSteps}`}
                     </div>
                     <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
-                      {currentStep.prompt || currentStep.question}
+                      <MathText text={currentStep.prompt || currentStep.question} />
                     </h3>
                     {currentSegment === 'sub' && (
                       <p className="text-xs text-white/50 mt-3 font-mono">
@@ -475,7 +460,7 @@ export default function BattleConnected() {
                           `}>
                             {String.fromCharCode(65 + idx)}
                           </div>
-                          <span className="text-lg font-medium">{option}</span>
+                          <MathText text={option} className="text-lg font-medium" />
                         </div>
                       </button>
                     ))}
@@ -547,7 +532,7 @@ export default function BattleConnected() {
                   <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   
                   <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
-                    {question.stem || question.questionText}
+                    <MathText text={question.stem || question.questionText} />
                   </h3>
                 </div>
 
@@ -574,7 +559,7 @@ export default function BattleConnected() {
                         `}>
                           {String.fromCharCode(65 + idx)}
                         </div>
-                        <span className="text-lg font-medium">{option}</span>
+                        <MathText text={option} className="text-lg font-medium" />
                       </div>
                     </button>
                   ))}

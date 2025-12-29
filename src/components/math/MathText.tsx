@@ -5,6 +5,9 @@ type Token =
   | { type: 'text'; content: string }
   | { type: 'inlineMath'; content: string }
   | { type: 'blockMath'; content: string }
+  | { type: 'bold'; content: string }
+  | { type: 'italic'; content: string }
+  | { type: 'newline' }
 
 type Delim = {
   start: string
@@ -70,6 +73,68 @@ function findEnd(text: string, delim: Delim, from: number): number {
   return -1
 }
 
+function processMarkdown(text: string): Token[] {
+  const tokens: Token[] = []
+  let i = 0
+  let textStart = i
+
+  while (i < text.length) {
+    // Check for newlines first (support both \n and :/n)
+    if (text[i] === '\n' || (i < text.length - 2 && text.slice(i, i + 3) === ':/n')) {
+      // Flush any accumulated text
+      if (i > textStart) {
+        tokens.push({ type: 'text', content: text.slice(textStart, i) })
+      }
+      tokens.push({ type: 'newline' })
+      i += text[i] === '\n' ? 1 : 3
+      textStart = i
+      continue
+    }
+
+    // Check for bold **text**
+    if (i < text.length - 1 && text[i] === '*' && text[i + 1] === '*' && !isEscaped(text, i)) {
+      const endIdx = text.indexOf('**', i + 2)
+      if (endIdx !== -1 && !isEscaped(text, endIdx)) {
+        // Flush any accumulated text
+        if (i > textStart) {
+          tokens.push({ type: 'text', content: text.slice(textStart, i) })
+        }
+        tokens.push({ type: 'bold', content: text.slice(i + 2, endIdx) })
+        i = endIdx + 2
+        textStart = i
+        continue
+      }
+    }
+
+    // Check for italic *text* (but not **text**)
+    if (text[i] === '*' && !isEscaped(text, i)) {
+      // Make sure it's not part of **
+      if (i === text.length - 1 || text[i + 1] !== '*') {
+        const endIdx = text.indexOf('*', i + 1)
+        if (endIdx !== -1 && (endIdx === text.length - 1 || text[endIdx + 1] !== '*') && !isEscaped(text, endIdx)) {
+          // Flush any accumulated text
+          if (i > textStart) {
+            tokens.push({ type: 'text', content: text.slice(textStart, i) })
+          }
+          tokens.push({ type: 'italic', content: text.slice(i + 1, endIdx) })
+          i = endIdx + 1
+          textStart = i
+          continue
+        }
+      }
+    }
+
+    i++
+  }
+
+  // Flush any remaining text
+  if (i > textStart) {
+    tokens.push({ type: 'text', content: text.slice(textStart, i) })
+  }
+
+  return tokens
+}
+
 function tokenizeMath(text: string): Token[] {
   const tokens: Token[] = []
   let i = 0
@@ -77,13 +142,19 @@ function tokenizeMath(text: string): Token[] {
   while (i < text.length) {
     const next = findNextStart(text, i)
     if (!next) {
-      tokens.push({ type: 'text', content: text.slice(i) })
+      // Process remaining text for markdown
+      const remaining = text.slice(i)
+      if (remaining) {
+        tokens.push(...processMarkdown(remaining))
+      }
       break
     }
 
     const { idx, delim } = next
     if (idx > i) {
-      tokens.push({ type: 'text', content: text.slice(i, idx) })
+      // Process text before math for markdown
+      const beforeMath = text.slice(i, idx)
+      tokens.push(...processMarkdown(beforeMath))
     }
 
     const afterStart = idx + delim.start.length
@@ -91,7 +162,7 @@ function tokenizeMath(text: string): Token[] {
 
     // No matching end delimiter → treat start as literal and continue scanning.
     if (endIdx === -1) {
-      tokens.push({ type: 'text', content: delim.start })
+      tokens.push(...processMarkdown(delim.start))
       i = afterStart
       continue
     }
@@ -134,6 +205,18 @@ export function MathText({
         if (t.type === 'text') {
           return <span key={idx}>{t.content}</span>
         }
+        
+        if (t.type === 'bold') {
+          return <strong key={idx}>{t.content}</strong>
+        }
+        
+        if (t.type === 'italic') {
+          return <em key={idx}>{t.content}</em>
+        }
+        
+        if (t.type === 'newline') {
+          return <br key={idx} />
+        }
 
         const html = renderKatex(t.content, t.type === 'blockMath')
         return (
@@ -147,5 +230,6 @@ export function MathText({
     </span>
   )
 }
+
 
 
