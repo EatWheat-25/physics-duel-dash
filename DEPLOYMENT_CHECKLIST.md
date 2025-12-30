@@ -93,8 +93,6 @@ SELECT cron.unschedule('cleanup_stale_queue_job');
 npm run build
 
 # Deploy via your platform (Vercel, Netlify, etc.)
-# OR if using Lovable:
-# Go to Lovable Dashboard → Share → Publish
 ```
 
 ## Step 7: Smoke Test

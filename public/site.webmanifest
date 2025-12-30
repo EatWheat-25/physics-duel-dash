@@ -1,0 +1,18 @@
+{
+  "name": "Battle Nerds - Quiz Battle Game",
+  "short_name": "BattleNerds",
+  "description": "Challenge your friends in epic 1v1 quiz battles. Answer correctly to climb the ranks from Bronze to Diamond!",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ],
+  "theme_color": "#000000",
+  "background_color": "#000000",
+  "display": "standalone",
+  "start_url": "/"
+}
+
+

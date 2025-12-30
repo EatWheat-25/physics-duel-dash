@@ -337,6 +337,27 @@ async function broadcastQuestion(
     const mainQuestionEndsAt = new Date(baseMs + mainQuestionTimerSeconds * 1000).toISOString()
     gameState.mainQuestionEndsAt = mainQuestionEndsAt
 
+    // DB-authoritative phase timing: persist main_question_ends_at into match_rounds.
+    // This allows clients to sync timers via Realtime even when players are on different Edge instances.
+    if (opts.roundId) {
+      try {
+        await supabase
+          .from('match_rounds')
+          .update({
+            // Keep DB status as 'main' during the main-question phase.
+            status: 'main',
+            main_question_ends_at: mainQuestionEndsAt,
+            // Ensure step fields are cleared until steps begin.
+            step_ends_at: null,
+            current_step_index: 0,
+          })
+          .eq('id', opts.roundId)
+          .eq('status', 'main')
+      } catch (err) {
+        console.error(`[${matchId}] ❌ Failed to persist main_question_ends_at to match_rounds:`, err)
+      }
+    }
+
     // Get round number from match state (already set above)
     const currentRoundNumber = matchState.roundNumber || 1
 
@@ -1063,6 +1084,35 @@ async function transitionToSteps(
   const stepEndsAt = new Date(Date.now() + 15 * 1000).toISOString()
   state.stepEndsAt = stepEndsAt
 
+  // DB-authoritative transition: persist steps phase into match_rounds
+  // so both clients advance even when on different Edge instances.
+  try {
+    const { data: matchRow, error: matchErr } = await supabase
+      .from('matches')
+      .select('current_round_id')
+      .eq('id', matchId)
+      .single()
+
+    if (matchErr) throw matchErr
+    const roundId = (matchRow as any)?.current_round_id ?? null
+
+    if (roundId) {
+      await supabase
+        .from('match_rounds')
+        .update({
+          status: 'steps',
+          current_step_index: 0,
+          step_ends_at: stepEndsAt,
+        })
+        .eq('id', roundId)
+        .eq('status', 'main')
+    } else {
+      console.warn(`[${matchId}] ⚠️ transitionToSteps: matches.current_round_id is null`)
+    }
+  } catch (err) {
+    console.error(`[${matchId}] ❌ Failed to persist steps phase to match_rounds:`, err)
+  }
+
   const phaseChangeEvent: PhaseChangeEvent = {
     type: 'PHASE_CHANGE',
     matchId,
@@ -1098,100 +1148,206 @@ async function checkStepTimeout(
   stepIndex: number,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  // DB-authoritative guard: if the round already advanced, stale timers must no-op.
+  // This prevents cross-instance races from forcing players to wait for timers.
+
+  // Use in-memory state only as an optional cache for question steps.
   const state = gameStates.get(matchId)
-  if (!state || state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
+
+  // Load canonical match + round from DB
+  const { data: matchRow, error: matchErr } = await supabase
+    .from('matches')
+    .select('player1_id, player2_id, current_round_id, current_round_number')
+    .eq('id', matchId)
+    .single()
+
+  if (matchErr || !matchRow) {
+    console.error(`[${matchId}] ❌ [TIMER] Failed to load match for timeout check:`, matchErr)
     return
   }
 
-  const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
-  const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
+  const roundId = (matchRow as any).current_round_id as string | null
+  const roundNumber = Number.isFinite((matchRow as any).current_round_number)
+    ? (matchRow as any).current_round_number
+    : 1
+  const roundIndex = Math.max(0, roundNumber - 1)
+  const p1Id = (matchRow as any).player1_id as string
+  const p2Id = (matchRow as any).player2_id as string
 
-  // Eliminate players who didn't answer this step
-  if (!p1Answers.has(stepIndex) && state.p1Id) {
-    state.eliminatedPlayers.add(state.p1Id)
-    console.log(`[${matchId}] ⚠️ Player 1 eliminated - no answer for step ${stepIndex}`)
-  }
-  if (!p2Answers.has(stepIndex) && state.p2Id) {
-    state.eliminatedPlayers.add(state.p2Id)
-    console.log(`[${matchId}] ⚠️ Player 2 eliminated - no answer for step ${stepIndex}`)
+  if (!roundId) return
+
+  const { data: roundRow, error: roundErr } = await supabase
+    .from('match_rounds')
+    .select('id, question_id, status, current_step_index')
+    .eq('id', roundId)
+    .single()
+
+  if (roundErr || !roundRow) {
+    console.error(`[${matchId}] ❌ [TIMER] Failed to load match_rounds for timeout check:`, roundErr)
+    return
   }
 
-  // Check if this was the last step
-  const steps = Array.isArray(state.currentQuestion.steps) 
-    ? state.currentQuestion.steps 
-    : JSON.parse(state.currentQuestion.steps ?? '[]')
-  
-  const isLastStep = stepIndex >= steps.length - 1
-  
-  if (isLastStep) {
-    // Last step timed out - check if both players have completed all steps
-    const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
-    const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-    
-    // Check if each player has answered all steps
-    // IMPORTANT: Check actual completion first - if a player answered all steps,
-    // they are complete regardless of elimination status (elimination might be from a race condition)
-    let p1AllComplete = true
-    let p2AllComplete = true
-    
-    // Check if p1 answered all steps
-    for (let i = 0; i < steps.length; i++) {
-      if (!p1Answers.has(i)) {
-        p1AllComplete = false
-        break
-      }
-    }
-    
-    // Check if p2 answered all steps
-    for (let i = 0; i < steps.length; i++) {
-      if (!p2Answers.has(i)) {
-        p2AllComplete = false
-        break
-      }
-    }
-    
-    // If a player is eliminated AND didn't answer all steps, they're not complete
-    // But if they answered all steps, they ARE complete (even if marked eliminated due to race condition)
-    if (p1Eliminated && !p1AllComplete) {
-      p1AllComplete = false
-    }
-    if (p2Eliminated && !p2AllComplete) {
-      p2AllComplete = false
-    }
-    
-    // Update completion flags
-    state.p1AllStepsComplete = p1AllComplete
-    state.p2AllStepsComplete = p2AllComplete
-    
-    console.log(`[${matchId}] 🔍 DEBUG: Step ${stepIndex} timeout check - p1AllComplete=${p1AllComplete} (eliminated=${p1Eliminated}), p2AllComplete=${p2AllComplete} (eliminated=${p2Eliminated})`)
-    
-    if (p1AllComplete && p2AllComplete) {
-      // Both players completed all steps - calculate results
-      console.log(`[${matchId}] ✅ Both players completed all steps (timeout) - calculating results`)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1044',message:'CALLING calculateStepResults FROM TIMEOUT',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1473',message:'CALLING calculateStepResults FROM handleStepAnswer',data:{matchId,stepIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-        await calculateStepResults(matchId, supabase)
-    } else {
-      // One player finished but other hasn't - send waiting state
-      console.log(`[${matchId}] ⏳ One player completed all steps (timeout) - waiting for opponent (P1: ${p1AllComplete}, P2: ${p2AllComplete})`)
-      
-      // Broadcast waiting state to both players
-      const waitingEvent = {
-        type: 'ALL_STEPS_COMPLETE_WAITING',
-        matchId,
-        p1Complete: p1AllComplete,
-        p2Complete: p2AllComplete,
-        waitingForOpponent: true
-      }
-      broadcastToMatch(matchId, waitingEvent)
-    }
+  if ((roundRow as any).status !== 'steps') return
+
+  const canonicalStepIndex = Number.isFinite((roundRow as any).current_step_index)
+    ? (roundRow as any).current_step_index
+    : 0
+
+  // Stale timer guard: only act if DB says we're still on this step.
+  if (canonicalStepIndex !== stepIndex) return
+
+  // Load question steps (cache first; DB fallback)
+  let questionForSteps: any | null = null
+  if (state?.currentQuestion && (state.currentQuestion.id === (roundRow as any).question_id)) {
+    questionForSteps = state.currentQuestion
   } else {
-    // Not last step - move to next step
-    await moveToNextStep(matchId, supabase, null)
+    const { data: q, error: qErr } = await supabase
+      .from('questions_v2')
+      .select('id, steps')
+      .eq('id', (roundRow as any).question_id)
+      .single()
+    if (qErr || !q) {
+      console.error(`[${matchId}] ❌ [TIMER] Failed to load question steps:`, qErr)
+      return
+    }
+    questionForSteps = q
+  }
+
+  let steps: any[] = []
+  try {
+    steps = Array.isArray((questionForSteps as any).steps)
+      ? (questionForSteps as any).steps
+      : JSON.parse((questionForSteps as any).steps ?? '[]')
+  } catch {
+    steps = []
+  }
+  if (!Array.isArray(steps) || steps.length === 0) return
+
+  // Ensure both players have a step answer row (timeout inserts null answer for missing player)
+  const { data: existing } = await supabase
+    .from('match_step_answers_v2')
+    .select('player_id')
+    .eq('match_id', matchId)
+    .eq('round_index', roundIndex)
+    .eq('question_id', (roundRow as any).question_id)
+    .eq('step_index', canonicalStepIndex)
+    .eq('segment', 'main')
+    .eq('sub_step_index', 0)
+    .in('player_id', [p1Id, p2Id])
+
+  const answeredIds = new Set<string>((existing ?? []).map((r: any) => String(r.player_id)))
+  const nowIso = new Date().toISOString()
+
+  for (const pid of [p1Id, p2Id]) {
+    if (!pid) continue
+    if (answeredIds.has(pid)) continue
+    // Insert a timeout placeholder (selected_option null) exactly once.
+    try {
+      await supabase
+        .from('match_step_answers_v2')
+        .upsert({
+          match_id: matchId,
+          round_index: roundIndex,
+          question_id: (roundRow as any).question_id,
+          player_id: pid,
+          step_index: canonicalStepIndex,
+          segment: 'main',
+          sub_step_index: 0,
+          selected_option: null,
+          is_correct: false,
+          response_time_ms: 0,
+          answered_at: nowIso,
+        }, {
+          onConflict: 'match_id,round_index,player_id,question_id,step_index,segment,sub_step_index',
+          ignoreDuplicates: true,
+        })
+    } catch (err) {
+      console.error(`[${matchId}] ❌ [TIMER] Failed to insert timeout answer for player ${pid}:`, err)
+    }
+  }
+
+  const isLastStep = canonicalStepIndex >= steps.length - 1
+
+  if (isLastStep) {
+    // Compute results on timeout for the last step (idempotent in DB).
+    try {
+      const { data: allAnswers } = await supabase
+        .from('match_step_answers_v2')
+        .select('player_id, step_index, selected_option')
+        .eq('match_id', matchId)
+        .eq('round_index', roundIndex)
+        .eq('question_id', (roundRow as any).question_id)
+        .eq('segment', 'main')
+        .eq('sub_step_index', 0)
+        .in('player_id', [p1Id, p2Id])
+
+      const byPlayer = new Map<string, Map<number, number | null>>()
+      for (const row of (allAnswers ?? []) as any[]) {
+        const pid = String(row.player_id)
+        const idx = Number(row.step_index)
+        const sel = row.selected_option === null || row.selected_option === undefined ? null : Number(row.selected_option)
+        if (!byPlayer.has(pid)) byPlayer.set(pid, new Map())
+        byPlayer.get(pid)!.set(idx, sel)
+      }
+
+      const p1Map = byPlayer.get(p1Id) ?? new Map()
+      const p2Map = byPlayer.get(p2Id) ?? new Map()
+
+      const stepResultsArray = steps.map((s: any, idx: number) => {
+        const corr = s?.correct_answer?.correctIndex ?? s?.correctAnswer ?? 0
+        const marks = s?.marks || 0
+        const p1Ans = (p1Map.has(idx) ? p1Map.get(idx) : null) ?? null
+        const p2Ans = (p2Map.has(idx) ? p2Map.get(idx) : null) ?? null
+        const p1Marks = p1Ans === corr ? marks : 0
+        const p2Marks = p2Ans === corr ? marks : 0
+        return {
+          stepIndex: idx,
+          correctAnswer: corr,
+          p1AnswerIndex: p1Ans,
+          p2AnswerIndex: p2Ans,
+          p1Marks,
+          p2Marks,
+        }
+      })
+
+      await supabase.rpc('compute_multi_step_results_v2', {
+        p_match_id: matchId,
+        p_round_id: roundId,
+        p_step_results: stepResultsArray as any,
+      })
+    } catch (err) {
+      console.error(`[${matchId}] ❌ [TIMER] Failed to compute results on timeout:`, err)
+    }
+    return
+  }
+
+  // Advance to next step on timeout (CAS-update so only one instance advances)
+  const nextStepIndex = canonicalStepIndex + 1
+  const nextStepEndsAt = new Date(Date.now() + 15 * 1000).toISOString()
+
+  const { data: advancedRow } = await supabase
+    .from('match_rounds')
+    .update({
+      status: 'steps',
+      current_step_index: nextStepIndex,
+      step_ends_at: nextStepEndsAt,
+    })
+    .eq('id', roundId)
+    .eq('status', 'steps')
+    .eq('current_step_index', canonicalStepIndex)
+    .select('id')
+    .maybeSingle()
+
+  // Start next timer only if we won the CAS update
+  if (advancedRow && state) {
+    try {
+      const timerId = setTimeout(() => {
+        checkStepTimeout(matchId, nextStepIndex, supabase)
+      }, 15 * 1000) as unknown as number
+      state.stepTimers.set(nextStepIndex, timerId)
+    } catch (_err) {
+      // ignore
+    }
   }
 }
 
@@ -1487,121 +1643,279 @@ async function handleStepAnswer(
   socket: WebSocket,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  // NOTE: This handler must be cross-instance safe. WebSockets can land on different
+  // Supabase Edge instances, so we treat the database (match_rounds + match_step_answers_v2)
+  // as the source of truth for step progression.
+
+  // Use in-memory state only as an optional cache (never as authority).
   const state = gameStates.get(matchId)
-  if (!state || state.currentPhase !== 'steps' || state.currentStepIndex !== stepIndex) {
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'Invalid step answer submission'
-    } as GameErrorEvent))
+
+  // 1) Load canonical match + round context from DB
+  const { data: matchRow, error: matchErr } = await supabase
+    .from('matches')
+    .select('player1_id, player2_id, current_round_id, current_round_number')
+    .eq('id', matchId)
+    .single()
+
+  if (matchErr || !matchRow) {
+    console.error(`[${matchId}] ❌ [STEP] Failed to load match row:`, matchErr)
+    socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Failed to load match state' } as GameErrorEvent))
     return
   }
 
-  // Check if player is eliminated - ignore their answer
-  if (state.eliminatedPlayers.has(playerId)) {
-    console.log(`[${matchId}] ⚠️ Ignoring answer from eliminated player ${playerId}`)
-    socket.send(JSON.stringify({
-      type: 'GAME_ERROR',
-      message: 'You have been eliminated from this round'
-    } as GameErrorEvent))
+  const roundId = (matchRow as any).current_round_id as string | null
+  const roundNumber = Number.isFinite((matchRow as any).current_round_number)
+    ? (matchRow as any).current_round_number
+    : 1
+  const roundIndex = Math.max(0, roundNumber - 1)
+  const p1Id = (matchRow as any).player1_id as string
+  const p2Id = (matchRow as any).player2_id as string
+
+  if (!roundId) {
+    console.error(`[${matchId}] ❌ [STEP] No current_round_id on match`)
+    socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Round not initialized' } as GameErrorEvent))
     return
   }
 
-  // Store answer in memory (for quick access)
-  if (!state.playerStepAnswers.has(playerId)) {
-    state.playerStepAnswers.set(playerId, new Map())
+  const { data: roundRow, error: roundErr } = await supabase
+    .from('match_rounds')
+    .select('id, question_id, status, current_step_index, step_ends_at')
+    .eq('id', roundId)
+    .single()
+
+  if (roundErr || !roundRow) {
+    console.error(`[${matchId}] ❌ [STEP] Failed to load match_rounds row:`, roundErr)
+    socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Failed to load round state' } as GameErrorEvent))
+    return
   }
-  state.playerStepAnswers.get(playerId)!.set(stepIndex, answerIndex)
 
-  const p1KeysBefore = Array.from((state.playerStepAnswers.get(state.p1Id || '') || new Map()).keys())
-  const p2KeysBefore = Array.from((state.playerStepAnswers.get(state.p2Id || '') || new Map()).keys())
-  console.log(`[${matchId}] ✅ [STEP] Step ${stepIndex} answer stored in local state for player ${playerId}: ${answerIndex}`)
-  console.log(`[${matchId}] 📊 [STEP] Local state - p1Answers: [${p1KeysBefore.join(', ')}], p2Answers: [${p2KeysBefore.join(', ')}]`)
+  if ((roundRow as any).status !== 'steps') {
+    console.warn(`[${matchId}] ⚠️ [STEP] Received step answer while round status=${(roundRow as any).status}`)
+    socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Round is not in steps phase' } as GameErrorEvent))
+    return
+  }
 
-  // Fire-and-forget DB upsert (for cross-instance consistency) - do NOT await for completion check
+  const canonicalStepIndex = Number.isFinite((roundRow as any).current_step_index)
+    ? (roundRow as any).current_step_index
+    : 0
+
+  // 2) Load question steps (from memory cache if possible, else fetch from DB)
+  let questionForSteps: any | null = null
+  if (state?.currentQuestion && (state.currentQuestion.id === (roundRow as any).question_id)) {
+    questionForSteps = state.currentQuestion
+  } else {
+    const { data: q, error: qErr } = await supabase
+      .from('questions_v2')
+      .select('id, steps')
+      .eq('id', (roundRow as any).question_id)
+      .single()
+    if (qErr || !q) {
+      console.error(`[${matchId}] ❌ [STEP] Failed to load question steps:`, qErr)
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Failed to load question' } as GameErrorEvent))
+      return
+    }
+    questionForSteps = q
+  }
+
+  let steps: any[] = []
   try {
-    const steps = Array.isArray(state.currentQuestion.steps)
-      ? state.currentQuestion.steps
-      : JSON.parse(state.currentQuestion.steps ?? '[]')
-    const step = steps[stepIndex]
-    const correctAnswer = step?.correct_answer?.correctIndex ?? step?.correctAnswer ?? 0
-    const roundIndex = Math.max(0, (state.roundNumber || 1) - 1)
-    const isCorrect = answerIndex === correctAnswer
+    steps = Array.isArray((questionForSteps as any).steps)
+      ? (questionForSteps as any).steps
+      : JSON.parse((questionForSteps as any).steps ?? '[]')
+  } catch {
+    steps = []
+  }
 
-    supabase
+  if (!Array.isArray(steps) || steps.length === 0) {
+    console.error(`[${matchId}] ❌ [STEP] Question has no steps`)
+    socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Question steps invalid' } as GameErrorEvent))
+    return
+  }
+
+  // 3) Resync protection: if client submitted a stale stepIndex, send canonical step info
+  if (stepIndex !== canonicalStepIndex) {
+    console.warn(`[${matchId}] ⚠️ [STEP] Out-of-sync step answer: client=${stepIndex}, canonical=${canonicalStepIndex}`)
+    const canonicalStep = steps[canonicalStepIndex]
+    const stepEndsAt =
+      (roundRow as any).step_ends_at ||
+      new Date(Date.now() + 15 * 1000).toISOString()
+
+    const resyncEvent: PhaseChangeEvent = {
+      type: 'PHASE_CHANGE',
+      matchId,
+      phase: 'steps',
+      stepIndex: canonicalStepIndex,
+      totalSteps: steps.length,
+      stepEndsAt,
+      currentStep: {
+        id: canonicalStep?.id || '',
+        prompt: canonicalStep?.prompt || canonicalStep?.question || '',
+        options: Array.isArray(canonicalStep?.options) ? canonicalStep.options : [],
+        correctAnswer: canonicalStep?.correct_answer?.correctIndex ?? canonicalStep?.correctAnswer ?? 0,
+        marks: canonicalStep?.marks || 0
+      }
+    }
+
+    try {
+      socket.send(JSON.stringify(resyncEvent))
+    } catch (_err) {
+      // ignore send errors
+    }
+    return
+  }
+
+  const currentStep = steps[canonicalStepIndex]
+  const correctAnswer = currentStep?.correct_answer?.correctIndex ?? currentStep?.correctAnswer ?? 0
+  const isCorrect = answerIndex === correctAnswer
+
+  // 4) Persist the answer (idempotent; ignore duplicates to prevent late overwrites)
+  try {
+    const { error: upsertErr } = await supabase
       .from('match_step_answers_v2')
       .upsert({
         match_id: matchId,
         round_index: roundIndex,
-        question_id: state.currentQuestion?.id ?? '',
+        question_id: (roundRow as any).question_id,
         player_id: playerId,
-        step_index: stepIndex,
+        step_index: canonicalStepIndex,
+        segment: 'main',
+        sub_step_index: 0,
         selected_option: answerIndex,
         is_correct: isCorrect,
-        response_time_ms: 0
+        response_time_ms: 0,
+        answered_at: new Date().toISOString(),
+      }, {
+        onConflict: 'match_id,round_index,player_id,question_id,step_index,segment,sub_step_index',
+        ignoreDuplicates: true
       })
-      .then(({ error }) => {
-        if (error) {
-          console.error(`[${matchId}] ❌ [STEP] DB upsert error for step ${stepIndex}:`, error)
-        } else {
-          console.log(`[${matchId}] ✅ [STEP] DB upsert stored step ${stepIndex} for player ${playerId}`)
-        }
-      })
-      .catch((err) => {
-        console.error(`[${matchId}] ❌ [STEP] DB upsert exception for step ${stepIndex}:`, err)
-      })
+
+    if (upsertErr) {
+      console.error(`[${matchId}] ❌ [STEP] Failed to store answer in DB:`, upsertErr)
+    }
   } catch (err) {
-    console.error(`[${matchId}] ❌ [STEP] Failed to start DB upsert for step ${stepIndex}:`, err)
+    console.error(`[${matchId}] ❌ [STEP] Exception storing answer in DB:`, err)
   }
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/33e99397-07ed-449b-a525-dd11743750ba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game-ws/index.ts:1442',message:'ANSWER STORED',data:{matchId,playerId,stepIndex,answerIndex,p1Id:state.p1Id,p2Id:state.p2Id,allPlayerIds:Array.from(state.playerStepAnswers.keys()),p1AnswersKeys:Array.from((state.playerStepAnswers.get(state.p1Id||'')||new Map()).keys()),p2AnswersKeys:Array.from((state.playerStepAnswers.get(state.p2Id||'')||new Map()).keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-  console.log(`[${matchId}] ✅ Step ${stepIndex} answer stored for player ${playerId}: ${answerIndex}`)
-  // Log map state after storing
-  const allPlayerIdsAfter = Array.from(state.playerStepAnswers.keys())
-  console.log(`[${matchId}] 🔍 AFTER STORE: map has ${allPlayerIdsAfter.length} player(s): [${allPlayerIdsAfter.join(', ')}]`)
-  for (const pid of allPlayerIdsAfter) {
-    const answers = state.playerStepAnswers.get(pid) || new Map()
-    console.log(`[${matchId}] 🔍 AFTER STORE: player ${pid} has ${answers.size} answers: [${Array.from(answers.keys()).join(', ')}]`)
+  // 5) Check if both players have an answer row for this step (DB-authoritative)
+  const { data: stepAnswers, error: stepAnsErr } = await supabase
+    .from('match_step_answers_v2')
+    .select('player_id')
+    .eq('match_id', matchId)
+    .eq('round_index', roundIndex)
+    .eq('question_id', (roundRow as any).question_id)
+    .eq('step_index', canonicalStepIndex)
+    .eq('segment', 'main')
+    .eq('sub_step_index', 0)
+    .in('player_id', [p1Id, p2Id])
+
+  if (stepAnsErr) {
+    console.error(`[${matchId}] ❌ [STEP] Failed to query step answers:`, stepAnsErr)
   }
 
-  // Check completion using ONLY in-memory state (avoid DB race)
-  const currentStepIdx = state.currentStepIndex
-  const p1Answers = state.playerStepAnswers.get(state.p1Id || '') || new Map()
-  const p2Answers = state.playerStepAnswers.get(state.p2Id || '') || new Map()
-  const p1Eliminated = state.eliminatedPlayers.has(state.p1Id || '')
-  const p2Eliminated = state.eliminatedPlayers.has(state.p2Id || '')
-  const p1Done = p1Answers.has(currentStepIdx) || p1Eliminated
-  const p2Done = p2Answers.has(currentStepIdx) || p2Eliminated
-  const bothDone = p1Done && p2Done
-  
-  console.log(`[${matchId}] 📊 [STEP] Completion check (step ${currentStepIdx}): p1Done=${p1Done} (answered=${p1Answers.has(currentStepIdx)}, eliminated=${p1Eliminated}), p2Done=${p2Done} (answered=${p2Answers.has(currentStepIdx)}, eliminated=${p2Eliminated}), bothDone=${bothDone}`)
+  const answeredIds = new Set<string>((stepAnswers ?? []).map((r: any) => String(r.player_id)))
+  const bothAnswered = answeredIds.has(p1Id) && answeredIds.has(p2Id)
 
-  // Send confirmation
+  // Confirm to submitter
   const stepAnswerEvent: StepAnswerReceivedEvent = {
     type: 'STEP_ANSWER_RECEIVED',
-    stepIndex,
+    stepIndex: canonicalStepIndex,
     playerId,
-    waitingForOpponent: !bothDone
+    waitingForOpponent: !bothAnswered
+  }
+  try {
+    socket.send(JSON.stringify(stepAnswerEvent))
+  } catch (_err) {
+    // ignore
   }
 
-  socket.send(JSON.stringify(stepAnswerEvent))
+  if (!bothAnswered) return
 
-  if (bothDone) {
-    console.log(`[${matchId}] ⚡ [STEP] Both players done with step ${currentStepIdx} - clearing timer and moving to next step immediately`)
+  // 6) Both answered: advance step immediately (no waiting for timer)
+  const isLastStep = canonicalStepIndex >= steps.length - 1
+  if (isLastStep) {
+    // Compute results immediately using DB-stored answers + question step metadata.
+    try {
+      const { data: allAnswers } = await supabase
+        .from('match_step_answers_v2')
+        .select('player_id, step_index, selected_option')
+        .eq('match_id', matchId)
+        .eq('round_index', roundIndex)
+        .eq('question_id', (roundRow as any).question_id)
+        .eq('segment', 'main')
+        .eq('sub_step_index', 0)
+        .in('player_id', [p1Id, p2Id])
 
-    // Clear timer BEFORE moving to prevent race with timeout
-    const currentTimer = state.stepTimers.get(currentStepIdx)
-    if (currentTimer) {
-      console.log(`[${matchId}] 🔥 [TIMER] Clearing step ${currentStepIdx} timer BEFORE progression (timer ID: ${currentTimer})`)
-      clearTimeout(currentTimer)
-      state.stepTimers.delete(currentStepIdx)
-      console.log(`[${matchId}] ✅ [TIMER] Step ${currentStepIdx} timer cleared successfully`)
-    } else {
-      console.log(`[${matchId}] ⚠️ [TIMER] No active timer found for step ${currentStepIdx} (already cleared or never set)`)
+      const byPlayer = new Map<string, Map<number, number | null>>()
+      for (const row of (allAnswers ?? []) as any[]) {
+        const pid = String(row.player_id)
+        const idx = Number(row.step_index)
+        const sel = row.selected_option === null || row.selected_option === undefined ? null : Number(row.selected_option)
+        if (!byPlayer.has(pid)) byPlayer.set(pid, new Map())
+        byPlayer.get(pid)!.set(idx, sel)
+      }
+
+      const p1Map = byPlayer.get(p1Id) ?? new Map()
+      const p2Map = byPlayer.get(p2Id) ?? new Map()
+
+      const stepResultsArray = steps.map((s: any, idx: number) => {
+        const corr = s?.correct_answer?.correctIndex ?? s?.correctAnswer ?? 0
+        const marks = s?.marks || 0
+        const p1Ans = (p1Map.has(idx) ? p1Map.get(idx) : null) ?? null
+        const p2Ans = (p2Map.has(idx) ? p2Map.get(idx) : null) ?? null
+        const p1Marks = p1Ans === corr ? marks : 0
+        const p2Marks = p2Ans === corr ? marks : 0
+        return {
+          stepIndex: idx,
+          correctAnswer: corr,
+          p1AnswerIndex: p1Ans,
+          p2AnswerIndex: p2Ans,
+          p1Marks,
+          p2Marks,
+        }
+      })
+
+      await supabase.rpc('compute_multi_step_results_v2', {
+        p_match_id: matchId,
+        p_round_id: roundId,
+        p_step_results: stepResultsArray as any,
+      })
+    } catch (err) {
+      console.error(`[${matchId}] ❌ [STEP] Failed to compute results on last step:`, err)
     }
+    return
+  }
 
-    await moveToNextStep(matchId, supabase)
+  const nextStepIndex = canonicalStepIndex + 1
+  const nextStepEndsAt = new Date(Date.now() + 15 * 1000).toISOString()
+
+  // CAS-update match_rounds so only one Edge instance advances.
+  const { data: advancedRow, error: advErr } = await supabase
+    .from('match_rounds')
+    .update({
+      status: 'steps',
+      current_step_index: nextStepIndex,
+      step_ends_at: nextStepEndsAt,
+    })
+    .eq('id', roundId)
+    .eq('status', 'steps')
+    .eq('current_step_index', canonicalStepIndex)
+    .select('id')
+    .maybeSingle()
+
+  if (advErr) {
+    console.error(`[${matchId}] ❌ [STEP] Failed to advance match_rounds step index:`, advErr)
+  }
+
+  // Best-effort: start a local timer for the next step ONLY if we won the CAS update.
+  if (advancedRow && state) {
+    try {
+      const timerId = setTimeout(() => {
+        checkStepTimeout(matchId, nextStepIndex, supabase)
+      }, 15 * 1000) as unknown as number
+      state.stepTimers.set(nextStepIndex, timerId)
+    } catch (_err) {
+      // ignore
+    }
   }
 }
 

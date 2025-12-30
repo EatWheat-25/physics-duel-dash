@@ -368,7 +368,10 @@ function connectToGame(serverWsUrl: string, jwt: string, matchId: string) {
 
 ## Deployment
 
-All Edge Functions are automatically deployed by Lovable when you push changes.
+Deploy Edge Functions using the Supabase CLI:
+```bash
+supabase functions deploy <function-name>
+```
 
 ## Cron Jobs Setup
 
