@@ -8,8 +8,9 @@ import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Starfield } from '@/components/Starfield';
 import { MathText } from '@/components/math/MathText';
-import { BattleSplitShell } from '@/components/battle/BattleSplitShell';
 import { AnswerOptionButton } from '@/components/battle/AnswerOptionButton';
+import { BattleTimerBar } from '@/components/battle/BattleTimerBar';
+import { BattleHudShell } from '@/components/battle/BattleHudShell';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -215,142 +216,162 @@ export default function BattleConnected() {
         ? `${stepTimeLeft}s`
         : `${Math.floor((timeRemaining ?? 0) / 60)}:${String((timeRemaining ?? 0) % 60).padStart(2, '0')}`;
 
+  const timerBarSecondsLeft =
+    phase === 'main_question'
+      ? mainQuestionTimeLeft
+      : phase === 'steps'
+        ? (currentSegment === 'sub' ? (subStepTimeLeft ?? stepTimeLeft) : stepTimeLeft)
+        : phase === 'question'
+          ? timeRemaining
+          : null;
+
+  const timerBarTotalSeconds =
+    phase === 'steps' ? 15 : phase === 'main_question' ? 60 : phase === 'question' ? 60 : 0;
+
   return (
-    <BattleSplitShell
-      className="font-sans selection:bg-blue-500/30"
-      top={
-        <>
-          {/* Round Intro Overlay */}
-          <AnimatePresence>
-            {showRoundIntro && (
+    <BattleHudShell className="font-sans selection:bg-blue-500/30">
+      {/* Round Intro Overlay */}
+      <AnimatePresence>
+        {showRoundIntro && (
+          <motion.div
+            initial={{ opacity: 0, scale: 1.2 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8, filter: 'blur(20px)' }}
+            transition={{ duration: 0.5 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none"
+          >
+            <div className="text-center">
               <motion.div
-                initial={{ opacity: 0, scale: 1.2 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8, filter: 'blur(20px)' }}
-                transition={{ duration: 0.5 }}
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-blue-500 font-mono tracking-[0.5em] text-sm mb-4 uppercase"
               >
-                <div className="text-center">
-                  <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-blue-500 font-mono tracking-[0.5em] text-sm mb-4 uppercase"
-                  >
-                    Subject: {match.subject}
-                  </motion.div>
-                  <h1 className="text-7xl md:text-9xl font-black text-white tracking-tighter italic">
-                    ROUND {roundNumber}
-                  </h1>
-                  <motion.div
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ delay: 0.4, duration: 0.5 }}
-                    className="h-2 w-32 bg-blue-500 mx-auto mt-6 rounded-full"
-                  />
-                </div>
+                Subject: {match.subject}
               </motion.div>
-            )}
-          </AnimatePresence>
+              <h1 className="text-7xl md:text-9xl font-black text-white tracking-tighter italic">
+                ROUND {roundNumber}
+              </h1>
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ delay: 0.4, duration: 0.5 }}
+                className="h-2 w-32 bg-blue-500 mx-auto mt-6 rounded-full"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          <div className="h-full flex flex-col gap-5">
-            {/* Top Bar */}
-            <div className="flex items-center justify-between gap-3">
-              <button
-                onClick={() => navigate('/matchmaking-new')}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors backdrop-blur-md border border-white/10"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="text-xs font-bold tracking-widest">EXIT</span>
-              </button>
+      <header className="flex flex-col gap-5">
+        {/* Top Bar */}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={() => navigate('/matchmaking-new')}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors backdrop-blur-md border border-white/10"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-xs font-bold tracking-widest">EXIT</span>
+          </button>
 
-              <div className="flex items-center gap-2">
-                <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
-                  <span className="text-[10px] font-mono text-white/70 uppercase tracking-widest">
-                    {subjectLabel}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full backdrop-blur-md">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      status.includes('connected') || status === 'playing'
-                        ? 'bg-green-500 animate-pulse'
-                        : 'bg-yellow-500'
-                    }`}
-                  />
-                  <span className="text-xs font-mono text-blue-200 uppercase tracking-wider">
-                    {status.replace('_', ' ')}
-                  </span>
-                </div>
-              </div>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
+              <span className="text-[10px] font-mono text-white/70 uppercase tracking-widest">
+                {subjectLabel}
+              </span>
             </div>
 
-            {/* Score + Timer (more “MCQ app” style, still duel-aware) */}
-            <div className="grid grid-cols-3 gap-4 items-end">
-              <div className="flex flex-col items-start">
-                <motion.div
-                  key={`my-wins-${myWins}`}
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{
-                    scale: shouldAnimateMyWins ? [1, 1.25, 1] : 1,
-                    opacity: 1,
-                  }}
-                  transition={{
-                    duration: 0.6,
-                    ease: 'easeOut',
-                    scale: shouldAnimateMyWins ? { times: [0, 0.3, 1], duration: 0.6 } : { duration: 0.3 },
-                  }}
-                  className="text-5xl md:text-6xl font-black text-blue-300 drop-shadow-[0_0_18px_rgba(96,165,250,0.45)]"
-                >
-                  {myWins}
-                </motion.div>
-                <div className="mt-1 text-[10px] font-mono uppercase tracking-[0.3em] text-blue-200/60">
-                  YOU
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center pb-1">
-                <div className="text-[10px] text-white/35 font-mono uppercase tracking-[0.28em] text-center">
-                  {roundMeta}
-                </div>
-                <div
-                  className={`mt-1 text-4xl md:text-5xl font-black font-mono tracking-tighter tabular-nums transition-colors duration-300 ${
-                    timerIsLow
-                      ? 'text-red-400 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]'
-                      : 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.18)]'
-                  }`}
-                >
-                  {timerText}
-                </div>
-              </div>
-
-              <div className="flex flex-col items-end">
-                <motion.div
-                  key={`opp-wins-${oppWins}`}
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{
-                    scale: shouldAnimateOppWins ? [1, 1.25, 1] : 1,
-                    opacity: 1,
-                  }}
-                  transition={{
-                    duration: 0.6,
-                    ease: 'easeOut',
-                    scale: shouldAnimateOppWins ? { times: [0, 0.3, 1], duration: 0.6 } : { duration: 0.3 },
-                  }}
-                  className="text-5xl md:text-6xl font-black text-red-300 drop-shadow-[0_0_18px_rgba(248,113,113,0.45)]"
-                >
-                  {oppWins}
-                </motion.div>
-                <div className="mt-1 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/60">
-                  OPP
-                </div>
-              </div>
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full backdrop-blur-md">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  status.includes('connected') || status === 'playing'
+                    ? 'bg-green-500 animate-pulse'
+                    : 'bg-yellow-500'
+                }`}
+              />
+              <span className="text-xs font-mono text-blue-200 uppercase tracking-wider">
+                {status.replace('_', ' ')}
+              </span>
             </div>
+          </div>
+        </div>
 
-            {/* TOP CONTENT: question / prompt / results */}
-            <div className="flex-1 min-h-0 flex items-center justify-center">
-              <AnimatePresence mode="wait">
+        {/* Score + Timer */}
+        <div className="grid grid-cols-3 gap-4 items-end">
+          <div className="flex flex-col items-start">
+            <motion.div
+              key={`my-wins-${myWins}`}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{
+                scale: shouldAnimateMyWins ? [1, 1.25, 1] : 1,
+                opacity: 1,
+              }}
+              transition={{
+                duration: 0.6,
+                ease: 'easeOut',
+                scale: shouldAnimateMyWins ? { times: [0, 0.3, 1], duration: 0.6 } : { duration: 0.3 },
+              }}
+              className="text-5xl md:text-6xl font-black text-blue-300 drop-shadow-[0_0_18px_rgba(96,165,250,0.45)]"
+            >
+              {myWins}
+            </motion.div>
+            <div className="mt-1 text-[10px] font-mono uppercase tracking-[0.3em] text-blue-200/60">
+              YOU
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center pb-1">
+            <div className="text-[10px] text-white/35 font-mono uppercase tracking-[0.28em] text-center">
+              {roundMeta}
+            </div>
+            <div
+              className={`mt-1 text-4xl md:text-5xl font-black font-mono tracking-tighter tabular-nums transition-colors duration-300 ${
+                timerIsLow
+                  ? 'text-red-400 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]'
+                  : 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.18)]'
+              }`}
+            >
+              {timerText}
+            </div>
+            <div className="mt-3 w-full max-w-[240px]">
+              <BattleTimerBar
+                secondsLeft={timerBarSecondsLeft}
+                totalSeconds={timerBarTotalSeconds}
+                accent={phase === 'steps' ? 'amber' : 'blue'}
+                isLow={timerIsLow}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end">
+            <motion.div
+              key={`opp-wins-${oppWins}`}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{
+                scale: shouldAnimateOppWins ? [1, 1.25, 1] : 1,
+                opacity: 1,
+              }}
+              transition={{
+                duration: 0.6,
+                ease: 'easeOut',
+                scale: shouldAnimateOppWins ? { times: [0, 0.3, 1], duration: 0.6 } : { duration: 0.3 },
+              }}
+              className="text-5xl md:text-6xl font-black text-red-300 drop-shadow-[0_0_18px_rgba(248,113,113,0.45)]"
+            >
+              {oppWins}
+            </motion.div>
+            <div className="mt-1 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/60">
+              OPP
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="mt-6 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-6 lg:gap-10">
+        {/* PROMPT / RESULTS */}
+        <section className="min-h-0 flex items-center justify-center">
+          <div className="w-full">
+            <AnimatePresence mode="wait">
                 {/* CONNECTING STATE */}
                 {(status === 'connecting' || status === 'connected' || status === 'both_connected') && (
                   <motion.div
@@ -385,18 +406,30 @@ export default function BattleConnected() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -16 }}
-                    className="w-full max-w-3xl"
+                    className="w-full"
                   >
-                    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-10 shadow-2xl relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
-                      <div className="text-center">
-                        <div className="text-xs text-blue-300/70 font-mono mb-3 uppercase tracking-[0.28em]">
+                    <div className="relative overflow-hidden rounded-[28px] p-6 md:p-10 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
+                      <div
+                        aria-hidden
+                        className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/80 to-white/55"
+                      />
+                      <div
+                        aria-hidden
+                        className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/15 via-transparent to-transparent"
+                      />
+                      <div
+                        aria-hidden
+                        className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent"
+                      />
+
+                      <div className="relative text-center text-slate-950">
+                        <div className="text-[11px] text-slate-700/70 font-mono mb-3 uppercase tracking-[0.28em]">
                           Main Question
                         </div>
-                        <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
+                        <h3 className="text-2xl md:text-4xl font-black leading-tight tracking-tight">
                           <MathText text={question.stem || question.questionText || question.title} />
                         </h3>
-                        <div className="mt-5 text-sm text-white/40">
+                        <div className="mt-5 text-sm text-slate-700/70">
                           {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
                         </div>
                       </div>
@@ -416,22 +449,33 @@ export default function BattleConnected() {
                       initial={{ opacity: 0, y: 16 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -16 }}
-                      className="w-full max-w-3xl"
+                      className="w-full"
                     >
-                      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-10 shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50" />
+                      <div className="relative overflow-hidden rounded-[28px] p-6 md:p-10 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
+                        <div
+                          aria-hidden
+                          className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/80 to-white/55"
+                        />
+                        <div
+                          aria-hidden
+                          className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/14 via-transparent to-transparent"
+                        />
+                        <div
+                          aria-hidden
+                          className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500/60 to-transparent"
+                        />
 
-                        <div className="text-center">
-                          <div className="text-xs text-amber-300/70 font-mono mb-3 uppercase tracking-[0.28em]">
+                        <div className="relative text-center text-slate-950">
+                          <div className="text-[11px] text-slate-700/70 font-mono mb-3 uppercase tracking-[0.28em]">
                             {currentSegment === 'sub'
                               ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
                               : `Step ${currentStepIndex + 1} of ${totalSteps}`}
                           </div>
-                          <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
+                          <h3 className="text-xl md:text-3xl font-black leading-tight tracking-tight">
                             <MathText text={currentStep.prompt || currentStep.question} />
                           </h3>
                           {currentSegment === 'sub' && (
-                            <p className="text-xs text-white/50 mt-3 font-mono">
+                            <p className="text-xs text-slate-700/70 mt-3 font-mono">
                               QUICK CHECK — must be correct to earn this step&apos;s marks
                             </p>
                           )}
@@ -470,13 +514,27 @@ export default function BattleConnected() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -16 }}
-                    className="w-full max-w-3xl"
+                    className="w-full"
                   >
-                    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-10 shadow-2xl relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
-                      <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
-                        <MathText text={question.stem || question.questionText} />
-                      </h3>
+                    <div className="relative overflow-hidden rounded-[28px] p-6 md:p-10 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
+                      <div
+                        aria-hidden
+                        className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/80 to-white/55"
+                      />
+                      <div
+                        aria-hidden
+                        className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/15 via-transparent to-transparent"
+                      />
+                      <div
+                        aria-hidden
+                        className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent"
+                      />
+
+                      <div className="relative text-center text-slate-950">
+                        <h3 className="text-2xl md:text-4xl font-black leading-tight tracking-tight">
+                          <MathText text={question.stem || question.questionText} />
+                        </h3>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -488,9 +546,21 @@ export default function BattleConnected() {
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 1.02, filter: 'blur(10px)' }}
-                    className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                    className="w-full"
                   >
-                    <div className="mb-8">
+                    <div className="relative overflow-hidden rounded-[28px] bg-black/35 ring-1 ring-white/10 backdrop-blur-2xl p-8 md:p-12 text-center shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
+                      <div
+                        aria-hidden
+                        className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent ${
+                          results.round_winner === currentUser
+                            ? 'via-emerald-400/70'
+                            : results.round_winner === null
+                              ? 'via-white/35'
+                              : 'via-rose-400/70'
+                        } to-transparent`}
+                      />
+
+                      <div className="mb-8">
                       {results.round_winner === currentUser ? (
                         <motion.div
                           initial={{ scale: 0 }}
@@ -783,6 +853,7 @@ export default function BattleConnected() {
                           </div>
                         </div>
                       )}
+                    </div>
                   </motion.div>
                 )}
 
@@ -808,14 +879,14 @@ export default function BattleConnected() {
                     </div>
                   </motion.div>
                 )}
-              </AnimatePresence>
-            </div>
+            </AnimatePresence>
           </div>
-        </>
-      }
-      bottom={
-        <div className="h-full flex flex-col">
-          <AnimatePresence mode="wait">
+        </section>
+
+        {/* ANSWERS / ACTIONS */}
+        <section className="min-h-0 flex items-center justify-center">
+          <div className="w-full">
+            <AnimatePresence mode="wait">
             {/* MAIN QUESTION: action in bottom */}
             {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
               <motion.div
@@ -823,7 +894,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
-                className="w-full max-w-3xl mx-auto"
+                className="w-full"
               >
                 <button
                   onClick={() => {
@@ -861,7 +932,7 @@ export default function BattleConnected() {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  className="w-full max-w-3xl mx-auto"
+                  className="w-full"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="text-[10px] text-white/40 font-mono uppercase tracking-[0.28em]">
@@ -876,7 +947,7 @@ export default function BattleConnected() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     {currentStep.options
                       ?.filter((o: string) => String(o).trim())
                       .map((option: string, idx: number) => (
@@ -900,7 +971,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
-                className="w-full max-w-3xl mx-auto"
+                className="w-full"
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-[10px] text-white/40 font-mono uppercase tracking-[0.28em]">
@@ -915,7 +986,7 @@ export default function BattleConnected() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   {question.steps?.[0]?.options
                     ?.filter((o) => String(o).trim())
                     .map((option, idx) => (
@@ -952,7 +1023,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
-                className="w-full max-w-2xl mx-auto"
+                className="w-full"
               >
                 {!matchOver && (
                   <div>
@@ -1002,7 +1073,7 @@ export default function BattleConnected() {
                 key="finished-bottom"
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-2xl mx-auto"
+                className="w-full"
               >
                 <button
                   onClick={() => navigate('/matchmaking-new')}
@@ -1012,9 +1083,10 @@ export default function BattleConnected() {
                 </button>
               </motion.div>
             )}
-          </AnimatePresence>
-        </div>
-      }
-    />
+            </AnimatePresence>
+          </div>
+        </section>
+      </div>
+    </BattleHudShell>
   );
 }

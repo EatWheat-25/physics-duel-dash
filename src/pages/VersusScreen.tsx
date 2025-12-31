@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
-import { Starfield } from '@/components/Starfield';
 import { MatchupIntro } from '@/components/battle/MatchupIntro';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 import { createShutterGate } from '@/lib/shutterGate';
+import { BattleHudShell } from '@/components/battle/BattleHudShell';
 import type { MatchRow } from '@/types/schema';
 
 export default function VersusScreen() {
@@ -172,31 +171,25 @@ export default function VersusScreen() {
 
   if (!match || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center relative overflow-hidden">
-        <Starfield />
-        <div className="flex flex-col items-center gap-4 relative z-10">
-          <div className="relative">
-            <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-8 bg-blue-500/20 rounded-full animate-pulse" />
+      <BattleHudShell className="font-sans selection:bg-blue-500/30">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 bg-blue-500/20 rounded-full animate-pulse" />
+              </div>
             </div>
+            <p className="text-blue-200/70 font-mono tracking-widest text-sm">MATCH FOUND</p>
           </div>
-          <p className="text-blue-500 font-mono tracking-widest text-sm">LOADING MATCHUP</p>
         </div>
-      </div>
+      </BattleHudShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-blue-500/30 overflow-hidden relative">
-      <Starfield />
-      
-      {/* Background Elements */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505] pointer-events-none" />
-      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent pointer-events-none" />
-      
-      {/* Main Content */}
-      <main className="relative z-10 w-full h-screen flex items-center justify-center px-4">
+    <BattleHudShell className="font-sans selection:bg-blue-500/30">
+      <main className="flex-1 flex items-center justify-center">
         <MatchupIntro
           left={{ name: myDisplayName, subtitle: 'YOU' }}
           right={{ name: oppDisplayName, subtitle: 'OPPONENT' }}
@@ -204,7 +197,7 @@ export default function VersusScreen() {
           onComplete={handleAnimationComplete}
         />
       </main>
-    </div>
+    </BattleHudShell>
   );
 }
 
