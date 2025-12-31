@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import type { MatchRow } from '@/types/schema'
 
 interface MatchmakingState {
-  status: 'idle' | 'queuing' | 'searching' | 'matched'
+  status: 'idle' | 'queuing' | 'matched'
   matchId: string | null
   error: string | null
 }
@@ -81,8 +81,8 @@ export function useMatchmakingSimple() {
 
         toast.success('Match found!')
 
-        // Navigate to versus screen first
-        navigate(`/versus/${data.match_id}`)
+        // Navigate to battle page
+        navigate(`/battle-simple/${data.match_id}`)
         return
       }
 
@@ -153,8 +153,8 @@ export function useMatchmakingSimple() {
 
           toast.success('Match found!')
 
-          // Navigate to versus screen first
-          navigate(`/versus/${match.id}`)
+          // Navigate to battle
+          navigate(`/battle-simple/${match.id}`)
         }
       } catch (error: any) {
         console.error('[MATCHMAKING] Poll exception:', error)

@@ -30,8 +30,7 @@ export default function Lobby() {
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
   const [queueTime, setQueueTime] = useState(0);
   const activePlayerCount = useActivePlayerCount();
-  const { status: rawStatus, startMatchmaking, leaveQueue, match } = useMatchmaking();
-  const status = rawStatus as 'idle' | 'searching' | 'matched';
+  const { status, startMatchmaking, leaveQueue, match } = useMatchmaking();
 
   useEffect(() => {
     document.title = 'Battle Lobby | BattleNerds';
@@ -62,7 +61,7 @@ export default function Lobby() {
   const handleStartQueue = async () => {
     if (!selectedSubject || !selectedGrade || status === 'searching') return;
 
-    await startMatchmaking(selectedSubject, selectedGrade);
+    await startMatchmaking();
   };
 
   const handleLeaveQueue = async () => {

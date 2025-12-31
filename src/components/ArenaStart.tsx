@@ -4,7 +4,7 @@ import { useMatchStart } from '@/hooks/useMatchStart';
 
 export default function ArenaStart({ userId }: { userId: string }) {
   const navigate = useNavigate();
-  const { start } = useMatchStart(userId, (id) => navigate(`/versus/${id}`));
+  const { start } = useMatchStart(userId, (id) => navigate(`/battle/${id}`));
   const [busy, setBusy] = useState(false);
 
   async function onClick() {

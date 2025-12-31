@@ -24,7 +24,7 @@ export interface QuestionStep {
     id: string;
 
     /** 0-based display order (0 = first step) */
-    index?: number;
+    index: number;
 
     /** Step type - MCQ or True/False */
     type: 'mcq' | 'true_false';
@@ -116,21 +116,20 @@ export interface StepBasedQuestion {
     /** Optional rank tier requirement */
     rankTier?: string;
 
-    /** Main question context/setup/stem (optional for legacy data) */
-    stem?: string;
+    /** Main question context/setup/stem */
+    stem: string;
 
     /**
      * Time limit (seconds) for the main question phase (before steps begin).
      * Server-enforced; Admin-configurable; clamped to a safe range.
-     * Optional - defaults to 60 seconds if not specified.
      */
-    mainQuestionTimerSeconds?: number;
+    mainQuestionTimerSeconds: number;
 
     /** Total marks (sum of all step marks) */
     totalMarks: number;
 
     /** Topic tags for filtering */
-    topicTags?: string[];
+    topicTags: string[];
 
     /** Question steps - MUST be sorted by index (0..n) */
     steps: QuestionStep[];

@@ -43,7 +43,6 @@ import { DevMapperTest } from "./pages/DevMapperTest";
 import MatchmakingTest from "./pages/MatchmakingTest";
 import BattleSimple from "./pages/BattleSimple";
 import SupabaseDebug from "./pages/SupabaseDebug";
-import VersusScreen from "./pages/VersusScreen";
 import { getRandomQuestions } from "./data/questions";
 import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
 
@@ -98,7 +97,6 @@ const App = () => {
                   <Route path="/dev/mapper-test" element={<DevMapperTest />} />
                   <Route path="/supabase-debug" element={<SupabaseDebug />} />
                   <Route path="/matchmaking-test" element={<MatchmakingTest />} />
-                  <Route path="/versus/:matchId" element={<VersusScreen />} />
                   <Route path="/battle-simple/:matchId" element={<BattleSimple />} />
                   <Route path="/battle" element={<BattleLoader />} />
                   {/* Old route - using useGame hook (deprecated, use /online-battle-new instead) */}

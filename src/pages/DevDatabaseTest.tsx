@@ -59,15 +59,15 @@ export const DevDatabaseTest = () => {
             const mapped: StepBasedQuestion = {
                 id: data.id,
                 title: data.title,
-                subject: data.subject as any,
+                subject: data.subject,
                 chapter: data.chapter,
-                level: data.level as any,
-                difficulty: data.difficulty as any,
-                rankTier: data.rank_tier as any,
+                level: data.level,
+                difficulty: data.difficulty,
+                rankTier: data.rank_tier,
                 stem: data.stem,
                 totalMarks: data.total_marks,
                 topicTags: data.topic_tags,
-                steps: data.steps as any,
+                steps: data.steps,
                 imageUrl: data.image_url,
             };
 

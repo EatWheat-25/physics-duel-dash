@@ -4,8 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { MatchRow } from '@/types/schema';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
-import { createShutterGate } from '@/lib/shutterGate';
-import { getRankByPoints } from '@/types/ranking';
 
 interface MatchmakingState {
   status: 'idle' | 'searching' | 'matched';
@@ -15,7 +13,7 @@ interface MatchmakingState {
 
 export function useMatchmaking() {
   const navigate = useNavigate();
-  const { startMatch: startShutterMatch } = useElevatorShutter();
+  const { startMatch } = useElevatorShutter();
   const [state, setState] = useState<MatchmakingState>({
     status: 'idle',
     match: null,
@@ -27,79 +25,23 @@ export function useMatchmaking() {
   const queueStartTimeRef = useRef<number | null>(null);
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
-  const lastSearchRef = useRef<{ subject: string; level: string } | null>(null);
 
-  const fetchPlayerStats = useCallback(async (userId: string) => {
-    const [profileData, playerData] = await Promise.all([
-      supabase.from('profiles').select('username').eq('id', userId).maybeSingle(),
-      supabase.from('players').select('mmr').eq('id', userId).maybeSingle(),
-    ]);
-
-    const username = profileData.data?.username || 'Player';
-    const mmr = playerData.data?.mmr || 1000;
-    
-    // Rank/level (reuse game ranking logic)
-    const rank = getRankByPoints(mmr);
-    const level = Math.max(1, Math.floor(mmr / 100) + 1);
-
-    return {
-      username,
-      mmr,
-      rank: `${rank.tier} ${rank.subRank}`,
-      level,
-    };
-  }, []);
-
-  const playMatchFoundCinematic = useCallback(
-    async (match: MatchRow, currentUserId: string) => {
-      const opponentId = match.player1_id === currentUserId ? match.player2_id : match.player1_id;
-
-      const [myStats, opponentStats] = await Promise.all([
-        fetchPlayerStats(currentUserId),
-        fetchPlayerStats(opponentId),
-      ]);
-
-      const subtitleParts: string[] = [];
-      if (match.subject) subtitleParts.push(String(match.subject).toUpperCase());
-      // matches table has `mode`; MatchRow type may not include it in this repo's schema typing.
-      if ((match as any).mode) subtitleParts.push(String((match as any).mode).toUpperCase());
-      const subtitle = subtitleParts.length ? subtitleParts.join(' • ') : 'LOADING';
-
-      const gate = createShutterGate();
-
-      void startShutterMatch({
-        subject: match.subject,
-        matchup: {
-          left: { 
-            label: 'YOU', 
-            username: myStats.username, 
-            rank: myStats.rank, 
-            level: myStats.level,
-            mmr: myStats.mmr,
-            color: 'hsl(var(--battle-primary))',
-          },
-          right: { 
-            label: 'OPPONENT', 
-            username: opponentStats.username, 
-            rank: opponentStats.rank, 
-            level: opponentStats.level,
-            mmr: opponentStats.mmr,
-            // User-requested: blue + green theme (opponent is blue instead of red)
-            color: 'var(--blue)',
-          },
-          center: { title: 'VS', subtitle },
-        },
-        minLoadingMs: 1200,
-        maxLoadingMs: 15000,
-        waitFor: gate.promise,
+  const runMatchFoundTransition = useCallback(
+    (match: MatchRow) => {
+      // Purple elevator shutter: close doors, navigate behind, then open once BattleConnected signals question is rendered.
+      void startMatch({
+        message: 'MATCH FOUND',
+        // Timeout fallback so we never hang forever if the battle page fails to signal readiness.
+        loadingMs: 15000,
+        waitForReady: true,
         onClosed: () => {
           navigate(`/online-battle-new/${match.id}`, {
-            state: { match, shutterGateId: gate.id },
+            state: { match },
           });
         },
       });
     },
-    [fetchPlayerStats, navigate, startShutterMatch]
+    [navigate, startMatch]
   );
 
   // Poll for matches when in searching state
@@ -137,50 +79,21 @@ export function useMatchmaking() {
 
         if (matches && matches.length > 0) {
           const match = matches[0] as MatchRow;
-
-          // NOTE: Do NOT compare server `created_at` with client `Date.now()` to decide “freshness”.
-          // Clock skew can cause the *real* match to be incorrectly ignored for the first player.
-          // Instead: ignore only clearly stale matches and those that don't match the current search params.
-          const lastSearch = lastSearchRef.current;
-          if (lastSearch) {
-            const matchSubject = String((match as any).subject ?? '').toLowerCase();
-            const desiredSubject = String(lastSearch.subject ?? '').toLowerCase();
-            if (matchSubject && desiredSubject && matchSubject !== desiredSubject) {
-              console.log('[MATCHMAKING] Poll: Found match for different subject, ignoring...', {
+          
+          // Only navigate if match was created after we started searching
+          if (queueStartTimeRef.current) {
+            const matchCreatedAtMs = new Date(match.created_at).getTime();
+            if (matchCreatedAtMs < queueStartTimeRef.current) {
+              console.log('[MATCHMAKING] Poll: Found old match, ignoring...', {
                 matchId: match.id,
-                matchSubject,
-                desiredSubject,
-              });
-              return;
-            }
-
-            const matchMode = String((match as any).mode ?? '');
-            const desiredMode = String(lastSearch.level ?? '');
-            if (matchMode && desiredMode && matchMode !== desiredMode) {
-              console.log('[MATCHMAKING] Poll: Found match for different mode, ignoring...', {
-                matchId: match.id,
-                matchMode,
-                desiredMode,
-              });
-              return;
-            }
-          }
-
-          const createdAtMs = new Date((match as any).created_at ?? '').getTime();
-          if (Number.isFinite(createdAtMs)) {
-            const ageMs = Date.now() - createdAtMs;
-            const maxAgeMs = 1000 * 60 * 20; // 20 minutes
-            if (ageMs > maxAgeMs) {
-              console.log('[MATCHMAKING] Poll: Found stale pending match, ignoring...', {
-                matchId: match.id,
-                matchCreatedAt: (match as any).created_at,
-                ageMs,
+                matchCreatedAt: match.created_at,
+                startedSearchingAt: new Date(queueStartTimeRef.current).toISOString(),
               });
               return;
             }
           }
           
-          console.log(`[MATCHMAKING] ✅ Poll detected fresh match, starting shutter...`, match.id);
+          console.log(`[MATCHMAKING] ✅ Poll detected fresh match, navigating...`, match.id);
           
           // Clear polling
           if (pollIntervalRef.current) {
@@ -195,10 +108,9 @@ export function useMatchmaking() {
           });
           setQueueStartTime(null);
           queueStartTimeRef.current = null;
-          lastSearchRef.current = null;
 
-          // Let the shutter handle navigation while doors are closed.
-          await playMatchFoundCinematic(match, user.id);
+          toast.success('Match found! Starting battle...');
+          runMatchFoundTransition(match);
         } else {
           console.log('[MATCHMAKING] Poll: No match found yet, continuing to wait...');
         }
@@ -217,7 +129,7 @@ export function useMatchmaking() {
         pollIntervalRef.current = null;
       }
     };
-  }, [state.status, playMatchFoundCinematic]);
+  }, [state.status, runMatchFoundTransition]);
 
   const startMatchmaking = useCallback(async (subject: string, level: string) => {
     if (isSearchingRef.current) {
@@ -238,7 +150,6 @@ export function useMatchmaking() {
     queueStartTimeRef.current = startedAt;
     setQueueStartTime(startedAt);
     setState(prev => ({ ...prev, status: 'searching', error: null }));
-    lastSearchRef.current = { subject, level };
 
     try {
       // Get current user
@@ -298,10 +209,9 @@ export function useMatchmaking() {
         });
         setQueueStartTime(null);
         queueStartTimeRef.current = null;
-        lastSearchRef.current = null;
 
-        // Let the shutter handle navigation while doors are closed.
-        await playMatchFoundCinematic(match, user.id);
+        toast.success('Match found! Starting battle...');
+        runMatchFoundTransition(match);
       } else if (data?.matched === false && data?.queued === true) {
         // Queued - stay in searching state and let polling handle match detection
         console.log('[MATCHMAKING] Queued, will poll for match...');
@@ -332,7 +242,6 @@ export function useMatchmaking() {
       toast.error(`Failed to start matchmaking. ${errorHint ? errorHint : 'Please try again.'}`);
       setQueueStartTime(null);
       queueStartTimeRef.current = null;
-      lastSearchRef.current = null;
       
       // Clear polling on error
       if (pollIntervalRef.current) {
@@ -342,7 +251,7 @@ export function useMatchmaking() {
     } finally {
       isSearchingRef.current = false;
     }
-  }, [state.status, playMatchFoundCinematic]);
+  }, [state.status, runMatchFoundTransition]);
 
   const leaveQueue = useCallback(async () => {
     console.log('[MATCHMAKING] Leaving queue');
@@ -377,7 +286,6 @@ export function useMatchmaking() {
     isSearchingRef.current = false;
     setQueueStartTime(null);
     queueStartTimeRef.current = null;
-    lastSearchRef.current = null;
   }, []);
 
   return {
