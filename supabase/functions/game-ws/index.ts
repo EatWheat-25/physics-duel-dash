@@ -458,17 +458,20 @@ async function broadcastQuestion(
     })
     
     let sentCount = 0
-    matchSockets.forEach((socket, index) => {
+    let idx = 0
+    for (const socket of matchSockets) {
+      const socketNumber = idx + 1
+      idx++
       if (socket.readyState === WebSocket.OPEN) {
         try {
           socket.send(JSON.stringify(questionReceivedEvent))
           sentCount++
-          console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
+          console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${socketNumber}`)
         } catch (error) {
-          console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
+          console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${socketNumber}:`, error)
         }
       }
-    })
+    }
     
     console.log(`[${matchId}] 📊 [WS] QUESTION_RECEIVED sent to ${sentCount}/${matchSockets.size} sockets`)
     console.log(`[${matchId}] ✅ [WS] QUESTION_RECEIVED broadcast completed`)
@@ -996,23 +999,26 @@ async function checkAndBroadcastBothConnected(
   let sentCount = 0
   let skippedCount = 0
   
-  matchSockets.forEach((s, index) => {
-    console.log(`[${matchId}] Socket ${index + 1}/${matchSockets.size} readyState: ${s.readyState} (OPEN=1, CONNECTING=0, CLOSING=2, CLOSED=3)`)
+  let idx = 0
+  for (const s of matchSockets) {
+    const socketNumber = idx + 1
+    idx++
+    console.log(`[${matchId}] Socket ${socketNumber}/${matchSockets.size} readyState: ${s.readyState} (OPEN=1, CONNECTING=0, CLOSING=2, CLOSED=3)`)
     
     if (s.readyState === WebSocket.OPEN) {
       try {
         s.send(JSON.stringify(bothConnectedMessage))
         sentCount++
-        console.log(`[${matchId}] ✅ Sent BOTH_CONNECTED to socket ${index + 1}`)
+        console.log(`[${matchId}] ✅ Sent BOTH_CONNECTED to socket ${socketNumber}`)
       } catch (error) {
-        console.error(`[${matchId}] ❌ Error sending BOTH_CONNECTED to socket ${index + 1}:`, error)
+        console.error(`[${matchId}] ❌ Error sending BOTH_CONNECTED to socket ${socketNumber}:`, error)
         skippedCount++
       }
     } else {
-      console.warn(`[${matchId}] ⚠️  Socket ${index + 1} not ready (readyState: ${s.readyState}), skipping`)
+      console.warn(`[${matchId}] ⚠️  Socket ${socketNumber} not ready (readyState: ${s.readyState}), skipping`)
       skippedCount++
     }
-  })
+  }
   
   console.log(`[${matchId}] 📊 Broadcast summary: ${sentCount} sent, ${skippedCount} skipped, ${matchSockets.size} total`)
   
@@ -1766,7 +1772,7 @@ async function handleStepAnswer(
 
   const currentStep = steps[canonicalStepIndex]
   const correctAnswer = currentStep?.correct_answer?.correctIndex ?? currentStep?.correctAnswer ?? 0
-  const isCorrect = answerIndex === correctAnswer
+    const isCorrect = answerIndex === correctAnswer
 
   // 4) Persist the answer (idempotent; ignore duplicates to prevent late overwrites)
   try {
@@ -1823,7 +1829,7 @@ async function handleStepAnswer(
     waitingForOpponent: !bothAnswered
   }
   try {
-    socket.send(JSON.stringify(stepAnswerEvent))
+  socket.send(JSON.stringify(stepAnswerEvent))
   } catch (_err) {
     // ignore
   }
@@ -1904,6 +1910,38 @@ async function handleStepAnswer(
 
   if (advErr) {
     console.error(`[${matchId}] ❌ [STEP] Failed to advance match_rounds step index:`, advErr)
+  } else if (!advancedRow) {
+    console.warn(`[${matchId}] ⚠️ [STEP] CAS advance was a no-op (likely another instance advanced)`, {
+      canonicalStepIndex,
+      attemptedNextStepIndex: nextStepIndex
+    })
+  }
+
+  // Same-instance fallback: broadcast PHASE_CHANGE so connected sockets on this instance advance instantly
+  // even if Realtime (match_rounds updates) is unhealthy.
+  if (advancedRow) {
+    const nextStep = steps[nextStepIndex]
+    const phaseChangeEvent: PhaseChangeEvent = {
+      type: 'PHASE_CHANGE',
+      matchId,
+      phase: 'steps',
+      stepIndex: nextStepIndex,
+      totalSteps: steps.length,
+      stepEndsAt: nextStepEndsAt,
+      currentStep: {
+        id: nextStep?.id || '',
+        prompt: nextStep?.prompt || nextStep?.question || '',
+        options: Array.isArray(nextStep?.options) ? nextStep.options : [],
+        correctAnswer: nextStep?.correct_answer?.correctIndex ?? nextStep?.correctAnswer ?? 0,
+        marks: nextStep?.marks || 0
+      }
+    }
+
+    console.log(`[${matchId}] 📤 [STEP] Broadcasting PHASE_CHANGE for advanced step`, {
+      stepIndex: nextStepIndex,
+      stepEndsAt: nextStepEndsAt
+    })
+    broadcastToMatch(matchId, phaseChangeEvent)
   }
 
   // Best-effort: start a local timer for the next step ONLY if we won the CAS update.
