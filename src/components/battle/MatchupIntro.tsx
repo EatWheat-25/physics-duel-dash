@@ -22,9 +22,10 @@ function initials(value: string) {
 }
 
 export function MatchupIntro({ left, right, active, onComplete }: MatchupIntroProps) {
+  const reduceMotion = useReducedMotion();
+
   if (!active) return null;
 
-  const reduceMotion = useReducedMotion();
   const leftV = sideEnterVariants(reduceMotion, 'left');
   const rightV = sideEnterVariants(reduceMotion, 'right');
   const stampV = stampPopVariants(reduceMotion);

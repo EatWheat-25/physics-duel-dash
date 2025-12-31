@@ -90,6 +90,8 @@ export default function BattleConnected() {
     allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
 
+  const reduceMotion = useReducedMotion();
+
   // If the server couldn't start the round (often a cross-instance race), don't show the scary
   // "CONNECTION LOST" modal — just return to lobby with a toast.
   useEffect(() => {
@@ -275,7 +277,6 @@ export default function BattleConnected() {
   const timerBarTotalSeconds =
     phase === 'steps' ? 15 : phase === 'main_question' ? 60 : phase === 'question' ? 60 : 0;
 
-  const reduceMotion = useReducedMotion();
   const panelV = panelEnterVariants(reduceMotion);
   const panelT = battleTransition(reduceMotion, { duration: 0.22 });
 
