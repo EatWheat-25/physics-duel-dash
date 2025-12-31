@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { useMatchmakingPrefs } from '@/store/useMatchmakingPrefs';
 
-type Subject = 'physics' | 'math' | 'chemistry' | 'maths';
+type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'A1' | 'A2' | 'Both';
 
 const subjects = [
@@ -31,8 +31,7 @@ export default function LobbyNew() {
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
   const [queueTime, setQueueTime] = useState(0);
   const [isButtonLoading, setIsButtonLoading] = useState(false);
-  const { status: rawStatus, startMatchmaking, leaveQueue, match } = useMatchmaking();
-  const status = rawStatus as 'idle' | 'searching' | 'matched';
+  const { status, startMatchmaking, leaveQueue, match } = useMatchmaking();
   const autostart = useMemo(() => searchParams.get('autostart') === '1', [searchParams]);
   const autostartedRef = useRef(false);
 
@@ -102,7 +101,7 @@ export default function LobbyNew() {
 
   const handleSubjectSelect = (subject: Subject) => {
     setSelectedSubject(subject);
-    setPrefSubject(subject as any);
+    setPrefSubject(subject);
     setSelectedGrade(null);
     setPrefLevel(null);
     setStep('grade');

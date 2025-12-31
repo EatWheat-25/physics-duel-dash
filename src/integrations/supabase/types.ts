@@ -14,62 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      battle_matches: {
-        Row: {
-          created_at: string
-          current_question_id: string | null
-          id: string
-          player1_id: string
-          player2_id: string
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          current_question_id?: string | null
-          id?: string
-          player1_id: string
-          player2_id: string
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          current_question_id?: string | null
-          id?: string
-          player1_id?: string
-          player2_id?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "battle_matches_current_question_id_fkey"
-            columns: ["current_question_id"]
-            isOneToOne: false
-            referencedRelation: "battle_questions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      battle_questions: {
-        Row: {
-          created_at: string
-          id: string
-          steps: Json
-          text: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          steps: Json
-          text: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          steps?: Json
-          text?: string
-        }
-        Relationships: []
-      }
       match_answers: {
         Row: {
           answer_index: number
@@ -131,6 +75,13 @@ export type Database = {
             columns: ["question_id"]
             isOneToOne: false
             referencedRelation: "questions_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_answers_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "match_rounds"
             referencedColumns: ["id"]
           },
         ]
@@ -267,149 +218,47 @@ export type Database = {
           },
         ]
       }
-      match_round_player_progress_v1: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          current_segment: string
-          current_step_index: number
-          current_sub_step_index: number
-          id: string
-          match_id: string
-          player_id: string
-          question_id: string
-          round_id: string
-          round_index: number
-          segment_ends_at: string | null
-          updated_at: string
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          current_segment?: string
-          current_step_index?: number
-          current_sub_step_index?: number
-          id?: string
-          match_id: string
-          player_id: string
-          question_id: string
-          round_id: string
-          round_index: number
-          segment_ends_at?: string | null
-          updated_at?: string
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          current_segment?: string
-          current_step_index?: number
-          current_sub_step_index?: number
-          id?: string
-          match_id?: string
-          player_id?: string
-          question_id?: string
-          round_id?: string
-          round_index?: number
-          segment_ends_at?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "match_round_player_progress_v1_match_id_fkey"
-            columns: ["match_id"]
-            isOneToOne: false
-            referencedRelation: "matches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "match_round_player_progress_v1_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "questions_v2"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "match_round_player_progress_v1_round_id_fkey"
-            columns: ["round_id"]
-            isOneToOne: false
-            referencedRelation: "match_rounds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       match_rounds: {
         Row: {
           created_at: string
-          current_step_index: number
           id: string
-          main_question_ends_at: string | null
           match_id: string
-          p1_eliminated_at: string | null
-          p2_eliminated_at: string | null
-          player1_answer_payload: Json | null
-          player1_answered_at: string | null
-          player1_round_score: number
-          player2_answer_payload: Json | null
-          player2_answered_at: string | null
-          player2_round_score: number
           question_id: string
-          question_payload: Json | null
-          round_deadline: string | null
-          round_number: number | null
+          round_number: number
           status: string
-          step_deadlines: Json | null
-          step_ends_at: string | null
+          winner_player_id: string | null
         }
         Insert: {
           created_at?: string
-          current_step_index?: number
           id?: string
-          main_question_ends_at?: string | null
           match_id: string
-          p1_eliminated_at?: string | null
-          p2_eliminated_at?: string | null
-          player1_answer_payload?: Json | null
-          player1_answered_at?: string | null
-          player1_round_score?: number
-          player2_answer_payload?: Json | null
-          player2_answered_at?: string | null
-          player2_round_score?: number
           question_id: string
-          question_payload?: Json | null
-          round_deadline?: string | null
-          round_number?: number | null
+          round_number: number
           status?: string
-          step_deadlines?: Json | null
-          step_ends_at?: string | null
+          winner_player_id?: string | null
         }
         Update: {
           created_at?: string
-          current_step_index?: number
           id?: string
-          main_question_ends_at?: string | null
           match_id?: string
-          p1_eliminated_at?: string | null
-          p2_eliminated_at?: string | null
-          player1_answer_payload?: Json | null
-          player1_answered_at?: string | null
-          player1_round_score?: number
-          player2_answer_payload?: Json | null
-          player2_answered_at?: string | null
-          player2_round_score?: number
           question_id?: string
-          question_payload?: Json | null
-          round_deadline?: string | null
-          round_number?: number | null
+          round_number?: number
           status?: string
-          step_deadlines?: Json | null
-          step_ends_at?: string | null
+          winner_player_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "match_rounds_match_id_fkey"
             columns: ["match_id"]
             isOneToOne: false
-            referencedRelation: "matches"
+            referencedRelation: "match_with_names"
+            referencedColumns: ["match_id"]
+          },
+          {
+            foreignKeyName: "match_rounds_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches_new"
             referencedColumns: ["id"]
           },
           {
@@ -417,6 +266,13 @@ export type Database = {
             columns: ["question_id"]
             isOneToOne: false
             referencedRelation: "questions_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_rounds_winner_player_id_fkey"
+            columns: ["winner_player_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -431,10 +287,8 @@ export type Database = {
           question_id: string
           response_time_ms: number
           round_index: number
-          segment: string
-          selected_option: number | null
+          selected_option: number
           step_index: number
-          sub_step_index: number
         }
         Insert: {
           answered_at?: string
@@ -445,10 +299,8 @@ export type Database = {
           question_id: string
           response_time_ms: number
           round_index: number
-          segment?: string
-          selected_option?: number | null
+          selected_option: number
           step_index: number
-          sub_step_index?: number
         }
         Update: {
           answered_at?: string
@@ -459,17 +311,22 @@ export type Database = {
           question_id?: string
           response_time_ms?: number
           round_index?: number
-          segment?: string
-          selected_option?: number | null
+          selected_option?: number
           step_index?: number
-          sub_step_index?: number
         }
         Relationships: [
           {
             foreignKeyName: "match_step_answers_v2_match_id_fkey"
             columns: ["match_id"]
             isOneToOne: false
-            referencedRelation: "matches"
+            referencedRelation: "match_with_names"
+            referencedColumns: ["match_id"]
+          },
+          {
+            foreignKeyName: "match_step_answers_v2_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches_new"
             referencedColumns: ["id"]
           },
           {
@@ -483,160 +340,54 @@ export type Database = {
       }
       matches: {
         Row: {
-          both_answered_at: string | null
           completed_at: string | null
-          consecutive_wins_count: number
-          correct_answer: number | null
           created_at: string | null
           current_question_index: number | null
-          current_round_id: string | null
-          current_round_number: number
           id: string
-          last_round_winner: string | null
-          max_rounds: number
-          mode: string | null
-          player1_answer: number | null
-          player1_answered_at: string | null
-          player1_connected_at: string | null
-          player1_correct: boolean | null
+          mode: string
           player1_id: string
-          player1_round_wins: number
           player1_score: number | null
-          player2_answer: number | null
-          player2_answered_at: string | null
-          player2_connected_at: string | null
-          player2_correct: boolean | null
           player2_id: string
-          player2_round_wins: number
           player2_score: number | null
-          question_id: string | null
-          question_sent_at: string | null
-          questions: Json | null
-          results_computed_at: string | null
-          results_payload: Json | null
-          results_round_id: string | null
-          results_version: number
-          round_number: number
-          round_winner: string | null
-          rules_version: number
+          questions: Json
           started_at: string | null
-          status: string
-          subject: string | null
-          target_points: number
-          target_rounds_to_win: number
+          status: Database["public"]["Enums"]["match_status"]
+          subject: string
           winner_id: string | null
         }
         Insert: {
-          both_answered_at?: string | null
           completed_at?: string | null
-          consecutive_wins_count?: number
-          correct_answer?: number | null
           created_at?: string | null
           current_question_index?: number | null
-          current_round_id?: string | null
-          current_round_number?: number
           id?: string
-          last_round_winner?: string | null
-          max_rounds?: number
-          mode?: string | null
-          player1_answer?: number | null
-          player1_answered_at?: string | null
-          player1_connected_at?: string | null
-          player1_correct?: boolean | null
+          mode: string
           player1_id: string
-          player1_round_wins?: number
           player1_score?: number | null
-          player2_answer?: number | null
-          player2_answered_at?: string | null
-          player2_connected_at?: string | null
-          player2_correct?: boolean | null
           player2_id: string
-          player2_round_wins?: number
           player2_score?: number | null
-          question_id?: string | null
-          question_sent_at?: string | null
-          questions?: Json | null
-          results_computed_at?: string | null
-          results_payload?: Json | null
-          results_round_id?: string | null
-          results_version?: number
-          round_number?: number
-          round_winner?: string | null
-          rules_version?: number
+          questions: Json
           started_at?: string | null
-          status?: string
-          subject?: string | null
-          target_points?: number
-          target_rounds_to_win?: number
+          status?: Database["public"]["Enums"]["match_status"]
+          subject: string
           winner_id?: string | null
         }
         Update: {
-          both_answered_at?: string | null
           completed_at?: string | null
-          consecutive_wins_count?: number
-          correct_answer?: number | null
           created_at?: string | null
           current_question_index?: number | null
-          current_round_id?: string | null
-          current_round_number?: number
           id?: string
-          last_round_winner?: string | null
-          max_rounds?: number
-          mode?: string | null
-          player1_answer?: number | null
-          player1_answered_at?: string | null
-          player1_connected_at?: string | null
-          player1_correct?: boolean | null
+          mode?: string
           player1_id?: string
-          player1_round_wins?: number
           player1_score?: number | null
-          player2_answer?: number | null
-          player2_answered_at?: string | null
-          player2_connected_at?: string | null
-          player2_correct?: boolean | null
           player2_id?: string
-          player2_round_wins?: number
           player2_score?: number | null
-          question_id?: string | null
-          question_sent_at?: string | null
-          questions?: Json | null
-          results_computed_at?: string | null
-          results_payload?: Json | null
-          results_round_id?: string | null
-          results_version?: number
-          round_number?: number
-          round_winner?: string | null
-          rules_version?: number
+          questions?: Json
           started_at?: string | null
-          status?: string
-          subject?: string | null
-          target_points?: number
-          target_rounds_to_win?: number
+          status?: Database["public"]["Enums"]["match_status"]
+          subject?: string
           winner_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "matches_current_round_id_fkey"
-            columns: ["current_round_id"]
-            isOneToOne: false
-            referencedRelation: "match_rounds"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "matches_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "questions_v2"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "matches_results_round_id_fkey"
-            columns: ["results_round_id"]
-            isOneToOne: false
-            referencedRelation: "match_rounds"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       matches_new: {
         Row: {
@@ -702,26 +453,20 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
-          level: string
           player_id: string
           status: string
-          subject: string
         }
         Insert: {
           created_at?: string | null
           id?: string
-          level?: string
           player_id: string
           status?: string
-          subject?: string
         }
         Update: {
           created_at?: string | null
           id?: string
-          level?: string
           player_id?: string
           status?: string
-          subject?: string
         }
         Relationships: []
       }
@@ -874,12 +619,12 @@ export type Database = {
             foreignKeyName: "question_steps_question_id_fkey"
             columns: ["question_id"]
             isOneToOne: false
-            referencedRelation: "questions_legacy"
+            referencedRelation: "questions"
             referencedColumns: ["id"]
           },
         ]
       }
-      questions_legacy: {
+      questions: {
         Row: {
           chapter: string
           created_at: string | null
@@ -943,8 +688,8 @@ export type Database = {
           difficulty: string
           id: string
           image_url: string | null
-          level: string
           main_question_timer_seconds: number
+          level: string
           rank_tier: string | null
           stem: string
           steps: Json
@@ -960,8 +705,8 @@ export type Database = {
           difficulty: string
           id?: string
           image_url?: string | null
-          level: string
           main_question_timer_seconds?: number
+          level: string
           rank_tier?: string | null
           stem: string
           steps: Json
@@ -977,8 +722,8 @@ export type Database = {
           difficulty?: string
           id?: string
           image_url?: string | null
-          level?: string
           main_question_timer_seconds?: number
+          level?: string
           rank_tier?: string | null
           stem?: string
           steps?: Json
@@ -1082,54 +827,13 @@ export type Database = {
       }
     }
     Functions: {
-      _coalesce_int: {
-        Args: { p_default: number; p_text: string }
-        Returns: number
-      }
-      auto_advance_overdue_segments_v1: {
-        Args: { p_force?: boolean; p_match_id: string; p_round_id: string }
-        Returns: Json
-      }
-      clear_round_results: {
-        Args: { p_expected_round_id: string; p_match_id: string }
-        Returns: Json
-      }
-      complete_step_v2: {
-        Args: {
-          p_force_timeout?: boolean
-          p_match_id: string
-          p_round_index: number
-          p_step_index: number
-        }
-        Returns: Json
-      }
-      compute_multi_step_results_v2: {
-        Args: { p_match_id: string; p_round_id: string; p_step_results: Json }
-        Returns: Json
-      }
-      compute_multi_step_results_v3: {
-        Args: { p_match_id: string; p_round_id: string }
-        Returns: Json
-      }
-      delete_question_cascade: {
-        Args: { p_question_id: string }
-        Returns: Json
-      }
-      finish_match: { Args: { p_match_id: string }; Returns: Json }
-      force_timeout_stage2: { Args: { p_match_id: string }; Returns: Json }
-      force_timeout_stage3: { Args: { p_match_id: string }; Returns: Json }
       get_active_player_count: { Args: never; Returns: number }
-      get_match_round_state_v2: { Args: { p_match_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
-      }
-      init_round_progress_v1: {
-        Args: { p_match_id: string; p_round_id: string }
-        Returns: Json
       }
       pick_next_question_v2: {
         Args: { p_match_id: string }
@@ -1147,54 +851,12 @@ export type Database = {
           question_id: string
         }[]
       }
-      start_match: {
-        Args: { p_match_id: string; p_player_id: string }
-        Returns: {
-          completed_at: string
-          created_at: string
-          current_round_number: number
-          id: string
-          max_rounds: number
-          mode: string
-          player1_id: string
-          player1_score: number
-          player2_id: string
-          player2_score: number
-          rules_version: number
-          started_at: string
-          status: string
-          subject: string
-          target_points: number
-          winner_id: string
-        }[]
-      }
-      start_next_round_stage3: { Args: { p_match_id: string }; Returns: Json }
       submit_answer: {
         Args: {
           p_answer: number
           p_match_id: string
           p_question_id: string
           p_step_id: string
-        }
-        Returns: Json
-      }
-      submit_answer_stage2: {
-        Args: { p_answer: number; p_match_id: string; p_player_id: string }
-        Returns: Json
-      }
-      submit_round_answer_v2: {
-        Args: { p_answer: number; p_match_id: string; p_player_id: string }
-        Returns: Json
-      }
-      submit_segment_v1: {
-        Args: {
-          p_answer_index: number
-          p_is_correct?: boolean
-          p_match_id: string
-          p_player_id: string
-          p_round_id: string
-          p_segment: string
-          p_step_index: number
         }
         Returns: Json
       }

@@ -1,189 +1,36 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { motion, useAnimation } from 'framer-motion';
 
-type MatchupSide = {
-  label: string; // e.g. 'YOU' | 'OPPONENT'
-  username: string;
-  rank?: string; // e.g. 'Gold III'
-  level?: number; // player level
-  mmr?: number; // player MMR
-  color?: string; // CSS color (e.g. 'hsl(var(--battle-primary))' or '#10B981')
-};
-
-type MatchupPayload = {
-  left: MatchupSide;
-  right: MatchupSide;
-  center?: {
-    title?: string; // defaults to 'VS'
-    subtitle?: string; // optional smaller line under the title
-  };
-};
-
 type StartMatchOptions = {
   message?: string;
   /**
-   * Optional subject name used to theme the shutter visuals (e.g. 'physics', 'math', 'chemistry', 'english').
-   * This does NOT affect animation timing — only styling.
-   */
-  subject?: string;
-  /**
-   * Optional matchup payload to show "YOU vs OPPONENT" full-door info and a VS lockup in the center.
-   */
-  matchup?: MatchupPayload;
-  /**
-   * Legacy fixed loading delay. If `waitFor` is provided, this becomes the default `minLoadingMs`
-   * (unless `minLoadingMs` is explicitly provided).
+   * When waitForReady is false: how long to keep doors closed after onClosed (fixed delay).
+   * When waitForReady is true: a timeout fallback (doors open when ready is signaled or when this elapses).
    */
   loadingMs?: number;
-  /**
-   * Minimum time (in ms) to keep the shutter closed AFTER `onClosed()` has been called.
-   * Useful to avoid a jarring instant open on very fast loads.
-   */
-  minLoadingMs?: number;
-  /**
-   * Maximum time (in ms) to keep the shutter closed while waiting for `waitFor`.
-   * Safety fallback so the UI can't get stuck closed forever.
-   */
-  maxLoadingMs?: number;
-  /**
-   * Optional gate to wait on (e.g., "first question loaded"). When provided, the shutter will not
-   * open until the promise resolves OR `maxLoadingMs` elapses.
-   */
-  waitFor?: Promise<void>;
   onClosed?: () => void;
+  /**
+   * If true, keep doors closed until someone calls signalReady() (or loadingMs timeout elapses).
+   * This is used to ensure the first question is fully rendered before revealing the battle screen.
+   */
+  waitForReady?: boolean;
 };
 
 type ElevatorShutterContextValue = {
   startMatch: (options?: StartMatchOptions) => Promise<void>;
+  signalReady: () => void;
   isRunning: boolean;
 };
 
 const ElevatorShutterContext = createContext<ElevatorShutterContextValue | null>(null);
 
-type SubjectTheme = {
-  accent: string;
-  accentSoft: string;
-  accentSofter: string;
-  patternImage?: string;
-  patternSize?: string;
-  patternOpacity: number;
-  patternBlendMode?: 'screen' | 'overlay' | 'soft-light' | 'normal';
-};
-
-function normalizeSubject(subject?: string): string {
-  const s = (subject ?? '').trim().toLowerCase();
-  if (s === 'maths') return 'math';
-  return s;
-}
-
-const DEFAULT_SUBJECT_THEME: SubjectTheme = {
-  accent: '#A78BFA', // indigo/violet
-  accentSoft: 'rgba(167, 139, 250, 0.16)',
-  accentSofter: 'rgba(167, 139, 250, 0.08)',
-  patternImage: undefined,
-  patternSize: undefined,
-  patternOpacity: 0,
-  patternBlendMode: 'screen',
-};
-
-const SUBJECT_THEMES: Record<string, SubjectTheme> = {
-  physics: {
-    accent: '#38BDF8',
-    accentSoft: 'rgba(56, 189, 248, 0.16)',
-    accentSofter: 'rgba(56, 189, 248, 0.08)',
-    patternImage: 'var(--pattern-circuit)',
-    patternSize: '120px 120px',
-    patternOpacity: 0.22,
-    patternBlendMode: 'screen',
-  },
-  math: {
-    accent: '#60A5FA',
-    accentSoft: 'rgba(96, 165, 250, 0.15)',
-    accentSofter: 'rgba(96, 165, 250, 0.08)',
-    patternImage: 'var(--pattern-grid)',
-    patternSize: '90px 90px',
-    patternOpacity: 0.18,
-    patternBlendMode: 'screen',
-  },
-  chemistry: {
-    accent: '#E879F9',
-    accentSoft: 'rgba(232, 121, 249, 0.14)',
-    accentSofter: 'rgba(232, 121, 249, 0.08)',
-    patternImage: 'var(--pattern-hex)',
-    patternSize: '80px 80px',
-    patternOpacity: 0.22,
-    patternBlendMode: 'screen',
-  },
-  english: {
-    accent: '#FBBF24',
-    accentSoft: 'rgba(251, 191, 36, 0.12)',
-    accentSofter: 'rgba(251, 191, 36, 0.06)',
-    // Subtle “paper line” vibe without adding new global CSS vars.
-    patternImage:
-      'repeating-linear-gradient(0deg, rgba(251, 191, 36, 0.08) 0px, rgba(251, 191, 36, 0.08) 1px, transparent 1px, transparent 22px)',
-    patternSize: 'auto',
-    patternOpacity: 0.22,
-    patternBlendMode: 'screen',
-  },
-};
-
-function getSubjectTheme(subject?: string): SubjectTheme {
-  const key = normalizeSubject(subject);
-  return SUBJECT_THEMES[key] ?? DEFAULT_SUBJECT_THEME;
-}
-
-function clampName(name: string): string {
-  const trimmed = (name ?? '').trim();
-  return trimmed.length > 0 ? trimmed : 'Player';
-}
-
-function getInitials(name: string): string {
-  const cleaned = clampName(name);
-  const letters = cleaned.replace(/[^a-zA-Z0-9]/g, '');
-  const first = letters.slice(0, 2);
-  return (first.length > 0 ? first : cleaned.slice(0, 2)).toUpperCase();
-}
-
-function withAlpha(color: string | undefined, alpha: number): string | undefined {
-  if (!color) return undefined;
-  const c = color.trim();
-  if (!c) return undefined;
-
-  // Modern hsl() (including hsl(var(--token))) → inject slash alpha.
-  if (/^hsl\(/i.test(c) && !c.includes('/')) {
-    return c.replace(/\)\s*$/, ` / ${alpha})`);
-  }
-
-  // Hex → rgba()
-  if (c.startsWith('#')) {
-    const hex = c.slice(1);
-    const isShort = hex.length === 3;
-    const isLong = hex.length === 6;
-    if (isShort || isLong) {
-      const expand = (s: string) => (isShort ? s.split('').map((ch) => ch + ch).join('') : s);
-      const full = expand(hex);
-      const r = parseInt(full.slice(0, 2), 16);
-      const g = parseInt(full.slice(2, 4), 16);
-      const b = parseInt(full.slice(4, 6), 16);
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
-  }
-
-  // Best-effort fallback for named colors / rgb() strings.
-  return `color-mix(in srgb, ${c} ${Math.round(alpha * 100)}%, transparent)`;
-}
-
-// Simpler dark base
-// User-requested: a bit lighter than Darkrai (still cyber/dark)
-const DOOR_BASE = '#10182A';
-const DOOR_BASE_BOTTOM = '#18213A';
+// Matte purple ceramic (theme-matched)
+const CERAMIC_PURPLE = '#5B4BBE';
+const CERAMIC_PURPLE_DARK = '#3E3391';
 
 export function ElevatorShutterProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
   const [message, setMessage] = useState('MATCH FOUND');
-  const [subject, setSubject] = useState<string | undefined>(undefined);
-  const [matchup, setMatchup] = useState<MatchupPayload | null>(null);
-  const [impactKey, setImpactKey] = useState<number | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
   const leftControls = useAnimation();
@@ -191,35 +38,45 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
   const textControls = useAnimation();
 
   const runningRef = useRef(false);
-  const prefersReducedMotion = useMemo(
-    () => window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false,
-    []
-  );
+  const readyResolveRef = useRef<(() => void) | null>(null);
+  const readyTokenRef = useRef<number>(0);
   const noiseLeftId = useMemo(() => `shutterNoiseLeft-${Math.random().toString(36).slice(2, 9)}`, []);
   const noiseRightId = useMemo(() => `shutterNoiseRight-${Math.random().toString(36).slice(2, 9)}`, []);
+
+  const signalReady = useCallback(() => {
+    const resolve = readyResolveRef.current;
+    if (!resolve) return;
+    readyResolveRef.current = null;
+    resolve();
+  }, []);
 
   const startMatch = useCallback(
     async ({
       message = 'MATCH FOUND',
-      subject: subjectOverride,
-      matchup: matchupOverride,
-      loadingMs,
-      minLoadingMs,
-      maxLoadingMs,
-      waitFor,
+      loadingMs = 2000,
       onClosed,
+      waitForReady = false,
     }: StartMatchOptions = {}) => {
       if (runningRef.current) return;
       runningRef.current = true;
       setIsRunning(true);
 
-      setMessage(message);
-      setSubject(subjectOverride);
-      setMatchup(matchupOverride ?? null);
-      setImpactKey(null);
-      setActive(true);
+      // Create a fresh "ready" signal for this run (used when waitForReady=true).
+      readyTokenRef.current += 1;
+      const token = readyTokenRef.current;
+      const readyPromise =
+        waitForReady
+          ? new Promise<void>((resolve) => {
+              readyResolveRef.current = () => {
+                // Ignore stale resolves from older runs.
+                if (readyTokenRef.current !== token) return;
+                resolve();
+              };
+            })
+          : null;
 
-      const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+      setMessage(message);
+      setActive(true);
 
       // Ensure consistent initial positions
       leftControls.set({ x: '-100%' });
@@ -231,9 +88,6 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
         leftControls.start({ x: '0%', transition: { duration: 0.8, ease: 'easeInOut' } }),
         rightControls.start({ x: '0%', transition: { duration: 0.8, ease: 'easeInOut' } }),
       ]);
-
-      // Trigger impact visuals exactly when doors meet (timing unchanged).
-      setImpactKey(Date.now());
 
       // Micro recoil/settle for impact when doors meet
       await Promise.all([
@@ -253,36 +107,20 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
       // Navigate behind the shutter while fully closed
       onClosed?.();
 
-      // Wait for the game to be ready (or a fixed delay if no gate provided)
-      if (waitFor) {
-        const minMs = Math.max(0, minLoadingMs ?? loadingMs ?? 0);
-        const startedAt = Date.now();
-
-        if (maxLoadingMs == null) {
-          // Wait indefinitely until the gate resolves (or rejects).
-          await waitFor.catch((err) => {
-            console.warn('[ElevatorShutter] waitFor rejected; opening anyway', err);
-          });
-        } else {
-          const maxMs = Math.max(minMs, maxLoadingMs);
-          await Promise.race([
-            waitFor.catch((err) => {
-              console.warn('[ElevatorShutter] waitFor rejected; opening anyway', err);
-            }),
-            sleep(maxMs).then(() => {
-              console.warn('[ElevatorShutter] waitFor timed out; opening anyway', { maxMs });
-            }),
-          ]);
-        }
-
-        const elapsed = Date.now() - startedAt;
-        if (elapsed < minMs) {
-          await sleep(minMs - elapsed);
-        }
+      // Hold closed:
+      // - If waitForReady: open as soon as signalReady() is called, with a timeout fallback (loadingMs).
+      // - Otherwise: fixed delay (loadingMs).
+      if (waitForReady && readyPromise) {
+        await Promise.race([
+          readyPromise,
+          new Promise<void>((r) => setTimeout(r, Math.max(0, loadingMs))),
+        ]);
       } else {
-        // Legacy: Simulated fixed loading time
-        await sleep(Math.max(0, loadingMs ?? 2000));
+        await new Promise<void>((r) => setTimeout(r, Math.max(0, loadingMs)));
       }
+
+      // Clear any lingering resolver before opening (prevents accidental future resolves).
+      if (readyResolveRef.current) readyResolveRef.current = null;
 
       // Hide text before opening
       await textControls.start({ opacity: 0, transition: { duration: 0.15, ease: 'easeIn' } });
@@ -300,8 +138,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
     [leftControls, rightControls, textControls]
   );
 
-  const value = useMemo(() => ({ startMatch, isRunning }), [startMatch, isRunning]);
-  const theme = useMemo(() => getSubjectTheme(subject), [subject]);
+  const value = useMemo(() => ({ startMatch, signalReady, isRunning }), [startMatch, signalReady, isRunning]);
 
   return (
     <ElevatorShutterContext.Provider value={value}>
@@ -322,86 +159,28 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '-100%' }}
           animate={leftControls}
           style={{
-            // Full blue panel with matte gradient (darker to lighter for depth)
-            background: `linear-gradient(180deg, #2563EB 0%, #3B82F6 100%)`,
-            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.05)`,
+            background: `linear-gradient(180deg, ${CERAMIC_PURPLE} 0%, ${CERAMIC_PURPLE_DARK} 100%)`,
+            boxShadow:
+              'inset 0 0 0 1px rgba(0,0,0,0.06), inset -18px 0 28px rgba(0,0,0,0.12)',
             willChange: 'transform',
           }}
         >
-          {/* Subtle grain texture */}
-          <svg className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none">
+          {/* Matte grain texture */}
+          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
             <filter id={noiseLeftId}>
               <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
               <feColorMatrix type="saturate" values="0" />
             </filter>
             <rect width="100%" height="100%" filter={`url(#${noiseLeftId})`} />
           </svg>
-
-          {/* Full-door player info (left / YOU) */}
-          {matchup ? (
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center px-8"
-              style={{
-                background: `linear-gradient(135deg, ${
-                  withAlpha(matchup.left.color ?? 'hsl(var(--battle-primary))', 0.12) ??
-                  'rgba(16,185,129,0.12)'
-                } 0%, transparent 70%)`,
-              }}
-            >
-              {/* Player label */}
-              <div
-                className="text-xs md:text-sm font-semibold tracking-widest uppercase mb-4"
-                style={{
-                  color: matchup.left.color ?? 'hsl(var(--battle-primary))',
-                  opacity: 0.85,
-                }}
-              >
-                {matchup.left.label || 'YOU'}
-              </div>
-
-              {/* Player name */}
-              <div
-                className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 text-center"
-                style={{ textShadow: `0 0 40px ${withAlpha(matchup.left.color ?? 'hsl(var(--battle-primary))', 0.22) ?? 'rgba(16,185,129,0.22)'}` }}
-              >
-                {clampName(matchup.left.username)}
-              </div>
-
-              {/* Stats row */}
-              <div className="flex flex-col gap-3 items-center">
-                {matchup.left.rank && (
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">Rank</div>
-                    <div
-                      className="text-xl font-black tracking-tight text-white"
-                    >
-                      {matchup.left.rank}
-                    </div>
-                  </div>
-                )}
-                {matchup.left.level && (
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">Level</div>
-                    <div
-                      className="text-xl font-black tracking-tight text-white"
-                    >
-                      {matchup.left.level}
-                    </div>
-                  </div>
-                )}
-                {matchup.left.mmr && (
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">MMR</div>
-                    <div
-                      className="text-xl font-black tracking-tight text-white"
-                    >
-                      {matchup.left.mmr}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : null}
+          {/* Soft toon-ish shading to feel more “ceramic” than flat */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-40"
+            style={{
+              background:
+                'radial-gradient(900px 700px at 18% 18%, rgba(168,85,247,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 85% 75%, rgba(196,181,253,0.14) 0%, transparent 60%)',
+            }}
+          />
         </motion.div>
 
         {/* Right door */}
@@ -410,136 +189,33 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '100%' }}
           animate={rightControls}
           style={{
-            // Full red panel with matte gradient (darker to lighter for depth)
-            background: `linear-gradient(180deg, #DC2626 0%, #EF4444 100%)`,
-            boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.05)`,
+            background: `linear-gradient(180deg, ${CERAMIC_PURPLE} 0%, ${CERAMIC_PURPLE_DARK} 100%)`,
+            boxShadow:
+              'inset 0 0 0 1px rgba(0,0,0,0.06), inset 18px 0 28px rgba(0,0,0,0.12)',
             willChange: 'transform',
           }}
         >
-          {/* Subtle grain texture */}
-          <svg className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none">
+          {/* Matte grain texture */}
+          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
             <filter id={noiseRightId}>
               <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
               <feColorMatrix type="saturate" values="0" />
             </filter>
             <rect width="100%" height="100%" filter={`url(#${noiseRightId})`} />
           </svg>
-
-          {/* Full-door player info (right / OPPONENT) */}
-          {matchup ? (
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center px-8"
-              style={{
-                background: `linear-gradient(225deg, ${
-                  withAlpha(matchup.right.color ?? 'var(--blue)', 0.12) ??
-                  'rgba(88,196,255,0.12)'
-                } 0%, transparent 70%)`,
-              }}
-            >
-              {/* Player label */}
-              <div
-                className="text-xs md:text-sm font-semibold tracking-widest uppercase mb-4"
-                style={{
-                  color: matchup.right.color ?? 'var(--blue)',
-                  opacity: 0.85,
-                }}
-              >
-                {matchup.right.label || 'OPPONENT'}
-              </div>
-
-              {/* Player name */}
-              <div
-                className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 text-center"
-                style={{ textShadow: `0 0 40px ${withAlpha(matchup.right.color ?? 'var(--blue)', 0.22) ?? 'rgba(88,196,255,0.22)'}` }}
-              >
-                {clampName(matchup.right.username)}
-              </div>
-
-              {/* Stats row */}
-              <div className="flex flex-col gap-3 items-center">
-                {matchup.right.rank && (
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">Rank</div>
-                    <div
-                      className="text-xl font-black tracking-tight text-white"
-                    >
-                      {matchup.right.rank}
-                    </div>
-                  </div>
-                )}
-                {matchup.right.level && (
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">Level</div>
-                    <div
-                      className="text-xl font-black tracking-tight text-white"
-                    >
-                      {matchup.right.level}
-                    </div>
-                  </div>
-                )}
-                {matchup.right.mmr && (
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm text-white/40 uppercase tracking-wider font-semibold">MMR</div>
-                    <div
-                      className="text-xl font-black tracking-tight text-white"
-                    >
-                      {matchup.right.mmr}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : null}
+          {/* Soft toon-ish shading to feel more “ceramic” than flat */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-40"
+            style={{
+              background:
+                'radial-gradient(900px 700px at 82% 18%, rgba(168,85,247,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 18% 75%, rgba(196,181,253,0.14) 0%, transparent 60%)',
+            }}
+          />
         </motion.div>
-
-        {/* Impact layer (flash + swipe) */}
-        {active && impactKey != null ? (
-          <div className="absolute inset-0 pointer-events-none z-10">
-            {/* Center seam flash */}
-            <motion.div
-              key={`seam-${impactKey}`}
-              initial={{ opacity: 0, scaleY: 0.75 }}
-              animate={
-                prefersReducedMotion
-                  ? { opacity: 0.6, scaleY: 1 }
-                  : { opacity: [0, 1, 0], scaleY: [0.75, 1, 1.15] }
-              }
-              transition={
-                prefersReducedMotion
-                  ? { duration: 0 }
-                  : { duration: 0.55, ease: 'easeOut', times: [0, 0.22, 1] }
-              }
-              className="absolute left-1/2 top-0 -translate-x-1/2 h-full w-[4px]"
-              style={{
-                background: `linear-gradient(180deg, transparent 0%, ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.35) ?? 'rgba(16,185,129,0.35)'} 28%, rgba(255,255,255,0.85) 50%, ${withAlpha(matchup?.right.color ?? 'var(--blue)', 0.35) ?? 'rgba(88,196,255,0.35)'} 72%, transparent 100%)`,
-                filter: 'blur(0.2px)',
-                boxShadow: `0 0 26px ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.22) ?? 'rgba(16,185,129,0.22)'}, 0 0 26px ${withAlpha(matchup?.right.color ?? 'var(--blue)', 0.22) ?? 'rgba(88,196,255,0.22)'}, 0 0 60px rgba(255,255,255,0.12)`,
-                transformOrigin: 'center',
-              }}
-            />
-
-            {/* Diagonal swipe streak */}
-            {!prefersReducedMotion ? (
-              <motion.div
-                key={`swipe-${impactKey}`}
-                initial={{ opacity: 0, x: '-140%', rotate: -14, scale: 0.95 }}
-                animate={{ opacity: [0, 1, 0], x: ['-140%', '140%'], scale: [0.95, 1.05, 1] }}
-                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], times: [0, 0.18, 1] }}
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[160px] rounded-full"
-                style={{
-                  background: `linear-gradient(90deg, rgba(255,255,255,0) 0%, ${withAlpha(matchup?.left.color ?? 'hsl(var(--battle-primary))', 0.35) ?? 'rgba(16,185,129,0.35)'} 34%, rgba(255,255,255,0.42) 50%, ${withAlpha(matchup?.right.color ?? 'var(--blue)', 0.32) ?? 'rgba(88,196,255,0.32)'} 66%, rgba(255,255,255,0) 100%)`,
-                  filter: 'blur(10px)',
-                  mixBlendMode: 'screen',
-                  willChange: 'transform, opacity',
-                }}
-              />
-            ) : null}
-          </div>
-        ) : null}
 
         {/* Center text */}
         <motion.div
-          className="absolute inset-0 flex items-center justify-center z-20"
+          className="absolute inset-0 flex items-center justify-center"
           initial={{ opacity: 0, scale: 0.98 }}
           animate={textControls}
           style={{ willChange: 'opacity, transform' }}
@@ -548,21 +224,58 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             className="relative text-center"
             style={{
               color: '#F8FAFC',
-              textShadow: '0 0 12px rgba(255,255,255,0.2)',
+              textShadow:
+                '0 0 18px rgba(196,181,253,0.85), 0 0 48px rgba(168,85,247,0.35)',
             }}
           >
-            <div
-              className="text-6xl md:text-7xl font-black tracking-tighter italic bg-gradient-to-b from-white to-white/55 bg-clip-text text-transparent"
-              style={{ filter: 'drop-shadow(0 0 16px rgba(255,255,255,0.16))' }}
-            >
-              {matchup ? (matchup.center?.title ?? 'VS') : message}
-            </div>
+            {/* Subtle animated glow blob behind text (transform/opacity only for 60fps) */}
+            <motion.div
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+              style={{
+                width: 520,
+                height: 220,
+                background: 'rgba(168, 85, 247, 0.25)',
+              }}
+              animate={
+                active
+                  ? { opacity: [0.18, 0.32, 0.18], scale: [1, 1.08, 1] }
+                  : { opacity: 0, scale: 1 }
+              }
+              transition={{
+                duration: 1.1,
+                repeat: active ? Infinity : 0,
+                ease: 'easeInOut',
+              }}
+            />
 
-            {matchup && (matchup.center?.subtitle ?? 'LOADING') ? (
-              <div className="mt-2 text-[10px] md:text-xs text-white/50 font-semibold tracking-widest uppercase">
-                {matchup.center?.subtitle ?? 'LOADING'}
-              </div>
-            ) : null}
+            <motion.div
+              className="text-3xl md:text-4xl font-extrabold tracking-wider relative"
+              animate={active ? { y: [0, -2, 0] } : { y: 0 }}
+              transition={{
+                duration: 0.85,
+                repeat: active ? Infinity : 0,
+                ease: 'easeInOut',
+              }}
+            >
+              {message}
+            </motion.div>
+
+            {/* Small scan line animation */}
+            <div className="mt-4 h-px w-64 mx-auto bg-black/10 overflow-hidden">
+              <motion.div
+                className="h-full w-24"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(196,181,253,0), rgba(196,181,253,0.95), rgba(196,181,253,0))',
+                }}
+                animate={active ? { x: ['-40%', '160%'] } : { x: '-40%' }}
+                transition={{
+                  duration: 1.15,
+                  repeat: active ? Infinity : 0,
+                  ease: 'easeInOut',
+                }}
+              />
+            </div>
           </div>
         </motion.div>
       </div>

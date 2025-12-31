@@ -160,9 +160,6 @@ export function useGame(match: MatchRow | null) {
 
   const wsRef = useRef<WebSocket | null>(null)
   const heartbeatRef = useRef<number | null>(null)
-  const reconnectTimeoutRef = useRef<number | null>(null)
-  const reconnectAttemptsRef = useRef<number>(0)
-  const shouldReconnectRef = useRef<boolean>(true)
   const matchIdRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
   const lastVisibilityChangeRef = useRef<number>(0)
@@ -170,8 +167,6 @@ export function useGame(match: MatchRow | null) {
   const pollingTimeoutRef = useRef<number | null>(null)
   const pollingIntervalRef = useRef<number | null>(null)
   const multiStepPollingIntervalRef = useRef<number | null>(null)
-  const matchRealtimePollingIntervalRef = useRef<number | null>(null)
-  const matchRoundsRealtimePollingIntervalRef = useRef<number | null>(null)
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const matchRoundsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const currentRoundIdRef = useRef<string | null>(null)
@@ -276,22 +271,6 @@ export function useGame(match: MatchRow | null) {
     }
 
     console.log('[useGame] ✅ State updated with results from applyResults')
-  }, [])
-
-  const stopMatchRealtimePolling = useCallback(() => {
-    if (matchRealtimePollingIntervalRef.current) {
-      clearInterval(matchRealtimePollingIntervalRef.current)
-      matchRealtimePollingIntervalRef.current = null
-      console.log('[useGame] 🛑 Stopped matches polling fallback')
-    }
-  }, [])
-
-  const stopMatchRoundsRealtimePolling = useCallback(() => {
-    if (matchRoundsRealtimePollingIntervalRef.current) {
-      clearInterval(matchRoundsRealtimePollingIntervalRef.current)
-      matchRoundsRealtimePollingIntervalRef.current = null
-      console.log('[useGame] 🛑 Stopped match_rounds polling fallback')
-    }
   }, [])
 
   // Listen for polling-detected results (fallback if WS message missed)
@@ -474,83 +453,6 @@ export function useGame(match: MatchRow | null) {
 
     const connect = async () => {
       try {
-        // Ensure reconnect is allowed for this match lifecycle
-        shouldReconnectRef.current = true
-
-        // Helpers (defined per-connect so they capture the correct match id)
-        const clearReconnectTimer = () => {
-          if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current)
-            reconnectTimeoutRef.current = null
-          }
-        }
-
-        const scheduleReconnect = (why: string) => {
-          if (!shouldReconnectRef.current) return
-          if (reconnectTimeoutRef.current) return
-
-          const attempt = reconnectAttemptsRef.current
-          const baseDelayMs = Math.min(15000, 500 * Math.pow(2, attempt))
-          const jitterMs = Math.floor(Math.random() * 250)
-          const delayMs = baseDelayMs + jitterMs
-
-          reconnectAttemptsRef.current = attempt + 1
-          console.warn('[useGame] 🔄 Scheduling WebSocket reconnect', { attempt: attempt + 1, delayMs, why })
-
-          reconnectTimeoutRef.current = window.setTimeout(() => {
-            reconnectTimeoutRef.current = null
-            void connect()
-          }, delayMs)
-        }
-
-        const rehydrateFromDb = async (reason: string) => {
-          if (!match?.id) return
-          try {
-            const { data: matchRow, error: matchErr } = await supabase
-              .from('matches')
-              .select('current_round_id, current_round_number, results_payload, results_version, results_round_id')
-              .eq('id', match.id)
-              .single() as { data: any; error: any }
-
-            if (matchErr || !matchRow) return
-
-            if (matchRow.current_round_id && matchRow.current_round_id !== currentRoundIdRef.current) {
-              currentRoundIdRef.current = matchRow.current_round_id
-              setState(prev => ({
-                ...prev,
-                currentRoundId: matchRow.current_round_id ?? prev.currentRoundId,
-                currentRoundNumber: matchRow.current_round_number ?? prev.currentRoundNumber
-              }))
-            }
-
-            // If results exist, apply them (Realtime may be down)
-            const hasPayload = matchRow.results_payload != null
-            const roundMatch = matchRow.results_round_id === matchRow.current_round_id
-            const version = matchRow.results_version ?? 0
-            if (hasPayload && roundMatch && version > localResultsVersionRef.current) {
-              console.log('[useGame] ✅ DB rehydrate found results_payload; applying', { reason, version })
-              localResultsVersionRef.current = version
-              applyResults(matchRow.results_payload)
-              return
-            }
-
-            // Rehydrate current round phase/step from match_rounds
-            const roundId = matchRow.current_round_id ?? currentRoundIdRef.current
-            if (!roundId) return
-
-            const { data: roundRow, error: roundErr } = await supabase
-              .from('match_rounds')
-              .select('id, status, current_step_index, step_ends_at, main_question_ends_at')
-              .eq('id', roundId)
-              .single() as { data: any; error: any }
-
-            if (roundErr || !roundRow) return
-            applyRoundRow(roundRow)
-          } catch (err) {
-            console.error('[useGame] ❌ DB rehydrate failed:', err)
-          }
-        }
-
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError || !user) {
@@ -604,23 +506,12 @@ export function useGame(match: MatchRow | null) {
         const wsUrl = `${SUPABASE_URL.replace('http', 'ws')}/functions/v1/game-ws?token=${session.access_token}&match_id=${match.id}`
         console.log('[useGame] Connecting to:', wsUrl)
 
-        // If an existing WS is around, close it before creating a new one
-        if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
-          try {
-            wsRef.current.close()
-          } catch (_err) {
-            // ignore
-          }
-        }
-
         const ws = new WebSocket(wsUrl)
         wsRef.current = ws
 
         ws.onopen = () => {
           console.log('[useGame] WebSocket connected')
           hasConnectedRef.current = false
-          reconnectAttemptsRef.current = 0
-          clearReconnectTimer()
           setIsWebSocketConnected(true)
           setState(prev => ({
             ...prev,
@@ -647,9 +538,6 @@ export function useGame(match: MatchRow | null) {
               wsRef.current.send(JSON.stringify({ type: 'PING' }))
             }
           }, 25000) as unknown as number
-
-          // Rehydrate state from DB in case Realtime timed out or we missed events while disconnected
-          void rehydrateFromDb('ws_open')
         }
 
         ws.onmessage = (event) => {
@@ -995,7 +883,7 @@ export function useGame(match: MatchRow | null) {
           }))
         }
 
-        ws.onclose = (ev) => {
+        ws.onclose = () => {
           // Clear polling on WebSocket close
           setIsWebSocketConnected(false)
           if (pollingTimeoutRef.current) {
@@ -1006,7 +894,7 @@ export function useGame(match: MatchRow | null) {
             clearInterval(pollingIntervalRef.current)
             pollingIntervalRef.current = null
           }
-          console.warn('[useGame] WebSocket closed', { code: ev.code, reason: ev.reason })
+          console.log('[useGame] WebSocket closed')
           if (heartbeatRef.current) {
             clearInterval(heartbeatRef.current)
             heartbeatRef.current = null
@@ -1015,15 +903,11 @@ export function useGame(match: MatchRow | null) {
             if (prev.status !== 'error') {
               return {
                 ...prev,
-                // Keep UI stable mid-game; show reconnecting state via isWebSocketConnected
-                status: prev.status === 'playing' || prev.status === 'results' ? prev.status : 'connecting'
+                status: 'connecting'
               }
             }
             return prev
           })
-
-          // Auto-reconnect (Edge instances can shutdown, WS can be dropped, etc.)
-          scheduleReconnect(`ws_close:${ev.code}`)
         }
       } catch (error: any) {
         console.error('[useGame] Connection error:', error)
@@ -1039,11 +923,6 @@ export function useGame(match: MatchRow | null) {
     connect()
 
     return () => {
-      shouldReconnectRef.current = false
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-        reconnectTimeoutRef.current = null
-      }
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
@@ -1062,11 +941,8 @@ export function useGame(match: MatchRow | null) {
         clearInterval(pollingIntervalRef.current)
         pollingIntervalRef.current = null
       }
-      // Cleanup Realtime fallback polling
-      stopMatchRealtimePolling()
-      stopMatchRoundsRealtimePolling()
     }
-  }, [match?.id, applyResults, stopMatchRealtimePolling, stopMatchRoundsRealtimePolling])
+  }, [match?.id])
 
   // On mount: Initial SELECT to check for existing results (handles reload/late join)
   useEffect(() => {
@@ -1216,51 +1092,6 @@ export function useGame(match: MatchRow | null) {
       })
       .subscribe((status) => {
         console.log('[useGame] Realtime subscription status:', status)
-
-        // Polling fallback: if Realtime is unhealthy, poll matches for results/current_round_id.
-        if (status === 'SUBSCRIBED') {
-          stopMatchRealtimePolling()
-          return
-        }
-        if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          if (matchRealtimePollingIntervalRef.current) return
-          console.warn('[useGame] ⚠️ Realtime unhealthy for matches; starting polling fallback', { status })
-
-          const poll = async () => {
-            try {
-              const { data, error } = await supabase
-                .from('matches')
-                .select('current_round_id, current_round_number, results_payload, results_version, results_round_id')
-                .eq('id', match.id)
-                .single() as { data: any; error: any }
-
-              if (error || !data) return
-
-              if (data.current_round_id && data.current_round_id !== currentRoundIdRef.current) {
-                currentRoundIdRef.current = data.current_round_id
-                setState(prev => ({
-                  ...prev,
-                  currentRoundId: data.current_round_id ?? prev.currentRoundId,
-                  currentRoundNumber: data.current_round_number ?? prev.currentRoundNumber
-                }))
-              }
-
-              const hasPayload = data.results_payload != null
-              const roundMatch = data.results_round_id === data.current_round_id
-              const version = data.results_version ?? 0
-              if (hasPayload && roundMatch && version > localResultsVersionRef.current) {
-                console.log('[useGame] ✅ matches polling found results_payload; applying', { version })
-                localResultsVersionRef.current = version
-                applyResults(data.results_payload)
-              }
-            } catch (err) {
-              console.error('[useGame] matches polling exception:', err)
-            }
-          }
-
-          poll()
-          matchRealtimePollingIntervalRef.current = window.setInterval(poll, 1500)
-        }
       })
 
     realtimeChannelRef.current = channel
@@ -1353,37 +1184,6 @@ export function useGame(match: MatchRow | null) {
       })
       .subscribe((status) => {
         console.log('[useGame] match_rounds subscription status:', status)
-
-        // Polling fallback: if Realtime is unhealthy, poll match_rounds for step/phase changes.
-        if (status === 'SUBSCRIBED') {
-          stopMatchRoundsRealtimePolling()
-          return
-        }
-        if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          if (matchRoundsRealtimePollingIntervalRef.current) return
-          console.warn('[useGame] ⚠️ Realtime unhealthy for match_rounds; starting polling fallback', { status })
-
-          const poll = async () => {
-            try {
-              const roundId = currentRoundIdRef.current || state.currentRoundId
-              if (!roundId) return
-
-              const { data, error } = await supabase
-                .from('match_rounds')
-                .select('id, status, current_step_index, step_ends_at, main_question_ends_at')
-                .eq('id', roundId)
-                .single() as { data: any; error: any }
-
-              if (error || !data) return
-              applyRoundRow(data)
-            } catch (err) {
-              console.error('[useGame] match_rounds polling exception:', err)
-            }
-          }
-
-          poll()
-          matchRoundsRealtimePollingIntervalRef.current = window.setInterval(poll, 1000)
-        }
       })
 
     matchRoundsChannelRef.current = channel
@@ -1393,9 +1193,8 @@ export function useGame(match: MatchRow | null) {
         supabase.removeChannel(matchRoundsChannelRef.current)
         matchRoundsChannelRef.current = null
       }
-      stopMatchRoundsRealtimePolling()
     }
-  }, [match?.id, applyRoundRow, state.currentRoundId, stopMatchRoundsRealtimePolling])
+  }, [match?.id, applyRoundRow])
 
   // Fetch current round row on round changes (initial hydration; Realtime delivers subsequent updates)
   useEffect(() => {
