@@ -1,4 +1,5 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
+import { battleTransition, sideEnterVariants, stampPopVariants } from '@/components/battle/battleMotion';
 
 interface PlayerInfo {
   name: string;
@@ -22,6 +23,11 @@ function initials(value: string) {
 
 export function MatchupIntro({ left, right, active, onComplete }: MatchupIntroProps) {
   if (!active) return null;
+
+  const reduceMotion = useReducedMotion();
+  const leftV = sideEnterVariants(reduceMotion, 'left');
+  const rightV = sideEnterVariants(reduceMotion, 'right');
+  const stampV = stampPopVariants(reduceMotion);
   
   return (
     <motion.div 
@@ -29,24 +35,35 @@ export function MatchupIntro({ left, right, active, onComplete }: MatchupIntroPr
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      transition={battleTransition(reduceMotion, { duration: 0.18 })}
       onAnimationComplete={() => onComplete?.()}
     >
-      <div className="grid grid-cols-[1fr_auto_1fr] gap-4 md:gap-8 items-center">
+      <div className="relative grid grid-cols-[1fr_auto_1fr] gap-4 md:gap-8 items-center">
         {/* LEFT (YOU) */}
         <motion.div
-          initial={{ x: -40, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.15 }}
-          className="relative overflow-hidden rounded-[28px] p-6 md:p-8 shadow-[0_30px_90px_rgba(0,0,0,0.45)]"
+          variants={leftV}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={battleTransition(reduceMotion, { duration: 0.24, delay: 0.06 })}
+          className="relative overflow-hidden rounded-[26px] p-6 md:p-8 bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[10px_10px_0_rgba(0,0,0,0.55)]"
         >
-          <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-white/92 via-white/84 to-white/62" />
           <div
             aria-hidden
-            className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-sky-400 via-blue-500 to-indigo-500 opacity-90"
+            className="absolute inset-y-0 left-0 w-2 bg-[#00D4FF]"
           />
           <div
             aria-hidden
-            className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/14 via-transparent to-transparent"
+            className="absolute inset-0 opacity-[0.18]"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.12) 1px, rgba(0,0,0,0) 1.2px)',
+              backgroundSize: '18px 18px',
+            }}
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/70 via-transparent to-transparent opacity-80"
           />
 
           <div className="relative flex items-center gap-4 text-slate-950">
@@ -66,32 +83,45 @@ export function MatchupIntro({ left, right, active, onComplete }: MatchupIntroPr
 
         {/* CENTER */}
         <motion.div
-          initial={{ scale: 0.86, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.22, type: 'spring', stiffness: 180, damping: 18 }}
-          className="text-center"
+          variants={stampV}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={battleTransition(reduceMotion, { duration: 0.22, delay: 0.12 })}
+          className="relative z-10 text-center"
         >
-          <div className="text-[10px] text-white/55 font-mono uppercase tracking-[0.3em]">Match</div>
-          <div className="mt-1 text-5xl md:text-7xl font-black italic tracking-tighter bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent drop-shadow-[0_0_22px_rgba(255,255,255,0.15)]">
-            VS
+          <div className="mx-auto inline-flex items-center justify-center rounded-full bg-[#F7F2E7] text-[#141318] ring-4 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-5 py-3 md:px-7 md:py-4">
+            <div className="text-5xl md:text-7xl font-comic tracking-[0.10em] leading-none">
+              VS
+            </div>
           </div>
         </motion.div>
 
         {/* RIGHT (OPPONENT) */}
         <motion.div
-          initial={{ x: 40, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.15 }}
-          className="relative overflow-hidden rounded-[28px] p-6 md:p-8 shadow-[0_30px_90px_rgba(0,0,0,0.45)]"
+          variants={rightV}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={battleTransition(reduceMotion, { duration: 0.24, delay: 0.06 })}
+          className="relative overflow-hidden rounded-[26px] p-6 md:p-8 bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[10px_10px_0_rgba(0,0,0,0.55)]"
         >
-          <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-white/92 via-white/84 to-white/62" />
           <div
             aria-hidden
-            className="absolute inset-y-0 right-0 w-1.5 bg-gradient-to-b from-rose-400 via-red-500 to-orange-500 opacity-90"
+            className="absolute inset-y-0 right-0 w-2 bg-[#FF3EA5]"
           />
           <div
             aria-hidden
-            className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-rose-500/14 via-transparent to-transparent"
+            className="absolute inset-0 opacity-[0.18]"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.12) 1px, rgba(0,0,0,0) 1.2px)',
+              backgroundSize: '18px 18px',
+            }}
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/70 via-transparent to-transparent opacity-80"
           />
 
           <div className="relative flex items-center justify-end gap-4 text-slate-950">

@@ -5,12 +5,12 @@ import { toast } from 'sonner';
 import { Loader2, ArrowLeft, Check, X, Trophy, Clock, Zap } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Starfield } from '@/components/Starfield';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { MathText } from '@/components/math/MathText';
 import { AnswerOptionButton } from '@/components/battle/AnswerOptionButton';
 import { BattleTimerBar } from '@/components/battle/BattleTimerBar';
 import { BattleHudShell } from '@/components/battle/BattleHudShell';
+import { battleTransition, panelEnterVariants, stampPopVariants } from '@/components/battle/battleMotion';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -142,52 +142,99 @@ export default function BattleConnected() {
 
   if (!match || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center relative overflow-hidden">
-        <Starfield />
-        <div className="flex flex-col items-center gap-4 relative z-10">
+      <BattleHudShell className="font-sans selection:bg-[#FFD400]/35 selection:text-black">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="relative overflow-hidden rounded-[26px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] px-8 py-7 text-center">
+            <div
+              aria-hidden
+              className="absolute inset-0 opacity-[0.14]"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                backgroundSize: '18px 18px',
+              }}
+            />
+            <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
+
           <div className="relative">
-            <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-8 bg-blue-500/20 rounded-full animate-pulse" />
+              <div className="text-[10px] font-mono uppercase tracking-[0.35em] text-black/60">
+                Initializing battleground
             </div>
+              <div className="mt-2 text-3xl md:text-4xl font-black tracking-tight">
+                LOADING
           </div>
-          <p className="text-blue-500 font-mono tracking-widest text-sm">INITIALIZING BATTLEGROUND</p>
+              <div className="mt-5 flex items-center justify-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-black/80 animate-bounce [animation-delay:-0.2s]" />
+                <span className="h-2.5 w-2.5 rounded-full bg-black/80 animate-bounce [animation-delay:-0.1s]" />
+                <span className="h-2.5 w-2.5 rounded-full bg-black/80 animate-bounce" />
         </div>
       </div>
+          </div>
+        </div>
+      </BattleHudShell>
     );
   }
 
   if (status === 'error') {
     if (errorMessage === 'Failed to select question') {
       return (
-        <div className="min-h-screen bg-[#050505] flex items-center justify-center relative overflow-hidden">
-          <Starfield />
-          <div className="flex flex-col items-center gap-4 relative z-10">
-            <Loader2 className="w-10 h-10 animate-spin text-blue-400" />
-            <p className="text-blue-200/60 font-mono tracking-widest text-xs">
+        <BattleHudShell className="font-sans selection:bg-[#FFD400]/35 selection:text-black">
+          <div className="flex-1 flex items-center justify-center">
+            <div className="relative overflow-hidden rounded-[26px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] px-8 py-7 text-center">
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-[0.14]"
+                style={{
+                  backgroundImage:
+                    'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                  backgroundSize: '18px 18px',
+                }}
+              />
+              <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
+
+              <div className="relative flex flex-col items-center gap-3">
+                <Loader2 className="w-10 h-10 animate-spin text-black/70" />
+                <p className="text-black/60 font-mono tracking-widest text-xs">
               RETURNING TO LOBBY…
             </p>
           </div>
         </div>
+          </div>
+        </BattleHudShell>
       );
     }
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
-        <Starfield />
-        <div className="max-w-md w-full bg-red-950/10 border border-red-500/20 p-8 rounded-2xl text-center relative z-10 backdrop-blur-sm">
-          <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <X className="w-8 h-8 text-red-500" />
+      <BattleHudShell className="font-sans selection:bg-[#FFD400]/35 selection:text-black">
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="relative overflow-hidden rounded-[26px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] p-8 text-center w-full max-w-md">
+            <div
+              aria-hidden
+              className="absolute inset-0 opacity-[0.14]"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                backgroundSize: '18px 18px',
+              }}
+            />
+            <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
+
+            <div className="relative">
+              <div className="mx-auto inline-flex items-center justify-center rounded-full bg-[#FF3EA5]/20 text-[#141318] ring-4 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-5 py-3 mb-6 rotate-[-6deg]">
+                <X className="w-7 h-7" />
+                <span className="ml-2 font-black tracking-tight">DISCONNECTED</span>
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">CONNECTION LOST</h2>
-          <p className="text-red-200/60 mb-8 text-sm">{errorMessage || 'The neural link was severed.'}</p>
+              <h2 className="text-2xl font-black tracking-tight mb-2">CONNECTION LOST</h2>
+              <p className="text-black/60 mb-8 text-sm">{errorMessage || 'Connection dropped.'}</p>
           <button 
             onClick={() => navigate('/matchmaking-new')}
-            className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-colors"
+                className="w-full py-3 bg-[#141318] hover:bg-black text-[#F7F2E7] rounded-2xl font-black tracking-widest ring-2 ring-black/90 shadow-[6px_6px_0_rgba(0,0,0,0.55)] transition-colors"
           >
             RETURN TO LOBBY
           </button>
         </div>
       </div>
+        </div>
+      </BattleHudShell>
     );
   }
 
@@ -228,140 +275,208 @@ export default function BattleConnected() {
   const timerBarTotalSeconds =
     phase === 'steps' ? 15 : phase === 'main_question' ? 60 : phase === 'question' ? 60 : 0;
 
+  const reduceMotion = useReducedMotion();
+  const panelV = panelEnterVariants(reduceMotion);
+  const panelT = battleTransition(reduceMotion, { duration: 0.22 });
+
   return (
-    <BattleHudShell className="font-sans selection:bg-blue-500/30">
-      {/* Round Intro Overlay */}
-      <AnimatePresence>
-        {showRoundIntro && (
-          <motion.div
-            initial={{ opacity: 0, scale: 1.2 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8, filter: 'blur(20px)' }}
-            transition={{ duration: 0.5 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none"
-          >
-            <div className="text-center">
+    <BattleHudShell className="font-sans selection:bg-[#FFD400]/35 selection:text-black">
+          {/* Round Intro Overlay */}
+          <AnimatePresence>
+            {showRoundIntro && (
               <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="text-blue-500 font-mono tracking-[0.5em] text-sm mb-4 uppercase"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={battleTransition(reduceMotion, { duration: 0.18 })}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm pointer-events-none"
               >
-                Subject: {match.subject}
+                <motion.div
+                  variants={stampPopVariants(reduceMotion)}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={battleTransition(reduceMotion, { duration: 0.22 })}
+                  className="relative overflow-hidden rounded-[28px] bg-[#F7F2E7] text-[#141318] ring-4 ring-black/90 shadow-[14px_14px_0_rgba(0,0,0,0.65)] px-10 py-8 text-center rotate-[-2deg]"
+                >
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 opacity-[0.14]"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                      backgroundSize: '18px 18px',
+                    }}
+                  />
+                  <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#FFD400]" />
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80"
+                  />
+
+                  <div className="relative">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.5em] text-black/60">
+                      Subject: {match.subject}
+                    </div>
+                    <h1 className="mt-3 text-6xl md:text-8xl font-comic tracking-[0.08em]">
+                      ROUND {roundNumber}
+                    </h1>
+                    <div className="mt-5 mx-auto h-2 w-32 bg-[#00D4FF] rounded-full ring-2 ring-black/80 shadow-[4px_4px_0_rgba(0,0,0,0.45)]" />
+                  </div>
+                </motion.div>
               </motion.div>
-              <h1 className="text-7xl md:text-9xl font-black text-white tracking-tighter italic">
-                ROUND {roundNumber}
-              </h1>
-              <motion.div
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ delay: 0.4, duration: 0.5 }}
-                className="h-2 w-32 bg-blue-500 mx-auto mt-6 rounded-full"
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            )}
+          </AnimatePresence>
 
       <header className="flex flex-col gap-5">
-        {/* Top Bar */}
-        <div className="flex items-center justify-between gap-3">
-          <button
-            onClick={() => navigate('/matchmaking-new')}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors backdrop-blur-md border border-white/10"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-xs font-bold tracking-widest">EXIT</span>
-          </button>
+            {/* Top Bar */}
+            <div className="flex items-center justify-between gap-3">
+              <button
+                onClick={() => navigate('/matchmaking-new')}
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[6px_6px_0_rgba(0,0,0,0.55)] hover:bg-[#FBF7EE] transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-xs font-bold tracking-widest">EXIT</span>
+              </button>
 
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
-              <span className="text-[10px] font-mono text-white/70 uppercase tracking-widest">
-                {subjectLabel}
-              </span>
-            </div>
+              <div className="flex items-center gap-2">
+            <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
+              <span className="text-[10px] font-mono text-black/70 uppercase tracking-widest">
+                    {subjectLabel}
+                  </span>
+                </div>
 
-            <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full backdrop-blur-md">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  status.includes('connected') || status === 'playing'
-                    ? 'bg-green-500 animate-pulse'
-                    : 'bg-yellow-500'
-                }`}
-              />
-              <span className="text-xs font-mono text-blue-200 uppercase tracking-wider">
-                {status.replace('_', ' ')}
-              </span>
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      status.includes('connected') || status === 'playing'
+                        ? 'bg-green-500 animate-pulse'
+                        : 'bg-yellow-500'
+                    }`}
+                  />
+              <span className="text-xs font-mono text-black/70 uppercase tracking-wider">
+                    {status.replace('_', ' ')}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
         {/* Score + Timer */}
-        <div className="grid grid-cols-3 gap-4 items-end">
-          <div className="flex flex-col items-start">
-            <motion.div
-              key={`my-wins-${myWins}`}
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{
-                scale: shouldAnimateMyWins ? [1, 1.25, 1] : 1,
-                opacity: 1,
-              }}
-              transition={{
-                duration: 0.6,
-                ease: 'easeOut',
-                scale: shouldAnimateMyWins ? { times: [0, 0.3, 1], duration: 0.6 } : { duration: 0.3 },
-              }}
-              className="text-5xl md:text-6xl font-black text-blue-300 drop-shadow-[0_0_18px_rgba(96,165,250,0.45)]"
-            >
-              {myWins}
-            </motion.div>
-            <div className="mt-1 text-[10px] font-mono uppercase tracking-[0.3em] text-blue-200/60">
-              YOU
-            </div>
-          </div>
+            <div className="grid grid-cols-3 gap-4 items-end">
+              <div className="flex flex-col items-start">
+            <div className="relative overflow-hidden rounded-[22px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-5 py-4 min-w-[92px]">
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-[0.14]"
+                style={{
+                  backgroundImage:
+                    'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                  backgroundSize: '18px 18px',
+                }}
+              />
+              <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#00D4FF]" />
+              <div className="relative">
+                <motion.div
+                  key={`my-wins-${myWins}`}
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{
+                    scale: shouldAnimateMyWins ? [1, 1.25, 1] : 1,
+                    opacity: 1,
+                  }}
+                  transition={{
+                    duration: 0.6,
+                    ease: 'easeOut',
+                    scale: shouldAnimateMyWins
+                      ? { times: [0, 0.3, 1], duration: 0.6 }
+                      : { duration: 0.3 },
+                  }}
+                  className="text-5xl md:text-6xl font-black leading-none drop-shadow-[2px_2px_0_rgba(0,0,0,0.18)]"
+                >
+                  {myWins}
+                </motion.div>
+                <div className="mt-2 text-[10px] font-mono uppercase tracking-[0.35em] text-black/60">
+                  YOU
+                </div>
+              </div>
+                </div>
+              </div>
 
-          <div className="flex flex-col items-center pb-1">
-            <div className="text-[10px] text-white/35 font-mono uppercase tracking-[0.28em] text-center">
-              {roundMeta}
-            </div>
+              <div className="flex flex-col items-center pb-1">
             <div
-              className={`mt-1 text-4xl md:text-5xl font-black font-mono tracking-tighter tabular-nums transition-colors duration-300 ${
-                timerIsLow
-                  ? 'text-red-400 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]'
-                  : 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.18)]'
+              className={`relative w-full max-w-[340px] overflow-hidden rounded-[22px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-5 py-4 ${
+                timerIsLow ? 'ring-red-500/90' : ''
               }`}
             >
-              {timerText}
-            </div>
-            <div className="mt-3 w-full max-w-[240px]">
-              <BattleTimerBar
-                secondsLeft={timerBarSecondsLeft}
-                totalSeconds={timerBarTotalSeconds}
-                accent={phase === 'steps' ? 'amber' : 'blue'}
-                isLow={timerIsLow}
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-[0.14]"
+                style={{
+                  backgroundImage:
+                    'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                  backgroundSize: '18px 18px',
+                }}
               />
-            </div>
-          </div>
+              <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#FFD400]" />
+              <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
 
-          <div className="flex flex-col items-end">
-            <motion.div
-              key={`opp-wins-${oppWins}`}
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{
-                scale: shouldAnimateOppWins ? [1, 1.25, 1] : 1,
-                opacity: 1,
-              }}
-              transition={{
-                duration: 0.6,
-                ease: 'easeOut',
-                scale: shouldAnimateOppWins ? { times: [0, 0.3, 1], duration: 0.6 } : { duration: 0.3 },
-              }}
-              className="text-5xl md:text-6xl font-black text-red-300 drop-shadow-[0_0_18px_rgba(248,113,113,0.45)]"
-            >
-              {oppWins}
-            </motion.div>
-            <div className="mt-1 text-[10px] font-mono uppercase tracking-[0.3em] text-red-200/60">
-              OPP
+              <div className="relative text-center">
+                <div className="text-[10px] text-black/60 font-mono uppercase tracking-[0.28em]">
+                  {roundMeta}
+                </div>
+                <div
+                  className={`mt-1 text-4xl md:text-5xl font-black font-mono tracking-tighter tabular-nums transition-colors duration-300 ${
+                    timerIsLow ? 'text-[#E11D48]' : 'text-[#141318]'
+                  }`}
+                >
+                  {timerText}
+                </div>
+                <div className="mt-3 w-full max-w-[260px] mx-auto">
+                  <BattleTimerBar
+                    secondsLeft={timerBarSecondsLeft}
+                    totalSeconds={timerBarTotalSeconds}
+                    accent={phase === 'steps' ? 'amber' : 'blue'}
+                    isLow={timerIsLow}
+                  />
+                </div>
+              </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-end">
+            <div className="relative overflow-hidden rounded-[22px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-5 py-4 min-w-[92px] text-right">
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-[0.14]"
+                style={{
+                  backgroundImage:
+                    'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                  backgroundSize: '18px 18px',
+                }}
+              />
+              <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#FF3EA5]" />
+              <div className="relative">
+                <motion.div
+                  key={`opp-wins-${oppWins}`}
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{
+                    scale: shouldAnimateOppWins ? [1, 1.25, 1] : 1,
+                    opacity: 1,
+                  }}
+                  transition={{
+                    duration: 0.6,
+                    ease: 'easeOut',
+                    scale: shouldAnimateOppWins
+                      ? { times: [0, 0.3, 1], duration: 0.6 }
+                      : { duration: 0.3 },
+                  }}
+                  className="text-5xl md:text-6xl font-black leading-none drop-shadow-[2px_2px_0_rgba(0,0,0,0.18)]"
+                >
+                  {oppWins}
+                </motion.div>
+                <div className="mt-2 text-[10px] font-mono uppercase tracking-[0.35em] text-black/60">
+                  OPP
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -371,31 +486,57 @@ export default function BattleConnected() {
         {/* PROMPT / RESULTS */}
         <section className="min-h-0 flex items-center justify-center">
           <div className="w-full">
-            <AnimatePresence mode="wait">
+              <AnimatePresence mode="wait">
                 {/* CONNECTING STATE */}
                 {(status === 'connecting' || status === 'connected' || status === 'both_connected') && (
                   <motion.div
                     key="connecting-top"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.1, filter: 'blur(10px)' }}
-                    className="text-center w-full"
+                    variants={panelV}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={panelT}
+                    className="w-full"
                   >
-                    <div className="relative w-28 h-28 mx-auto mb-6">
-                      <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full" />
-                      <div className="absolute inset-0 border-2 border-t-blue-500 rounded-full animate-spin" />
-                      {status === 'both_connected' && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Check className="w-10 h-10 text-blue-500" />
-                        </div>
+                    <div className="relative overflow-hidden rounded-[28px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] p-8 md:p-10 text-center">
+                      <div
+                        aria-hidden
+                        className="absolute inset-0 opacity-[0.14]"
+                        style={{
+                          backgroundImage:
+                            'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                          backgroundSize: '18px 18px',
+                        }}
+                      />
+                      <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#00D4FF]" />
+                      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
+
+                      <div className="relative">
+                        <div className="mx-auto inline-flex items-center justify-center rounded-full bg-[#141318] text-[#F7F2E7] ring-4 ring-black/90 shadow-[8px_8px_0_rgba(0,0,0,0.55)] px-5 py-3 mb-6 rotate-[-3deg]">
+                          {status === 'both_connected' ? (
+                            <>
+                              <Check className="w-5 h-5" />
+                              <span className="ml-2 font-black tracking-tight">LOCKED</span>
+                            </>
+                          ) : (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span className="ml-2 font-black tracking-tight">LINKING</span>
+                            </>
                       )}
                     </div>
-                    <h2 className="text-3xl font-bold mb-2 tracking-tight">
-                      {status === 'both_connected' ? 'OPPONENT LOCKED' : 'SEARCHING FOR TARGET'}
+
+                        <div className="text-[10px] font-mono uppercase tracking-[0.35em] text-black/60">
+                          Battle Link
+                        </div>
+                        <h2 className="mt-2 text-4xl md:text-5xl font-black tracking-tight">
+                          {status === 'both_connected' ? 'OPPONENT LOCKED' : 'FINDING OPPONENT'}
                     </h2>
-                    <p className="text-white/40 font-mono text-sm">
-                      {status === 'both_connected' ? 'INITIATING COMBAT SEQUENCE...' : 'SCANNING FREQUENCIES...'}
+                        <p className="mt-2 text-black/60 font-mono text-sm">
+                          {status === 'both_connected' ? 'Get ready…' : 'Scanning frequencies…'}
                     </p>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
 
@@ -403,33 +544,34 @@ export default function BattleConnected() {
                 {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
                   <motion.div
                     key="main-question-top"
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -16 }}
+                    variants={panelV}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={panelT}
                     className="w-full"
                   >
-                    <div className="relative overflow-hidden rounded-[28px] p-6 md:p-10 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
+                    <div className="relative overflow-hidden rounded-[28px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] p-6 md:p-10">
                       <div
                         aria-hidden
-                        className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/80 to-white/55"
+                        className="absolute inset-0 opacity-[0.14]"
+                        style={{
+                          backgroundImage:
+                            'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                          backgroundSize: '18px 18px',
+                        }}
                       />
-                      <div
-                        aria-hidden
-                        className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/15 via-transparent to-transparent"
-                      />
-                      <div
-                        aria-hidden
-                        className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent"
-                      />
+                      <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#00D4FF]" />
+                      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
 
-                      <div className="relative text-center text-slate-950">
-                        <div className="text-[11px] text-slate-700/70 font-mono mb-3 uppercase tracking-[0.28em]">
+                      <div className="relative text-center">
+                        <div className="text-[11px] text-black/60 font-mono mb-3 uppercase tracking-[0.28em]">
                           Main Question
                         </div>
                         <h3 className="text-2xl md:text-4xl font-black leading-tight tracking-tight">
                           <MathText text={question.stem || question.questionText || question.title} />
                         </h3>
-                        <div className="mt-5 text-sm text-slate-700/70">
+                        <div className="mt-5 text-sm text-black/60 font-mono">
                           {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
                         </div>
                       </div>
@@ -446,27 +588,28 @@ export default function BattleConnected() {
                   !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
                     <motion.div
                       key="steps-top"
-                      initial={{ opacity: 0, y: 16 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -16 }}
+                      variants={panelV}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      transition={panelT}
                       className="w-full"
                     >
-                      <div className="relative overflow-hidden rounded-[28px] p-6 md:p-10 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
+                      <div className="relative overflow-hidden rounded-[28px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] p-6 md:p-10">
                         <div
                           aria-hidden
-                          className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/80 to-white/55"
+                          className="absolute inset-0 opacity-[0.14]"
+                          style={{
+                            backgroundImage:
+                              'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                            backgroundSize: '18px 18px',
+                          }}
                         />
-                        <div
-                          aria-hidden
-                          className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/14 via-transparent to-transparent"
-                        />
-                        <div
-                          aria-hidden
-                          className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500/60 to-transparent"
-                        />
+                        <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#FFD400]" />
+                        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
 
-                        <div className="relative text-center text-slate-950">
-                          <div className="text-[11px] text-slate-700/70 font-mono mb-3 uppercase tracking-[0.28em]">
+                        <div className="relative text-center">
+                          <div className="text-[11px] text-black/60 font-mono mb-3 uppercase tracking-[0.28em]">
                             {currentSegment === 'sub'
                               ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
                               : `Step ${currentStepIndex + 1} of ${totalSteps}`}
@@ -475,7 +618,7 @@ export default function BattleConnected() {
                             <MathText text={currentStep.prompt || currentStep.question} />
                           </h3>
                           {currentSegment === 'sub' && (
-                            <p className="text-xs text-slate-700/70 mt-3 font-mono">
+                            <p className="text-xs text-black/60 mt-3 font-mono">
                               QUICK CHECK — must be correct to earn this step&apos;s marks
                             </p>
                           )}
@@ -488,20 +631,43 @@ export default function BattleConnected() {
                 {status === 'playing' && phase === 'steps' && allStepsComplete && waitingForOpponentToCompleteSteps && (
                   <motion.div
                     key="waiting-steps-top"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.05 }}
-                    className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                    variants={panelV}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={panelT}
+                    className="w-full max-w-2xl"
                   >
-                    <div className="mb-2">
-                      <Loader2 className="w-14 h-14 animate-spin text-blue-400 mx-auto mb-4" />
-                      <h2 className="text-3xl font-bold mb-2 tracking-tight">ALL PARTS COMPLETE</h2>
-                      <p className="text-white/60 font-mono text-sm mb-4">
-                        You have finished all {totalSteps} part{totalSteps !== 1 ? 's' : ''}
-                      </p>
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
+                    <div className="relative overflow-hidden rounded-[28px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] p-8 md:p-12 text-center">
+                      <div
+                        aria-hidden
+                        className="absolute inset-0 opacity-[0.14]"
+                        style={{
+                          backgroundImage:
+                            'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                          backgroundSize: '18px 18px',
+                        }}
+                      />
+                      <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#FFD400]" />
+                      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
+
+                      <div className="relative">
+                        <div className="mx-auto inline-flex items-center justify-center rounded-full bg-[#141318] text-[#F7F2E7] ring-4 ring-black/90 shadow-[8px_8px_0_rgba(0,0,0,0.55)] px-5 py-3 mb-6 rotate-[2deg]">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span className="ml-2 font-black tracking-tight">HOLD</span>
+                        </div>
+
+                        <h2 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">
+                          ALL PARTS COMPLETE
+                        </h2>
+                        <p className="text-black/60 font-mono text-sm mb-5">
+                          You finished all {totalSteps} part{totalSteps !== 1 ? 's' : ''}.
+                        </p>
+
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F7F2E7] ring-2 ring-black/80 shadow-[6px_6px_0_rgba(0,0,0,0.55)] text-sm font-black tracking-tight">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        WAITING FOR OPPONENT TO FINISH ALL PARTS...
+                          WAITING FOR OPPONENT…
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -511,29 +677,30 @@ export default function BattleConnected() {
                 {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
                   <motion.div
                     key="question-top"
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -16 }}
+                    variants={panelV}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={panelT}
                     className="w-full"
                   >
-                    <div className="relative overflow-hidden rounded-[28px] p-6 md:p-10 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
+                    <div className="relative overflow-hidden rounded-[28px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] p-6 md:p-10">
                       <div
                         aria-hidden
-                        className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/80 to-white/55"
+                        className="absolute inset-0 opacity-[0.14]"
+                        style={{
+                          backgroundImage:
+                            'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                          backgroundSize: '18px 18px',
+                        }}
                       />
-                      <div
-                        aria-hidden
-                        className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/15 via-transparent to-transparent"
-                      />
-                      <div
-                        aria-hidden
-                        className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent"
-                      />
+                      <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#00D4FF]" />
+                      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
 
-                      <div className="relative text-center text-slate-950">
+                      <div className="relative text-center">
                         <h3 className="text-2xl md:text-4xl font-black leading-tight tracking-tight">
-                          <MathText text={question.stem || question.questionText} />
-                        </h3>
+                        <MathText text={question.stem || question.questionText} />
+                      </h3>
                       </div>
                     </div>
                   </motion.div>
@@ -543,78 +710,93 @@ export default function BattleConnected() {
                 {status === 'results' && results && (
                   <motion.div
                     key="results-top"
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.02, filter: 'blur(10px)' }}
+                    variants={panelV}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={panelT}
                     className="w-full"
                   >
-                    <div className="relative overflow-hidden rounded-[28px] bg-black/35 ring-1 ring-white/10 backdrop-blur-2xl p-8 md:p-12 text-center shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
+                    <div className="relative overflow-hidden rounded-[28px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] p-8 md:p-12 text-center">
                       <div
                         aria-hidden
-                        className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent ${
-                          results.round_winner === currentUser
-                            ? 'via-emerald-400/70'
-                            : results.round_winner === null
-                              ? 'via-white/35'
-                              : 'via-rose-400/70'
-                        } to-transparent`}
+                        className="absolute inset-0 opacity-[0.14]"
+                        style={{
+                          backgroundImage:
+                            'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                          backgroundSize: '18px 18px',
+                        }}
                       />
+                      <div
+                        aria-hidden
+                        className={`absolute top-0 left-0 h-2 w-full ${
+                          results.round_winner === currentUser
+                            ? 'bg-[#FFD400]'
+                            : results.round_winner === null
+                              ? 'bg-[#141318]'
+                              : 'bg-[#FF3EA5]'
+                        }`}
+                      />
+                      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
 
-                      <div className="mb-8">
+                      <div className="relative mb-8">
                       {results.round_winner === currentUser ? (
                         <motion.div
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                          transition={{ type: 'spring' }}
-                          className="inline-block p-4 rounded-full bg-yellow-500/20 mb-4 ring-4 ring-yellow-500/10"
+                            transition={{ type: 'spring', stiffness: 180, damping: 16 }}
+                            className="mx-auto inline-flex items-center justify-center rounded-full bg-[#FFD400] text-[#141318] ring-4 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-6 py-3 mb-5 rotate-[-4deg]"
                         >
-                          <Trophy className="w-12 h-12 text-yellow-500" />
+                            <Trophy className="w-7 h-7" />
+                            <span className="ml-2 font-black tracking-tight">WIN</span>
                         </motion.div>
                       ) : results.round_winner === null ? (
-                        <div className="inline-block p-4 rounded-full bg-white/10 mb-4 ring-4 ring-white/5">
-                          <Clock className="w-12 h-12 text-white/60" />
+                          <div className="mx-auto inline-flex items-center justify-center rounded-full bg-[#141318] text-[#F7F2E7] ring-4 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-6 py-3 mb-5 rotate-[2deg]">
+                            <Clock className="w-7 h-7" />
+                            <span className="ml-2 font-black tracking-tight">TIE</span>
                         </div>
                       ) : (
-                        <div className="inline-block p-4 rounded-full bg-red-500/20 mb-4 ring-4 ring-red-500/10">
-                          <X className="w-12 h-12 text-red-500" />
+                          <div className="mx-auto inline-flex items-center justify-center rounded-full bg-[#FF3EA5] text-[#141318] ring-4 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-6 py-3 mb-5 rotate-[4deg]">
+                            <X className="w-7 h-7" />
+                            <span className="ml-2 font-black tracking-tight">OUCH</span>
                         </div>
                       )}
 
                       {matchOver && matchWinnerId ? (
                         <>
-                          <h2 className="text-4xl font-bold mb-2 tracking-tight">
+                            <h2 className="text-4xl md:text-5xl font-comic mb-2 tracking-[0.08em]">
                             {matchWinnerId === currentUser ? 'MATCH WON' : 'MATCH LOST'}
                           </h2>
-                          <div className="text-lg font-bold mb-2">
+                            <div className="text-lg font-black mb-2">
                             Final Score: {isPlayer1 ? myWins : oppWins} - {isPlayer1 ? oppWins : myWins}
                           </div>
-                          <p className="text-white/40 font-mono text-sm">
-                            {matchWinnerId === currentUser ? 'VICTORY ACHIEVED!' : 'BETTER LUCK NEXT TIME.'}
+                            <p className="text-black/60 font-mono text-sm">
+                              {matchWinnerId === currentUser ? 'Victory secured.' : 'Run it back.'}
                           </p>
                         </>
                       ) : (
                         <>
-                          <h2 className="text-4xl font-bold mb-2 tracking-tight">
+                            <h2 className="text-4xl md:text-5xl font-comic mb-2 tracking-[0.08em]">
                             {results.round_winner === currentUser
-                              ? 'ROUND SECURED'
+                                ? 'ROUND WON'
                               : results.round_winner === null
                                 ? 'STALEMATE'
                                 : 'ROUND LOST'}
                           </h2>
-                          <div className="text-sm text-white/60 font-mono mb-2">
-                            Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
+                            <div className="text-sm text-black/60 font-mono mb-2">
+                              Round {currentRoundNumber || 1} • First to {targetRoundsToWin || 4}
                           </div>
                           {results.p1Score !== undefined && results.p2Score !== undefined && (
-                            <div className="text-lg font-bold mb-2">
+                              <div className="text-lg font-black mb-2">
                               Round Score: {isPlayer1 ? results.p1Score : results.p2Score} -{' '}
                               {isPlayer1 ? results.p2Score : results.p1Score}
                             </div>
                           )}
-                          <div className="text-sm font-bold mb-2">
+                            <div className="text-sm font-black mb-2">
                             Match Score: {isPlayer1 ? myWins : oppWins} - {isPlayer1 ? oppWins : myWins}
                           </div>
-                          <p className="text-white/40 font-mono text-sm">
-                            {results.round_winner === currentUser ? 'EXCELLENT WORK, OPERATOR.' : 'ADJUST STRATEGY.'}
+                            <p className="text-black/60 font-mono text-sm">
+                              {results.round_winner === currentUser ? 'Nice.' : 'Adjust and strike.'}
                           </p>
                         </>
                       )}
@@ -646,24 +828,28 @@ export default function BattleConnected() {
                                   initial={{ x: -20, opacity: 0 }}
                                   animate={{ x: 0, opacity: 1 }}
                                   transition={{ delay: 0.1 }}
-                                  className={`p-6 rounded-2xl border-2 ${
-                                    iWon
-                                      ? 'bg-green-500/20 border-green-500/40'
-                                      : isTie
-                                        ? 'bg-blue-500/20 border-blue-500/40'
-                                        : 'bg-red-500/20 border-red-500/40'
-                                  }`}
+                                  className="relative overflow-hidden p-6 rounded-[22px] bg-[#FBF7EE] text-[#141318] ring-2 ring-black/80 shadow-[8px_8px_0_rgba(0,0,0,0.55)]"
                                 >
-                                  <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">YOU</div>
                                   <div
-                                    className={`text-5xl md:text-6xl font-black mb-2 ${
-                                      iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
-                                    }`}
-                                  >
+                                    aria-hidden
+                                    className="absolute inset-0 opacity-[0.12]"
+                                    style={{
+                                      backgroundImage:
+                                        'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.12) 1px, rgba(0,0,0,0) 1.2px)',
+                                      backgroundSize: '18px 18px',
+                                    }}
+                                  />
+                                  <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#00D4FF]" />
+                                  <div className="relative">
+                                    <div className="text-xs font-mono text-black/60 mb-2 uppercase tracking-wider">
+                                      YOU
+                                    </div>
+                                    <div className="text-5xl md:text-6xl font-black mb-2">
                                     {myPartsCorrect} out of {total}
                                   </div>
-                                  <div className="text-sm text-white/60 font-mono">
+                                    <div className="text-sm text-black/60 font-mono">
                                     {myPartsCorrect === total ? 'Perfect!' : `${total - myPartsCorrect} incorrect`}
+                                  </div>
                                   </div>
                                 </motion.div>
 
@@ -671,29 +857,33 @@ export default function BattleConnected() {
                                   initial={{ x: 20, opacity: 0 }}
                                   animate={{ x: 0, opacity: 1 }}
                                   transition={{ delay: 0.2 }}
-                                  className={`p-6 rounded-2xl border-2 ${
-                                    !iWon && !isTie
-                                      ? 'bg-green-500/20 border-green-500/40'
-                                      : isTie
-                                        ? 'bg-blue-500/20 border-blue-500/40'
-                                        : 'bg-red-500/20 border-red-500/40'
-                                  }`}
+                                  className="relative overflow-hidden p-6 rounded-[22px] bg-[#FBF7EE] text-[#141318] ring-2 ring-black/80 shadow-[8px_8px_0_rgba(0,0,0,0.55)]"
                                 >
-                                  <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">OPPONENT</div>
                                   <div
-                                    className={`text-5xl md:text-6xl font-black mb-2 ${
-                                      !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
-                                    }`}
-                                  >
+                                    aria-hidden
+                                    className="absolute inset-0 opacity-[0.12]"
+                                    style={{
+                                      backgroundImage:
+                                        'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.12) 1px, rgba(0,0,0,0) 1.2px)',
+                                      backgroundSize: '18px 18px',
+                                    }}
+                                  />
+                                  <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#FF3EA5]" />
+                                  <div className="relative">
+                                    <div className="text-xs font-mono text-black/60 mb-2 uppercase tracking-wider">
+                                      OPPONENT
+                                    </div>
+                                    <div className="text-5xl md:text-6xl font-black mb-2">
                                     {oppPartsCorrect} out of {total}
                                   </div>
-                                  <div className="text-sm text-white/60 font-mono">
+                                    <div className="text-sm text-black/60 font-mono">
                                     {oppPartsCorrect === total ? 'Perfect!' : `${total - oppPartsCorrect} incorrect`}
+                                  </div>
                                   </div>
                                 </motion.div>
                               </div>
 
-                              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent mb-6" />
+                              <div className="h-px w-full bg-gradient-to-r from-transparent via-black/20 to-transparent mb-6" />
 
                               <motion.div
                                 initial={{ scale: 0.9, opacity: 0 }}
@@ -702,16 +892,22 @@ export default function BattleConnected() {
                                 className="text-center mb-6"
                               >
                                 {isTie ? (
-                                  <div className="text-2xl font-bold text-blue-400">STALEMATE</div>
+                                  <div className="mx-auto inline-flex items-center justify-center rounded-full bg-[#141318] text-[#F7F2E7] ring-4 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-6 py-3 rotate-[2deg]">
+                                    <span className="font-black tracking-tight">STALEMATE</span>
+                                  </div>
                                 ) : iWon ? (
-                                  <div className="text-2xl font-bold text-green-400">YOU WON THIS ROUND</div>
+                                  <div className="mx-auto inline-flex items-center justify-center rounded-full bg-[#FFD400] text-[#141318] ring-4 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-6 py-3 rotate-[-2deg]">
+                                    <span className="font-black tracking-tight">YOU WON THIS ROUND</span>
+                                  </div>
                                 ) : (
-                                  <div className="text-2xl font-bold text-red-400">OPPONENT WON THIS ROUND</div>
+                                  <div className="mx-auto inline-flex items-center justify-center rounded-full bg-[#FF3EA5] text-[#141318] ring-4 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-6 py-3 rotate-[2deg]">
+                                    <span className="font-black tracking-tight">OPPONENT WON THIS ROUND</span>
+                                  </div>
                                 )}
                               </motion.div>
 
                               <details className="mt-4">
-                                <summary className="text-sm font-mono text-white/60 mb-3 uppercase tracking-wider cursor-pointer hover:text-white/80 transition-colors">
+                                <summary className="text-sm font-mono text-black/70 mb-3 uppercase tracking-wider cursor-pointer hover:text-black transition-colors">
                                   Step Breakdown
                                 </summary>
                                 <div className="space-y-2 mt-3">
@@ -724,10 +920,8 @@ export default function BattleConnected() {
                                     return (
                                       <div
                                         key={idx}
-                                        className={`p-2 rounded-lg border text-left text-xs ${
-                                          myCorrect
-                                            ? 'bg-green-500/10 border-green-500/20'
-                                            : 'bg-red-500/10 border-red-500/20'
+                                        className={`p-3 rounded-xl ring-1 ring-black/20 text-left text-xs ${
+                                          myCorrect ? 'bg-[#00D4FF]/10' : 'bg-[#FF3EA5]/10'
                                         }`}
                                       >
                                         <div className="flex items-center justify-between">
@@ -756,15 +950,22 @@ export default function BattleConnected() {
                             initial={{ x: -20, opacity: 0 }}
                             animate={{ x: 0, opacity: 1 }}
                             transition={{ delay: 0.1 }}
-                            className={`p-4 rounded-2xl border ${
-                              (playerRole === 'player1' && results.player1_correct) ||
-                              (playerRole === 'player2' && results.player2_correct)
-                                ? 'bg-green-500/10 border-green-500/20'
-                                : 'bg-red-500/10 border-red-500/20'
-                            }`}
+                            className="relative overflow-hidden p-5 rounded-[22px] bg-[#FBF7EE] text-[#141318] ring-2 ring-black/80 shadow-[8px_8px_0_rgba(0,0,0,0.55)]"
                           >
-                            <div className="text-xs font-mono opacity-50 mb-1">YOU CHOSE</div>
-                            <div className="text-xl font-bold flex items-center justify-center gap-2">
+                            <div
+                              aria-hidden
+                              className="absolute inset-0 opacity-[0.12]"
+                              style={{
+                                backgroundImage:
+                                  'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.12) 1px, rgba(0,0,0,0) 1.2px)',
+                                backgroundSize: '18px 18px',
+                              }}
+                            />
+                            <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#00D4FF]" />
+
+                            <div className="relative">
+                              <div className="text-xs font-mono text-black/60 mb-1">YOU CHOSE</div>
+                              <div className="text-xl font-black flex items-center justify-center gap-2">
                               {(() => {
                                 const myAnswer = playerRole === 'player1' ? results.player1_answer : results.player2_answer;
                                 const myCorrect =
@@ -793,6 +994,7 @@ export default function BattleConnected() {
                                   </>
                                 );
                               })()}
+                              </div>
                             </div>
                           </motion.div>
 
@@ -800,15 +1002,22 @@ export default function BattleConnected() {
                             initial={{ x: 20, opacity: 0 }}
                             animate={{ x: 0, opacity: 1 }}
                             transition={{ delay: 0.2 }}
-                            className={`p-4 rounded-2xl border ${
-                              (playerRole === 'player1' && results.player2_correct) ||
-                              (playerRole === 'player2' && results.player1_correct)
-                                ? 'bg-green-500/10 border-green-500/20'
-                                : 'bg-red-500/10 border-red-500/20'
-                            }`}
+                            className="relative overflow-hidden p-5 rounded-[22px] bg-[#FBF7EE] text-[#141318] ring-2 ring-black/80 shadow-[8px_8px_0_rgba(0,0,0,0.55)]"
                           >
-                            <div className="text-xs font-mono opacity-50 mb-1">OPPONENT CHOSE</div>
-                            <div className="text-xl font-bold flex items-center justify-center gap-2">
+                            <div
+                              aria-hidden
+                              className="absolute inset-0 opacity-[0.12]"
+                              style={{
+                                backgroundImage:
+                                  'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.12) 1px, rgba(0,0,0,0) 1.2px)',
+                                backgroundSize: '18px 18px',
+                              }}
+                            />
+                            <div aria-hidden className="absolute top-0 left-0 h-2 w-full bg-[#FF3EA5]" />
+
+                            <div className="relative">
+                              <div className="text-xs font-mono text-black/60 mb-1">OPPONENT CHOSE</div>
+                              <div className="text-xl font-black flex items-center justify-center gap-2">
                               {(() => {
                                 const oppAnswer = playerRole === 'player1' ? results.player2_answer : results.player1_answer;
                                 const oppCorrect =
@@ -837,6 +1046,7 @@ export default function BattleConnected() {
                                   </>
                                 );
                               })()}
+                              </div>
                             </div>
                           </motion.div>
                         </div>
@@ -845,9 +1055,11 @@ export default function BattleConnected() {
                     {/* Fallback: Show basic results if structure is different */}
                     {(!results.stepResults || results.stepResults.length === 0) &&
                       (results.player1_answer === undefined || results.player2_answer === undefined) && (
-                        <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                          <div className="text-sm font-mono text-yellow-400 mb-2">⚠️ Results data structure mismatch</div>
-                          <div className="text-xs text-white/60 font-mono">
+                        <div className="mt-4 p-5 rounded-[22px] bg-[#FBF7EE] text-[#141318] ring-2 ring-black/80 shadow-[8px_8px_0_rgba(0,0,0,0.55)]">
+                          <div className="text-sm font-mono text-black/70 mb-2">
+                            ⚠️ Results data structure mismatch
+                          </div>
+                          <div className="text-xs text-black/60 font-mono">
                             player1_answer: {results.player1_answer ?? 'null'} | player2_answer:{' '}
                             {results.player2_answer ?? 'null'} | round_winner: {results.round_winner ?? 'null'}
                           </div>
@@ -861,39 +1073,75 @@ export default function BattleConnected() {
                 {status === 'match_finished' && (
                   <motion.div
                     key="finished-top"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    variants={panelV}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={panelT}
                     className="text-center w-full"
                   >
-                    <div className="mb-6">
-                      <Trophy
-                        className={`w-24 h-24 mx-auto mb-6 ${
+                    <div className="relative overflow-hidden rounded-[28px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] p-10 md:p-12">
+                      <div
+                        aria-hidden
+                        className="absolute inset-0 opacity-[0.14]"
+                        style={{
+                          backgroundImage:
+                            'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                          backgroundSize: '18px 18px',
+                        }}
+                      />
+                      <div
+                        aria-hidden
+                        className={`absolute top-0 left-0 h-2 w-full ${
                           matchWinner === currentUser
-                            ? 'text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]'
-                            : 'text-gray-500'
+                            ? 'bg-[#FFD400]'
+                            : matchWinner === opponentId
+                              ? 'bg-[#FF3EA5]'
+                              : 'bg-[#141318]'
                         }`}
                       />
-                      <h1 className="text-5xl md:text-7xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50">
-                        {matchWinner === currentUser ? 'VICTORY' : matchWinner === opponentId ? 'DEFEAT' : 'DRAW'}
-                      </h1>
+                      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
+
+                      <div className="relative">
+                        <div
+                          className={`mx-auto inline-flex items-center justify-center rounded-full ring-4 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] px-6 py-3 mb-6 rotate-[-3deg] ${
+                            matchWinner === currentUser
+                              ? 'bg-[#FFD400] text-[#141318]'
+                              : matchWinner === opponentId
+                                ? 'bg-[#FF3EA5] text-[#141318]'
+                                : 'bg-[#141318] text-[#F7F2E7]'
+                          }`}
+                        >
+                          <Trophy className="w-7 h-7" />
+                          <span className="ml-2 font-black tracking-tight">
+                            {matchWinner === currentUser ? 'VICTORY' : matchWinner === opponentId ? 'DEFEAT' : 'DRAW'}
+                          </span>
+                        </div>
+
+                        <h1 className="text-5xl md:text-7xl font-comic tracking-[0.08em]">
+                          {matchWinner === currentUser ? 'YOU WIN' : matchWinner === opponentId ? 'YOU LOSE' : 'DRAW'}
+                        </h1>
+                      </div>
                     </div>
                   </motion.div>
                 )}
-            </AnimatePresence>
-          </div>
+              </AnimatePresence>
+            </div>
         </section>
 
         {/* ANSWERS / ACTIONS */}
         <section className="min-h-0 flex items-center justify-center">
           <div className="w-full">
-            <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait">
             {/* MAIN QUESTION: action in bottom */}
             {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
               <motion.div
                 key="main-question-bottom"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
+                variants={panelV}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={panelT}
                 className="w-full"
               >
                 <button
@@ -905,16 +1153,16 @@ export default function BattleConnected() {
                     submitEarlyAnswer();
                   }}
                   disabled={!isWebSocketConnected}
-                  className={`w-full py-5 px-6 rounded-2xl font-bold text-lg md:text-xl transition-all shadow-lg inline-flex items-center justify-center gap-3 border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505] ${
+                  className={`w-full py-5 px-6 rounded-2xl font-black text-lg md:text-xl tracking-widest inline-flex items-center justify-center gap-3 ring-2 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-[#07070a] transition-colors ${
                     isWebSocketConnected
-                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 active:scale-[0.99] shadow-[0_0_40px_rgba(59,130,246,0.18)] cursor-pointer'
-                      : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                      ? 'bg-[#141318] text-[#F7F2E7] hover:bg-black'
+                      : 'bg-black/40 text-white/60 cursor-not-allowed opacity-70'
                   }`}
                 >
-                  <Zap className="w-5 h-5" />
+                  <Zap className="w-5 h-5 text-[#FFD400]" />
                   {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
                 </button>
-                <p className="mt-3 text-xs text-white/45 font-mono text-center uppercase tracking-wider">
+                <p className="mt-3 text-xs text-white/70 font-mono text-center uppercase tracking-wider">
                   Optional — skip ahead if you already know the full solution
                 </p>
               </motion.div>
@@ -929,18 +1177,20 @@ export default function BattleConnected() {
               !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
                 <motion.div
                   key="steps-bottom"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -12 }}
+                  variants={panelV}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={panelT}
                   className="w-full"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <div className="text-[10px] text-white/40 font-mono uppercase tracking-[0.28em]">
+                    <div className="text-[10px] text-white/70 font-mono uppercase tracking-[0.28em]">
                       Choose an answer
                     </div>
 
                     {answerSubmitted && (
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 text-amber-300 rounded-full text-xs font-bold border border-amber-500/20 backdrop-blur-sm">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFD400] text-[#141318] rounded-full text-xs font-black tracking-widest ring-2 ring-black/90 shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
                         <Check className="w-4 h-4" />
                         ANSWER SUBMITTED
                       </div>
@@ -968,19 +1218,21 @@ export default function BattleConnected() {
             {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
               <motion.div
                 key="question-bottom"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
+                variants={panelV}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={panelT}
                 className="w-full"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <div className="text-[10px] text-white/40 font-mono uppercase tracking-[0.28em]">
+                  <div className="text-[10px] text-white/70 font-mono uppercase tracking-[0.28em]">
                     Choose an answer
                   </div>
 
                   {answerSubmitted && (
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 text-blue-300 rounded-full text-xs font-bold border border-blue-500/20 backdrop-blur-sm">
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#00D4FF] text-[#141318] rounded-full text-xs font-black tracking-widest ring-2 ring-black/90 shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
+                      <Loader2 className="w-4 h-4 animate-spin text-black/80" />
                       LOCKED IN
                     </div>
                   )}
@@ -1005,10 +1257,11 @@ export default function BattleConnected() {
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
+                    transition={battleTransition(reduceMotion, { duration: 0.18 })}
                     className="mt-6 text-center"
                   >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#F7F2E7] text-[#141318] rounded-full text-sm font-black tracking-widest ring-2 ring-black/90 shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
+                      <Loader2 className="w-4 h-4 animate-spin text-black/70" />
                       AWAITING RESULT CONFIRMATION
                     </div>
                   </motion.div>
@@ -1020,9 +1273,11 @@ export default function BattleConnected() {
             {status === 'results' && results && (
               <motion.div
                 key="results-bottom"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
+                variants={panelV}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={panelT}
                 className="w-full"
               >
                 {!matchOver && (
@@ -1031,24 +1286,26 @@ export default function BattleConnected() {
                       <button
                         onClick={readyForNextRound}
                         disabled={!isWebSocketConnected}
-                        className={`w-full py-4 px-8 rounded-2xl font-bold text-lg transition-all shadow-lg border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505] ${
+                        className={`w-full py-4 px-8 rounded-2xl font-black text-lg tracking-widest ring-2 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-[#07070a] transition-colors ${
                           isWebSocketConnected
-                            ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 active:scale-[0.99] shadow-[0_0_40px_rgba(59,130,246,0.18)] cursor-pointer'
-                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                            ? 'bg-[#141318] text-[#F7F2E7] hover:bg-black'
+                            : 'bg-black/40 text-white/60 cursor-not-allowed opacity-70'
                         }`}
                       >
                         {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
                       </button>
                     ) : waitingForOpponentToAcknowledge ? (
                       <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                        <div className="text-sm font-mono text-white/60">
-                          WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F7F2E7] text-[#141318] ring-2 ring-black/90 shadow-[6px_6px_0_rgba(0,0,0,0.55)] text-xs font-black tracking-widest">
+                          <Loader2 className="w-4 h-4 animate-spin text-black/70" />
+                          WAITING FOR OPPONENT…
                         </div>
                       </div>
                     ) : (
-                      <div className="text-sm font-mono text-white/60 text-center">
-                        BOTH PLAYERS READY - STARTING NEXT ROUND...
+                      <div className="text-center">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F7F2E7] text-[#141318] ring-2 ring-black/90 shadow-[6px_6px_0_rgba(0,0,0,0.55)] text-xs font-black tracking-widest">
+                          BOTH READY — STARTING…
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1058,7 +1315,7 @@ export default function BattleConnected() {
                   <div>
                     <button
                       onClick={() => navigate('/matchmaking-new')}
-                      className="w-full py-4 px-8 rounded-2xl font-bold text-lg bg-white text-black hover:scale-[1.01] transition-transform hover:shadow-[0_0_30px_rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
+                      className="w-full py-4 px-8 rounded-2xl font-black text-lg tracking-widest bg-[#F7F2E7] text-[#141318] ring-2 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] hover:bg-[#FBF7EE] transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-[#07070a]"
                     >
                       RETURN TO LOBBY
                     </button>
@@ -1071,20 +1328,23 @@ export default function BattleConnected() {
             {status === 'match_finished' && (
               <motion.div
                 key="finished-bottom"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
+                variants={panelV}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={panelT}
                 className="w-full"
               >
                 <button
                   onClick={() => navigate('/matchmaking-new')}
-                  className="w-full py-4 px-8 rounded-2xl font-bold text-lg bg-white text-black hover:scale-[1.01] transition-transform hover:shadow-[0_0_30px_rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
+                  className="w-full py-4 px-8 rounded-2xl font-black text-lg tracking-widest bg-[#F7F2E7] text-[#141318] ring-2 ring-black/90 shadow-[10px_10px_0_rgba(0,0,0,0.55)] hover:bg-[#FBF7EE] transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-[#07070a]"
                 >
                   RETURN TO BASE
                 </button>
               </motion.div>
             )}
-            </AnimatePresence>
-          </div>
+          </AnimatePresence>
+        </div>
         </section>
       </div>
     </BattleHudShell>

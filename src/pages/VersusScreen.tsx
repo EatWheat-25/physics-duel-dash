@@ -171,16 +171,34 @@ export default function VersusScreen() {
 
   if (!match || !currentUser) {
     return (
-      <BattleHudShell className="font-sans selection:bg-blue-500/30">
+      <BattleHudShell className="font-sans selection:bg-[#FFD400]/35 selection:text-black">
         <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
+          <div className="relative overflow-hidden rounded-[26px] bg-[#F7F2E7] text-[#141318] ring-2 ring-black/80 shadow-[12px_12px_0_rgba(0,0,0,0.55)] px-8 py-7 text-center">
+            <div
+              aria-hidden
+              className="absolute inset-0 opacity-[0.14]"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.14) 1px, rgba(0,0,0,0) 1.2px)',
+                backgroundSize: '18px 18px',
+              }}
+            />
+            <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/80 via-transparent to-transparent opacity-80" />
+
             <div className="relative">
-              <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 h-8 bg-blue-500/20 rounded-full animate-pulse" />
+              <div className="text-[10px] font-mono uppercase tracking-[0.35em] text-black/60">
+                Locking in opponent
+              </div>
+              <div className="mt-2 text-3xl md:text-4xl font-black tracking-tight">
+                MATCH FOUND
+              </div>
+
+              <div className="mt-5 flex items-center justify-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-black/80 animate-bounce [animation-delay:-0.2s]" />
+                <span className="h-2.5 w-2.5 rounded-full bg-black/80 animate-bounce [animation-delay:-0.1s]" />
+                <span className="h-2.5 w-2.5 rounded-full bg-black/80 animate-bounce" />
               </div>
             </div>
-            <p className="text-blue-200/70 font-mono tracking-widest text-sm">MATCH FOUND</p>
           </div>
         </div>
       </BattleHudShell>
@@ -188,7 +206,7 @@ export default function VersusScreen() {
   }
 
   return (
-    <BattleHudShell className="font-sans selection:bg-blue-500/30">
+    <BattleHudShell className="font-sans selection:bg-[#FFD400]/35 selection:text-black">
       <main className="flex-1 flex items-center justify-center">
         <MatchupIntro
           left={{ name: myDisplayName, subtitle: 'YOU' }}
