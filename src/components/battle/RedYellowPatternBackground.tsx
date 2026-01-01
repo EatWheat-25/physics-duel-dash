@@ -1,7 +1,7 @@
 import React from 'react'
 
 export const RedYellowPatternBackground = () => {
-  // Same doodle wallpaper as StudyPatternBackground, recolored to white outlines on a sky-blue base.
+  // Same doodle wallpaper as StudyPatternBackground, recolored to white outlines on a royal-blue base.
   const patternSvg = encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
       <g fill="none" stroke="#FFFFFF" stroke-opacity="0.38" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -69,12 +69,12 @@ export const RedYellowPatternBackground = () => {
 
   return (
     <div className="fixed inset-0 z-[-1] overflow-hidden bg-black">
-      {/* 1. Sky-blue base */}
+      {/* 1. Royal-blue base */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(circle at 50% 40%, #E0F2FE 0%, #7DD3FC 28%, #38BDF8 55%, #0EA5E9 78%, #075985 100%)',
+            'radial-gradient(circle at 50% 40%, #3B82F6 0%, #2563EB 30%, #1D4ED8 55%, #1E40AF 78%, #0B1B5E 100%)',
         }}
       />
 
@@ -90,23 +90,23 @@ export const RedYellowPatternBackground = () => {
           transformOrigin: 'center',
           backgroundImage: patternUrl,
           backgroundRepeat: 'repeat',
-          backgroundSize: '170px 170px',
-          opacity: 0.16,
+          backgroundSize: '240px 240px',
+          opacity: 0.18,
         }}
       />
 
-      {/* 3. Soft vignette (keeps readability but stays “blue”) */}
-      <div className="absolute inset-0 bg-[radial-gradient(transparent_35%,rgba(0,0,0,0.38)_100%)] opacity-70 pointer-events-none" />
+      {/* 3. Soft vignette (shadows) */}
+      <div className="absolute inset-0 bg-[radial-gradient(transparent_35%,rgba(0,0,0,0.55)_100%)] opacity-75 pointer-events-none" />
 
-      {/* 4. Sky-blue + white glow drifts (subtle motion like Home) */}
+      {/* 4. Royal-blue glow drifts (subtle motion like Home) */}
       <div
         className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-20 animate-blob-float"
-        style={{ background: '#E0F2FE' }} // sky-100 (near-white)
+        style={{ background: '#3B82F6' }} // blue-500
       />
       <div
         className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-12 animate-blob-float"
         style={{
-          background: '#38BDF8', // sky-400
+          background: '#1D4ED8', // blue-700
           animationDelay: '-5s',
         }}
       />
