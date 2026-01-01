@@ -21,7 +21,6 @@ export default {
 			fontFamily: {
 				'sans': ['Inter', 'sans-serif'],
 				'heading': ['Roboto', 'sans-serif'],
-				'comic': ['Bangers', 'cursive'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
