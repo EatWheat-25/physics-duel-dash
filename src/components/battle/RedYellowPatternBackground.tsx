@@ -1,10 +1,10 @@
 import React from 'react'
 
 export const RedYellowPatternBackground = () => {
-  // Same doodle wallpaper as StudyPatternBackground, recolored to white outlines on a yellow base.
+  // Same doodle wallpaper as StudyPatternBackground, recolored to white outlines on a sky-blue base.
   const patternSvg = encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
-      <g fill="none" stroke="#FFFFFF" stroke-opacity="0.40" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g fill="none" stroke="#FFFFFF" stroke-opacity="0.38" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <!-- Book -->
         <path d="M26 34h34c6 0 10 4 10 10v44c0-6-4-10-10-10H26z"/>
         <path d="M26 34v44"/>
@@ -69,11 +69,12 @@ export const RedYellowPatternBackground = () => {
 
   return (
     <div className="fixed inset-0 z-[-1] overflow-hidden bg-black">
-      {/* 1. Yellow base */}
+      {/* 1. Sky-blue base */}
       <div
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(circle at 50% 45%, #FFF3B0 0%, #FFD400 35%, #F4B400 70%, #B36B00 100%)',
+          background:
+            'radial-gradient(circle at 50% 40%, #E0F2FE 0%, #7DD3FC 28%, #38BDF8 55%, #0EA5E9 78%, #075985 100%)',
         }}
       />
 
@@ -90,22 +91,22 @@ export const RedYellowPatternBackground = () => {
           backgroundImage: patternUrl,
           backgroundRepeat: 'repeat',
           backgroundSize: '170px 170px',
-          opacity: 0.18,
+          opacity: 0.16,
         }}
       />
 
-      {/* 3. Soft vignette (keeps readability but stays “yellow”) */}
-      <div className="absolute inset-0 bg-[radial-gradient(transparent_35%,rgba(0,0,0,0.35)_100%)] opacity-70 pointer-events-none" />
+      {/* 3. Soft vignette (keeps readability but stays “blue”) */}
+      <div className="absolute inset-0 bg-[radial-gradient(transparent_35%,rgba(0,0,0,0.38)_100%)] opacity-70 pointer-events-none" />
 
-      {/* 4. Yellow glow drifts (subtle motion like Home) */}
+      {/* 4. Sky-blue + white glow drifts (subtle motion like Home) */}
       <div
         className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-20 animate-blob-float"
-        style={{ background: '#FFF7D6' }} // warm white/yellow
+        style={{ background: '#E0F2FE' }} // sky-100 (near-white)
       />
       <div
         className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-12 animate-blob-float"
         style={{
-          background: '#FFD400', // bright yellow
+          background: '#38BDF8', // sky-400
           animationDelay: '-5s',
         }}
       />
