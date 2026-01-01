@@ -6,11 +6,11 @@ import { Loader2, ArrowLeft, Check, X, Trophy, Clock, Zap } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Starfield } from '@/components/Starfield';
 import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
 import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
+import { FluidPaintBackground } from '@/components/battle/FluidPaintBackground';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -197,11 +197,8 @@ export default function BattleConnected() {
 
   if (!match || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#3B0010] flex items-center justify-center relative overflow-hidden">
-        <Starfield
-          background="radial-gradient(ellipse at center, #7A001C 0%, #2B0A0F 55%, #120006 100%)"
-          starRgb="255, 232, 232"
-        />
+      <div className="min-h-screen bg-[#120006] flex items-center justify-center relative overflow-hidden text-white">
+        <FluidPaintBackground />
         <div className="flex flex-col items-center gap-4 relative z-10">
           <div className="relative">
             <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin" />
@@ -217,12 +214,9 @@ export default function BattleConnected() {
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-[#3B0010] flex items-center justify-center p-4 relative overflow-hidden">
-        <Starfield
-          background="radial-gradient(ellipse at center, #7A001C 0%, #2B0A0F 55%, #120006 100%)"
-          starRgb="255, 232, 232"
-        />
-        <div className="max-w-md w-full bg-red-950/10 border border-red-500/20 p-8 rounded-2xl text-center relative z-10 backdrop-blur-sm">
+      <div className="min-h-screen bg-[#120006] flex items-center justify-center p-4 relative overflow-hidden text-white">
+        <FluidPaintBackground />
+        <div className="max-w-md w-full bg-[#160007] border border-red-500/25 p-8 rounded-2xl text-center relative z-10">
           <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
             <X className="w-8 h-8 text-red-500" />
           </div>
@@ -240,25 +234,8 @@ export default function BattleConnected() {
   }
 
   return (
-    <div className="min-h-screen bg-[#3B0010] text-white font-sans selection:bg-red-500/30 overflow-hidden relative">
-      <Starfield
-        background="radial-gradient(ellipse at center, #7A001C 0%, #2B0A0F 55%, #120006 100%)"
-        starRgb="255, 232, 232"
-      />
-      
-      {/* Background Elements */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-red-500/18 via-transparent to-transparent pointer-events-none" />
-      <div
-        aria-hidden
-        className="absolute -top-40 left-1/4 h-[520px] w-[520px] rounded-full bg-red-600/12 blur-3xl pointer-events-none animate-blob-float"
-      />
-      <div
-        aria-hidden
-        className="absolute -bottom-52 right-1/4 h-[560px] w-[560px] rounded-full bg-rose-500/10 blur-3xl pointer-events-none animate-blob-float"
-        style={{ animationDelay: '-7s' }}
-      />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-black/15 to-black/55 pointer-events-none" />
-      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-red-400/70 to-transparent pointer-events-none" />
+    <div className="min-h-screen bg-[#120006] text-white font-sans selection:bg-yellow-500/30 overflow-hidden relative">
+      <FluidPaintBackground />
       
       {/* Round Intro Overlay */}
       <AnimatePresence>
@@ -486,7 +463,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-2xl bg-[#160007] border border-red-500/25 rounded-3xl p-8 md:p-12 text-center"
               >
                 <div className="mb-6">
                   <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto mb-4" />
@@ -496,8 +473,8 @@ export default function BattleConnected() {
                   <p className="text-white/60 font-mono text-sm mb-4">
                     You have finished all {totalSteps} part{totalSteps !== 1 ? 's' : ''}
                   </p>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-full text-sm font-bold border border-black/20">
+                    <Loader2 className="w-4 h-4 animate-spin text-black/80" />
                     WAITING FOR OPPONENT TO FINISH ALL PARTS...
                   </div>
                 </div>
@@ -535,7 +512,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-2xl bg-[#160007] border border-red-500/25 rounded-3xl p-8 md:p-12 text-center"
               >
                 <div className="mb-8">
                   {results.round_winner === currentUser ? (

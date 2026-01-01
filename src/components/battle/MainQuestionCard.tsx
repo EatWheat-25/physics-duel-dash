@@ -21,12 +21,11 @@ export function MainQuestionCard({
       exit={{ opacity: 0, y: -20 }}
       className="w-full max-w-3xl"
     >
-      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
-        <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      <div className="bg-[#160007] border border-red-500/25 rounded-3xl p-8 md:p-12 mb-8 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent opacity-80" />
 
         <div className="text-center">
-          <div className="text-sm text-blue-400/60 font-mono mb-4 uppercase tracking-wider">
+          <div className="text-sm text-yellow-300/80 font-mono mb-4 uppercase tracking-wider">
             Main Question
           </div>
           <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
@@ -36,11 +35,11 @@ export function MainQuestionCard({
             <img
               src={imageUrl}
               alt="Question"
-              className="mt-6 rounded-lg max-w-full border border-white/10 mx-auto"
+              className="mt-6 rounded-lg max-w-full border border-red-500/20 mx-auto"
               loading="lazy"
             />
           )}
-          <div className="mt-6 text-sm text-white/40">
+          <div className="mt-6 text-sm text-white/70">
             {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
           </div>
         </div>
@@ -56,10 +55,10 @@ export function MainQuestionCard({
         <button
           onClick={() => onSubmitEarly?.()}
           disabled={!isWebSocketConnected || !onSubmitEarly}
-          className={`w-full py-6 px-8 rounded-xl font-bold text-xl transition-all shadow-lg ${
+          className={`w-full py-6 px-8 rounded-xl font-bold text-xl transition-colors border ${
             isWebSocketConnected && onSubmitEarly
-              ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
-              : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+              ? 'bg-yellow-500 hover:bg-yellow-400 text-black border-black/20 cursor-pointer'
+              : 'bg-[#2B0A0F] text-white/60 border-red-500/20 cursor-not-allowed opacity-70'
           }`}
         >
           {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
