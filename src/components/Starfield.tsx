@@ -1,6 +1,15 @@
 import { useEffect, useRef } from 'react';
 
-export function Starfield() {
+export function Starfield({
+  background = 'radial-gradient(ellipse at center, #0b1020 0%, #060914 100%)',
+  starRgb = '234, 240, 255',
+}: {
+  background?: string;
+  /**
+   * RGB triplet used for stars (without alpha), e.g. "234, 240, 255"
+   */
+  starRgb?: string;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -38,7 +47,7 @@ export function Starfield() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       stars.forEach((star) => {
-        ctx.fillStyle = `rgba(234, 240, 255, ${star.opacity})`;
+        ctx.fillStyle = `rgba(${starRgb}, ${star.opacity})`;
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
         ctx.fill();
@@ -61,14 +70,14 @@ export function Starfield() {
       window.removeEventListener('resize', setCanvasSize);
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [starRgb]);
 
   return (
     <canvas
       ref={canvasRef}
       className="fixed inset-0 pointer-events-none z-0"
       style={{
-        background: 'radial-gradient(ellipse at center, #0b1020 0%, #060914 100%)',
+        background,
       }}
     />
   );
