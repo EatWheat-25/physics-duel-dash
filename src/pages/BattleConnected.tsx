@@ -197,7 +197,7 @@ export default function BattleConnected() {
 
   if (!match || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center relative overflow-hidden">
+      <div className="min-h-screen bg-[#2B0A0F] flex items-center justify-center relative overflow-hidden">
         <Starfield />
         <div className="flex flex-col items-center gap-4 relative z-10">
           <div className="relative">
@@ -214,7 +214,7 @@ export default function BattleConnected() {
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="min-h-screen bg-[#2B0A0F] flex items-center justify-center p-4 relative overflow-hidden">
         <Starfield />
         <div className="max-w-md w-full bg-red-950/10 border border-red-500/20 p-8 rounded-2xl text-center relative z-10 backdrop-blur-sm">
           <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -234,12 +234,12 @@ export default function BattleConnected() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-blue-500/30 overflow-hidden relative">
+    <div className="min-h-screen bg-[#2B0A0F] text-white font-sans selection:bg-blue-500/30 overflow-hidden relative">
       <Starfield />
       
       {/* Background Elements */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505] pointer-events-none" />
-      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-900/15 via-[#2B0A0F] to-[#2B0A0F] pointer-events-none" />
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-red-500/50 to-transparent pointer-events-none" />
       
       {/* Round Intro Overlay */}
       <AnimatePresence>
