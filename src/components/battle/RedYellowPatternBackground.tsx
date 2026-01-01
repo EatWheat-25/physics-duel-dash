@@ -1,11 +1,28 @@
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 export const RedYellowPatternBackground = () => {
   // Same doodle wallpaper as StudyPatternBackground, recolored to white outlines on a royal-blue base.
-  // To make the doodles pop without “glassy reflections”, we use a dark shadow layer + a white outline layer.
-  const baseDoodleSvg = `
+  // User request: no shadow layer, slightly smaller doodles, and keep doodle size stable on resize + browser zoom.
+  const BASE_TILE_PX = 255 // ~25% smaller than 340px
+
+  const [dpr, setDpr] = useState(() => {
+    if (typeof window === 'undefined') return 1
+    return window.devicePixelRatio || 1
+  })
+
+  useEffect(() => {
+    const onResize = () => setDpr(window.devicePixelRatio || 1)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // Keep the physical (device pixel) tile size stable even when browser zoom changes.
+  const tileSizeCss = BASE_TILE_PX / Math.max(1, dpr)
+
+  const baseDoodleSvg = useMemo(
+    () => `
     <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
-      <g fill="none" stroke="__STROKE__" stroke-opacity="__OPACITY__" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <g fill="none" stroke="#FFFFFF" stroke-opacity="0.38" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <!-- Book -->
         <path d="M26 34h34c6 0 10 4 10 10v44c0-6-4-10-10-10H26z"/>
         <path d="M26 34v44"/>
@@ -65,17 +82,14 @@ export const RedYellowPatternBackground = () => {
         <path d="M214 96l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>
       </g>
     </svg>
-  `
-
-  const patternSvg = encodeURIComponent(
-    baseDoodleSvg.replace('__STROKE__', '#FFFFFF').replace('__OPACITY__', '0.42')
-  )
-  const patternShadowSvg = encodeURIComponent(
-    baseDoodleSvg.replace('__STROKE__', '#081133').replace('__OPACITY__', '0.55')
+  `,
+    []
   )
 
-  const patternUrl = `url("data:image/svg+xml,${patternSvg}")`
-  const patternShadowUrl = `url("data:image/svg+xml,${patternShadowSvg}")`
+  const patternUrl = useMemo(() => {
+    const patternSvg = encodeURIComponent(baseDoodleSvg)
+    return `url("data:image/svg+xml,${patternSvg}")`
+  }, [baseDoodleSvg])
 
   return (
     <div className="fixed inset-0 z-[-1] overflow-hidden bg-black">
@@ -89,24 +103,7 @@ export const RedYellowPatternBackground = () => {
         }}
       />
 
-      {/* 2a. Shadow pattern layer (adds depth behind white outlines) */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          width: '160%',
-          height: '160%',
-          left: '-30%',
-          top: '-30%',
-          transform: 'rotate(-12deg) translate(10px, 10px) scale(1.2)',
-          transformOrigin: 'center',
-          backgroundImage: patternShadowUrl,
-          backgroundRepeat: 'repeat',
-          backgroundSize: '340px 340px',
-          opacity: 0.20,
-        }}
-      />
-
-      {/* 2b. White outline pattern layer (bigger icons) */}
+      {/* 2. White outline pattern layer (no shadow, smaller icons) */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -118,8 +115,8 @@ export const RedYellowPatternBackground = () => {
           transformOrigin: 'center',
           backgroundImage: patternUrl,
           backgroundRepeat: 'repeat',
-          backgroundSize: '340px 340px',
-          opacity: 0.20,
+          backgroundSize: `${tileSizeCss}px ${tileSizeCss}px`,
+          opacity: 0.18,
         }}
       />
 
