@@ -2,9 +2,10 @@ import React from 'react'
 
 export const RedYellowPatternBackground = () => {
   // Same doodle wallpaper as StudyPatternBackground, recolored to white outlines on a royal-blue base.
-  const patternSvg = encodeURIComponent(`
+  // To make the doodles pop without “glassy reflections”, we use a dark shadow layer + a white outline layer.
+  const baseDoodleSvg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
-      <g fill="none" stroke="#FFFFFF" stroke-opacity="0.38" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g fill="none" stroke="__STROKE__" stroke-opacity="__OPACITY__" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <!-- Book -->
         <path d="M26 34h34c6 0 10 4 10 10v44c0-6-4-10-10-10H26z"/>
         <path d="M26 34v44"/>
@@ -64,8 +65,17 @@ export const RedYellowPatternBackground = () => {
         <path d="M214 96l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>
       </g>
     </svg>
-  `)
+  `
+
+  const patternSvg = encodeURIComponent(
+    baseDoodleSvg.replace('__STROKE__', '#FFFFFF').replace('__OPACITY__', '0.42')
+  )
+  const patternShadowSvg = encodeURIComponent(
+    baseDoodleSvg.replace('__STROKE__', '#081133').replace('__OPACITY__', '0.55')
+  )
+
   const patternUrl = `url("data:image/svg+xml,${patternSvg}")`
+  const patternShadowUrl = `url("data:image/svg+xml,${patternShadowSvg}")`
 
   return (
     <div className="fixed inset-0 z-[-1] overflow-hidden bg-black">
@@ -74,11 +84,29 @@ export const RedYellowPatternBackground = () => {
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(circle at 50% 40%, #3B82F6 0%, #2563EB 30%, #1D4ED8 55%, #1E40AF 78%, #0B1B5E 100%)',
+            // Deep royal blue with no bright center “reflection”
+            'radial-gradient(circle at 50% 45%, #1E40AF 0%, #1E3A8A 45%, #0B1B5E 80%, #020617 100%)',
         }}
       />
 
-      {/* 2. Dense repeating pattern overlay (same size/rotation as Home) */}
+      {/* 2a. Shadow pattern layer (adds depth behind white outlines) */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          width: '160%',
+          height: '160%',
+          left: '-30%',
+          top: '-30%',
+          transform: 'rotate(-12deg) translate(10px, 10px) scale(1.2)',
+          transformOrigin: 'center',
+          backgroundImage: patternShadowUrl,
+          backgroundRepeat: 'repeat',
+          backgroundSize: '340px 340px',
+          opacity: 0.20,
+        }}
+      />
+
+      {/* 2b. White outline pattern layer (bigger icons) */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -90,8 +118,8 @@ export const RedYellowPatternBackground = () => {
           transformOrigin: 'center',
           backgroundImage: patternUrl,
           backgroundRepeat: 'repeat',
-          backgroundSize: '240px 240px',
-          opacity: 0.18,
+          backgroundSize: '340px 340px',
+          opacity: 0.20,
         }}
       />
 
@@ -101,7 +129,7 @@ export const RedYellowPatternBackground = () => {
       {/* 4. Royal-blue glow drifts (subtle motion like Home) */}
       <div
         className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-20 animate-blob-float"
-        style={{ background: '#3B82F6' }} // blue-500
+        style={{ background: '#1D4ED8' }} // blue-700-ish (no white)
       />
       <div
         className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-12 animate-blob-float"
