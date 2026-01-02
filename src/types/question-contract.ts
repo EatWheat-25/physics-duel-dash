@@ -35,6 +35,18 @@ export interface QuestionStep {
     /** The actual question text for this step */
     prompt: string;
 
+    /** Optional SMILES string for a step-level skeletal/structure diagram */
+    diagramSmiles?: string;
+
+    /** Optional image URL for a step-level diagram */
+    diagramImageUrl?: string;
+
+    /** Optional equation string for rendering a graph (e.g., "x^2", "sin(x)") */
+    graphEquation?: string;
+
+    /** Optional color for the graph line (default: 'yellow') */
+    graphColor?: string;
+
     /**
      * Answer options.
      * - MCQ: 2–6 options
@@ -88,6 +100,12 @@ export interface QuestionSubStep {
 
     /** Explanation shown after answering (null = no explanation) */
     explanation: string | null;
+
+    /** Optional equation string for rendering a graph (e.g., "x^2", "sin(x)") */
+    graphEquation?: string;
+
+    /** Optional color for the graph line (default: 'yellow') */
+    graphColor?: string;
 }
 
 /**
@@ -136,6 +154,15 @@ export interface StepBasedQuestion {
 
     /** Optional question image URL */
     imageUrl?: string;
+
+    /** Optional SMILES string for a main-question skeletal/structure diagram */
+    structureSmiles?: string;
+
+    /** Optional equation string for rendering a graph (e.g., "x^2", "sin(x)") */
+    graphEquation?: string;
+
+    /** Optional color for the graph line (default: 'yellow') */
+    graphColor?: string;
 }
 
 /**

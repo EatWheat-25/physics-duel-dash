@@ -17,7 +17,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2, Clock } from 'lucide-react';
 import { RoundPhase } from '@/types/gameEvents';
-import { MathText } from '@/components/math/MathText';
+import { ScienceText } from '@/components/chem/ScienceText';
+import { SmilesDiagram } from '@/components/chem/SmilesDiagram';
 
 interface QuestionViewerProps {
   questions: StepBasedQuestion[];
@@ -210,15 +211,41 @@ export function QuestionViewer({
               <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                 <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-1">Main Question:</p>
                 <p className="text-gray-800 font-medium">
-                  <MathText text={currentQuestion.stem} />
+                  <ScienceText text={currentQuestion.stem} />
                 </p>
+                {currentQuestion.structureSmiles && (
+                  <div className="mt-4">
+                    <SmilesDiagram smiles={currentQuestion.structureSmiles} size="lg" />
+                  </div>
+                )}
+                {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                  <img
+                    src={currentQuestion.imageUrl || (currentQuestion as any).image_url}
+                    alt="Question"
+                    className="mt-4 rounded-lg max-w-full border border-black/10"
+                    loading="lazy"
+                  />
+                )}
               </div>
             )}
             {/* Single‑step stem fallback */}
             {currentQuestion.stem && totalSteps === 1 && (
               <div className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground">
                 <span className="font-semibold mr-2">Question:</span>
-                <MathText text={currentQuestion.stem} />
+                <ScienceText text={currentQuestion.stem} />
+                {currentQuestion.structureSmiles && (
+                  <div className="mt-4">
+                    <SmilesDiagram smiles={currentQuestion.structureSmiles} size="lg" />
+                  </div>
+                )}
+                {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                  <img
+                    src={currentQuestion.imageUrl || (currentQuestion as any).image_url}
+                    alt="Question"
+                    className="mt-3 rounded-lg max-w-full border border-border/50"
+                    loading="lazy"
+                  />
+                )}
               </div>
             )}
             {/* Step‑specific prompt */}
@@ -239,8 +266,23 @@ export function QuestionViewer({
                   )}
                 </div>
                 <p className="text-lg font-semibold text-gray-900">
-                  <MathText text={(displayStep as any).prompt} />
+                  <ScienceText text={(displayStep as any).prompt} />
                 </p>
+                {((displayStep as any).diagramSmiles || (displayStep as any).diagramImageUrl) && (
+                  <div className="mt-4 space-y-3">
+                    {(displayStep as any).diagramSmiles && (
+                      <SmilesDiagram smiles={(displayStep as any).diagramSmiles} size="md" />
+                    )}
+                    {(displayStep as any).diagramImageUrl && (
+                      <img
+                        src={(displayStep as any).diagramImageUrl}
+                        alt="Diagram"
+                        className="rounded-lg max-w-full border border-black/10"
+                        loading="lazy"
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {/* Single‑step prompt fallback */}
@@ -248,8 +290,23 @@ export function QuestionViewer({
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2">
                   <p className="text-xl font-medium text-foreground leading-relaxed">
-                    <MathText text={(displayStep as any).prompt} />
+                    <ScienceText text={(displayStep as any).prompt} />
                   </p>
+                  {((displayStep as any).diagramSmiles || (displayStep as any).diagramImageUrl) && (
+                    <div className="mt-4 space-y-3">
+                      {(displayStep as any).diagramSmiles && (
+                        <SmilesDiagram smiles={(displayStep as any).diagramSmiles} size="md" />
+                      )}
+                      {(displayStep as any).diagramImageUrl && (
+                        <img
+                          src={(displayStep as any).diagramImageUrl}
+                          alt="Diagram"
+                          className="rounded-lg max-w-full border border-border/50"
+                          loading="lazy"
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
                 {isOnlineMode && activeTimer !== null && (
                   <Badge variant={activeTimer < 5 ? 'destructive' : 'secondary'} className="text-lg px-3 py-1 shrink-0">
@@ -284,7 +341,7 @@ export function QuestionViewer({
                             {showResult && isCorrect ? <Check className="w-5 h-5" /> : showResult && isWrong ? <X className="w-5 h-5" /> : optionLabel}
                           </div>
                           <p className="flex-1 text-gray-800 pt-1">
-                            <MathText text={option} />
+                            <ScienceText text={option} smilesSize="sm" />
                           </p>
                         </div>
                       </button>

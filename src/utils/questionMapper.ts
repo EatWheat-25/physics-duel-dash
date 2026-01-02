@@ -111,6 +111,10 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
       type: stepType,
       title: String(s.title || ''),
       prompt: String(s.prompt || s.question || ''),
+      diagramSmiles: s.diagramSmiles || s.diagram_smiles || undefined,
+      diagramImageUrl: s.diagramImageUrl || s.diagram_image_url || undefined,
+      graphEquation: s.graphEquation || s.graph_equation || undefined,
+      graphColor: s.graphColor || s.graph_color || undefined,
       options: optionsArray,
       correctAnswer: extractCorrectAnswer(s, optionsArray.length),
       timeLimitSeconds: s.timeLimitSeconds ?? s.time_limit_seconds ?? null,
@@ -145,6 +149,9 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
     topicTags: Array.isArray(q.topicTags) ? q.topicTags : (Array.isArray(q.topic_tags) ? q.topic_tags : []),
     steps,
     imageUrl: q.imageUrl || q.image_url || undefined,
+    structureSmiles: q.structureSmiles || q.structure_smiles || undefined,
+    graphEquation: q.graphEquation || q.graph_equation || undefined,
+    graphColor: q.graphColor || q.graph_color || undefined,
   };
 
   return question;
@@ -246,6 +253,10 @@ export function questionToDBRow(question: StepBasedQuestion): any {
     type: step.type,
     title: step.title,
     prompt: step.prompt,
+    diagramSmiles: step.diagramSmiles,
+    diagramImageUrl: step.diagramImageUrl,
+    graphEquation: step.graphEquation,
+    graphColor: step.graphColor,
     options: step.options,
     correctAnswer: step.correctAnswer,
     timeLimitSeconds: step.timeLimitSeconds,
@@ -266,6 +277,9 @@ export function questionToDBRow(question: StepBasedQuestion): any {
     topic_tags: question.topicTags,
     steps: dbSteps, // Include steps as JSONB
     image_url: question.imageUrl || null,
+    structure_smiles: question.structureSmiles || null,
+    graph_equation: question.graphEquation || null,
+    graph_color: question.graphColor || null,
   };
 }
 

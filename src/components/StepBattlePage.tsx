@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
 import { StepBasedQuestion, BattleProgress, StepResult } from '@/types/questions';
-import { MathText } from '@/components/math/MathText';
+import { ScienceText } from '@/components/chem/ScienceText';
 
 interface StepMatchStats {
   totalQuestions: number;
@@ -300,7 +300,7 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
           className="cyber-card p-6"
         >
           <p className="text-lg font-medium leading-relaxed">
-            <MathText text={currentQuestion.questionText} />
+            <ScienceText text={currentQuestion.questionText} />
           </p>
         </motion.div>
 
@@ -323,7 +323,7 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
             </div>
             
             <h4 className="text-xl font-medium mb-6">
-              <MathText text={currentStep.question.split(',').pop()?.trim() || currentStep.question} />
+              <ScienceText text={currentStep.question.split(',').pop()?.trim() || currentStep.question} />
             </h4>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -337,7 +337,7 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
                   whileTap={!showFeedback ? { scale: 0.98 } : {}}
                 >
                   <span className="font-semibold mr-2">{String.fromCharCode(65 + index)}.</span>
-                  <MathText text={option} />
+                  <ScienceText text={option} smilesSize="sm" />
                 </motion.button>
               ))}
             </div>
@@ -354,7 +354,7 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
                     {isCorrect ? `✅ Correct! +${currentStep.marks} marks` : '❌ Incorrect! +0 marks'}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    <MathText text={currentStep.explanation} />
+                    <ScienceText text={currentStep.explanation} />
                   </p>
                 </motion.div>
               )}

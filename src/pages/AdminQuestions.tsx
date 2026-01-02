@@ -16,7 +16,9 @@ import { Badge } from '@/components/ui/badge';
 import SpaceBackground from '@/components/SpaceBackground';
 import { useIsAdmin } from '@/hooks/useUserRole';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MathText } from '@/components/math/MathText';
+import { ScienceText } from '@/components/chem/ScienceText';
+import { SmilesDiagram } from '@/components/chem/SmilesDiagram';
+import { FunctionGraph } from '@/components/math/FunctionGraph';
 import { GameQuestionPreview } from '@/components/battle/GameQuestionPreview';
 import { InGamePreview } from '@/components/admin/InGamePreview';
 
@@ -32,6 +34,23 @@ const PHYSICS_A1_CHAPTER_TITLES: string[] = [
   'Chapter 9: Current of Electricity',
   'Chapter 10: DC Circuits',
   'Chapter 11: Nuclear Physics',
+];
+
+const CHEMISTRY_CHAPTER_TITLES: string[] = [
+  'Atomic Structure',
+  'Moles & Calculations',
+  'Bonding & Structure',
+  'States of Matter & Gases',
+  'Energetics',
+  'Rate of Reaction',
+  'Equilibrium',
+  'Acids, Bases & pH',
+  'Redox & Electrochemistry',
+  'Periodicity & Group Chemistry',
+  'Organic Basics',
+  'Hydrocarbons',
+  'Organic Functional Groups',
+  'Analytical Techniques',
 ];
 
 type QuestionFilter = {
@@ -57,6 +76,10 @@ type FormStep = {
   type: 'mcq' | 'true_false';
   title: string;
   prompt: string;
+  diagramSmiles: string;
+  diagramImageUrl: string;
+  graphEquation: string;
+  graphColor: string;
   options: string[];
   correctAnswer: number;
   marks: number;
@@ -73,6 +96,9 @@ type QuestionForm = {
   difficulty: 'easy' | 'medium' | 'hard';
   rankTier: string;
   stem: string;
+  structureSmiles: string;
+  graphEquation: string;
+  graphColor: string;
   mainQuestionTimerSeconds: number;
   totalMarks: number;
   topicTags: string; // Comma-separated string for editing
@@ -139,6 +165,9 @@ export default function AdminQuestions() {
       difficulty: 'medium',
       rankTier: '',
       stem: '',
+      structureSmiles: '',
+      graphEquation: '',
+      graphColor: 'yellow',
       mainQuestionTimerSeconds: 90,
       totalMarks: 1,
       topicTags: '',
@@ -146,6 +175,10 @@ export default function AdminQuestions() {
         type: 'mcq',
         title: 'Step 1',
         prompt: '',
+        diagramSmiles: '',
+        diagramImageUrl: '',
+        graphEquation: '',
+        graphColor: 'yellow',
         options: ['', '', '', ''],
         correctAnswer: 0,
         marks: 1,
@@ -221,6 +254,9 @@ export default function AdminQuestions() {
       difficulty: q.difficulty,
       rankTier: q.rankTier || '',
       stem: q.stem,
+      structureSmiles: q.structureSmiles || '',
+      graphEquation: q.graphEquation || '',
+      graphColor: q.graphColor || 'yellow',
       mainQuestionTimerSeconds: q.mainQuestionTimerSeconds,
       totalMarks: q.totalMarks,
       topicTags: q.topicTags.join(', '),
@@ -229,6 +265,10 @@ export default function AdminQuestions() {
         type: s.type || 'mcq',
         title: s.title,
         prompt: s.prompt,
+        diagramSmiles: s.diagramSmiles || '',
+        diagramImageUrl: s.diagramImageUrl || '',
+        graphEquation: s.graphEquation || '',
+        graphColor: s.graphColor || 'yellow',
         options: (() => {
           const t: 'mcq' | 'true_false' = (s.type === 'true_false' ? 'true_false' : 'mcq')
           const raw = Array.isArray(s.options) ? s.options : []
@@ -290,6 +330,9 @@ export default function AdminQuestions() {
       difficulty: form.difficulty,
       rankTier: form.rankTier || undefined,
       stem: form.stem,
+      structureSmiles: form.structureSmiles || undefined,
+      graphEquation: form.graphEquation || undefined,
+      graphColor: form.graphColor || undefined,
       totalMarks: form.totalMarks,
       topicTags: form.topicTags.split(',').map(t => t.trim()).filter(Boolean),
       steps: form.steps.map((s, idx) => ({
@@ -298,6 +341,10 @@ export default function AdminQuestions() {
         type: s.type,
         title: s.title,
         prompt: s.prompt,
+        diagramSmiles: s.diagramSmiles || undefined,
+        diagramImageUrl: s.diagramImageUrl || undefined,
+        graphEquation: s.graphEquation || undefined,
+        graphColor: s.graphColor || undefined,
         options: s.options,
         correctAnswer: s.correctAnswer,
         marks: s.marks,
@@ -342,6 +389,10 @@ export default function AdminQuestions() {
           type: 'mcq',
           title: `Step ${form.steps.length + 1}`,
           prompt: '',
+          diagramSmiles: '',
+          diagramImageUrl: '',
+          graphEquation: '',
+          graphColor: 'yellow',
           options: ['', '', '', ''],
           correctAnswer: 0,
           marks: 1,
@@ -829,6 +880,10 @@ export default function AdminQuestions() {
           type: s.type,
           title: s.title,
           prompt: s.prompt,
+          diagramSmiles: s.diagramSmiles?.trim() ? s.diagramSmiles.trim() : undefined,
+          diagramImageUrl: s.diagramImageUrl?.trim() ? s.diagramImageUrl.trim() : undefined,
+          graphEquation: s.graphEquation?.trim() ? s.graphEquation.trim() : undefined,
+          graphColor: s.graphColor?.trim() ? s.graphColor.trim() : undefined,
           options: optionsToSave,
           correctAnswer: correct,
           timeLimitSeconds: s.timeLimitSeconds ?? null,
@@ -852,6 +907,9 @@ export default function AdminQuestions() {
         difficulty: form.difficulty,
         rank_tier: form.rankTier || null,
         stem: form.stem,
+        structure_smiles: form.structureSmiles || null,
+        graph_equation: form.graphEquation || null,
+        graph_color: form.graphColor || null,
         main_question_timer_seconds: form.mainQuestionTimerSeconds,
         total_marks: form.totalMarks,
         topic_tags: topicTagsArray,
@@ -1459,11 +1517,24 @@ export default function AdminQuestions() {
                           onChange={e => setForm({ ...form, chapter: e.target.value })}
                           className={glassInput}
                           placeholder="e.g. Integration"
-                          list={form.subject === 'physics' && form.level === 'A1' ? 'physics-a1-chapters' : undefined}
+                          list={
+                            form.subject === 'physics' && form.level === 'A1'
+                              ? 'physics-a1-chapters'
+                              : form.subject === 'chemistry'
+                                ? 'chemistry-chapters'
+                                : undefined
+                          }
                         />
                         {form.subject === 'physics' && form.level === 'A1' && (
                           <datalist id="physics-a1-chapters">
                             {PHYSICS_A1_CHAPTER_TITLES.map((t) => (
+                              <option key={t} value={t} />
+                            ))}
+                          </datalist>
+                        )}
+                        {form.subject === 'chemistry' && (
+                          <datalist id="chemistry-chapters">
+                            {CHEMISTRY_CHAPTER_TITLES.map((t) => (
                               <option key={t} value={t} />
                             ))}
                           </datalist>
@@ -1604,6 +1675,88 @@ export default function AdminQuestions() {
                           }} />
                         )}
                       </div>
+
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Structure SMILES (Optional)</label>
+                        <Input
+                          value={form.structureSmiles}
+                          onChange={e => setForm({ ...form, structureSmiles: e.target.value })}
+                          className={glassInput}
+                          placeholder="e.g. C1=CC=CC=C1"
+                        />
+                        <p className="text-xs text-white/40 mt-1">
+                          Renders a skeletal diagram under the main question in-game. You can also embed inline tokens like
+                          {' '}
+                          <span className="font-mono text-white/60">[[smiles:CCO]]</span>
+                          {' '}
+                          inside any text/options.
+                        </p>
+                        {form.structureSmiles && (
+                          <div className="mt-3 max-w-xl">
+                            <SmilesDiagram smiles={form.structureSmiles} size="lg" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Graph Equation (Optional)</label>
+                        <Input
+                          value={form.graphEquation}
+                          onChange={e => setForm({ ...form, graphEquation: e.target.value })}
+                          className={glassInput}
+                          placeholder="e.g. x^2, sin(x), x^2 + 2x + 1"
+                        />
+                        <p className="text-xs text-white/40 mt-1">
+                          Mathematical equation for rendering a graph. Examples: x^2, sin(x), log(x), x^2 + 2x + 1
+                        </p>
+                        
+                        {form.graphEquation && (
+                          <>
+                            <label className={`${labelStyle} mt-4`}>Graph Color</label>
+                            <div className="flex gap-2 flex-wrap mt-2">
+                              {[
+                                { value: 'yellow', label: 'Yellow', hex: '#fbbf24' },
+                                { value: 'amber', label: 'Amber', hex: '#f59e0b' },
+                                { value: 'blue', label: 'Blue', hex: '#58c4ff' },
+                                { value: 'cyan', label: 'Cyan', hex: '#5ef1ff' },
+                                { value: 'purple', label: 'Purple', hex: '#9a5bff' },
+                                { value: 'red', label: 'Red', hex: '#ef4444' },
+                                { value: 'green', label: 'Green', hex: '#10b981' },
+                              ].map((c) => (
+                                <button
+                                  key={c.value}
+                                  type="button"
+                                  onClick={() => setForm({ ...form, graphColor: c.value })}
+                                  className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                                    form.graphColor === c.value
+                                      ? 'border-yellow-400 bg-yellow-400/20'
+                                      : 'border-white/20 hover:border-white/40'
+                                  }`}
+                                  style={{ backgroundColor: `${c.hex}20` }}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className="w-4 h-4 rounded-full"
+                                      style={{ backgroundColor: c.hex }}
+                                    />
+                                    <span className="text-sm">{c.label}</span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                            
+                            <div className="mt-4">
+                              <label className={labelStyle}>Preview</label>
+                              <FunctionGraph 
+                                equation={form.graphEquation} 
+                                color={form.graphColor || 'yellow'}
+                                width={600}
+                                height={400}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1688,6 +1841,103 @@ export default function AdminQuestions() {
                                 onChange={e => updateStepField(index, 'prompt', e.target.value)}
                                 className={`${glassInput} min-h-[80px]`}
                               />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className={labelStyle}>Diagram SMILES (Optional)</label>
+                                <Input
+                                  value={step.diagramSmiles}
+                                  onChange={e => updateStepField(index, 'diagramSmiles', e.target.value)}
+                                  className={glassInput}
+                                  placeholder="e.g. CCO"
+                                />
+                                {step.diagramSmiles && (
+                                  <div className="mt-3">
+                                    <SmilesDiagram smiles={step.diagramSmiles} size="md" />
+                                  </div>
+                                )}
+                              </div>
+
+                              <div>
+                                <label className={labelStyle}>Diagram Image URL (Optional)</label>
+                                <Input
+                                  value={step.diagramImageUrl}
+                                  onChange={e => updateStepField(index, 'diagramImageUrl', e.target.value)}
+                                  className={glassInput}
+                                  placeholder="https://..."
+                                />
+                                {step.diagramImageUrl && (
+                                  <img
+                                    src={step.diagramImageUrl}
+                                    alt="Diagram preview"
+                                    className="mt-3 rounded-lg max-w-full border border-white/10"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none'
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className={labelStyle}>Graph Equation (Optional)</label>
+                                <Input
+                                  value={step.graphEquation}
+                                  onChange={e => updateStepField(index, 'graphEquation', e.target.value)}
+                                  className={glassInput}
+                                  placeholder="e.g. x^2, sin(x)"
+                                />
+                                <p className="text-xs text-white/40 mt-1">
+                                  Mathematical equation for rendering a graph
+                                </p>
+                              </div>
+                              <div>
+                                <label className={labelStyle}>Graph Color</label>
+                                <div className="flex gap-2 flex-wrap mt-2">
+                                  {[
+                                    { value: 'yellow', label: 'Yellow', hex: '#fbbf24' },
+                                    { value: 'amber', label: 'Amber', hex: '#f59e0b' },
+                                    { value: 'blue', label: 'Blue', hex: '#58c4ff' },
+                                    { value: 'cyan', label: 'Cyan', hex: '#5ef1ff' },
+                                    { value: 'purple', label: 'Purple', hex: '#9a5bff' },
+                                    { value: 'red', label: 'Red', hex: '#ef4444' },
+                                    { value: 'green', label: 'Green', hex: '#10b981' },
+                                  ].map((c) => (
+                                    <button
+                                      key={c.value}
+                                      type="button"
+                                      onClick={() => updateStepField(index, 'graphColor', c.value)}
+                                      className={`px-3 py-1.5 rounded-lg border-2 transition-all text-xs ${
+                                        step.graphColor === c.value
+                                          ? 'border-yellow-400 bg-yellow-400/20'
+                                          : 'border-white/20 hover:border-white/40'
+                                      }`}
+                                      style={{ backgroundColor: `${c.hex}20` }}
+                                    >
+                                      <div className="flex items-center gap-1.5">
+                                        <div
+                                          className="w-3 h-3 rounded-full"
+                                          style={{ backgroundColor: c.hex }}
+                                        />
+                                        <span>{c.label}</span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                                {step.graphEquation && (
+                                  <div className="mt-3">
+                                    <FunctionGraph 
+                                      equation={step.graphEquation} 
+                                      color={step.graphColor || 'yellow'}
+                                      width={500}
+                                      height={300}
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             </div>
 
                             <div className={`grid gap-4 bg-gradient-to-br from-black/30 to-black/10 p-5 rounded-xl border-2 ${step.type === 'true_false' ? 'grid-cols-2 border-green-500/20' : 'grid-cols-2 border-blue-500/20'}`}>
@@ -2078,8 +2328,13 @@ export default function AdminQuestions() {
                           {form.stem && (
                             <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                               <p className="text-white/90">
-                                <MathText text={form.stem} />
+                                <ScienceText text={form.stem} />
                               </p>
+                              {form.structureSmiles && (
+                                <div className="mt-4 max-w-xl">
+                                  <SmilesDiagram smiles={form.structureSmiles} size="lg" />
+                                </div>
+                              )}
                               {form.imageUrl && (
                                 <img src={form.imageUrl} alt="Question" className="mt-4 rounded-lg max-w-full" />
                               )}
@@ -2104,8 +2359,24 @@ export default function AdminQuestions() {
                                 
                                 <h3 className="text-white font-semibold mb-2">{step.title || `Step ${idx + 1}`}</h3>
                                 <p className="text-white/80 mb-4">
-                                  <MathText text={step.prompt || 'No prompt provided'} />
+                                  <ScienceText text={step.prompt || 'No prompt provided'} />
                                 </p>
+
+                                {(step.diagramSmiles || step.diagramImageUrl) && (
+                                  <div className="mb-4 space-y-3">
+                                    {step.diagramSmiles && (
+                                      <SmilesDiagram smiles={step.diagramSmiles} size="md" />
+                                    )}
+                                    {step.diagramImageUrl && (
+                                      <img
+                                        src={step.diagramImageUrl}
+                                        alt="Diagram"
+                                        className="rounded-lg max-w-full border border-white/10"
+                                        loading="lazy"
+                                      />
+                                    )}
+                                  </div>
+                                )}
                                 
                                 <div className="space-y-2">
                                   {(step.type === 'true_false'
@@ -2130,7 +2401,7 @@ export default function AdminQuestions() {
                                         }`}>
                                           {String.fromCharCode(65 + optIdx)}
                                         </div>
-                                        <MathText text={step.options[optIdx] || 'Empty option'} className="text-white flex-1" />
+                                        <ScienceText text={step.options[optIdx] || 'Empty option'} className="text-white flex-1" smilesSize="sm" />
                                         {step.correctAnswer === optIdx && (
                                           <CheckCircle2 className="w-5 h-5 text-green-400" />
                                         )}
@@ -2143,7 +2414,7 @@ export default function AdminQuestions() {
                                   <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                                     <p className="text-xs text-blue-300 font-semibold mb-1">Explanation:</p>
                                     <p className="text-sm text-white/80">
-                                      <MathText text={step.explanation} />
+                                      <ScienceText text={step.explanation} />
                                     </p>
                                   </div>
                                 )}

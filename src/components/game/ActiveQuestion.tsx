@@ -2,7 +2,8 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnswerGrid } from './AnswerGrid';
 import { Clock } from 'lucide-react';
-import { MathText } from '@/components/math/MathText';
+import { ScienceText } from '@/components/chem/ScienceText';
+import { SmilesDiagram } from '@/components/chem/SmilesDiagram';
 
 interface ActiveQuestionProps {
     question: {
@@ -10,6 +11,7 @@ interface ActiveQuestionProps {
         text: string;
         options: string[];
         imageUrl?: string;
+        structureSmiles?: string;
     };
     phase: 'thinking' | 'choosing' | 'result';
     timeLeft: number; // ms
@@ -86,8 +88,13 @@ export const ActiveQuestion: React.FC<ActiveQuestionProps> = ({
                         {/* Question Text */}
                         <div className="space-y-6 text-center">
                             <h2 className="text-2xl md:text-4xl font-bold text-white leading-tight">
-                                <MathText text={question.text} />
+                                <ScienceText text={question.text} />
                             </h2>
+                            {question.structureSmiles && (
+                                <div className="mx-auto inline-block">
+                                    <SmilesDiagram smiles={question.structureSmiles} size="lg" />
+                                </div>
+                            )}
                             {question.imageUrl && (
                                 <div className="relative rounded-xl overflow-hidden border border-white/10 max-h-64 mx-auto inline-block">
                                     <img src={question.imageUrl} alt="Question" className="max-w-full h-auto object-contain" />

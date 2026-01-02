@@ -1,15 +1,23 @@
 import { motion } from 'framer-motion'
-import { MathText } from '@/components/math/MathText'
+import { ScienceText } from '@/components/chem/ScienceText'
+import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
+import { FunctionGraph } from '@/components/math/FunctionGraph'
 
 export function MainQuestionCard({
   stem,
   imageUrl,
+  structureSmiles,
+  graphEquation,
+  graphColor,
   totalSteps,
   isWebSocketConnected = true,
   onSubmitEarly,
 }: {
   stem: string
   imageUrl?: string | null
+  structureSmiles?: string | null
+  graphEquation?: string | null
+  graphColor?: string | null
   totalSteps: number
   isWebSocketConnected?: boolean
   onSubmitEarly?: () => void
@@ -29,8 +37,13 @@ export function MainQuestionCard({
             Main Question
           </div>
           <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
-            <MathText text={stem} />
+            <ScienceText text={stem} />
           </h3>
+          {structureSmiles && (
+            <div className="mt-6">
+              <SmilesDiagram smiles={structureSmiles} size="lg" />
+            </div>
+          )}
           {imageUrl && (
             <img
               src={imageUrl}
@@ -38,6 +51,11 @@ export function MainQuestionCard({
               className="mt-6 rounded-lg max-w-full border border-red-500/20 mx-auto"
               loading="lazy"
             />
+          )}
+          {graphEquation && (
+            <div className="mt-6">
+              <FunctionGraph equation={graphEquation} color={graphColor || 'yellow'} width={600} height={400} />
+            </div>
           )}
           <div className="mt-6 text-sm text-white/70">
             {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow

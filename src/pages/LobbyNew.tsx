@@ -33,6 +33,11 @@ export default function LobbyNew() {
   const [isButtonLoading, setIsButtonLoading] = useState(false);
   const { status, startMatchmaking, leaveQueue, match } = useMatchmaking();
   const autostart = useMemo(() => searchParams.get('autostart') === '1', [searchParams]);
+  const forcedStep = useMemo(() => {
+    const s = searchParams.get('step');
+    if (s === 'subject' || s === 'grade' || s === 'ready') return s as 'subject' | 'grade' | 'ready';
+    return null;
+  }, [searchParams]);
   const autostartedRef = useRef(false);
 
   const {
@@ -47,12 +52,19 @@ export default function LobbyNew() {
     if (prefSubject) setSelectedSubject(prefSubject);
     if (prefLevel) setSelectedGrade(prefLevel);
 
+    // Allow callers (e.g. Home “CHANGE”) to force opening the selection steps
+    // instead of landing on the “READY TO BATTLE” screen.
+    if (forcedStep) {
+      setStep(forcedStep);
+      return;
+    }
+
     if (prefSubject && prefLevel) {
       setStep('ready');
     } else if (prefSubject && !prefLevel) {
       setStep('grade');
     }
-  }, [prefSubject, prefLevel]);
+  }, [prefSubject, prefLevel, forcedStep]);
 
   // Auto-start matchmaking when navigated from Home with autostart=1
   useEffect(() => {

@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
-import { MathText } from '@/components/math/MathText'
+import { ScienceText } from '@/components/chem/ScienceText'
+import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
+import { FunctionGraph } from '@/components/math/FunctionGraph'
 
 export function StepCard({
   stepIndex,
@@ -8,6 +10,10 @@ export function StepCard({
   segment = 'main',
   subStepIndex = 0,
   prompt,
+  diagramSmiles,
+  diagramImageUrl,
+  graphEquation,
+  graphColor,
   options,
   answerSubmitted,
   disabled = false,
@@ -18,6 +24,10 @@ export function StepCard({
   segment?: 'main' | 'sub'
   subStepIndex?: number
   prompt: string
+  diagramSmiles?: string | null
+  diagramImageUrl?: string | null
+  graphEquation?: string | null
+  graphColor?: string | null
   options: string[] | null | undefined
   answerSubmitted: boolean
   disabled?: boolean
@@ -42,8 +52,24 @@ export function StepCard({
               : `Step ${stepIndex + 1} of ${totalSteps}`}
           </div>
           <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
-            <MathText text={prompt} />
+            <ScienceText text={prompt} />
           </h3>
+          {(diagramSmiles || diagramImageUrl || graphEquation) && (
+            <div className="mt-6 space-y-4">
+              {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
+              {diagramImageUrl && (
+                <img
+                  src={diagramImageUrl}
+                  alt="Diagram"
+                  className="rounded-lg max-w-full border border-red-500/20 mx-auto"
+                  loading="lazy"
+                />
+              )}
+              {graphEquation && (
+                <FunctionGraph equation={graphEquation} color={graphColor || 'yellow'} width={600} height={400} />
+              )}
+            </div>
+          )}
           {segment === 'sub' && (
             <p className="text-xs text-white/70 mt-3 font-mono">
               QUICK CHECK — must be correct to earn this step&apos;s marks
@@ -81,7 +107,7 @@ export function StepCard({
                 >
                   {String.fromCharCode(65 + idx)}
                 </div>
-                <MathText text={option} className="text-lg font-medium" />
+                <ScienceText text={option} className="text-lg font-medium" smilesSize="sm" />
               </div>
             </button>
           ))}

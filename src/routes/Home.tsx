@@ -647,7 +647,7 @@ export default function Home() {
             <div className="mt-3 flex items-stretch gap-3">
               <motion.button
                 type="button"
-                onClick={() => navigate('/matchmaking-new')}
+                onClick={() => navigate('/matchmaking-new?step=subject')}
                 className="flex-1 w-full px-5 py-4 rounded-2xl text-left"
                 style={{
                   background: 'rgba(15, 23, 42, 0.58)',
@@ -667,7 +667,7 @@ export default function Home() {
 
               <motion.button
                 type="button"
-                onClick={() => navigate('/matchmaking-new')}
+                onClick={() => navigate('/matchmaking-new?step=subject')}
                 className="px-7 py-4 rounded-2xl text-sm font-extrabold tracking-widest"
                 style={{
                   background: 'linear-gradient(135deg, #a3e635, #22c55e)',

@@ -1,16 +1,24 @@
 import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
-import { MathText } from '@/components/math/MathText'
+import { ScienceText } from '@/components/chem/ScienceText'
+import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
+import { FunctionGraph } from '@/components/math/FunctionGraph'
 
 export function SingleStepCard({
   questionText,
   imageUrl,
+  structureSmiles,
+  graphEquation,
+  graphColor,
   options,
   answerSubmitted,
   onSelectOption,
 }: {
   questionText: string
   imageUrl?: string | null
+  structureSmiles?: string | null
+  graphEquation?: string | null
+  graphColor?: string | null
   options: string[] | null | undefined
   answerSubmitted: boolean
   onSelectOption?: (answerIndex: number) => void
@@ -29,9 +37,14 @@ export function SingleStepCard({
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent opacity-80" />
 
         <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
-          <MathText text={questionText} />
+          <ScienceText text={questionText} />
         </h3>
 
+        {structureSmiles && (
+          <div className="mt-6">
+            <SmilesDiagram smiles={structureSmiles} size="lg" />
+          </div>
+        )}
         {imageUrl && (
           <img
             src={imageUrl}
@@ -39,6 +52,11 @@ export function SingleStepCard({
             className="mt-6 rounded-lg max-w-full border border-red-500/20 mx-auto"
             loading="lazy"
           />
+        )}
+        {graphEquation && (
+          <div className="mt-6">
+            <FunctionGraph equation={graphEquation} color={graphColor || 'yellow'} width={600} height={400} />
+          </div>
         )}
       </div>
 
@@ -71,7 +89,7 @@ export function SingleStepCard({
               >
                 {String.fromCharCode(65 + idx)}
               </div>
-              <MathText text={option} className="text-lg font-medium" />
+              <ScienceText text={option} className="text-lg font-medium" smilesSize="sm" />
             </div>
           </button>
         ))}

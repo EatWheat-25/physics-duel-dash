@@ -27,6 +27,10 @@ export interface QuestionStep {
   type: 'mcq' | 'true_false';        // Multiple choice question or True/False
   title: string;                     // Step heading (e.g., "Find the derivative")
   prompt: string;                    // The actual question text for this step
+  diagramSmiles?: string;            // Optional SMILES string for a step-level skeletal diagram
+  diagramImageUrl?: string;          // Optional image URL for a step-level diagram
+  graphEquation?: string;             // Optional equation string for rendering a graph (e.g., "x^2", "sin(x)")
+  graphColor?: string;               // Optional color for the graph line (default: 'yellow')
   options: string[];                 // MCQ: 2–6 options, True/False: exactly 2 options
   correctAnswer: number;             // Index of correct option (0 <= correctAnswer < options.length)
   timeLimitSeconds: number | null;   // Time limit for this step (null = no limit)
@@ -51,6 +55,9 @@ export interface StepBasedQuestion {
   topicTags: string[];               // e.g., ["integration", "by-parts"]
   steps: QuestionStep[];             // ALWAYS sorted by index (0..n)
   imageUrl?: string;                 // Optional question image
+  structureSmiles?: string;          // Optional SMILES string for a main-question skeletal diagram
+  graphEquation?: string;            // Optional equation string for rendering a graph (e.g., "x^2", "sin(x)")
+  graphColor?: string;               // Optional color for the graph line (default: 'yellow')
 }
 
 // ============================================================================

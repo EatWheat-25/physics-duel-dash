@@ -118,6 +118,9 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
         topicTags,
         steps,
         imageUrl: payload.imageUrl || payload.image_url || undefined,
+        structureSmiles: payload.structureSmiles || payload.structure_smiles || undefined,
+        graphEquation: payload.graphEquation || payload.graph_equation || undefined,
+        graphColor: payload.graphColor || payload.graph_color || undefined,
     };
 
     console.log(`${context} ✅ Mapped question ${id}: "${title}" with ${steps.length} steps (marks=${totalMarks})`);
@@ -234,6 +237,10 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
         type: type as 'mcq' | 'true_false',
         title,
         prompt,
+        diagramSmiles: rawStep.diagramSmiles || rawStep.diagram_smiles || undefined,
+        diagramImageUrl: rawStep.diagramImageUrl || rawStep.diagram_image_url || undefined,
+        graphEquation: rawStep.graphEquation || rawStep.graph_equation || undefined,
+        graphColor: rawStep.graphColor || rawStep.graph_color || undefined,
         options,
         correctAnswer,
         timeLimitSeconds: rawStep.timeLimitSeconds || rawStep.time_limit_seconds || null,
@@ -327,7 +334,9 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
                 options: subOptions,
                 correctAnswer: subCorrectAnswer,
                 timeLimitSeconds: subTimeLimitSeconds,
-                explanation: rawSub.explanation || null
+                explanation: rawSub.explanation || null,
+                graphEquation: rawSub.graphEquation || rawSub.graph_equation || undefined,
+                graphColor: rawSub.graphColor || rawSub.graph_color || undefined,
             });
         }
 
