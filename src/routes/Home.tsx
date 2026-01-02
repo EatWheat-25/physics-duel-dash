@@ -644,19 +644,43 @@ export default function Home() {
           </motion.button>
 
           {hasMatchmakingPrefs && (
-            <div
-              className="mt-3 w-full px-4 py-3 rounded-2xl"
-              style={{
-                background: 'rgba(15, 23, 42, 0.58)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(18px)',
-                boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
-              }}
-            >
-              <div className="text-xs text-white/60">Selected</div>
-              <div className="text-sm font-semibold text-white">
-                {subjectLabel} <span className="text-white/40">•</span> {levelLabel}
-              </div>
+            <div className="mt-3 flex items-stretch gap-3">
+              <motion.button
+                type="button"
+                onClick={() => navigate('/matchmaking-new')}
+                className="flex-1 w-full px-5 py-4 rounded-2xl text-left"
+                style={{
+                  background: 'rgba(15, 23, 42, 0.58)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  backdropFilter: 'blur(18px)',
+                  boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
+                }}
+                whileHover={prefersReducedMotion ? undefined : { y: -1 }}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+                aria-label="Change subject and grade"
+              >
+                <div className="text-xs text-white/60">Selected</div>
+                <div className="mt-0.5 text-base font-semibold text-white">
+                  {subjectLabel} <span className="text-white/40">•</span> {levelLabel}
+                </div>
+              </motion.button>
+
+              <motion.button
+                type="button"
+                onClick={() => navigate('/matchmaking-new')}
+                className="px-7 py-4 rounded-2xl text-sm font-extrabold tracking-widest"
+                style={{
+                  background: 'linear-gradient(135deg, #a3e635, #22c55e)',
+                  color: '#0b1220',
+                  border: '1px solid rgba(0,0,0,0.45)',
+                  boxShadow: '0 14px 44px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
+                }}
+                whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+                aria-label="Change subject and grade"
+              >
+                CHANGE
+              </motion.button>
             </div>
           )}
 
