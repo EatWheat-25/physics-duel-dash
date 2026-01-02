@@ -27,71 +27,8 @@ export function FunctionGraph({
   height?: number
   className?: string
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!equation?.trim() || !containerRef.current) return
-
-    let cancelled = false
-
-    ;(async () => {
-      try {
-        // Clear previous graph
-        containerRef.current!.innerHTML = ''
-
-        // Resolve color - use theme color or custom hex
-        const lineColor = THEME_COLORS[color as keyof typeof THEME_COLORS] || color
-
-        // NOTE: function-plot's published package.json points to a missing dist/index.js.
-        // Import the bundled UMD build directly so Vite can resolve it in production builds.
-        const mod: any = await import('function-plot/dist/function-plot.js')
-        const functionPlot: any = mod?.default ?? mod?.functionPlot ?? mod
-
-        if (cancelled || !containerRef.current || typeof functionPlot !== 'function') return
-
-        functionPlot({
-          target: containerRef.current,
-          width,
-          height,
-          xAxis: {
-            label: 'x',
-            domain: [-10, 10],
-          },
-          yAxis: {
-            label: 'y',
-            domain: [-10, 10],
-          },
-          grid: true,
-          disableZoom: false,
-          annotations: [],
-          data: [
-            {
-              fn: equation.trim(),
-              color: lineColor,
-              graphType: 'polyline',
-              attr: {
-                'stroke-width': 2.5, // Thicker lines for visibility
-              },
-            },
-          ],
-          tip: {
-            xLine: true,
-            yLine: true,
-          },
-        })
-      } catch (error) {
-        console.error('Error plotting function:', error)
-        if (containerRef.current) {
-          containerRef.current.innerHTML = `<div class="text-red-400 text-sm p-4">Error rendering graph: ${error instanceof Error ? error.message : 'Invalid equation'}</div>`
-        }
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [equation, color, width, height])
-
+  // Temporarily disabled to fix white screen crash
+  // TODO: Fix function-plot CommonJS require() issue
   if (!equation?.trim()) return null
 
   return (
@@ -101,7 +38,9 @@ export function FunctionGraph({
         className
       )}
     >
-      <div ref={containerRef} className="w-full" />
+      <div className="text-yellow-400 text-sm p-4 border border-yellow-400/30 rounded">
+        Graph feature temporarily disabled. Equation: <code className="text-white">{equation}</code>
+      </div>
     </div>
   )
 }
