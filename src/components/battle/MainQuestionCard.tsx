@@ -21,6 +21,12 @@ export function MainQuestionCard({
   isWebSocketConnected?: boolean
   onSubmitEarly?: () => void
 }) {
+  const stripTone: 'light' | 'dark' = graph?.color === 'black' ? 'light' : 'dark'
+  const stripBg = stripTone === 'light' ? 'bg-white' : 'bg-[#0B1220]'
+  const stripText = stripTone === 'light' ? 'text-black' : 'text-white'
+  const stripSubtle = stripTone === 'light' ? 'text-black/60' : 'text-white/70'
+  const stripLabel = stripTone === 'light' ? 'text-black/60' : 'text-yellow-300/80'
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -29,35 +35,39 @@ export function MainQuestionCard({
       className="w-full max-w-3xl"
     >
       <div className="mb-8 px-2 md:px-0">
-        {/* Graph should be ABOVE the question/label */}
-        {graph && (
-          <div className="mb-6">
-            <QuestionGraph graph={graph} />
-          </div>
-        )}
+        {/* Full-width plain strip behind graph + question for readability */}
+        <div className={`relative left-1/2 right-1/2 -mx-[50vw] w-screen ${stripBg} ${stripText} py-7`}>
+          <div className="mx-auto w-full max-w-5xl px-4 md:px-6">
+            {graph && (
+              <div className="mb-6">
+                <QuestionGraph graph={graph} />
+              </div>
+            )}
 
-        <div className="text-center">
-          <div className="text-sm text-yellow-300/80 font-mono mb-4 uppercase tracking-wider">
-            Main Question
-          </div>
-          <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
-            <ScienceText text={stem} />
-          </h3>
-          {structureSmiles && (
-            <div className="mt-6">
-              <SmilesDiagram smiles={structureSmiles} size="lg" />
+            <div className="text-center">
+              <div className={`text-sm font-mono mb-4 uppercase tracking-wider ${stripLabel}`}>
+                Main Question
+              </div>
+              <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
+                <ScienceText text={stem} />
+              </h3>
+              {structureSmiles && (
+                <div className="mt-6">
+                  <SmilesDiagram smiles={structureSmiles} size="lg" />
+                </div>
+              )}
+              {imageUrl && (
+                <img
+                  src={imageUrl}
+                  alt="Question"
+                  className="mt-6 rounded-lg max-w-full border border-red-500/20 mx-auto"
+                  loading="lazy"
+                />
+              )}
+              <div className={`mt-6 text-sm ${stripSubtle}`}>
+                {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
+              </div>
             </div>
-          )}
-          {imageUrl && (
-            <img
-              src={imageUrl}
-              alt="Question"
-              className="mt-6 rounded-lg max-w-full border border-red-500/20 mx-auto"
-              loading="lazy"
-            />
-          )}
-          <div className="mt-6 text-sm text-white/70">
-            {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
           </div>
         </div>
       </div>

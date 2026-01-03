@@ -22,6 +22,10 @@ export function SingleStepCard({
   answerSubmitted: boolean
   onSelectOption?: (answerIndex: number) => void
 }) {
+  const stripTone: 'light' | 'dark' = graph?.color === 'black' ? 'light' : 'dark'
+  const stripBg = stripTone === 'light' ? 'bg-white' : 'bg-[#0B1220]'
+  const stripText = stripTone === 'light' ? 'text-black' : 'text-white'
+
   const visibleOptions = (options ?? []).filter((o) => String(o).trim())
 
   return (
@@ -33,30 +37,33 @@ export function SingleStepCard({
     >
       {/* Question Card */}
       <div className="mb-8 px-2 md:px-0">
-        {/* Graph should be ABOVE the question */}
-        {graph && (
-          <div className="mb-6">
-            <QuestionGraph graph={graph} />
-          </div>
-        )}
+        <div className={`relative left-1/2 right-1/2 -mx-[50vw] w-screen ${stripBg} ${stripText} py-7`}>
+          <div className="mx-auto w-full max-w-5xl px-4 md:px-6">
+            {graph && (
+              <div className="mb-6">
+                <QuestionGraph graph={graph} />
+              </div>
+            )}
 
-        <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
-          <ScienceText text={questionText} />
-        </h3>
+            <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
+              <ScienceText text={questionText} />
+            </h3>
 
-        {structureSmiles && (
-          <div className="mt-6">
-            <SmilesDiagram smiles={structureSmiles} size="lg" />
+            {structureSmiles && (
+              <div className="mt-6">
+                <SmilesDiagram smiles={structureSmiles} size="lg" />
+              </div>
+            )}
+            {imageUrl && (
+              <img
+                src={imageUrl}
+                alt="Question"
+                className="mt-6 rounded-lg max-w-full border border-red-500/20 mx-auto"
+                loading="lazy"
+              />
+            )}
           </div>
-        )}
-        {imageUrl && (
-          <img
-            src={imageUrl}
-            alt="Question"
-            className="mt-6 rounded-lg max-w-full border border-red-500/20 mx-auto"
-            loading="lazy"
-          />
-        )}
+        </div>
       </div>
 
       {/* Answers Grid */}

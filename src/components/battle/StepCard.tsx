@@ -32,6 +32,12 @@ export function StepCard({
   disabled?: boolean
   onSelectOption?: (answerIndex: number) => void
 }) {
+  const stripTone: 'light' | 'dark' = graph?.color === 'black' ? 'light' : 'dark'
+  const stripBg = stripTone === 'light' ? 'bg-white' : 'bg-[#0B1220]'
+  const stripText = stripTone === 'light' ? 'text-black' : 'text-white'
+  const stripSubtle = stripTone === 'light' ? 'text-black/60' : 'text-white/70'
+  const stripLabel = stripTone === 'light' ? 'text-black/60' : 'text-yellow-300/80'
+
   const visibleOptions = (options ?? []).filter((o) => String(o).trim())
 
   return (
@@ -42,40 +48,43 @@ export function StepCard({
       className="w-full max-w-3xl"
     >
       <div className="mb-8 px-2 md:px-0">
-        {/* Graph should be ABOVE the step question */}
-        {graph && (
-          <div className="mb-6">
-            <QuestionGraph graph={graph} />
-          </div>
-        )}
+        <div className={`relative left-1/2 right-1/2 -mx-[50vw] w-screen ${stripBg} ${stripText} py-7`}>
+          <div className="mx-auto w-full max-w-5xl px-4 md:px-6">
+            {graph && (
+              <div className="mb-6">
+                <QuestionGraph graph={graph} />
+              </div>
+            )}
 
-        <div className="text-center mb-6">
-          <div className="text-sm text-yellow-300/80 font-mono mb-2 uppercase tracking-wider">
-            {segment === 'sub'
-              ? `Step ${stepIndex + 1} of ${totalSteps} • Sub-step ${subStepIndex + 1}`
-              : `Step ${stepIndex + 1} of ${totalSteps}`}
-          </div>
-          <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
-            <ScienceText text={prompt} />
-          </h3>
-          {(diagramSmiles || diagramImageUrl) && (
-            <div className="mt-6 space-y-4">
-              {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
-              {diagramImageUrl && (
-                <img
-                  src={diagramImageUrl}
-                  alt="Diagram"
-                  className="rounded-lg max-w-full border border-red-500/20 mx-auto"
-                  loading="lazy"
-                />
+            <div className="text-center">
+              <div className={`text-sm font-mono mb-2 uppercase tracking-wider ${stripLabel}`}>
+                {segment === 'sub'
+                  ? `Step ${stepIndex + 1} of ${totalSteps} • Sub-step ${subStepIndex + 1}`
+                  : `Step ${stepIndex + 1} of ${totalSteps}`}
+              </div>
+              <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
+                <ScienceText text={prompt} />
+              </h3>
+              {(diagramSmiles || diagramImageUrl) && (
+                <div className="mt-6 space-y-4">
+                  {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
+                  {diagramImageUrl && (
+                    <img
+                      src={diagramImageUrl}
+                      alt="Diagram"
+                      className="rounded-lg max-w-full border border-red-500/20 mx-auto"
+                      loading="lazy"
+                    />
+                  )}
+                </div>
+              )}
+              {segment === 'sub' && (
+                <p className={`text-xs mt-3 font-mono ${stripSubtle}`}>
+                  QUICK CHECK — must be correct to earn this step&apos;s marks
+                </p>
               )}
             </div>
-          )}
-          {segment === 'sub' && (
-            <p className="text-xs text-white/70 mt-3 font-mono">
-              QUICK CHECK — must be correct to earn this step&apos;s marks
-            </p>
-          )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
