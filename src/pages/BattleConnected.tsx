@@ -197,13 +197,10 @@ export default function BattleConnected() {
       return;
     }
 
-    const key = [
-      String(currentRoundNumber ?? roundNumber ?? ''),
-      String(results.round_winner ?? 'tie'),
-      String(results.p1PartsCorrect ?? ''),
-      String(results.p2PartsCorrect ?? ''),
-      String(results.stepResults?.length ?? ''),
-    ].join('|');
+    const roundIdentity = String(
+      (results as any).round_id ?? (results as any).roundId ?? currentRoundNumber ?? roundNumber ?? ''
+    )
+    const key = roundIdentity || String(currentRoundNumber ?? roundNumber ?? '')
 
     if (lastCinematicKeyRef.current === key) return;
     lastCinematicKeyRef.current = key;
