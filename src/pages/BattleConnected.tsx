@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Check, X, Trophy, Clock, Zap } from 'lucide-react';
+import { Loader2, ArrowLeft, Check, X, Trophy, Clock } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,6 +11,7 @@ import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 import { RedYellowPatternBackground } from '@/components/battle/RedYellowPatternBackground';
+import { RollingNumber } from '@/components/battle/RollingNumber';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -191,7 +192,8 @@ export default function BattleConnected() {
 
   // Results suspense (UI-only): brief “locking in” tease, then reveal.
   useEffect(() => {
-    if (status !== 'results' || !results) {
+    // Only add suspense between rounds. If match is over, show results immediately.
+    if (status !== 'results' || !results || matchOver) {
       setResultsRevealStage('final');
       return;
     }
@@ -207,9 +209,9 @@ export default function BattleConnected() {
     }
 
     setResultsRevealStage('tease');
-    const t = setTimeout(() => setResultsRevealStage('final'), 700);
+    const t = setTimeout(() => setResultsRevealStage('final'), 2000);
     return () => clearTimeout(t);
-  }, [status, results, currentRoundNumber, roundNumber]);
+  }, [status, results, matchOver, currentRoundNumber, roundNumber]);
 
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
@@ -580,99 +582,68 @@ export default function BattleConnected() {
                   return (
                     <>
                       {/* Ambient accent + glow */}
-                      <motion.div
+                      <div
                         aria-hidden="true"
                         className="absolute inset-0 pointer-events-none opacity-60"
-                        animate={{ opacity: [0.45, 0.7, 0.45] }}
-                        transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
                         style={{
                           background: `radial-gradient(circle at 50% 0%, ${accent} 0%, transparent 55%)`,
                         }}
                       />
                       <div className={`absolute inset-0 pointer-events-none ${ringClass}`} aria-hidden="true" />
-
-                      {/* Scanner line during tease */}
-                      {resultsRevealStage === 'tease' && (
-                        <motion.div
-                          aria-hidden="true"
-                          className="absolute top-0 left-0 h-[2px] w-[40%] pointer-events-none"
-                          initial={{ x: '-80%', opacity: 0 }}
-                          animate={{ x: '180%', opacity: [0, 0.8, 0] }}
-                          transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
-                          style={{
-                            background:
-                              'linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent)',
-                          }}
-                        />
-                      )}
                     </>
                   )
                 })()}
 
-                <AnimatePresence>
-                  {resultsRevealStage === 'tease' && (
+                {resultsRevealStage === 'tease' ? (
+                  <div className="relative z-10 flex flex-col items-center justify-center py-10 md:py-12">
+                    <div className="text-xs font-mono text-white/70 uppercase tracking-widest">
+                      CALCULATING…
+                    </div>
+                    <div className="mt-4 text-4xl md:text-5xl font-black tracking-tight text-white/90">
+                      RESULTS
+                    </div>
+                    <div className="mt-4 text-[11px] font-mono text-white/50 uppercase tracking-widest">
+                      ROUND {currentRoundNumber || 1}
+                    </div>
+                  </div>
+                ) : (
+                  <motion.div
+                    className="relative z-10"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                  <div className="mb-8">
+                  {!matchOver && (
                     <motion.div
-                      key="results-tease"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18 }}
-                      className="absolute inset-0 z-20 flex items-center justify-center"
+                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                      className="mb-4"
                     >
-                      <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px]" />
-                      <motion.div
-                        initial={{ scale: 0.98, opacity: 0, y: 8 }}
-                        animate={{ scale: 1, opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                        className="relative z-10 w-full max-w-md px-6"
+                      <div
+                        className={`inline-flex px-4 py-2 rounded-full border text-xs font-black uppercase tracking-[0.25em] ${
+                          results.round_winner === currentUser
+                            ? 'bg-yellow-400/15 border-yellow-400/25 text-yellow-200'
+                            : results.round_winner === null
+                              ? 'bg-blue-500/12 border-blue-400/20 text-blue-200'
+                              : 'bg-red-500/12 border-red-400/20 text-red-200'
+                        }`}
                       >
-                        <div className="text-center">
-                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-mono text-white/70 uppercase tracking-widest">
-                            <Zap className="w-4 h-4 text-yellow-300" />
-                            LOCKING IN RESULTS
-                            <Loader2 className="w-4 h-4 animate-spin text-blue-300" />
-                          </div>
-                          <div className="mt-5 h-2 rounded-full bg-white/5 overflow-hidden border border-white/10">
-                            <motion.div
-                              className="h-full rounded-full"
-                              initial={{ width: '0%' }}
-                              animate={{ width: '100%' }}
-                              transition={{ duration: 0.7, ease: 'easeOut' }}
-                              style={{
-                                background:
-                                  'linear-gradient(90deg, rgba(96,165,250,0.0), rgba(96,165,250,0.9), rgba(250,204,21,0.9), rgba(96,165,250,0.0))',
-                              }}
-                            />
-                          </div>
-                          <div className="mt-3 text-[11px] font-mono text-white/55 uppercase tracking-widest">
-                            ROUND {currentRoundNumber || 1}
-                          </div>
-                        </div>
-                      </motion.div>
+                        {results.round_winner === currentUser
+                          ? 'ROUND WON'
+                          : results.round_winner === null
+                            ? 'ROUND DRAW'
+                            : 'ROUND LOST'}
+                      </div>
                     </motion.div>
                   )}
-                </AnimatePresence>
-
-                <motion.div
-                  className="relative z-10"
-                  animate={{
-                    opacity: resultsRevealStage === 'tease' ? 0.25 : 1,
-                    filter: resultsRevealStage === 'tease' ? 'blur(2px)' : 'blur(0px)',
-                  }}
-                  transition={{ duration: 0.25 }}
-                >
-                <div className="mb-8">
                   {results.round_winner === currentUser ? (
                     <motion.div 
                       initial={{ scale: 0, rotate: -18 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 220, damping: 18 }}
                       className="inline-block p-4 rounded-full bg-yellow-500/20 mb-4 ring-4 ring-yellow-500/10"
                     >
-                      <motion.div
-                        animate={{ filter: ['drop-shadow(0 0 0px rgba(250,204,21,0))', 'drop-shadow(0 0 18px rgba(250,204,21,0.35))', 'drop-shadow(0 0 0px rgba(250,204,21,0))'] }}
-                        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-                      >
-                        <Trophy className="w-12 h-12 text-yellow-500" />
-                      </motion.div>
+                      <Trophy className="w-12 h-12 text-yellow-500 drop-shadow-[0_0_18px_rgba(250,204,21,0.25)]" />
                     </motion.div>
                   ) : results.round_winner === null ? (
                     <div className="inline-block p-4 rounded-full bg-white/10 mb-4 ring-4 ring-white/5">
@@ -706,7 +677,20 @@ export default function BattleConnected() {
                       </div>
                       {results.p1Score !== undefined && results.p2Score !== undefined && (
                         <div className="text-lg font-bold mb-2">
-                          Round Score: {isPlayer1 ? results.p1Score : results.p2Score} - {isPlayer1 ? results.p2Score : results.p1Score}
+                          <span className="mr-2">Round Score:</span>
+                          <RollingNumber
+                            value={Number(isPlayer1 ? results.p1Score : results.p2Score)}
+                            digitClassName="tabular-nums"
+                            duration={1.1}
+                            cycles={3}
+                          />
+                          <span className="mx-3 text-white/50">-</span>
+                          <RollingNumber
+                            value={Number(isPlayer1 ? results.p2Score : results.p1Score)}
+                            digitClassName="tabular-nums"
+                            duration={1.1}
+                            cycles={3}
+                          />
                         </div>
                       )}
                       <div className="text-sm font-bold mb-2">
@@ -788,7 +772,11 @@ export default function BattleConnected() {
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
-                                {myPartsCorrect} out of {totalParts}
+                                <div className="flex items-baseline justify-center gap-2">
+                                  <RollingNumber value={Number(myPartsCorrect)} digitClassName="tabular-nums" duration={1.1} cycles={3} />
+                                  <span className="text-base md:text-lg font-mono text-white/70">OUT OF</span>
+                                  <span className="text-2xl md:text-3xl font-black text-white/80 tabular-nums">{totalParts}</span>
+                                </div>
                               </div>
                               <div className="text-sm text-white/60 font-mono">
                                 {myPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - myPartsCorrect} incorrect`}
@@ -812,7 +800,11 @@ export default function BattleConnected() {
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
-                                {oppPartsCorrect} out of {totalParts}
+                                <div className="flex items-baseline justify-center gap-2">
+                                  <RollingNumber value={Number(oppPartsCorrect)} digitClassName="tabular-nums" duration={1.1} cycles={3} />
+                                  <span className="text-base md:text-lg font-mono text-white/70">OUT OF</span>
+                                  <span className="text-2xl md:text-3xl font-black text-white/80 tabular-nums">{totalParts}</span>
+                                </div>
                               </div>
                               <div className="text-sm text-white/60 font-mono">
                                 {oppPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - oppPartsCorrect} incorrect`}
@@ -1007,6 +999,7 @@ export default function BattleConnected() {
                   </div>
                 )}
                 </motion.div>
+                )}
               </motion.div>
             )}
 
