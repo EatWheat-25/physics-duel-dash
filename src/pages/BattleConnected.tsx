@@ -11,6 +11,7 @@ import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 import { RedYellowPatternBackground } from '@/components/battle/RedYellowPatternBackground';
+import { RoundClashCinematic } from '@/components/battle/RoundClashCinematic';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -19,10 +20,12 @@ export default function BattleConnected() {
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
+  const [showRoundCinematic, setShowRoundCinematic] = useState(false);
   const [shouldAnimateMyWins, setShouldAnimateMyWins] = useState<boolean>(false);
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
+  const lastCinematicKeyRef = useRef<string | null>(null);
   const hasSignaledShutterReadyRef = useRef<boolean>(false);
   const { isRunning: isShutterRunning, signalReady } = useElevatorShutter();
 
@@ -186,6 +189,29 @@ export default function BattleConnected() {
       return () => clearTimeout(timer);
     }
   }, [roundNumber, status]);
+
+  // Between-round dopamine moment: show a short collision cinematic once per results payload (not on match end).
+  useEffect(() => {
+    if (status !== 'results' || !results || matchOver) {
+      setShowRoundCinematic(false);
+      return;
+    }
+
+    const key = [
+      String(currentRoundNumber ?? roundNumber ?? ''),
+      String(results.round_winner ?? 'tie'),
+      String(results.p1PartsCorrect ?? ''),
+      String(results.p2PartsCorrect ?? ''),
+      String(results.stepResults?.length ?? ''),
+    ].join('|');
+
+    if (lastCinematicKeyRef.current === key) return;
+    lastCinematicKeyRef.current = key;
+
+    setShowRoundCinematic(true);
+    const t = setTimeout(() => setShowRoundCinematic(false), 3600);
+    return () => clearTimeout(t);
+  }, [status, results, matchOver, currentRoundNumber, roundNumber]);
 
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
@@ -529,13 +555,35 @@ export default function BattleConnected() {
               return null
             })()}
             {status === 'results' && results && (
-              <motion.div
-                key="results"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                className="w-full max-w-2xl bg-[#160007] border border-red-500/25 rounded-3xl p-8 md:p-12 text-center"
-              >
+              <AnimatePresence mode="wait">
+                {showRoundCinematic ? (
+                  <motion.div
+                    key="round-cinematic"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0, filter: 'blur(8px)' }}
+                    transition={{ duration: 0.25 }}
+                    className="w-full"
+                  >
+                    <RoundClashCinematic
+                      winner={
+                        results.round_winner === null
+                          ? null
+                          : results.round_winner === currentUser
+                            ? 'me'
+                            : 'opponent'
+                      }
+                      roundLabel={`ROUND ${currentRoundNumber || 1}`}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="results"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
+                    className="w-full max-w-2xl bg-[#160007] border border-red-500/25 rounded-3xl p-8 md:p-12 text-center"
+                  >
                 <div className="mb-8">
                   {results.round_winner === currentUser ? (
                     <motion.div 
@@ -876,7 +924,9 @@ export default function BattleConnected() {
                     </button>
                   </div>
                 )}
-              </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             )}
 
             {/* MATCH FINISHED */}
