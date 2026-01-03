@@ -28,8 +28,13 @@ export function MainQuestionCard({
       exit={{ opacity: 0, y: -20 }}
       className="w-full max-w-3xl"
     >
-      <div className="bg-[#160007] border border-red-500/25 rounded-3xl p-8 md:p-12 mb-8 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent opacity-80" />
+      <div className="mb-8 px-2 md:px-0">
+        {/* Graph should be ABOVE the question/label */}
+        {graph && (
+          <div className="mb-6">
+            <QuestionGraph graph={graph} />
+          </div>
+        )}
 
         <div className="text-center">
           <div className="text-sm text-yellow-300/80 font-mono mb-4 uppercase tracking-wider">
@@ -50,11 +55,6 @@ export function MainQuestionCard({
               className="mt-6 rounded-lg max-w-full border border-red-500/20 mx-auto"
               loading="lazy"
             />
-          )}
-          {graph && (
-            <div className="mt-6">
-              <QuestionGraph graph={graph} />
-            </div>
           )}
           <div className="mt-6 text-sm text-white/70">
             {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow

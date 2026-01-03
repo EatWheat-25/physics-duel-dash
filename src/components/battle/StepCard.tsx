@@ -41,8 +41,13 @@ export function StepCard({
       exit={{ opacity: 0, y: -20 }}
       className="w-full max-w-3xl"
     >
-      <div className="bg-[#160007] border border-red-500/25 rounded-3xl p-8 md:p-12 mb-8 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent opacity-80" />
+      <div className="mb-8 px-2 md:px-0">
+        {/* Graph should be ABOVE the step question */}
+        {graph && (
+          <div className="mb-6">
+            <QuestionGraph graph={graph} />
+          </div>
+        )}
 
         <div className="text-center mb-6">
           <div className="text-sm text-yellow-300/80 font-mono mb-2 uppercase tracking-wider">
@@ -53,7 +58,7 @@ export function StepCard({
           <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
             <ScienceText text={prompt} />
           </h3>
-          {(diagramSmiles || diagramImageUrl || graph) && (
+          {(diagramSmiles || diagramImageUrl) && (
             <div className="mt-6 space-y-4">
               {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
               {diagramImageUrl && (
@@ -64,7 +69,6 @@ export function StepCard({
                   loading="lazy"
                 />
               )}
-              {graph && <QuestionGraph graph={graph} />}
             </div>
           )}
           {segment === 'sub' && (
