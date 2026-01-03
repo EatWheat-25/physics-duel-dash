@@ -1,14 +1,14 @@
 import { motion } from 'framer-motion'
 import { ScienceText } from '@/components/chem/ScienceText'
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
-import { FunctionGraph } from '@/components/math/FunctionGraph'
+import { QuestionGraph } from '@/components/math/QuestionGraph'
+import type { GraphConfig } from '@/types/question-contract'
 
 export function MainQuestionCard({
   stem,
   imageUrl,
   structureSmiles,
-  graphEquation,
-  graphColor,
+  graph,
   totalSteps,
   isWebSocketConnected = true,
   onSubmitEarly,
@@ -16,8 +16,7 @@ export function MainQuestionCard({
   stem: string
   imageUrl?: string | null
   structureSmiles?: string | null
-  graphEquation?: string | null
-  graphColor?: string | null
+  graph?: GraphConfig | null
   totalSteps: number
   isWebSocketConnected?: boolean
   onSubmitEarly?: () => void
@@ -52,9 +51,9 @@ export function MainQuestionCard({
               loading="lazy"
             />
           )}
-          {graphEquation && (
+          {graph && (
             <div className="mt-6">
-              <FunctionGraph equation={graphEquation} color={graphColor || 'yellow'} width={600} height={400} />
+              <QuestionGraph graph={graph} />
             </div>
           )}
           <div className="mt-6 text-sm text-white/70">

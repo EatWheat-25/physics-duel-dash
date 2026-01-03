@@ -429,8 +429,12 @@ export default function BattleConnected() {
                 stem={question.stem || question.questionText || question.title}
                 imageUrl={question.imageUrl || (question as any).image_url || null}
                 structureSmiles={question.structureSmiles || (question as any).structure_smiles || null}
-                graphEquation={question.graphEquation || (question as any).graph_equation || null}
-                graphColor={question.graphColor || (question as any).graph_color || null}
+                graph={
+                  (question as any).graph ||
+                  ((question as any).graph_equation
+                    ? { type: 'function', equation: String((question as any).graph_equation), color: 'white' }
+                    : null)
+                }
                 totalSteps={totalSteps}
                 isWebSocketConnected={isWebSocketConnected}
                 onSubmitEarly={() => {
@@ -454,8 +458,12 @@ export default function BattleConnected() {
                 prompt={currentStep.prompt || currentStep.question}
                 diagramSmiles={(currentStep as any).diagramSmiles || (currentStep as any).diagram_smiles || null}
                 diagramImageUrl={(currentStep as any).diagramImageUrl || (currentStep as any).diagram_image_url || null}
-                graphEquation={(currentStep as any).graphEquation || (currentStep as any).graph_equation || null}
-                graphColor={(currentStep as any).graphColor || (currentStep as any).graph_color || null}
+                graph={
+                  (question as any).graph ||
+                  ((question as any).graph_equation
+                    ? { type: 'function', equation: String((question as any).graph_equation), color: 'white' }
+                    : null)
+                }
                 options={currentStep.options}
                 answerSubmitted={answerSubmitted}
                 disabled={stepTimeLeft !== null && stepTimeLeft <= 0}
@@ -495,8 +503,12 @@ export default function BattleConnected() {
                 questionText={question.stem || question.questionText || question.title}
                 imageUrl={question.imageUrl || (question as any).image_url || null}
                 structureSmiles={question.structureSmiles || (question as any).structure_smiles || null}
-                graphEquation={question.graphEquation || (question as any).graph_equation || null}
-                graphColor={question.graphColor || (question as any).graph_color || null}
+                graph={
+                  (question as any).graph ||
+                  ((question as any).graph_equation
+                    ? { type: 'function', equation: String((question as any).graph_equation), color: 'white' }
+                    : null)
+                }
                 options={question.steps?.[0]?.options ?? []}
                 answerSubmitted={answerSubmitted}
                 onSelectOption={(idx) => submitAnswer(idx)}

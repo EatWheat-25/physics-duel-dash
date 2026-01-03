@@ -16,6 +16,43 @@
  */
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════
+ * GRAPH CONTRACT (ONE PER QUESTION)
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * - Graphs are stored at the QUESTION level (not per-step).
+ * - Supports function graphs (y = f(x)) and points/line graphs.
+ * - Styling: transparent background, graph elements rendered in white/black.
+ */
+
+export type GraphColor = 'white' | 'black';
+
+export interface GraphPoint {
+    x: number;
+    y: number;
+}
+
+export type GraphConfig =
+    | {
+        type: 'function';
+        equation: string;
+        xMin?: number;
+        xMax?: number;
+        yMin?: number;
+        yMax?: number;
+        color?: GraphColor;
+    }
+    | {
+        type: 'points';
+        points: GraphPoint[];
+        xMin?: number;
+        xMax?: number;
+        yMin?: number;
+        yMax?: number;
+        color?: GraphColor;
+    };
+
+/**
  * A single step in a multi-step question.
  * Steps are ordered by `index` (0, 1, 2, ...).
  */
@@ -40,12 +77,6 @@ export interface QuestionStep {
 
     /** Optional image URL for a step-level diagram */
     diagramImageUrl?: string;
-
-    /** Optional equation string for rendering a graph (e.g., "x^2", "sin(x)") */
-    graphEquation?: string;
-
-    /** Optional color for the graph line (default: 'yellow') */
-    graphColor?: string;
 
     /**
      * Answer options.
@@ -100,12 +131,6 @@ export interface QuestionSubStep {
 
     /** Explanation shown after answering (null = no explanation) */
     explanation: string | null;
-
-    /** Optional equation string for rendering a graph (e.g., "x^2", "sin(x)") */
-    graphEquation?: string;
-
-    /** Optional color for the graph line (default: 'yellow') */
-    graphColor?: string;
 }
 
 /**
@@ -158,11 +183,42 @@ export interface StepBasedQuestion {
     /** Optional SMILES string for a main-question skeletal/structure diagram */
     structureSmiles?: string;
 
-    /** Optional equation string for rendering a graph (e.g., "x^2", "sin(x)") */
-    graphEquation?: string;
+    /** Optional graph config (ONE graph per question) */
+    graph?: GraphConfig;
+}
 
-    /** Optional color for the graph line (default: 'yellow') */
-    graphColor?: string;
+function isFiniteNumber(n: any): n is number {
+    return typeof n === 'number' && Number.isFinite(n);
+}
+
+export function isValidGraphConfig(obj: any): obj is GraphConfig {
+    if (!obj || typeof obj !== 'object') return false;
+    if (obj.type !== 'function' && obj.type !== 'points') return false;
+
+    const colorOk =
+        obj.color == null ||
+        obj.color === 'white' ||
+        obj.color === 'black';
+    if (!colorOk) return false;
+
+    const hasXMin = obj.xMin != null;
+    const hasXMax = obj.xMax != null;
+    const hasYMin = obj.yMin != null;
+    const hasYMax = obj.yMax != null;
+
+    if (hasXMin && !isFiniteNumber(obj.xMin)) return false;
+    if (hasXMax && !isFiniteNumber(obj.xMax)) return false;
+    if (hasYMin && !isFiniteNumber(obj.yMin)) return false;
+    if (hasYMax && !isFiniteNumber(obj.yMax)) return false;
+    if (hasXMin && hasXMax && obj.xMin >= obj.xMax) return false;
+    if (hasYMin && hasYMax && obj.yMin >= obj.yMax) return false;
+
+    if (obj.type === 'function') {
+        return typeof obj.equation === 'string' && obj.equation.trim().length > 0;
+    }
+
+    if (!Array.isArray(obj.points) || obj.points.length < 2) return false;
+    return obj.points.every((p: any) => p && typeof p === 'object' && isFiniteNumber(p.x) && isFiniteNumber(p.y));
 }
 
 /**
@@ -227,6 +283,7 @@ export function isValidStepBasedQuestion(obj: any): obj is StepBasedQuestion {
         Array.isArray(obj.topicTags) &&
         Array.isArray(obj.steps) &&
         obj.steps.length > 0 &&
-        obj.steps.every(isValidQuestionStep)
+        obj.steps.every(isValidQuestionStep) &&
+        (obj.graph == null || isValidGraphConfig(obj.graph))
     );
 }

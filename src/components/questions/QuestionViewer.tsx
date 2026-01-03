@@ -19,6 +19,7 @@ import { ChevronLeft, ChevronRight, BookOpen, Check, X, Loader2, Clock } from 'l
 import { RoundPhase } from '@/types/gameEvents';
 import { ScienceText } from '@/components/chem/ScienceText';
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram';
+import { QuestionGraph } from '@/components/math/QuestionGraph';
 
 interface QuestionViewerProps {
   questions: StepBasedQuestion[];
@@ -218,6 +219,11 @@ export function QuestionViewer({
                     <SmilesDiagram smiles={currentQuestion.structureSmiles} size="lg" />
                   </div>
                 )}
+                {(currentQuestion as any).graph && (
+                  <div className="mt-4">
+                    <QuestionGraph graph={(currentQuestion as any).graph} />
+                  </div>
+                )}
                 {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
                   <img
                     src={currentQuestion.imageUrl || (currentQuestion as any).image_url}
@@ -236,6 +242,11 @@ export function QuestionViewer({
                 {currentQuestion.structureSmiles && (
                   <div className="mt-4">
                     <SmilesDiagram smiles={currentQuestion.structureSmiles} size="lg" />
+                  </div>
+                )}
+                {(currentQuestion as any).graph && (
+                  <div className="mt-4">
+                    <QuestionGraph graph={(currentQuestion as any).graph} />
                   </div>
                 )}
                 {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (

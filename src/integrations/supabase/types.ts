@@ -693,8 +693,7 @@ export type Database = {
           rank_tier: string | null
           stem: string
           structure_smiles: string | null
-          graph_equation: string | null
-          graph_color: string | null
+          graph: Json | null
           steps: Json
           subject: string
           title: string
@@ -713,8 +712,7 @@ export type Database = {
           rank_tier?: string | null
           stem: string
           structure_smiles?: string | null
-          graph_equation?: string | null
-          graph_color?: string | null
+          graph?: Json | null
           steps: Json
           subject: string
           title: string
@@ -733,8 +731,7 @@ export type Database = {
           rank_tier?: string | null
           stem?: string
           structure_smiles?: string | null
-          graph_equation?: string | null
-          graph_color?: string | null
+          graph?: Json | null
           steps?: Json
           subject?: string
           title?: string

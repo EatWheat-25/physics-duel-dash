@@ -2,14 +2,14 @@ import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 import { ScienceText } from '@/components/chem/ScienceText'
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
-import { FunctionGraph } from '@/components/math/FunctionGraph'
+import { QuestionGraph } from '@/components/math/QuestionGraph'
+import type { GraphConfig } from '@/types/question-contract'
 
 export function SingleStepCard({
   questionText,
   imageUrl,
   structureSmiles,
-  graphEquation,
-  graphColor,
+  graph,
   options,
   answerSubmitted,
   onSelectOption,
@@ -17,8 +17,7 @@ export function SingleStepCard({
   questionText: string
   imageUrl?: string | null
   structureSmiles?: string | null
-  graphEquation?: string | null
-  graphColor?: string | null
+  graph?: GraphConfig | null
   options: string[] | null | undefined
   answerSubmitted: boolean
   onSelectOption?: (answerIndex: number) => void
@@ -53,9 +52,9 @@ export function SingleStepCard({
             loading="lazy"
           />
         )}
-        {graphEquation && (
+        {graph && (
           <div className="mt-6">
-            <FunctionGraph equation={graphEquation} color={graphColor || 'yellow'} width={600} height={400} />
+            <QuestionGraph graph={graph} />
           </div>
         )}
       </div>

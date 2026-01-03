@@ -2,7 +2,8 @@ import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import { ScienceText } from '@/components/chem/ScienceText'
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
-import { FunctionGraph } from '@/components/math/FunctionGraph'
+import { QuestionGraph } from '@/components/math/QuestionGraph'
+import type { GraphConfig } from '@/types/question-contract'
 
 export function StepCard({
   stepIndex,
@@ -12,8 +13,7 @@ export function StepCard({
   prompt,
   diagramSmiles,
   diagramImageUrl,
-  graphEquation,
-  graphColor,
+  graph,
   options,
   answerSubmitted,
   disabled = false,
@@ -26,8 +26,7 @@ export function StepCard({
   prompt: string
   diagramSmiles?: string | null
   diagramImageUrl?: string | null
-  graphEquation?: string | null
-  graphColor?: string | null
+  graph?: GraphConfig | null
   options: string[] | null | undefined
   answerSubmitted: boolean
   disabled?: boolean
@@ -54,7 +53,7 @@ export function StepCard({
           <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
             <ScienceText text={prompt} />
           </h3>
-          {(diagramSmiles || diagramImageUrl || graphEquation) && (
+          {(diagramSmiles || diagramImageUrl || graph) && (
             <div className="mt-6 space-y-4">
               {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
               {diagramImageUrl && (
@@ -65,9 +64,7 @@ export function StepCard({
                   loading="lazy"
                 />
               )}
-              {graphEquation && (
-                <FunctionGraph equation={graphEquation} color={graphColor || 'yellow'} width={600} height={400} />
-              )}
+              {graph && <QuestionGraph graph={graph} />}
             </div>
           )}
           {segment === 'sub' && (

@@ -10,7 +10,7 @@
  * ═══════════════════════════════════════════════════════════════════════
  */
 
-import { StepBasedQuestion, QuestionStep, QuestionSubStep } from '@/types/question-contract';
+import { StepBasedQuestion, QuestionStep, QuestionSubStep, GraphConfig, GraphColor, GraphPoint } from '@/types/question-contract';
 
 /**
  * Maps WebSocket/Database payload to canonical StepBasedQuestion.
@@ -119,8 +119,7 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
         steps,
         imageUrl: payload.imageUrl || payload.image_url || undefined,
         structureSmiles: payload.structureSmiles || payload.structure_smiles || undefined,
-        graphEquation: payload.graphEquation || payload.graph_equation || undefined,
-        graphColor: payload.graphColor || payload.graph_color || undefined,
+        graph: mapToGraphConfig(payload, steps) || undefined,
     };
 
     console.log(`${context} ✅ Mapped question ${id}: "${title}" with ${steps.length} steps (marks=${totalMarks})`);
@@ -239,8 +238,6 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
         prompt,
         diagramSmiles: rawStep.diagramSmiles || rawStep.diagram_smiles || undefined,
         diagramImageUrl: rawStep.diagramImageUrl || rawStep.diagram_image_url || undefined,
-        graphEquation: rawStep.graphEquation || rawStep.graph_equation || undefined,
-        graphColor: rawStep.graphColor || rawStep.graph_color || undefined,
         options,
         correctAnswer,
         timeLimitSeconds: rawStep.timeLimitSeconds || rawStep.time_limit_seconds || null,
@@ -335,8 +332,6 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
                 correctAnswer: subCorrectAnswer,
                 timeLimitSeconds: subTimeLimitSeconds,
                 explanation: rawSub.explanation || null,
-                graphEquation: rawSub.graphEquation || rawSub.graph_equation || undefined,
-                graphColor: rawSub.graphColor || rawSub.graph_color || undefined,
             });
         }
 
@@ -348,6 +343,111 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
     }
 
     return step;
+}
+
+function normalizeGraphColor(raw: any): GraphColor {
+    const c = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+    return c === 'black' ? 'black' : 'white';
+}
+
+function isFiniteNumber(n: any): n is number {
+    return typeof n === 'number' && Number.isFinite(n);
+}
+
+function coerceNumber(n: any): number | undefined {
+    if (typeof n === 'number' && Number.isFinite(n)) return n;
+    if (typeof n === 'string' && n.trim() !== '') {
+        const v = Number(n);
+        return Number.isFinite(v) ? v : undefined;
+    }
+    return undefined;
+}
+
+function parseGraphPoints(raw: any): GraphPoint[] | null {
+    if (!Array.isArray(raw)) return null;
+    const pts: GraphPoint[] = [];
+    for (const p of raw) {
+        if (!p || typeof p !== 'object') continue;
+        const x = coerceNumber((p as any).x);
+        const y = coerceNumber((p as any).y);
+        if (isFiniteNumber(x) && isFiniteNumber(y)) pts.push({ x, y });
+    }
+    return pts.length >= 2 ? pts : null;
+}
+
+/**
+ * Map question-level graph config.
+ * - Primary: payload.graph (JSONB object from DB)
+ * - Legacy fallback: payload.graphEquation / payload.graph_equation
+ * - Legacy fallback: first step that had graphEquation
+ */
+function mapToGraphConfig(payload: any, steps: QuestionStep[]): GraphConfig | null {
+    // 1) graph JSONB column (may come through as object or JSON string)
+    const rawGraph = payload?.graph ?? null;
+    if (rawGraph) {
+        let g: any = rawGraph;
+        if (typeof g === 'string') {
+            try { g = JSON.parse(g); } catch { g = null; }
+        }
+        if (g && typeof g === 'object') {
+            const type = typeof g.type === 'string' ? g.type.trim().toLowerCase() : '';
+            const color = normalizeGraphColor(g.color);
+            const xMin = coerceNumber(g.xMin);
+            const xMax = coerceNumber(g.xMax);
+            const yMin = coerceNumber(g.yMin);
+            const yMax = coerceNumber(g.yMax);
+
+            if (type === 'function') {
+                const equation = typeof g.equation === 'string' ? g.equation.trim() : '';
+                if (equation) {
+                    return { type: 'function', equation, color, xMin, xMax, yMin, yMax };
+                }
+            }
+
+            if (type === 'points') {
+                const points = parseGraphPoints(g.points);
+                if (points) {
+                    return { type: 'points', points, color, xMin, xMax, yMin, yMax };
+                }
+            }
+        }
+    }
+
+    // 2) Legacy question-level fields
+    const legacyEq = payload?.graphEquation ?? payload?.graph_equation ?? null;
+    if (typeof legacyEq === 'string' && legacyEq.trim()) {
+        const legacyColor = payload?.graphColor ?? payload?.graph_color ?? 'white';
+        return {
+            type: 'function',
+            equation: legacyEq.trim(),
+            color: normalizeGraphColor(legacyColor),
+            xMin: -10,
+            xMax: 10,
+        };
+    }
+
+    // 3) Legacy step-level fields (best-effort) — look for a graphEquation property on raw payload steps.
+    // Note: our canonical QuestionStep no longer contains graphEquation/graphColor.
+    try {
+        const rawSteps = Array.isArray(payload?.steps) ? payload.steps : [];
+        for (const s of rawSteps) {
+            const eq = s?.graphEquation ?? s?.graph_equation;
+            if (typeof eq === 'string' && eq.trim()) {
+                const c = s?.graphColor ?? s?.graph_color ?? 'white';
+                return {
+                    type: 'function',
+                    equation: eq.trim(),
+                    color: normalizeGraphColor(c),
+                    xMin: -10,
+                    xMax: 10,
+                };
+            }
+        }
+    } catch {
+        // ignore
+    }
+
+    return null;
 }
 
 function createPlaceholderStep(questionId: string, stem: string): any {

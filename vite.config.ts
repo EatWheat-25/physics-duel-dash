@@ -19,13 +19,4 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  optimizeDeps: {
-    exclude: ['function-plot'],
-  },
-  build: {
-    commonjsOptions: {
-      include: [/function-plot/, /node_modules/],
-      transformMixedEsModules: true,
-    },
-  },
 }));

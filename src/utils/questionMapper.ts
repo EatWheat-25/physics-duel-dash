@@ -10,7 +10,7 @@
  * 3. No guessing - use explicit fallbacks
  */
 
-import { StepBasedQuestion, QuestionStep } from '@/types/questions';
+import { StepBasedQuestion, QuestionStep, GraphConfig, GraphColor, GraphPoint } from '@/types/questions';
 
 /**
  * Maps raw RPC/WebSocket payload to StepBasedQuestion.
@@ -113,8 +113,6 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
       prompt: String(s.prompt || s.question || ''),
       diagramSmiles: s.diagramSmiles || s.diagram_smiles || undefined,
       diagramImageUrl: s.diagramImageUrl || s.diagram_image_url || undefined,
-      graphEquation: s.graphEquation || s.graph_equation || undefined,
-      graphColor: s.graphColor || s.graph_color || undefined,
       options: optionsArray,
       correctAnswer: extractCorrectAnswer(s, optionsArray.length),
       timeLimitSeconds: s.timeLimitSeconds ?? s.time_limit_seconds ?? null,
@@ -150,11 +148,88 @@ export function mapRawToQuestion(raw: any): StepBasedQuestion {
     steps,
     imageUrl: q.imageUrl || q.image_url || undefined,
     structureSmiles: q.structureSmiles || q.structure_smiles || undefined,
-    graphEquation: q.graphEquation || q.graph_equation || undefined,
-    graphColor: q.graphColor || q.graph_color || undefined,
+    graph: mapGraphConfig(q) || undefined,
   };
 
   return question;
+}
+
+function normalizeGraphColor(raw: any): GraphColor {
+  const c = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  return c === 'black' ? 'black' : 'white'
+}
+
+function coerceNumber(n: any): number | undefined {
+  if (typeof n === 'number' && Number.isFinite(n)) return n
+  if (typeof n === 'string' && n.trim() !== '') {
+    const v = Number(n)
+    return Number.isFinite(v) ? v : undefined
+  }
+  return undefined
+}
+
+function parseGraphPoints(raw: any): GraphPoint[] | null {
+  if (!Array.isArray(raw)) return null
+  const pts: GraphPoint[] = []
+  for (const p of raw) {
+    if (!p || typeof p !== 'object') continue
+    const x = coerceNumber((p as any).x)
+    const y = coerceNumber((p as any).y)
+    if (typeof x === 'number' && typeof y === 'number') pts.push({ x, y })
+  }
+  return pts.length >= 2 ? pts : null
+}
+
+function mapGraphConfig(q: any): GraphConfig | null {
+  // 1) New graph JSONB column
+  const rawGraph = q?.graph ?? null
+  if (rawGraph) {
+    let g: any = rawGraph
+    if (typeof g === 'string') {
+      try { g = JSON.parse(g) } catch { g = null }
+    }
+    if (g && typeof g === 'object') {
+      const type = typeof g.type === 'string' ? g.type.trim().toLowerCase() : ''
+      const color = normalizeGraphColor(g.color)
+      const xMin = coerceNumber(g.xMin)
+      const xMax = coerceNumber(g.xMax)
+      const yMin = coerceNumber(g.yMin)
+      const yMax = coerceNumber(g.yMax)
+
+      if (type === 'function') {
+        const equation = typeof g.equation === 'string' ? g.equation.trim() : ''
+        if (equation) return { type: 'function', equation, color, xMin, xMax, yMin, yMax }
+      }
+
+      if (type === 'points') {
+        const points = parseGraphPoints(g.points)
+        if (points) return { type: 'points', points, color, xMin, xMax, yMin, yMax }
+      }
+    }
+  }
+
+  // 2) Legacy question-level columns
+  const legacyEq = q?.graphEquation ?? q?.graph_equation ?? null
+  if (typeof legacyEq === 'string' && legacyEq.trim()) {
+    const legacyColor = q?.graphColor ?? q?.graph_color ?? 'white'
+    return { type: 'function', equation: legacyEq.trim(), color: normalizeGraphColor(legacyColor), xMin: -10, xMax: 10 }
+  }
+
+  // 3) Legacy step-level fields (best-effort)
+  try {
+    const rawSteps = Array.isArray(q?.steps) ? q.steps : []
+    for (const s of rawSteps) {
+      const eq = s?.graphEquation ?? s?.graph_equation
+      if (typeof eq === 'string' && eq.trim()) {
+        const c = s?.graphColor ?? s?.graph_color ?? 'white'
+        return { type: 'function', equation: eq.trim(), color: normalizeGraphColor(c), xMin: -10, xMax: 10 }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return null
 }
 
 /**
@@ -255,8 +330,6 @@ export function questionToDBRow(question: StepBasedQuestion): any {
     prompt: step.prompt,
     diagramSmiles: step.diagramSmiles,
     diagramImageUrl: step.diagramImageUrl,
-    graphEquation: step.graphEquation,
-    graphColor: step.graphColor,
     options: step.options,
     correctAnswer: step.correctAnswer,
     timeLimitSeconds: step.timeLimitSeconds,
@@ -278,8 +351,7 @@ export function questionToDBRow(question: StepBasedQuestion): any {
     steps: dbSteps, // Include steps as JSONB
     image_url: question.imageUrl || null,
     structure_smiles: question.structureSmiles || null,
-    graph_equation: question.graphEquation || null,
-    graph_color: question.graphColor || null,
+    graph: question.graph || null,
   };
 }
 

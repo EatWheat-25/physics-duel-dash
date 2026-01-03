@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import type { GraphColor, GraphConfig, GraphPoint } from '@/types/question-contract';
 import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
 import { dbRowToQuestion } from '@/lib/question-contract';
 import { Button } from '@/components/ui/button';
@@ -18,9 +19,9 @@ import { useIsAdmin } from '@/hooks/useUserRole';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScienceText } from '@/components/chem/ScienceText';
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram';
-import { FunctionGraph } from '@/components/math/FunctionGraph';
 import { GameQuestionPreview } from '@/components/battle/GameQuestionPreview';
 import { InGamePreview } from '@/components/admin/InGamePreview';
+import { QuestionGraph } from '@/components/math/QuestionGraph';
 
 const PHYSICS_A1_CHAPTER_TITLES: string[] = [
   'Chapter 1: Physical Quantities',
@@ -78,8 +79,6 @@ type FormStep = {
   prompt: string;
   diagramSmiles: string;
   diagramImageUrl: string;
-  graphEquation: string;
-  graphColor: string;
   options: string[];
   correctAnswer: number;
   marks: number;
@@ -97,14 +96,101 @@ type QuestionForm = {
   rankTier: string;
   stem: string;
   structureSmiles: string;
-  graphEquation: string;
-  graphColor: string;
+  // One graph per question (optional)
+  graphEnabled: boolean;
+  graphType: 'function' | 'points';
+  graphColor: GraphColor; // white|black
+  graphEquation: string; // for function graphs
+  graphPointsText: string; // for points graphs (CSV or JSON)
+  graphXMin: string;
+  graphXMax: string;
+  graphYMin: string;
+  graphYMax: string;
   mainQuestionTimerSeconds: number;
   totalMarks: number;
   topicTags: string; // Comma-separated string for editing
   steps: FormStep[];
   imageUrl: string;
 };
+
+function normalizeGraphColor(raw: any): GraphColor {
+  const c = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  return c === 'black' ? 'black' : 'white'
+}
+
+function parseNumberOrUndefined(raw: string): number | undefined {
+  const s = String(raw ?? '').trim()
+  if (!s) return undefined
+  const n = Number(s)
+  return Number.isFinite(n) ? n : undefined
+}
+
+function parseGraphPointsText(text: string): GraphPoint[] | null {
+  const raw = String(text ?? '').trim()
+  if (!raw) return null
+
+  // JSON array format: [{"x":0,"y":0},{"x":5,"y":10}]
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        const pts: GraphPoint[] = parsed
+          .map((p: any) => ({ x: Number(p?.x), y: Number(p?.y) }))
+          .filter((p: any) => Number.isFinite(p.x) && Number.isFinite(p.y))
+        return pts.length >= 2 ? pts : null
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  // CSV / whitespace lines: "0,0" per line or "0 0"
+  const pts: GraphPoint[] = []
+  for (const line of raw.split(/\r?\n/)) {
+    const t = line.trim()
+    if (!t) continue
+    const parts = t.includes(',')
+      ? t.split(',').map((p) => p.trim())
+      : t.split(/\s+/).map((p) => p.trim())
+    if (parts.length < 2) continue
+    const x = Number(parts[0])
+    const y = Number(parts[1])
+    if (Number.isFinite(x) && Number.isFinite(y)) pts.push({ x, y })
+  }
+  return pts.length >= 2 ? pts : null
+}
+
+function pointsToText(points: GraphPoint[]): string {
+  return points.map((p) => `${p.x},${p.y}`).join('\n')
+}
+
+function buildGraphConfigFromForm(form: QuestionForm): GraphConfig | null {
+  if (!form.graphEnabled) return null
+
+  const color = normalizeGraphColor(form.graphColor)
+  const xMin = parseNumberOrUndefined(form.graphXMin)
+  const xMax = parseNumberOrUndefined(form.graphXMax)
+  const yMin = parseNumberOrUndefined(form.graphYMin)
+  const yMax = parseNumberOrUndefined(form.graphYMax)
+
+  const common = {
+    color,
+    xMin,
+    xMax,
+    yMin,
+    yMax,
+  }
+
+  if (form.graphType === 'function') {
+    const equation = String(form.graphEquation ?? '').trim()
+    if (!equation) return null
+    return { type: 'function', equation, ...common }
+  }
+
+  const points = parseGraphPointsText(form.graphPointsText)
+  if (!points) return null
+  return { type: 'points', points, ...common }
+}
 
 export default function AdminQuestions() {
   const navigate = useNavigate();
@@ -166,8 +252,15 @@ export default function AdminQuestions() {
       rankTier: '',
       stem: '',
       structureSmiles: '',
+      graphEnabled: false,
+      graphType: 'function',
+      graphColor: 'white',
       graphEquation: '',
-      graphColor: 'yellow',
+      graphPointsText: '',
+      graphXMin: '',
+      graphXMax: '',
+      graphYMin: '',
+      graphYMax: '',
       mainQuestionTimerSeconds: 90,
       totalMarks: 1,
       topicTags: '',
@@ -177,8 +270,6 @@ export default function AdminQuestions() {
         prompt: '',
         diagramSmiles: '',
         diagramImageUrl: '',
-        graphEquation: '',
-        graphColor: 'yellow',
         options: ['', '', '', ''],
         correctAnswer: 0,
         marks: 1,
@@ -246,6 +337,7 @@ export default function AdminQuestions() {
   function handleSelectQuestion(q: StepBasedQuestion) {
     setMode('editing');
     setSelectedQuestionId(q.id);
+    const g = (q as any).graph as GraphConfig | undefined;
     setForm({
       title: q.title,
       subject: q.subject,
@@ -255,8 +347,15 @@ export default function AdminQuestions() {
       rankTier: q.rankTier || '',
       stem: q.stem,
       structureSmiles: q.structureSmiles || '',
-      graphEquation: q.graphEquation || '',
-      graphColor: q.graphColor || 'yellow',
+      graphEnabled: !!g,
+      graphType: g?.type === 'points' ? 'points' : 'function',
+      graphColor: normalizeGraphColor((g as any)?.color),
+      graphEquation: g && g.type === 'function' ? (g.equation || '') : '',
+      graphPointsText: g && g.type === 'points' ? pointsToText((g.points || []) as any) : '',
+      graphXMin: g && typeof (g as any).xMin === 'number' ? String((g as any).xMin) : '',
+      graphXMax: g && typeof (g as any).xMax === 'number' ? String((g as any).xMax) : '',
+      graphYMin: g && typeof (g as any).yMin === 'number' ? String((g as any).yMin) : '',
+      graphYMax: g && typeof (g as any).yMax === 'number' ? String((g as any).yMax) : '',
       mainQuestionTimerSeconds: q.mainQuestionTimerSeconds,
       totalMarks: q.totalMarks,
       topicTags: q.topicTags.join(', '),
@@ -267,8 +366,6 @@ export default function AdminQuestions() {
         prompt: s.prompt,
         diagramSmiles: s.diagramSmiles || '',
         diagramImageUrl: s.diagramImageUrl || '',
-        graphEquation: s.graphEquation || '',
-        graphColor: s.graphColor || 'yellow',
         options: (() => {
           const t: 'mcq' | 'true_false' = (s.type === 'true_false' ? 'true_false' : 'mcq')
           const raw = Array.isArray(s.options) ? s.options : []
@@ -330,9 +427,9 @@ export default function AdminQuestions() {
       difficulty: form.difficulty,
       rankTier: form.rankTier || undefined,
       stem: form.stem,
+      mainQuestionTimerSeconds: form.mainQuestionTimerSeconds,
       structureSmiles: form.structureSmiles || undefined,
-      graphEquation: form.graphEquation || undefined,
-      graphColor: form.graphColor || undefined,
+      graph: buildGraphConfigFromForm(form) || undefined,
       totalMarks: form.totalMarks,
       topicTags: form.topicTags.split(',').map(t => t.trim()).filter(Boolean),
       steps: form.steps.map((s, idx) => ({
@@ -343,8 +440,6 @@ export default function AdminQuestions() {
         prompt: s.prompt,
         diagramSmiles: s.diagramSmiles || undefined,
         diagramImageUrl: s.diagramImageUrl || undefined,
-        graphEquation: s.graphEquation || undefined,
-        graphColor: s.graphColor || undefined,
         options: s.options,
         correctAnswer: s.correctAnswer,
         marks: s.marks,
@@ -391,8 +486,6 @@ export default function AdminQuestions() {
           prompt: '',
           diagramSmiles: '',
           diagramImageUrl: '',
-          graphEquation: '',
-          graphColor: 'yellow',
           options: ['', '', '', ''],
           correctAnswer: 0,
           marks: 1,
@@ -882,8 +975,6 @@ export default function AdminQuestions() {
           prompt: s.prompt,
           diagramSmiles: s.diagramSmiles?.trim() ? s.diagramSmiles.trim() : undefined,
           diagramImageUrl: s.diagramImageUrl?.trim() ? s.diagramImageUrl.trim() : undefined,
-          graphEquation: s.graphEquation?.trim() ? s.graphEquation.trim() : undefined,
-          graphColor: s.graphColor?.trim() ? s.graphColor.trim() : undefined,
           options: optionsToSave,
           correctAnswer: correct,
           timeLimitSeconds: s.timeLimitSeconds ?? null,
@@ -899,6 +990,29 @@ export default function AdminQuestions() {
         return;
       }
 
+      const graphConfig = buildGraphConfigFromForm(form)
+      if (form.graphEnabled && !graphConfig) {
+        toast.error(
+          form.graphType === 'function'
+            ? 'Graph enabled: please provide a valid equation.'
+            : 'Graph enabled: please provide at least 2 valid points.'
+        )
+        return
+      }
+      // Validate explicit domains (if provided)
+      const xMin = parseNumberOrUndefined(form.graphXMin)
+      const xMax = parseNumberOrUndefined(form.graphXMax)
+      const yMin = parseNumberOrUndefined(form.graphYMin)
+      const yMax = parseNumberOrUndefined(form.graphYMax)
+      if (xMin != null && xMax != null && xMin >= xMax) {
+        toast.error('Graph X domain invalid: xMin must be less than xMax')
+        return
+      }
+      if (yMin != null && yMax != null && yMin >= yMax) {
+        toast.error('Graph Y domain invalid: yMin must be less than yMax')
+        return
+      }
+
       const payload = {
         title: form.title,
         subject: form.subject,
@@ -908,8 +1022,7 @@ export default function AdminQuestions() {
         rank_tier: form.rankTier || null,
         stem: form.stem,
         structure_smiles: form.structureSmiles || null,
-        graph_equation: form.graphEquation || null,
-        graph_color: form.graphColor || null,
+        graph: graphConfig,
         main_question_timer_seconds: form.mainQuestionTimerSeconds,
         total_marks: form.totalMarks,
         topic_tags: topicTagsArray,
@@ -1698,64 +1811,153 @@ export default function AdminQuestions() {
                         )}
                       </div>
 
+                      {/* Graph (one per question) */}
                       <div className="col-span-2">
-                        <label className={labelStyle}>Graph Equation (Optional)</label>
-                        <Input
-                          value={form.graphEquation}
-                          onChange={e => setForm({ ...form, graphEquation: e.target.value })}
-                          className={glassInput}
-                          placeholder="e.g. x^2, sin(x), x^2 + 2x + 1"
-                        />
-                        <p className="text-xs text-white/40 mt-1">
-                          Mathematical equation for rendering a graph. Examples: x^2, sin(x), log(x), x^2 + 2x + 1
-                        </p>
-                        
-                        {form.graphEquation && (
-                          <>
-                            <label className={`${labelStyle} mt-4`}>Graph Color</label>
-                            <div className="flex gap-2 flex-wrap mt-2">
-                              {[
-                                { value: 'yellow', label: 'Yellow', hex: '#fbbf24' },
-                                { value: 'amber', label: 'Amber', hex: '#f59e0b' },
-                                { value: 'blue', label: 'Blue', hex: '#58c4ff' },
-                                { value: 'cyan', label: 'Cyan', hex: '#5ef1ff' },
-                                { value: 'purple', label: 'Purple', hex: '#9a5bff' },
-                                { value: 'red', label: 'Red', hex: '#ef4444' },
-                                { value: 'green', label: 'Green', hex: '#10b981' },
-                              ].map((c) => (
-                                <button
-                                  key={c.value}
-                                  type="button"
-                                  onClick={() => setForm({ ...form, graphColor: c.value })}
-                                  className={`px-4 py-2 rounded-lg border-2 transition-all ${
-                                    form.graphColor === c.value
-                                      ? 'border-yellow-400 bg-yellow-400/20'
-                                      : 'border-white/20 hover:border-white/40'
-                                  }`}
-                                  style={{ backgroundColor: `${c.hex}20` }}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div
-                                      className="w-4 h-4 rounded-full"
-                                      style={{ backgroundColor: c.hex }}
-                                    />
-                                    <span className="text-sm">{c.label}</span>
+                        <label className={labelStyle}>Graph (Optional)</label>
+
+                        <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-4 space-y-4">
+                          <label className="flex items-center gap-3 text-sm text-white/80 select-none">
+                            <input
+                              type="checkbox"
+                              checked={form.graphEnabled}
+                              onChange={(e) => {
+                                const enabled = e.target.checked
+                                setForm({
+                                  ...form,
+                                  graphEnabled: enabled,
+                                  // Defaults when enabling
+                                  graphType: enabled ? (form.graphType || 'function') : form.graphType,
+                                  graphColor: enabled ? (form.graphColor || 'white') : form.graphColor,
+                                })
+                              }}
+                              className="h-4 w-4 accent-yellow-400"
+                            />
+                            Enable graph for this question (one graph per question)
+                          </label>
+
+                          {form.graphEnabled && (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className={labelStyle}>Graph Type</label>
+                                  <Select
+                                    value={form.graphType}
+                                    onValueChange={(v: any) => setForm({ ...form, graphType: v })}
+                                  >
+                                    <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                                    <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                      <SelectItem value="function">Function (y = f(x))</SelectItem>
+                                      <SelectItem value="points">Points / Line</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-xs text-white/40 mt-1">
+                                    Function graphs plot an equation; Points graphs plot your supplied points.
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <label className={labelStyle}>Graph Color</label>
+                                  <div className="flex gap-2 flex-wrap mt-2">
+                                    {([
+                                      { value: 'white', label: 'White' },
+                                      { value: 'black', label: 'Black' },
+                                    ] as Array<{ value: GraphColor; label: string }>).map((c) => (
+                                      <button
+                                        key={c.value}
+                                        type="button"
+                                        onClick={() => setForm({ ...form, graphColor: c.value })}
+                                        className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                                          form.graphColor === c.value
+                                            ? 'border-yellow-400 bg-yellow-400/10'
+                                            : 'border-white/20 hover:border-white/40'
+                                        }`}
+                                      >
+                                        <span className="text-sm">{c.label}</span>
+                                      </button>
+                                    ))}
                                   </div>
-                                </button>
-                              ))}
+                                  <p className="text-xs text-white/40 mt-2">
+                                    Graph background is transparent; axes/line render in white or black.
+                                  </p>
+                                </div>
+                              </div>
+
+                              {form.graphType === 'function' ? (
+                                <div>
+                                  <label className={labelStyle}>Equation</label>
+                                  <Input
+                                    value={form.graphEquation}
+                                    onChange={(e) => setForm({ ...form, graphEquation: e.target.value })}
+                                    className={glassInput}
+                                    placeholder="e.g. x^2 - 4*x + 3, sin(x), 2*x + 5"
+                                  />
+                                  <p className="text-xs text-white/40 mt-1">
+                                    Use x as the variable. Supported: + - * / ^, sin/cos/tan, sqrt, log/ln, exp.
+                                  </p>
+                                </div>
+                              ) : (
+                                <div>
+                                  <label className={labelStyle}>Points (CSV or JSON)</label>
+                                  <Textarea
+                                    value={form.graphPointsText}
+                                    onChange={(e) => setForm({ ...form, graphPointsText: e.target.value })}
+                                    className={`${glassInput} min-h-[120px] font-mono text-xs`}
+                                    placeholder={`CSV example:\n0,0\n5,10\n\nJSON example:\n[{\"x\":0,\"y\":0},{\"x\":5,\"y\":10}]`}
+                                  />
+                                  <p className="text-xs text-white/40 mt-1">
+                                    Provide at least 2 points. Points are connected in the order listed.
+                                  </p>
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div>
+                                  <label className={labelStyle}>xMin (opt)</label>
+                                  <Input
+                                    value={form.graphXMin}
+                                    onChange={(e) => setForm({ ...form, graphXMin: e.target.value })}
+                                    className={glassInput}
+                                    placeholder="-10"
+                                  />
+                                </div>
+                                <div>
+                                  <label className={labelStyle}>xMax (opt)</label>
+                                  <Input
+                                    value={form.graphXMax}
+                                    onChange={(e) => setForm({ ...form, graphXMax: e.target.value })}
+                                    className={glassInput}
+                                    placeholder="10"
+                                  />
+                                </div>
+                                <div>
+                                  <label className={labelStyle}>yMin (opt)</label>
+                                  <Input
+                                    value={form.graphYMin}
+                                    onChange={(e) => setForm({ ...form, graphYMin: e.target.value })}
+                                    className={glassInput}
+                                    placeholder=""
+                                  />
+                                </div>
+                                <div>
+                                  <label className={labelStyle}>yMax (opt)</label>
+                                  <Input
+                                    value={form.graphYMax}
+                                    onChange={(e) => setForm({ ...form, graphYMax: e.target.value })}
+                                    className={glassInput}
+                                    placeholder=""
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className={labelStyle}>Preview</label>
+                                <div className="mt-2">
+                                  <QuestionGraph graph={buildGraphConfigFromForm(form)} />
+                                </div>
+                              </div>
                             </div>
-                            
-                            <div className="mt-4">
-                              <label className={labelStyle}>Preview</label>
-                              <FunctionGraph 
-                                equation={form.graphEquation} 
-                                color={form.graphColor || 'yellow'}
-                                width={600}
-                                height={400}
-                              />
-                            </div>
-                          </>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1877,65 +2079,6 @@ export default function AdminQuestions() {
                                       (e.target as HTMLImageElement).style.display = 'none'
                                     }}
                                   />
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className={labelStyle}>Graph Equation (Optional)</label>
-                                <Input
-                                  value={step.graphEquation}
-                                  onChange={e => updateStepField(index, 'graphEquation', e.target.value)}
-                                  className={glassInput}
-                                  placeholder="e.g. x^2, sin(x)"
-                                />
-                                <p className="text-xs text-white/40 mt-1">
-                                  Mathematical equation for rendering a graph
-                                </p>
-                              </div>
-                              <div>
-                                <label className={labelStyle}>Graph Color</label>
-                                <div className="flex gap-2 flex-wrap mt-2">
-                                  {[
-                                    { value: 'yellow', label: 'Yellow', hex: '#fbbf24' },
-                                    { value: 'amber', label: 'Amber', hex: '#f59e0b' },
-                                    { value: 'blue', label: 'Blue', hex: '#58c4ff' },
-                                    { value: 'cyan', label: 'Cyan', hex: '#5ef1ff' },
-                                    { value: 'purple', label: 'Purple', hex: '#9a5bff' },
-                                    { value: 'red', label: 'Red', hex: '#ef4444' },
-                                    { value: 'green', label: 'Green', hex: '#10b981' },
-                                  ].map((c) => (
-                                    <button
-                                      key={c.value}
-                                      type="button"
-                                      onClick={() => updateStepField(index, 'graphColor', c.value)}
-                                      className={`px-3 py-1.5 rounded-lg border-2 transition-all text-xs ${
-                                        step.graphColor === c.value
-                                          ? 'border-yellow-400 bg-yellow-400/20'
-                                          : 'border-white/20 hover:border-white/40'
-                                      }`}
-                                      style={{ backgroundColor: `${c.hex}20` }}
-                                    >
-                                      <div className="flex items-center gap-1.5">
-                                        <div
-                                          className="w-3 h-3 rounded-full"
-                                          style={{ backgroundColor: c.hex }}
-                                        />
-                                        <span>{c.label}</span>
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                                {step.graphEquation && (
-                                  <div className="mt-3">
-                                    <FunctionGraph 
-                                      equation={step.graphEquation} 
-                                      color={step.graphColor || 'yellow'}
-                                      width={500}
-                                      height={300}
-                                    />
-                                  </div>
                                 )}
                               </div>
                             </div>
