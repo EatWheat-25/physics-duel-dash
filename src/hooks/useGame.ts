@@ -160,6 +160,9 @@ export function useGame(match: MatchRow | null) {
 
   const wsRef = useRef<WebSocket | null>(null)
   const heartbeatRef = useRef<number | null>(null)
+  const reconnectTimeoutRef = useRef<number | null>(null)
+  const reconnectAttemptsRef = useRef<number>(0)
+  const allowReconnectRef = useRef<boolean>(true)
   const matchIdRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
   const lastVisibilityChangeRef = useRef<number>(0)
@@ -451,6 +454,14 @@ export function useGame(match: MatchRow | null) {
       return
     }
 
+    // Allow reconnects for this match lifecycle (cleanup disables this)
+    allowReconnectRef.current = true
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+    reconnectAttemptsRef.current = 0
+
     const connect = async () => {
       try {
         // Get current user
@@ -508,14 +519,54 @@ export function useGame(match: MatchRow | null) {
 
         const ws = new WebSocket(wsUrl)
         wsRef.current = ws
+        const scheduleReconnect = (reason: string) => {
+          if (!allowReconnectRef.current) return
+          if (reconnectTimeoutRef.current) return
+
+          const current = wsRef.current
+          if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) {
+            return
+          }
+
+          const attempt = reconnectAttemptsRef.current
+          const maxAttempts = 6
+          if (attempt >= maxAttempts) {
+            console.warn('[useGame] Reconnect attempts exceeded; giving up.')
+            return
+          }
+
+          const delayMs = Math.min(8000, 500 * Math.pow(2, attempt))
+          reconnectAttemptsRef.current = attempt + 1
+
+          console.log(`[useGame] Scheduling reconnect in ${delayMs}ms (attempt ${attempt + 1}/${maxAttempts}) due to ${reason}`)
+
+          reconnectTimeoutRef.current = window.setTimeout(() => {
+            reconnectTimeoutRef.current = null
+            if (!allowReconnectRef.current) return
+            // Avoid reconnect if something already connected in the meantime
+            const cur = wsRef.current
+            if (cur && (cur.readyState === WebSocket.OPEN || cur.readyState === WebSocket.CONNECTING)) return
+            connect()
+          }, delayMs) as unknown as number
+        }
 
         ws.onopen = () => {
           console.log('[useGame] WebSocket connected')
           hasConnectedRef.current = false
           setIsWebSocketConnected(true)
+          // Successful connection: clear reconnect backoff
+          reconnectAttemptsRef.current = 0
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current)
+            reconnectTimeoutRef.current = null
+          }
           setState(prev => ({
             ...prev,
-            status: 'connecting',
+            // If we were already in-game, do NOT bounce UI back to "searching".
+            status:
+              prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished'
+                ? prev.status
+                : 'connecting',
             errorMessage: null
           }))
 
@@ -563,7 +614,11 @@ export function useGame(match: MatchRow | null) {
               hasConnectedRef.current = true
               setState(prev => ({
                 ...prev,
-                status: 'connected',
+                // If we were already in-game, keep that status.
+                status:
+                  prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished'
+                    ? prev.status
+                    : 'connected',
                 playerRole: message.player,
                 errorMessage: null
               }))
@@ -571,7 +626,10 @@ export function useGame(match: MatchRow | null) {
               console.log('[useGame] BOTH_CONNECTED message received - both players ready!')
               setState(prev => ({
                 ...prev,
-                status: 'both_connected',
+                status:
+                  prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished'
+                    ? prev.status
+                    : 'both_connected',
                 errorMessage: null
               }))
             } else if (message.type === 'QUESTION_RECEIVED') {
@@ -899,15 +957,22 @@ export function useGame(match: MatchRow | null) {
             clearInterval(heartbeatRef.current)
             heartbeatRef.current = null
           }
+          // If this close belongs to the current socket, clear it so reconnect can proceed.
+          if (wsRef.current === ws) {
+            wsRef.current = null
+          }
           setState(prev => {
+            // If we're already in-game, do NOT bounce UI back to "searching".
+            if (prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished') {
+              return prev
+            }
             if (prev.status !== 'error') {
-              return {
-                ...prev,
-                status: 'connecting'
-              }
+              return { ...prev, status: 'connecting' }
             }
             return prev
           })
+          // Attempt to reconnect automatically (without resetting UI)
+          scheduleReconnect('WebSocket closed')
         }
       } catch (error: any) {
         console.error('[useGame] Connection error:', error)
@@ -923,6 +988,12 @@ export function useGame(match: MatchRow | null) {
     connect()
 
     return () => {
+      // Stop any reconnect scheduling when unmounting / switching matches
+      allowReconnectRef.current = false
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
@@ -1278,7 +1349,12 @@ export function useGame(match: MatchRow | null) {
         player_id: userIdRef.current
       }
       console.log('[useGame] Visibility resync - re-sending JOIN_MATCH (status:', currentState, ')')
-      ws.send(JSON.stringify(joinMessage))
+      try {
+        ws.send(JSON.stringify(joinMessage))
+      } catch (err) {
+        // Avoid uncaught DOMException if the socket is closing while we try to resync.
+        console.warn('[useGame] Visibility resync JOIN_MATCH failed (socket not ready):', err)
+      }
       lastVisibilityChangeRef.current = now
     }
 
