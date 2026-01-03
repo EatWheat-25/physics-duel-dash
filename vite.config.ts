@@ -19,4 +19,13 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Some dependencies (e.g. smiles-drawer) contain mixed ESM + CommonJS syntax.
+  // Without this, Rollup can leave `require()` calls in the browser bundle, causing a white screen.
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true,
+      // Keep the default behavior (process node_modules) while enabling mixed-module handling.
+      include: [/node_modules/],
+    },
+  },
 }));
