@@ -11,7 +11,6 @@ import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
 import { RedYellowPatternBackground } from '@/components/battle/RedYellowPatternBackground';
-import { RoundClashCinematic } from '@/components/battle/RoundClashCinematic';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -20,12 +19,12 @@ export default function BattleConnected() {
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
-  const [showRoundCinematic, setShowRoundCinematic] = useState(false);
+  const [resultsRevealStage, setResultsRevealStage] = useState<'tease' | 'final'>('final');
   const [shouldAnimateMyWins, setShouldAnimateMyWins] = useState<boolean>(false);
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
-  const lastCinematicKeyRef = useRef<string | null>(null);
+  const resultsRevealKeyRef = useRef<string | null>(null);
   const hasSignaledShutterReadyRef = useRef<boolean>(false);
   const { isRunning: isShutterRunning, signalReady } = useElevatorShutter();
 
@@ -190,25 +189,27 @@ export default function BattleConnected() {
     }
   }, [roundNumber, status]);
 
-  // Between-round dopamine moment: show a short collision cinematic once per results payload (not on match end).
+  // Results suspense (UI-only): brief “locking in” tease, then reveal.
   useEffect(() => {
-    if (status !== 'results' || !results || matchOver) {
-      setShowRoundCinematic(false);
+    if (status !== 'results' || !results) {
+      setResultsRevealStage('final');
       return;
     }
 
-    const roundIdentity = String(
-      (results as any).round_id ?? (results as any).roundId ?? currentRoundNumber ?? roundNumber ?? ''
-    )
-    const key = roundIdentity || String(currentRoundNumber ?? roundNumber ?? '')
+    const key = String((results as any).round_id ?? (results as any).roundId ?? currentRoundNumber ?? roundNumber ?? '');
+    if (resultsRevealKeyRef.current === key) return;
+    resultsRevealKeyRef.current = key;
 
-    if (lastCinematicKeyRef.current === key) return;
-    lastCinematicKeyRef.current = key;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      setResultsRevealStage('final');
+      return;
+    }
 
-    setShowRoundCinematic(true);
-    const t = setTimeout(() => setShowRoundCinematic(false), 3600);
+    setResultsRevealStage('tease');
+    const t = setTimeout(() => setResultsRevealStage('final'), 700);
     return () => clearTimeout(t);
-  }, [status, results, matchOver, currentRoundNumber, roundNumber]);
+  }, [status, results, currentRoundNumber, roundNumber]);
 
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
@@ -552,42 +553,126 @@ export default function BattleConnected() {
               return null
             })()}
             {status === 'results' && results && (
-              <AnimatePresence mode="wait">
-                {showRoundCinematic ? (
-                  <motion.div
-                    key="round-cinematic"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0, filter: 'blur(8px)' }}
-                    transition={{ duration: 0.25 }}
-                    className="w-full"
-                  >
-                    <RoundClashCinematic
-                      winner={
-                        results.round_winner === null
-                          ? null
-                          : results.round_winner === currentUser
-                            ? 'me'
-                            : 'opponent'
-                      }
-                      roundLabel={`ROUND ${currentRoundNumber || 1}`}
-                    />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="results"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                    className="w-full max-w-2xl bg-[#160007] border border-red-500/25 rounded-3xl p-8 md:p-12 text-center"
-                  >
+              <motion.div
+                key="results"
+                initial={{ opacity: 0, y: 18, scale: 0.98, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                className="relative w-full max-w-2xl rounded-3xl p-8 md:p-12 text-center overflow-hidden bg-[#0B1220] border border-white/10"
+              >
+                {(() => {
+                  const outcome =
+                    results.round_winner === currentUser ? 'win' : results.round_winner === null ? 'tie' : 'lose'
+                  const accent =
+                    outcome === 'win'
+                      ? 'rgba(250,204,21,0.20)'
+                      : outcome === 'lose'
+                        ? 'rgba(239,68,68,0.20)'
+                        : 'rgba(59,130,246,0.20)'
+                  const ringClass =
+                    outcome === 'win'
+                      ? 'ring-1 ring-yellow-400/20 shadow-[0_0_70px_rgba(250,204,21,0.12)]'
+                      : outcome === 'lose'
+                        ? 'ring-1 ring-red-500/20 shadow-[0_0_70px_rgba(239,68,68,0.12)]'
+                        : 'ring-1 ring-blue-500/20 shadow-[0_0_70px_rgba(59,130,246,0.12)]'
+
+                  return (
+                    <>
+                      {/* Ambient accent + glow */}
+                      <motion.div
+                        aria-hidden="true"
+                        className="absolute inset-0 pointer-events-none opacity-60"
+                        animate={{ opacity: [0.45, 0.7, 0.45] }}
+                        transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+                        style={{
+                          background: `radial-gradient(circle at 50% 0%, ${accent} 0%, transparent 55%)`,
+                        }}
+                      />
+                      <div className={`absolute inset-0 pointer-events-none ${ringClass}`} aria-hidden="true" />
+
+                      {/* Scanner line during tease */}
+                      {resultsRevealStage === 'tease' && (
+                        <motion.div
+                          aria-hidden="true"
+                          className="absolute top-0 left-0 h-[2px] w-[40%] pointer-events-none"
+                          initial={{ x: '-80%', opacity: 0 }}
+                          animate={{ x: '180%', opacity: [0, 0.8, 0] }}
+                          transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
+                          style={{
+                            background:
+                              'linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent)',
+                          }}
+                        />
+                      )}
+                    </>
+                  )
+                })()}
+
+                <AnimatePresence>
+                  {resultsRevealStage === 'tease' && (
+                    <motion.div
+                      key="results-tease"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="absolute inset-0 z-20 flex items-center justify-center"
+                    >
+                      <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px]" />
+                      <motion.div
+                        initial={{ scale: 0.98, opacity: 0, y: 8 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                        className="relative z-10 w-full max-w-md px-6"
+                      >
+                        <div className="text-center">
+                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-mono text-white/70 uppercase tracking-widest">
+                            <Zap className="w-4 h-4 text-yellow-300" />
+                            LOCKING IN RESULTS
+                            <Loader2 className="w-4 h-4 animate-spin text-blue-300" />
+                          </div>
+                          <div className="mt-5 h-2 rounded-full bg-white/5 overflow-hidden border border-white/10">
+                            <motion.div
+                              className="h-full rounded-full"
+                              initial={{ width: '0%' }}
+                              animate={{ width: '100%' }}
+                              transition={{ duration: 0.7, ease: 'easeOut' }}
+                              style={{
+                                background:
+                                  'linear-gradient(90deg, rgba(96,165,250,0.0), rgba(96,165,250,0.9), rgba(250,204,21,0.9), rgba(96,165,250,0.0))',
+                              }}
+                            />
+                          </div>
+                          <div className="mt-3 text-[11px] font-mono text-white/55 uppercase tracking-widest">
+                            ROUND {currentRoundNumber || 1}
+                          </div>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <motion.div
+                  className="relative z-10"
+                  animate={{
+                    opacity: resultsRevealStage === 'tease' ? 0.25 : 1,
+                    filter: resultsRevealStage === 'tease' ? 'blur(2px)' : 'blur(0px)',
+                  }}
+                  transition={{ duration: 0.25 }}
+                >
                 <div className="mb-8">
                   {results.round_winner === currentUser ? (
                     <motion.div 
-                      initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring" }}
+                      initial={{ scale: 0, rotate: -18 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 220, damping: 18 }}
                       className="inline-block p-4 rounded-full bg-yellow-500/20 mb-4 ring-4 ring-yellow-500/10"
                     >
-                      <Trophy className="w-12 h-12 text-yellow-500" />
+                      <motion.div
+                        animate={{ filter: ['drop-shadow(0 0 0px rgba(250,204,21,0))', 'drop-shadow(0 0 18px rgba(250,204,21,0.35))', 'drop-shadow(0 0 0px rgba(250,204,21,0))'] }}
+                        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                      >
+                        <Trophy className="w-12 h-12 text-yellow-500" />
+                      </motion.div>
                     </motion.div>
                   ) : results.round_winner === null ? (
                     <div className="inline-block p-4 rounded-full bg-white/10 mb-4 ring-4 ring-white/5">
@@ -921,9 +1006,8 @@ export default function BattleConnected() {
                     </button>
                   </div>
                 )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                </motion.div>
+              </motion.div>
             )}
 
             {/* MATCH FINISHED */}
