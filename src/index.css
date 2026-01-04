@@ -259,6 +259,49 @@ All colors MUST be HSL.
 }
 
 @layer components {
+  /* ===== Paper-style question UI (white cards, black text) ===== */
+  .paper-card {
+    @apply bg-white text-slate-900 border border-slate-200 rounded-3xl p-8 md:p-12 shadow-xl;
+  }
+
+  /* Override global heading rule (h1..h6 { color: white; }) inside paper cards */
+  .paper-card h1,
+  .paper-card h2,
+  .paper-card h3,
+  .paper-card h4,
+  .paper-card h5,
+  .paper-card h6 {
+    color: inherit;
+  }
+
+  .paper-meta {
+    @apply text-xs font-mono uppercase tracking-wider text-slate-500;
+  }
+
+  .paper-option {
+    @apply relative w-full overflow-hidden p-6 rounded-2xl border border-slate-200 bg-white text-slate-900 text-left shadow-sm transition-all duration-200;
+  }
+
+  .paper-option:hover {
+    @apply bg-slate-50 border-slate-300 shadow-md;
+  }
+
+  .paper-option:focus-visible {
+    @apply outline-none ring-2 ring-slate-400 ring-offset-2 ring-offset-white;
+  }
+
+  .paper-option:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .paper-option-letter {
+    @apply w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm bg-slate-100 text-slate-900;
+  }
+
+  .paper-option:hover .paper-option-letter {
+    @apply bg-slate-200;
+  }
+
   /* Next-Gen Holographic Panels */
   .cyber-panel {
     @apply rounded-3xl relative overflow-hidden backdrop-blur-xl;

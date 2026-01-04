@@ -21,53 +21,42 @@ export function MainQuestionCard({
   isWebSocketConnected?: boolean
   onSubmitEarly?: () => void
 }) {
-  const stripTone: 'light' | 'dark' = graph?.color === 'black' ? 'light' : 'dark'
-  const stripBg = stripTone === 'light' ? 'bg-white' : 'bg-[#0B1220]'
-  const stripText = stripTone === 'light' ? 'text-black' : 'text-white'
-  const stripSubtle = stripTone === 'light' ? 'text-black/60' : 'text-white/70'
-  const stripLabel = stripTone === 'light' ? 'text-black/60' : 'text-yellow-300/80'
+  const paperGraph: GraphConfig | null | undefined = graph ? ({ ...graph, color: 'black' } as GraphConfig) : graph
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="w-full max-w-3xl"
+      className="w-full"
     >
-      <div className="mb-8 px-2 md:px-0">
-        {/* Full-width plain strip behind graph + question for readability */}
-        <div className={`relative left-1/2 right-1/2 -mx-[50vw] w-screen ${stripBg} ${stripText} py-7`}>
-          <div className="mx-auto w-full max-w-5xl px-4 md:px-6">
-            {graph && (
-              <div className="mb-6">
-                <QuestionGraph graph={graph} />
-              </div>
-            )}
+      <div className="paper-card mb-8">
+        {paperGraph && (
+          <div className="mb-6">
+            <QuestionGraph graph={paperGraph} />
+          </div>
+        )}
 
-            <div className="text-center">
-              <div className={`text-sm font-mono mb-4 uppercase tracking-wider ${stripLabel}`}>
-                Main Question
-              </div>
-              <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
-                <ScienceText text={stem} />
-              </h3>
-              {structureSmiles && (
-                <div className="mt-6">
-                  <SmilesDiagram smiles={structureSmiles} size="lg" />
-                </div>
-              )}
-              {imageUrl && (
-                <img
-                  src={imageUrl}
-                  alt="Question"
-                  className="mt-6 rounded-lg max-w-full border border-red-500/20 mx-auto"
-                  loading="lazy"
-                />
-              )}
-              <div className={`mt-6 text-sm ${stripSubtle}`}>
-                {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
-              </div>
+        <div className="space-y-4">
+          <div className="paper-meta">Main Question</div>
+          <h3 className="text-2xl md:text-3xl font-bold leading-relaxed">
+            <ScienceText text={stem} />
+          </h3>
+          {structureSmiles && (
+            <div className="pt-2">
+              <SmilesDiagram smiles={structureSmiles} size="lg" />
             </div>
+          )}
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt="Question"
+              className="mt-4 rounded-lg max-w-full border border-slate-200 mx-auto"
+              loading="lazy"
+            />
+          )}
+          <div className="pt-2 text-sm text-slate-600">
+            {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
           </div>
         </div>
       </div>
@@ -77,7 +66,7 @@ export function MainQuestionCard({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="w-full max-w-3xl mt-6"
+        className="w-full mt-6"
       >
         <button
           onClick={() => onSubmitEarly?.()}
@@ -94,5 +83,8 @@ export function MainQuestionCard({
     </motion.div>
   )
 }
+
+
+
 
 

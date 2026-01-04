@@ -32,11 +32,7 @@ export function StepCard({
   disabled?: boolean
   onSelectOption?: (answerIndex: number) => void
 }) {
-  const stripTone: 'light' | 'dark' = graph?.color === 'black' ? 'light' : 'dark'
-  const stripBg = stripTone === 'light' ? 'bg-white' : 'bg-[#0B1220]'
-  const stripText = stripTone === 'light' ? 'text-black' : 'text-white'
-  const stripSubtle = stripTone === 'light' ? 'text-black/60' : 'text-white/70'
-  const stripLabel = stripTone === 'light' ? 'text-black/60' : 'text-yellow-300/80'
+  const paperGraph: GraphConfig | null | undefined = graph ? ({ ...graph, color: 'black' } as GraphConfig) : graph
 
   const visibleOptions = (options ?? []).filter((o) => String(o).trim())
 
@@ -45,49 +41,48 @@ export function StepCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="w-full max-w-3xl"
+      className="w-full"
     >
-      <div className="mb-8 px-2 md:px-0">
-        <div className={`relative left-1/2 right-1/2 -mx-[50vw] w-screen ${stripBg} ${stripText} py-7`}>
-          <div className="mx-auto w-full max-w-5xl px-4 md:px-6">
-            {graph && (
-              <div className="mb-6">
-                <QuestionGraph graph={graph} />
-              </div>
-            )}
+      <div className="paper-card mb-8">
+        {paperGraph && (
+          <div className="mb-6">
+            <QuestionGraph graph={paperGraph} />
+          </div>
+        )}
 
-            <div className="text-center">
-              <div className={`text-sm font-mono mb-2 uppercase tracking-wider ${stripLabel}`}>
-                {segment === 'sub'
-                  ? `Step ${stepIndex + 1} of ${totalSteps} • Sub-step ${subStepIndex + 1}`
-                  : `Step ${stepIndex + 1} of ${totalSteps}`}
-              </div>
-              <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
-                <ScienceText text={prompt} />
-              </h3>
-              {(diagramSmiles || diagramImageUrl) && (
-                <div className="mt-6 space-y-4">
-                  {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
-                  {diagramImageUrl && (
-                    <img
-                      src={diagramImageUrl}
-                      alt="Diagram"
-                      className="rounded-lg max-w-full border border-red-500/20 mx-auto"
-                      loading="lazy"
-                    />
-                  )}
-                </div>
-              )}
-              {segment === 'sub' && (
-                <p className={`text-xs mt-3 font-mono ${stripSubtle}`}>
-                  QUICK CHECK — must be correct to earn this step&apos;s marks
-                </p>
+        <div className="space-y-4">
+          <div className="paper-meta">
+            {segment === 'sub'
+              ? `Step ${stepIndex + 1} of ${totalSteps} • Sub-step ${subStepIndex + 1}`
+              : `Step ${stepIndex + 1} of ${totalSteps}`}
+          </div>
+
+          <h3 className="text-xl md:text-2xl font-bold leading-relaxed">
+            <ScienceText text={prompt} />
+          </h3>
+
+          {(diagramSmiles || diagramImageUrl) && (
+            <div className="space-y-4 pt-2">
+              {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
+              {diagramImageUrl && (
+                <img
+                  src={diagramImageUrl}
+                  alt="Diagram"
+                  className="rounded-lg max-w-full border border-slate-200"
+                  loading="lazy"
+                />
               )}
             </div>
-          </div>
+          )}
+
+          {segment === 'sub' && (
+            <p className="text-xs text-slate-600 font-mono">
+              QUICK CHECK — must be correct to earn this step&apos;s marks
+            </p>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           {visibleOptions.map((option, idx) => (
             <button
               key={idx}
@@ -95,26 +90,10 @@ export function StepCard({
                 if (!disabled && !answerSubmitted) onSelectOption?.(idx)
               }}
               disabled={disabled || answerSubmitted}
-              className={`
-                relative group overflow-hidden p-6 rounded-2xl border transition-colors duration-200 text-left
-                ${
-                  disabled || answerSubmitted
-                    ? 'border-red-500/10 bg-[#1A0008] opacity-60 cursor-not-allowed'
-                    : 'border-red-500/20 bg-[#1A0008] hover:bg-[#24000F] hover:border-yellow-400/60 active:bg-[#2B0A0F]'
-                }
-              `}
+              className={`paper-option ${disabled || answerSubmitted ? '' : 'active:scale-[0.99]'}`}
             >
-              <div className="flex items-center gap-4 relative z-10">
-                <div
-                  className={`
-                    w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
-                    ${
-                      answerSubmitted
-                        ? 'bg-[#2B0A0F] text-white/50 border border-red-500/15'
-                        : 'bg-[#2B0A0F] text-white/80 border border-red-500/20 group-hover:bg-yellow-400 group-hover:text-black group-hover:border-black/20'
-                    }
-                  `}
-                >
+              <div className="flex items-center gap-4">
+                <div className="paper-option-letter">
                   {String.fromCharCode(65 + idx)}
                 </div>
                 <ScienceText text={option} className="text-lg font-medium" smilesSize="sm" />
@@ -129,7 +108,7 @@ export function StepCard({
             animate={{ opacity: 1, y: 0 }}
             className="mt-6 text-center"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-full text-sm font-bold border border-black/20">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-full text-sm font-medium border border-slate-200">
               <Check className="w-4 h-4" />
               ANSWER SUBMITTED
             </div>
@@ -139,5 +118,8 @@ export function StepCard({
     </motion.div>
   )
 }
+
+
+
 
 
