@@ -663,6 +663,29 @@ export default function BattleConnected() {
                       <div className="text-lg font-bold mb-2">
                         Final Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
                       </div>
+                      {results.p1Score !== undefined && results.p2Score !== undefined && (
+                        <div className="text-lg font-bold mb-2">
+                          <span className="mr-2">Round Score:</span>
+                          <RollingNumber
+                            value={Number(isPlayer1 ? results.p1Score : results.p2Score)}
+                            digitClassName="tabular-nums"
+                            duration={1.1}
+                            cycles={3}
+                          />
+                          <span className="mx-3 text-white/50">-</span>
+                          <RollingNumber
+                            value={Number(isPlayer1 ? results.p2Score : results.p1Score)}
+                            digitClassName="tabular-nums"
+                            duration={1.1}
+                            cycles={3}
+                          />
+                        </div>
+                      )}
+                      {results.p1SubPoints !== undefined && results.p2SubPoints !== undefined && (
+                        <div className="text-xs text-white/60 font-mono mb-2">
+                          Sub-step Bonus: +{isPlayer1 ? results.p1SubPoints : results.p2SubPoints} / +{isPlayer1 ? results.p2SubPoints : results.p1SubPoints}
+                        </div>
+                      )}
                       <p className="text-white/40 font-mono text-sm">
                         {matchWinnerId === currentUser ? 'VICTORY ACHIEVED!' : 'BETTER LUCK NEXT TIME.'}
                       </p>
@@ -691,6 +714,11 @@ export default function BattleConnected() {
                             duration={1.1}
                             cycles={3}
                           />
+                        </div>
+                      )}
+                      {results.p1SubPoints !== undefined && results.p2SubPoints !== undefined && (
+                        <div className="text-xs text-white/60 font-mono mb-2">
+                          Sub-step Bonus: +{isPlayer1 ? results.p1SubPoints : results.p2SubPoints} / +{isPlayer1 ? results.p2SubPoints : results.p1SubPoints}
                         </div>
                       )}
                       <div className="text-sm font-bold mb-2">
@@ -748,8 +776,10 @@ export default function BattleConnected() {
                             return oppAnswer !== null && oppAnswer !== undefined && correct !== null && correct !== undefined && oppAnswer === correct;
                       }).length;
                       
-                      const iWon = myPartsCorrect > oppPartsCorrect;
-                      const isTie = myPartsCorrect === oppPartsCorrect;
+                      // IMPORTANT: Winner logic is decided by the backend (round points = marks + sub-step bonus).
+                      // Use round_winner here to keep UI perfectly aligned with server scoring rules.
+                      const iWon = results.round_winner === currentUser;
+                      const isTie = results.round_winner === null;
                       
                       return (
                         <>

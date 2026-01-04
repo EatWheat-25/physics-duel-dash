@@ -23,6 +23,12 @@ interface ConnectionState {
     round_winner: string | null
     p1Score?: number
     p2Score?: number
+    // V3 step-mode: +1 per correct sub-step ("quick check")
+    p1SubPoints?: number
+    p2SubPoints?: number
+    // V3 step-mode: marks awarded + sub-step bonus
+    p1RoundPoints?: number
+    p2RoundPoints?: number
     // V2 legacy: per-step results lived under payload.p1.steps
     // V3 (async segments): results live under payload.stepResults and include main/sub segments
     stepResults?: Array<{
@@ -198,6 +204,33 @@ export function useGame(match: MatchRow | null) {
         ? (payload.stepResults ?? payload.p1?.steps ?? payload.p1?.stepResults)
         : undefined
 
+    const toFiniteNumber = (v: any): number | undefined => {
+      if (typeof v === 'number' && Number.isFinite(v)) return v
+      if (typeof v === 'string') {
+        const n = Number(v)
+        if (Number.isFinite(n)) return n
+      }
+      return undefined
+    }
+
+    const p1SubPoints =
+      mode === 'steps'
+        ? (toFiniteNumber(payload.p1_sub_points ?? payload.p1SubPoints) ?? 0)
+        : undefined
+    const p2SubPoints =
+      mode === 'steps'
+        ? (toFiniteNumber(payload.p2_sub_points ?? payload.p2SubPoints) ?? 0)
+        : undefined
+
+    const p1RoundPoints =
+      mode === 'steps'
+        ? (toFiniteNumber(payload.p1_round_points ?? payload.p1RoundPoints) ?? 0)
+        : undefined
+    const p2RoundPoints =
+      mode === 'steps'
+        ? (toFiniteNumber(payload.p2_round_points ?? payload.p2RoundPoints) ?? 0)
+        : undefined
+
     const results = {
       player1_answer: mode === 'simple' ? payload.p1?.answer ?? null : null,
       player2_answer: mode === 'simple' ? payload.p2?.answer ?? null : null,
@@ -205,8 +238,15 @@ export function useGame(match: MatchRow | null) {
       player1_correct: payload.p1?.correct ?? false,
       player2_correct: payload.p2?.correct ?? false,
       round_winner: payload.round_winner ?? null,
-      p1Score: payload.p1?.total ?? 0,
-      p2Score: payload.p2?.total ?? 0,
+      // NOTE:
+      // - simple mode: p1/p2.total = match score (round wins)
+      // - steps mode: use round points (marks + sub-step bonus) from payload
+      p1Score: mode === 'steps' ? p1RoundPoints : (payload.p1?.total ?? 0),
+      p2Score: mode === 'steps' ? p2RoundPoints : (payload.p2?.total ?? 0),
+      p1SubPoints,
+      p2SubPoints,
+      p1RoundPoints,
+      p2RoundPoints,
       stepResults,
       p1PartsCorrect: payload.p1_parts_correct ?? payload.p1PartsCorrect ?? undefined,
       p2PartsCorrect: payload.p2_parts_correct ?? payload.p2PartsCorrect ?? undefined,
