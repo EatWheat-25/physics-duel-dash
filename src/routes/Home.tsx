@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { RankMenu } from '@/components/RankMenu';
 import { ChevronRight, History, LogOut, Plus, Settings, Shield, Sparkles, Trophy, X } from 'lucide-react';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
@@ -11,6 +11,7 @@ import { useIsAdmin } from '@/hooks/useUserRole';
 import { getRankByPoints } from '@/types/ranking';
 import { useMatchmakingPrefs } from '@/store/useMatchmakingPrefs';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
+import { LoadingScreen } from '@/components/LoadingScreen';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -23,17 +24,70 @@ export default function Home() {
   const [rankMenuOpen, setRankMenuOpen] = useState(false);
   const [currentMMR, setCurrentMMR] = useState<number>(0);
   const [queueTime, setQueueTime] = useState(0);
+  const initialOnboardingStatus =
+    profile?.onboarding_completed ? 'complete' : profile ? 'incomplete' : 'unknown';
+  const [onboardingStatus, setOnboardingStatus] = useState<
+    'unknown' | 'complete' | 'incomplete'
+  >(initialOnboardingStatus);
   const prefersReducedMotion = useMemo(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     []
   );
 
   useEffect(() => {
+    if (onboardingStatus !== 'complete') return;
     document.title = 'Lobby | BattleNerds';
-  }, []);
+  }, [onboardingStatus]);
+
+  useEffect(() => {
+    if (!user) {
+      setOnboardingStatus('unknown');
+      return;
+    }
+
+    if (profile?.onboarding_completed) {
+      setOnboardingStatus('complete');
+      return;
+    }
+
+    if (profile && !profile.onboarding_completed) {
+      setOnboardingStatus('incomplete');
+      return;
+    }
+
+    // Profile may not be loaded yet; double-check in DB to avoid misrouting onboarded users.
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('onboarding_completed')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (cancelled) return;
+        if (error) {
+          console.error('Error checking onboarding status:', error);
+          setOnboardingStatus('incomplete');
+          return;
+        }
+
+        setOnboardingStatus(data?.onboarding_completed ? 'complete' : 'incomplete');
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Error checking onboarding status:', err);
+        setOnboardingStatus('incomplete');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, profile]);
 
   useEffect(() => {
     if (!user) return;
+    if (onboardingStatus !== 'complete') return;
     
     const fetchMMR = async () => {
       try {
@@ -75,7 +129,7 @@ export default function Home() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, onboardingStatus]);
 
   const navItems = [
     { label: 'LOBBY', path: '/', onClick: () => navigate('/') },
@@ -95,7 +149,7 @@ export default function Home() {
   const mmr = currentMMR || 1000;
   const rank = getRankByPoints(mmr);
   const level = Math.max(1, Math.floor(mmr / 100) + 1);
-  const username = profile?.username || user?.email?.split('@')[0] || 'Guest';
+  const username = profile?.username ?? user?.email?.split('@')[0] ?? 'Player';
   const initial = (username?.[0] || '?').toUpperCase();
   const hasMatchmakingPrefs = Boolean(mmSubject && mmLevel);
   const subjectLabel = mmSubject
@@ -108,6 +162,7 @@ export default function Home() {
   const levelLabel = mmLevel ? (mmLevel === 'Both' ? 'AS + A2' : mmLevel) : '';
 
   useEffect(() => {
+    if (onboardingStatus !== 'complete') return;
     if (matchmakingStatus !== 'searching') {
       setQueueTime(0);
       return;
@@ -119,7 +174,19 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [matchmakingStatus]);
+  }, [matchmakingStatus, onboardingStatus]);
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (onboardingStatus === 'unknown') {
+    return <LoadingScreen />;
+  }
+
+  if (onboardingStatus === 'incomplete') {
+    return <Navigate to="/onboarding" replace />;
+  }
 
   const handleStartMatchmaking = () => {
     if (matchmakingStatus === 'searching') return;

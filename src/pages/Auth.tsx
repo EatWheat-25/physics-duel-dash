@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,65 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Mail, Lock } from "lucide-react";
 import { Starfield } from "@/components/Starfield";
+import { useAuth } from "@/contexts/AuthContext";
+import { LoadingScreen } from "@/components/LoadingScreen";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
+
+  // If already authenticated, skip /auth and go to onboarding (if needed) or home.
+  useEffect(() => {
+    if (!user) return;
+
+    // Fast path if profile is already loaded
+    if (profile?.onboarding_completed) {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    if (profile && !profile.onboarding_completed) {
+      navigate("/onboarding", { replace: true });
+      return;
+    }
+
+    // Profile may not be loaded yet; double-check in DB to avoid unnecessary onboarding redirect.
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("onboarding_completed")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (cancelled) return;
+        if (error) {
+          console.error("Error checking onboarding status:", error);
+          navigate("/onboarding", { replace: true });
+          return;
+        }
+
+        navigate(data?.onboarding_completed ? "/" : "/onboarding", { replace: true });
+      } catch (err) {
+        if (cancelled) return;
+        console.error("Error checking onboarding status:", err);
+        navigate("/onboarding", { replace: true });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, profile, navigate]);
+
+  if (user) {
+    return <LoadingScreen />;
+  }
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
