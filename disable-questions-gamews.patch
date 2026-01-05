@@ -1,0 +1,13 @@
+diff --git a/supabase/functions/game-ws/index.ts b/supabase/functions/game-ws/index.ts
+--- a/supabase/functions/game-ws/index.ts
++++ b/supabase/functions/game-ws/index.ts
+@@ -984,6 +984,7 @@
+       const fetchTier = async (filters: { subject?: boolean; level?: boolean }) => {
+         let q = supabase
+           .from('questions_v2')
+           .select('*')
++          .eq('is_enabled', true)
+           // Prefer newest questions so recently added/edited questions actually show up in-game.
+           // Important: nullsFirst=false ensures rows missing updated_at don't float to the top.
+           .order('updated_at', { ascending: false, nullsFirst: false })
+

@@ -23,12 +23,6 @@ interface ConnectionState {
     round_winner: string | null
     p1Score?: number
     p2Score?: number
-    // V3 step-mode: +1 per correct sub-step ("quick check")
-    p1SubPoints?: number
-    p2SubPoints?: number
-    // V3 step-mode: marks awarded + sub-step bonus
-    p1RoundPoints?: number
-    p2RoundPoints?: number
     // V2 legacy: per-step results lived under payload.p1.steps
     // V3 (async segments): results live under payload.stepResults and include main/sub segments
     stepResults?: Array<{
@@ -68,8 +62,6 @@ interface ConnectionState {
   timeRemaining: number | null // seconds remaining
   // Step-based question state
   phase: 'question' | 'main_question' | 'steps' | 'result'
-  // Step progression mode: in async mode, the server advances per-player and match_rounds must NOT override.
-  stepProgressMode: 'shared' | 'async'
   currentStepIndex: number
   totalSteps: number
   mainQuestionEndsAt: string | null
@@ -88,8 +80,6 @@ interface ConnectionState {
   playerRoundWins: { [playerId: string]: number }
   matchOver: boolean
   matchWinnerId: string | null
-  // Inter-round countdown (results -> next round)
-  nextRoundCountdown: number | null
 }
 
 interface RoundStartEvent {
@@ -142,7 +132,6 @@ export function useGame(match: MatchRow | null) {
     timeRemaining: null,
     // Step-based question state
     phase: 'question',
-    stepProgressMode: 'shared',
     currentStepIndex: 0,
     totalSteps: 0,
     mainQuestionEndsAt: null,
@@ -160,15 +149,11 @@ export function useGame(match: MatchRow | null) {
     targetRoundsToWin: 3,
     playerRoundWins: {},
     matchOver: false,
-    matchWinnerId: null,
-    nextRoundCountdown: null
+    matchWinnerId: null
   })
 
   const wsRef = useRef<WebSocket | null>(null)
   const heartbeatRef = useRef<number | null>(null)
-  const reconnectTimeoutRef = useRef<number | null>(null)
-  const reconnectAttemptsRef = useRef<number>(0)
-  const allowReconnectRef = useRef<boolean>(true)
   const matchIdRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
   const lastVisibilityChangeRef = useRef<number>(0)
@@ -204,33 +189,6 @@ export function useGame(match: MatchRow | null) {
         ? (payload.stepResults ?? payload.p1?.steps ?? payload.p1?.stepResults)
         : undefined
 
-    const toFiniteNumber = (v: any): number | undefined => {
-      if (typeof v === 'number' && Number.isFinite(v)) return v
-      if (typeof v === 'string') {
-        const n = Number(v)
-        if (Number.isFinite(n)) return n
-      }
-      return undefined
-    }
-
-    const p1SubPoints =
-      mode === 'steps'
-        ? (toFiniteNumber(payload.p1_sub_points ?? payload.p1SubPoints) ?? 0)
-        : undefined
-    const p2SubPoints =
-      mode === 'steps'
-        ? (toFiniteNumber(payload.p2_sub_points ?? payload.p2SubPoints) ?? 0)
-        : undefined
-
-    const p1RoundPoints =
-      mode === 'steps'
-        ? (toFiniteNumber(payload.p1_round_points ?? payload.p1RoundPoints) ?? 0)
-        : undefined
-    const p2RoundPoints =
-      mode === 'steps'
-        ? (toFiniteNumber(payload.p2_round_points ?? payload.p2RoundPoints) ?? 0)
-        : undefined
-
     const results = {
       player1_answer: mode === 'simple' ? payload.p1?.answer ?? null : null,
       player2_answer: mode === 'simple' ? payload.p2?.answer ?? null : null,
@@ -238,15 +196,8 @@ export function useGame(match: MatchRow | null) {
       player1_correct: payload.p1?.correct ?? false,
       player2_correct: payload.p2?.correct ?? false,
       round_winner: payload.round_winner ?? null,
-      // NOTE:
-      // - simple mode: p1/p2.total = match score (round wins)
-      // - steps mode: use round points (marks + sub-step bonus) from payload
-      p1Score: mode === 'steps' ? p1RoundPoints : (payload.p1?.total ?? 0),
-      p2Score: mode === 'steps' ? p2RoundPoints : (payload.p2?.total ?? 0),
-      p1SubPoints,
-      p2SubPoints,
-      p1RoundPoints,
-      p2RoundPoints,
+      p1Score: payload.p1?.total ?? 0,
+      p2Score: payload.p2?.total ?? 0,
       stepResults,
       p1PartsCorrect: payload.p1_parts_correct ?? payload.p1PartsCorrect ?? undefined,
       p2PartsCorrect: payload.p2_parts_correct ?? payload.p2PartsCorrect ?? undefined,
@@ -297,9 +248,7 @@ export function useGame(match: MatchRow | null) {
           prev.targetRoundsToWin,
         playerRoundWins: mergedRoundWins,
         matchOver: payload.match_over ?? false,
-        matchWinnerId: payload.match_winner_id ?? null,
-        // Auto next round countdown (10s) unless match is over
-        nextRoundCountdown: (payload.match_over ?? false) ? null : 10
+        matchWinnerId: payload.match_winner_id ?? null
       }
     })
 
@@ -494,14 +443,6 @@ export function useGame(match: MatchRow | null) {
       return
     }
 
-    // Allow reconnects for this match lifecycle (cleanup disables this)
-    allowReconnectRef.current = true
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-      reconnectTimeoutRef.current = null
-    }
-    reconnectAttemptsRef.current = 0
-
     const connect = async () => {
       try {
         // Get current user
@@ -559,54 +500,14 @@ export function useGame(match: MatchRow | null) {
 
         const ws = new WebSocket(wsUrl)
         wsRef.current = ws
-        const scheduleReconnect = (reason: string) => {
-          if (!allowReconnectRef.current) return
-          if (reconnectTimeoutRef.current) return
-
-          const current = wsRef.current
-          if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) {
-            return
-          }
-
-          const attempt = reconnectAttemptsRef.current
-          const maxAttempts = 6
-          if (attempt >= maxAttempts) {
-            console.warn('[useGame] Reconnect attempts exceeded; giving up.')
-            return
-          }
-
-          const delayMs = Math.min(8000, 500 * Math.pow(2, attempt))
-          reconnectAttemptsRef.current = attempt + 1
-
-          console.log(`[useGame] Scheduling reconnect in ${delayMs}ms (attempt ${attempt + 1}/${maxAttempts}) due to ${reason}`)
-
-          reconnectTimeoutRef.current = window.setTimeout(() => {
-            reconnectTimeoutRef.current = null
-            if (!allowReconnectRef.current) return
-            // Avoid reconnect if something already connected in the meantime
-            const cur = wsRef.current
-            if (cur && (cur.readyState === WebSocket.OPEN || cur.readyState === WebSocket.CONNECTING)) return
-            connect()
-          }, delayMs) as unknown as number
-        }
 
         ws.onopen = () => {
           console.log('[useGame] WebSocket connected')
           hasConnectedRef.current = false
           setIsWebSocketConnected(true)
-          // Successful connection: clear reconnect backoff
-          reconnectAttemptsRef.current = 0
-          if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current)
-            reconnectTimeoutRef.current = null
-          }
           setState(prev => ({
             ...prev,
-            // If we were already in-game, do NOT bounce UI back to "searching".
-            status:
-              prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished'
-                ? prev.status
-                : 'connecting',
+            status: 'connecting',
             errorMessage: null
           }))
 
@@ -654,11 +555,7 @@ export function useGame(match: MatchRow | null) {
               hasConnectedRef.current = true
               setState(prev => ({
                 ...prev,
-                // If we were already in-game, keep that status.
-                status:
-                  prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished'
-                    ? prev.status
-                    : 'connected',
+                status: 'connected',
                 playerRole: message.player,
                 errorMessage: null
               }))
@@ -666,10 +563,7 @@ export function useGame(match: MatchRow | null) {
               console.log('[useGame] BOTH_CONNECTED message received - both players ready!')
               setState(prev => ({
                 ...prev,
-                status:
-                  prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished'
-                    ? prev.status
-                    : 'both_connected',
+                status: 'both_connected',
                 errorMessage: null
               }))
             } else if (message.type === 'QUESTION_RECEIVED') {
@@ -686,8 +580,7 @@ export function useGame(match: MatchRow | null) {
                   timerEndAt: timerEndAt,
                   answerSubmitted: false,
                   waitingForOpponent: false,
-                  results: null,
-                  nextRoundCountdown: null
+                  results: null
                 }))
               } catch (error) {
                 console.error('[useGame] Error mapping question:', error)
@@ -702,24 +595,12 @@ export function useGame(match: MatchRow | null) {
               // Clear processed round IDs and results when new round starts
               processedRoundIdsRef.current.clear()
               const roundStartEvent = message as any as RoundStartEvent
-              const roundIdFromMessage = roundStartEvent.roundId
-
-              // Only trust roundId if it differs from the match id (canonical match_rounds.id)
-              if (roundIdFromMessage && roundIdFromMessage !== match?.id) {
-                currentRoundIdRef.current = roundIdFromMessage
-              }
-
-              const resolvedRoundId = roundIdFromMessage && roundIdFromMessage !== match?.id
-                ? roundIdFromMessage
-                : state.currentRoundId || currentRoundIdRef.current
-
               if (roundStartEvent.phase === 'main_question' || roundStartEvent.phase === 'steps') {
                 // Multi-step question (async segments may start directly in steps)
                 setState(prev => ({
                   ...prev,
                   status: 'playing',
                   phase: roundStartEvent.phase === 'steps' ? 'steps' : 'main_question',
-                  stepProgressMode: 'shared',
                   question: roundStartEvent.question,
                   mainQuestionEndsAt: (roundStartEvent as any).mainQuestionEndsAt || null,
                   totalSteps: (roundStartEvent as any).totalSteps || 0,
@@ -729,7 +610,7 @@ export function useGame(match: MatchRow | null) {
                   currentSubStep: null,
                   subStepTimeLeft: null,
                   // Match-level info (used by UI scoreboard)
-                  currentRoundId: resolvedRoundId ?? prev.currentRoundId,
+                  currentRoundId: roundStartEvent.roundId ?? prev.currentRoundId,
                   currentRoundNumber: Number.isFinite(roundStartEvent.roundIndex)
                     ? roundStartEvent.roundIndex + 1
                     : prev.currentRoundNumber,
@@ -741,7 +622,6 @@ export function useGame(match: MatchRow | null) {
                   allStepsComplete: false,
                   waitingForOpponentToCompleteSteps: false,
                   results: null, // Clear results when new round starts
-                  nextRoundCountdown: null,
                   errorMessage: null
                 }))
               } else {
@@ -750,9 +630,8 @@ export function useGame(match: MatchRow | null) {
                   ...prev,
                   status: 'playing',
                   phase: 'question',
-                  stepProgressMode: 'shared',
                   question: roundStartEvent.question,
-                  currentRoundId: resolvedRoundId ?? prev.currentRoundId,
+                  currentRoundId: roundStartEvent.roundId ?? prev.currentRoundId,
                   currentRoundNumber: Number.isFinite(roundStartEvent.roundIndex)
                     ? roundStartEvent.roundIndex + 1
                     : prev.currentRoundNumber,
@@ -762,7 +641,6 @@ export function useGame(match: MatchRow | null) {
                   allStepsComplete: false,
                   waitingForOpponentToCompleteSteps: false,
                   results: null, // Clear results when new round starts
-                  nextRoundCountdown: null,
                   errorMessage: null
                 }))
               }
@@ -772,7 +650,6 @@ export function useGame(match: MatchRow | null) {
                 setState(prev => ({
                   ...prev,
                   phase: 'steps',
-                  stepProgressMode: (message as any).progressMode === 'async' ? 'async' : prev.stepProgressMode,
                   currentStepIndex: message.stepIndex ?? message.currentStepIndex ?? 0,
                   totalSteps: message.totalSteps ?? prev.totalSteps,
                   stepEndsAt: message.stepEndsAt || null,
@@ -908,7 +785,6 @@ export function useGame(match: MatchRow | null) {
                 ...prev,
                 status: 'playing',
                 phase: 'question',
-                stepProgressMode: 'shared',
                 answerSubmitted: false,
                 waitingForOpponent: false,
                 resultsAcknowledged: false,
@@ -921,7 +797,6 @@ export function useGame(match: MatchRow | null) {
                 consecutiveWinsCount: message.consecutive_wins_count || 0,
                 timerEndAt: null, // Will be set when QUESTION_RECEIVED arrives
                 timeRemaining: null,
-                nextRoundCountdown: null,
                 // Reset step state
                 currentStepIndex: 0,
                 totalSteps: 0,
@@ -949,8 +824,7 @@ export function useGame(match: MatchRow | null) {
                 waitingForOpponent: false,
                 resultsAcknowledged: false,
                 waitingForOpponentToAcknowledge: false,
-                results: null, // Clear results when match ends
-                nextRoundCountdown: null
+                results: null // Clear results when match ends
               }))
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
@@ -997,22 +871,15 @@ export function useGame(match: MatchRow | null) {
             clearInterval(heartbeatRef.current)
             heartbeatRef.current = null
           }
-          // If this close belongs to the current socket, clear it so reconnect can proceed.
-          if (wsRef.current === ws) {
-            wsRef.current = null
-          }
           setState(prev => {
-            // If we're already in-game, do NOT bounce UI back to "searching".
-            if (prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished') {
-              return prev
-            }
             if (prev.status !== 'error') {
-              return { ...prev, status: 'connecting' }
+              return {
+                ...prev,
+                status: 'connecting'
+              }
             }
             return prev
           })
-          // Attempt to reconnect automatically (without resetting UI)
-          scheduleReconnect('WebSocket closed')
         }
       } catch (error: any) {
         console.error('[useGame] Connection error:', error)
@@ -1028,12 +895,6 @@ export function useGame(match: MatchRow | null) {
     connect()
 
     return () => {
-      // Stop any reconnect scheduling when unmounting / switching matches
-      allowReconnectRef.current = false
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-        reconnectTimeoutRef.current = null
-      }
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
@@ -1127,34 +988,22 @@ export function useGame(match: MatchRow | null) {
         // Track canonical current round identity for match_rounds Realtime sync
         if (newPayload?.current_round_id && newPayload.current_round_id !== currentRoundIdRef.current) {
           currentRoundIdRef.current = newPayload.current_round_id
-          setState(prev => {
-            // If the DB advances the round while we are still on results, we may have missed
-            // the WS broadcast (Edge instances are not shared). Kick a re-sync by forcing
-            // the READY_FOR_NEXT_ROUND auto-send path (nextRoundCountdown === 0).
-            const shouldKickNextRound =
-              prev.status === 'results' &&
-              !prev.matchOver
-
-            return ({
-              ...prev,
-              currentRoundId: newPayload.current_round_id,
-              currentRoundNumber: newPayload.current_round_number ?? prev.currentRoundNumber,
-              nextRoundCountdown: shouldKickNextRound ? 0 : null,
-              resultsAcknowledged: shouldKickNextRound ? false : prev.resultsAcknowledged,
-              waitingForOpponentToAcknowledge: shouldKickNextRound ? false : prev.waitingForOpponentToAcknowledge,
-              // Clear step-phase state; it will be rehydrated from match_rounds updates
-              mainQuestionEndsAt: null,
-              stepEndsAt: null,
-              mainQuestionTimeLeft: null,
-              stepTimeLeft: null,
-              currentStepIndex: 0,
-              currentStep: null,
-              answerSubmitted: false,
-              waitingForOpponent: false,
-              allStepsComplete: false,
-              waitingForOpponentToCompleteSteps: false
-            })
-          })
+          setState(prev => ({
+            ...prev,
+            currentRoundId: newPayload.current_round_id,
+            currentRoundNumber: newPayload.current_round_number ?? prev.currentRoundNumber,
+            // Clear step-phase state; it will be rehydrated from match_rounds updates
+            mainQuestionEndsAt: null,
+            stepEndsAt: null,
+            mainQuestionTimeLeft: null,
+            stepTimeLeft: null,
+            currentStepIndex: 0,
+            currentStep: null,
+            answerSubmitted: false,
+            waitingForOpponent: false,
+            allStepsComplete: false,
+            waitingForOpponentToCompleteSteps: false
+          }))
         } else if (newPayload?.current_round_number != null) {
           // Keep round number in sync even if round_id didn't change (rare but safe)
           setState(prev => (
@@ -1227,10 +1076,6 @@ export function useGame(match: MatchRow | null) {
       // Single-step rounds also use match_rounds.status='main', but the UI phase should remain 'question'.
       const isMultiStepContext = prev.totalSteps > 0 || prev.phase === 'main_question' || prev.phase === 'steps'
       if (!isMultiStepContext) return prev
-
-      // Async per-player progression is driven by WebSocket PHASE_CHANGE + progress RPCs.
-      // match_rounds is match-scoped and cannot represent per-player stepIndex/segment, so ignore it.
-      if (prev.stepProgressMode === 'async') return prev
 
       const status = roundRow.status
       if (status === 'main') {
@@ -1389,12 +1234,7 @@ export function useGame(match: MatchRow | null) {
         player_id: userIdRef.current
       }
       console.log('[useGame] Visibility resync - re-sending JOIN_MATCH (status:', currentState, ')')
-      try {
-        ws.send(JSON.stringify(joinMessage))
-      } catch (err) {
-        // Avoid uncaught DOMException if the socket is closing while we try to resync.
-        console.warn('[useGame] Visibility resync JOIN_MATCH failed (socket not ready):', err)
-      }
+      ws.send(JSON.stringify(joinMessage))
       lastVisibilityChangeRef.current = now
     }
 
@@ -1433,13 +1273,8 @@ export function useGame(match: MatchRow | null) {
         ws.send(JSON.stringify(submitMessage))
       } else {
         // Single-step answer
-        // Single-step rounds can be True/False or MCQ. Accept A-F (0-5) based on option count.
-        const optionCount = Array.isArray(prev.question?.steps?.[0]?.options)
-          ? prev.question.steps[0].options.length
-          : 4
-        const maxIndex = Math.max(0, Math.min(5, optionCount - 1))
-        if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex > maxIndex) {
-          console.error('[useGame] Invalid answer index (expected 0-' + maxIndex + '):', answerIndex)
+        if (answerIndex !== 0 && answerIndex !== 1) {
+          console.error('[useGame] Invalid answer index:', answerIndex)
           return prev
         }
         const submitMessage = {
@@ -1693,46 +1528,6 @@ export function useGame(match: MatchRow | null) {
     })
   }, [])
 
-  // Inter-round countdown: results -> next round (10s)
-  useEffect(() => {
-    if (state.status !== 'results') return
-    if (state.matchOver) return
-    if (state.nextRoundCountdown == null) return
-    if (state.nextRoundCountdown <= 0) return
-
-    const interval = window.setInterval(() => {
-      setState(prev => {
-        if (prev.status !== 'results') return prev
-        if (prev.matchOver) return prev
-        if (prev.nextRoundCountdown == null) return prev
-        return { ...prev, nextRoundCountdown: Math.max(0, prev.nextRoundCountdown - 1) }
-      })
-    }, 1000)
-
-    return () => window.clearInterval(interval)
-  }, [state.status, state.matchOver, state.nextRoundCountdown])
-
-  // Auto-send READY_FOR_NEXT_ROUND at 0s (only once; retries when WS reconnects)
-  useEffect(() => {
-    const shouldSend =
-      state.status === 'results' &&
-      !state.matchOver &&
-      state.nextRoundCountdown === 0 &&
-      !state.resultsAcknowledged
-
-    if (!shouldSend) return
-    if (!isWebSocketConnected) return
-
-    readyForNextRound()
-  }, [
-    state.status,
-    state.matchOver,
-    state.nextRoundCountdown,
-    state.resultsAcknowledged,
-    isWebSocketConnected,
-    readyForNextRound
-  ])
-
   return {
     status: state.status,
     playerRole: state.playerRole,
@@ -1777,7 +1572,6 @@ export function useGame(match: MatchRow | null) {
     playerRoundWins: state.playerRoundWins,
     matchOver: state.matchOver,
     matchWinnerId: state.matchWinnerId,
-    nextRoundCountdown: state.nextRoundCountdown,
     // WebSocket connection status
     isWebSocketConnected
   }

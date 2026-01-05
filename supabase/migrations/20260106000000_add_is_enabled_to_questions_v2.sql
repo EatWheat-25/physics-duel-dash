@@ -11,3 +11,4 @@ COMMENT ON COLUMN public.questions_v2.is_enabled IS
   'Admin-controlled flag. When false, this question should not be selected for online battles.';
 
 
+

@@ -1,0 +1,114 @@
+diff --git a/src/lib/question-contract.ts b/src/lib/question-contract.ts
+index 4047239..fbbdac7 100644
+--- a/src/lib/question-contract.ts
++++ b/src/lib/question-contract.ts
+@@ -104,6 +104,9 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
+         topicTags = [];
+     }
+ 
++    const rawIsEnabled = payload.isEnabled ?? payload.is_enabled;
++    const isEnabled = typeof rawIsEnabled === 'boolean' ? rawIsEnabled : true;
++
+     const question: StepBasedQuestion = {
+         id,
+         title,
+@@ -120,6 +123,7 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
+         imageUrl: payload.imageUrl || payload.image_url || undefined,
+         structureSmiles: payload.structureSmiles || payload.structure_smiles || undefined,
+         graph: mapToGraphConfig(payload, steps) || undefined,
++        isEnabled,
+     };
+ 
+     console.log(`${context} ✅ Mapped question ${id}: "${title}" with ${steps.length} steps (marks=${totalMarks})`);
+diff --git a/src/pages/AdminQuestions.tsx b/src/pages/AdminQuestions.tsx
+index 9a37467..c1e6904 100644
+--- a/src/pages/AdminQuestions.tsx
++++ b/src/pages/AdminQuestions.tsx
+@@ -94,6 +94,7 @@ type QuestionForm = {
+   level: 'A1' | 'A2';
+   difficulty: 'easy' | 'medium' | 'hard';
+   rankTier: string;
++  isEnabled: boolean;
+   stem: string;
+   structureSmiles: string;
+   // One graph per question (optional)
+@@ -250,6 +251,7 @@ export default function AdminQuestions() {
+       level: 'A1',
+       difficulty: 'medium',
+       rankTier: '',
++      isEnabled: true,
+       stem: '',
+       structureSmiles: '',
+       graphEnabled: false,
+@@ -345,6 +347,7 @@ export default function AdminQuestions() {
+       level: q.level,
+       difficulty: q.difficulty,
+       rankTier: q.rankTier || '',
++      isEnabled: q.isEnabled !== false,
+       stem: q.stem,
+       structureSmiles: q.structureSmiles || '',
+       graphEnabled: !!g,
+@@ -1015,6 +1018,7 @@ export default function AdminQuestions() {
+ 
+       const payload = {
+         title: form.title,
++        is_enabled: form.isEnabled,
+         subject: form.subject,
+         chapter: form.chapter,
+         level: form.level,
+@@ -1477,7 +1481,7 @@ export default function AdminQuestions() {
+                       className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border relative group ${selectedQuestionId === q.id
+                           ? 'bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
+                           : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
+-                        }`}
++                        } ${q.isEnabled === false ? 'opacity-60' : ''}`}
+                     >
+                       {/* Delete button - appears on hover */}
+                       <button
+@@ -1495,6 +1499,16 @@ export default function AdminQuestions() {
+ 
+                       <p className="text-xs text-white/60 mb-2 line-clamp-1">{q.chapter}</p>
+ 
++                      {q.isEnabled === false && (
++                        <Badge
++                          variant="outline"
++                          className="mb-2 border-0 bg-red-500/20 text-red-300 text-[10px] uppercase tracking-wider inline-flex items-center gap-1"
++                        >
++                          <XCircle className="w-3 h-3" />
++                          Disabled
++                        </Badge>
++                      )}
++
+                       <div className="grid grid-cols-4 gap-2 mb-2 text-[10px] font-semibold">
+                         <Badge variant="outline" className={`uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
+                             q.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
+@@ -1611,6 +1625,29 @@ export default function AdminQuestions() {
+                         />
+                       </div>
+ 
++                      <div className="col-span-2">
++                        <label className={labelStyle}>Matchmaking</label>
++                        <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
++                          <label className="flex items-center gap-3 text-sm text-white/80 select-none">
++                            <input
++                              type="checkbox"
++                              checked={form.isEnabled}
++                              onChange={(e) => setForm({ ...form, isEnabled: e.target.checked })}
++                              className="h-4 w-4 accent-emerald-400"
++                            />
++                            Enabled (available in online battles)
++                          </label>
++                          <p className="text-xs text-white/40">
++                            If disabled, this question will not be selected in online battles. Practice remains unchanged.
++                          </p>
++                          {!form.isEnabled && (
++                            <p className="text-xs text-red-200/70">
++                              Disabled: this question is excluded from matchmaking selection.
++                            </p>
++                          )}
++                        </div>
++                      </div>
++
+                       <div>
+                         <label className={labelStyle}>Subject *</label>
+                         <Select value={form.subject} onValueChange={(v: any) => setForm({ ...form, subject: v })}>

@@ -393,7 +393,8 @@ begin
     player2_round_wins = v_p2_wins,
     status = case when v_finished then 'finished' else v_match.status end,
     winner_id = case when v_finished then v_match_winner else v_match.winner_id end
-  where id = p_match_id;
+  wh
+  ere id = p_match_id;
 
   -- Mark round as results
   update public.match_rounds
@@ -413,5 +414,6 @@ alter function public.compute_multi_step_results_v3(uuid, uuid) set search_path 
 grant execute on function public.compute_multi_step_results_v3(uuid, uuid) to service_role;
 
 commit;
+
 
 

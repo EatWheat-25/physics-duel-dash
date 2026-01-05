@@ -263,7 +263,7 @@ export default function AdminQuestions() {
       graphXMax: '',
       graphYMin: '',
       graphYMax: '',
-      mainQuestionTimerSeconds: 90,
+      mainQuestionTimerSeconds: 180,
       totalMarks: 1,
       topicTags: '',
       steps: [{
@@ -1740,8 +1740,8 @@ export default function AdminQuestions() {
                             step={1}
                             value={[form.mainQuestionTimerSeconds]}
                             onValueChange={(v) => {
-                              const raw = Array.isArray(v) ? v[0] : 90;
-                              const next = Math.max(5, Math.min(600, Number.isFinite(raw) ? Math.floor(raw) : 90));
+                              const raw = Array.isArray(v) ? v[0] : 180;
+                              const next = Math.max(5, Math.min(600, Number.isFinite(raw) ? Math.floor(raw) : 180));
                               setForm({ ...form, mainQuestionTimerSeconds: next });
                             }}
                             className="flex-1"

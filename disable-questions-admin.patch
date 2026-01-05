@@ -1,0 +1,71 @@
+diff --git a/src/lib/question-contract.ts b/src/lib/question-contract.ts
+index 4047239..fbbdac7 100644
+--- a/src/lib/question-contract.ts
++++ b/src/lib/question-contract.ts
+@@ -66 +66 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
+-            : 90;
++            : 180;
+@@ -106,0 +107,3 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
++    const rawIsEnabled = payload.isEnabled ?? payload.is_enabled;
++    const isEnabled = typeof rawIsEnabled === 'boolean' ? rawIsEnabled : true;
++
+@@ -122,0 +126 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
++        isEnabled,
+diff --git a/src/pages/AdminQuestions.tsx b/src/pages/AdminQuestions.tsx
+index 9a37467..c1e6904 100644
+--- a/src/pages/AdminQuestions.tsx
++++ b/src/pages/AdminQuestions.tsx
+@@ -96,0 +97 @@ type QuestionForm = {
++  isEnabled: boolean;
+@@ -252,0 +254 @@ export default function AdminQuestions() {
++      isEnabled: true,
+@@ -264 +266 @@ export default function AdminQuestions() {
+-      mainQuestionTimerSeconds: 90,
++      mainQuestionTimerSeconds: 180,
+@@ -347,0 +350 @@ export default function AdminQuestions() {
++      isEnabled: q.isEnabled !== false,
+@@ -1017,0 +1021 @@ export default function AdminQuestions() {
++        is_enabled: form.isEnabled,
+@@ -1480 +1484 @@ export default function AdminQuestions() {
+-                        }`}
++                        } ${q.isEnabled === false ? 'opacity-60' : ''}`}
+@@ -1497,0 +1502,10 @@ export default function AdminQuestions() {
++                      {q.isEnabled === false && (
++                        <Badge
++                          variant="outline"
++                          className="mb-2 border-0 bg-red-500/20 text-red-300 text-[10px] uppercase tracking-wider inline-flex items-center gap-1"
++                        >
++                          <XCircle className="w-3 h-3" />
++                          Disabled
++                        </Badge>
++                      )}
++
+@@ -1613,0 +1628,23 @@ export default function AdminQuestions() {
++                      <div className="col-span-2">
++                        <label className={labelStyle}>Matchmaking</label>
++                        <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
++                          <label className="flex items-center gap-3 text-sm text-white/80 select-none">
++                            <input
++                              type="checkbox"
++                              checked={form.isEnabled}
++                              onChange={(e) => setForm({ ...form, isEnabled: e.target.checked })}
++                              className="h-4 w-4 accent-emerald-400"
++                            />
++                            Enabled (available in online battles)
++                          </label>
++                          <p className="text-xs text-white/40">
++                            If disabled, this question will not be selected in online battles. Practice remains unchanged.
++                          </p>
++                          {!form.isEnabled && (
++                            <p className="text-xs text-red-200/70">
++                              Disabled: this question is excluded from matchmaking selection.
++                            </p>
++                          )}
++                        </div>
++                      </div>
++
+@@ -1706,2 +1743,2 @@ export default function AdminQuestions() {
+-                              const raw = Array.isArray(v) ? v[0] : 90;
+-                              const next = Math.max(5, Math.min(600, Number.isFinite(raw) ? Math.floor(raw) : 90));
++                              const raw = Array.isArray(v) ? v[0] : 180;
++                              const next = Math.max(5, Math.min(600, Number.isFinite(raw) ? Math.floor(raw) : 180));

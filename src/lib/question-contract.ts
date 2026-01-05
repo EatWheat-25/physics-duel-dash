@@ -63,7 +63,7 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
     let mainQuestionTimerSeconds =
         typeof rawMainTimer === 'number' && Number.isFinite(rawMainTimer)
             ? Math.floor(rawMainTimer)
-            : 90;
+            : 180;
     if (mainQuestionTimerSeconds < 5 || mainQuestionTimerSeconds > 600) {
         warn(
             `Question ${id}: mainQuestionTimerSeconds "${rawMainTimer}" out of range (5–600). Clamping.`

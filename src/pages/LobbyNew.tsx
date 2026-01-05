@@ -38,7 +38,9 @@ export default function LobbyNew() {
     if (s === 'subject' || s === 'grade' || s === 'ready') return s as 'subject' | 'grade' | 'ready';
     return null;
   }, [searchParams]);
+  const isChangeFlow = useMemo(() => searchParams.get('step') !== null, [searchParams]);
   const autostartedRef = useRef(false);
+  const appliedForcedStepRef = useRef<'subject' | 'grade' | 'ready' | null>(null);
 
   const {
     subject: prefSubject,
@@ -54,7 +56,8 @@ export default function LobbyNew() {
 
     // Allow callers (e.g. Home “CHANGE”) to force opening the selection steps
     // instead of landing on the “READY TO BATTLE” screen.
-    if (forcedStep) {
+    if (forcedStep && appliedForcedStepRef.current !== forcedStep) {
+      appliedForcedStepRef.current = forcedStep;
       setStep(forcedStep);
       return;
     }
@@ -65,6 +68,11 @@ export default function LobbyNew() {
       setStep('grade');
     }
   }, [prefSubject, prefLevel, forcedStep]);
+
+  // Reset forced-step application when the query param is removed (e.g. programmatic nav).
+  useEffect(() => {
+    if (!forcedStep) appliedForcedStepRef.current = null;
+  }, [forcedStep]);
 
   // Auto-start matchmaking when navigated from Home with autostart=1
   useEffect(() => {
@@ -122,6 +130,13 @@ export default function LobbyNew() {
   const handleGradeSelect = (grade: Grade) => {
     setSelectedGrade(grade);
     setPrefLevel(grade);
+
+    // If we came from Home "CHANGE", return to the lobby immediately after selection.
+    if (isChangeFlow) {
+      navigate('/', { replace: true });
+      return;
+    }
+
     setStep('ready');
   };
 

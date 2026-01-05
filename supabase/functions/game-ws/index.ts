@@ -42,6 +42,8 @@ interface RoundStartEvent {
     difficulty: string
     questionText: string
     stem?: string
+    imageUrl?: string
+    graph?: any
     totalMarks: number
     steps: Array<{
       id: string
@@ -632,15 +634,15 @@ async function broadcastQuestion(
       gameState.p2AllStepsComplete = false
     }
 
-    // Read main question timer from metadata or default to 90 seconds (clamped 5–600)
+    // Read main question timer from metadata or default to 180 seconds (clamped 5–600)
     const rawMainTimer = (questionDb as any)?.main_question_timer_seconds
     let mainQuestionTimerSeconds =
       typeof rawMainTimer === 'number' && Number.isFinite(rawMainTimer)
         ? rawMainTimer
-        : Number.parseInt(String(rawMainTimer ?? 90), 10)
+        : Number.parseInt(String(rawMainTimer ?? 180), 10)
 
     if (!Number.isFinite(mainQuestionTimerSeconds)) {
-      mainQuestionTimerSeconds = 90
+      mainQuestionTimerSeconds = 180
     }
 
     mainQuestionTimerSeconds = Math.floor(mainQuestionTimerSeconds)
@@ -675,6 +677,7 @@ async function broadcastQuestion(
         questionText: questionDb.question_text || questionDb.stem || '',
         stem: questionDb.question_text || questionDb.stem || questionDb.title,
         imageUrl: questionDb.image_url || undefined,
+        graph: questionDb.graph || undefined,
         totalMarks: questionDb.total_marks || 0,
         steps: steps.map((s: any) => ({
           id: s.id || '',
@@ -914,47 +917,27 @@ async function selectAndBroadcastQuestion(
     // If we detect an already-active round created by another instance, we should reuse its round_number
     let roundNumberForUpdate = newRoundNumber
 
-    // Select question for this round.
-    // IMPORTANT:
-    // - Do NOT reuse matches.question_id unless an active match_rounds row exists (matches.question_id can be stale).
-    // - Use match_rounds (status in ('main','steps')) as the source of truth for the active round.
+    // Select question (reuse existing logic)
     let questionDb: any = null
-    let newRound: any = null
 
-    // If another instance already created an active round, reuse it (canonical).
-    const { data: existingRound, error: existingRoundError } = await supabase
-      .from('match_rounds')
-      .select('id, question_id, round_number, status')
-      .eq('match_id', matchId)
-      .in('status', ['main', 'steps'])
-      .maybeSingle()
-
-    if (existingRoundError) {
-      console.warn(`[${matchId}] ⚠️ Error checking existing active round:`, existingRoundError)
-    }
-
-    if (existingRound?.id && existingRound.question_id) {
-      console.log(`[${matchId}] ✅ Active round exists: ${existingRound.id} (status=${existingRound.status})`)
-      newRound = { id: existingRound.id }
-      if (typeof existingRound.round_number === 'number') {
-        roundNumberForUpdate = existingRound.round_number
-      }
-
-      const { data: existingQuestion, error: existingQuestionError } = await supabase
+    if (match.question_id) {
+      // Question already assigned, fetch it
+      console.log(`[${matchId}] ✅ Question already assigned: ${match.question_id}`)
+      const { data: q, error: fetchError } = await supabase
         .from('questions_v2')
         .select('*')
-        .eq('id', existingRound.question_id)
+        .eq('id', match.question_id)
         .single()
 
-      if (existingQuestionError || !existingQuestion) {
-        console.error(`[${matchId}] ❌ Failed to fetch active round question:`, existingQuestionError)
-        throw existingQuestionError || new Error(`Failed to fetch question ${existingRound.question_id}`)
+      if (fetchError || !q) {
+        console.error(`[${matchId}] ❌ Failed to fetch existing question:`, fetchError)
+        throw new Error(`Failed to fetch question ${match.question_id}`)
       }
-
-      questionDb = existingQuestion
-      console.log(`[${matchId}] ✅ Using active round question: ${questionDb.id} - "${questionDb.title}"`)
+      questionDb = q
+      console.log(`[${matchId}] ✅ Fetched existing question: ${questionDb.id} - "${questionDb.title}"`)
     } else {
-      console.log(`[${matchId}] 🔍 No active round found; selecting a new question...`)
+      // No question assigned, try to claim one atomically with tiered filtering
+      console.log(`[${matchId}] 🔍 No question assigned, fetching questions with tiered filtering...`)
 
       // Avoid repeats within the same match: collect question_ids already used by prior rounds.
       // This is DB-backed so it works across Edge instances.
@@ -991,17 +974,17 @@ async function selectAndBroadcastQuestion(
           .order('updated_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false, nullsFirst: false })
           .limit(200)
-
+        
         if (filters.subject && subject) q = q.eq('subject', subject)
         if (filters.level && level) q = q.eq('level', level)
-
+        
         const { data, error } = await q
-
+        
         if (error) {
           console.warn(`[${matchId}] ⚠️ Tier fetch error:`, error)
           return []
         }
-
+        
         return (data ?? []).filter((q: any) => {
           try {
             const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
@@ -1017,10 +1000,10 @@ async function selectAndBroadcastQuestion(
         try {
           const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
           if (!Array.isArray(steps) || steps.length === 0) return false
-
+          
           const first = steps[0]
           const opts = first?.options ?? []
-
+          
           // Accept True/False questions (2 options) or MCQ questions (4 options)
           // Filter out invalid questions (0, 1, or >4 options)
           const optionCount = Array.isArray(opts) ? opts.filter((opt: any) => opt && opt.trim()).length : 0
@@ -1030,62 +1013,36 @@ async function selectAndBroadcastQuestion(
         }
       }
 
-      const usedCount = usedQuestionIds.size
-      const tiers: Array<{ name: string; label: string; filters: { subject?: boolean; level?: boolean } }> = [
-        { name: 'tier1', label: 'subject+level', filters: { subject: true, level: true } },
-        { name: 'tier2', label: 'subject', filters: { subject: true, level: false } },
-        { name: 'tier3', label: 'level', filters: { subject: false, level: true } },
-        { name: 'tier4', label: 'any', filters: { subject: false, level: false } },
-      ]
+      // Fetch in tiers with proper priority (only fall back if the stricter tier is empty).
+      // This also keeps the selection pool small, increasing the chance of new questions appearing.
+      const tier1 = (await fetchTier({ subject: true, level: true })).filter(isValidQuestion)
+      const tier2 = tier1.length === 0 ? (await fetchTier({ subject: true, level: false })).filter(isValidQuestion) : []
+      const tier3 = tier1.length === 0 && tier2.length === 0 ? (await fetchTier({ subject: false, level: true })).filter(isValidQuestion) : []
+      const tier4 = tier1.length === 0 && tier2.length === 0 && tier3.length === 0
+        ? (await fetchTier({ subject: false, level: false })).filter(isValidQuestion)
+        : []
 
-      let selectionPool: any[] = []
-      let selectedTier: string | null = null
-      let selectedTierTotal = 0
-      let fallbackRepeatPool: any[] = []
-      let fallbackRepeatTier: string | null = null
+      const questionPool = tier1.length > 0 ? tier1 : tier2.length > 0 ? tier2 : tier3.length > 0 ? tier3 : tier4
 
-      for (const t of tiers) {
-        const all = (await fetchTier(t.filters)).filter(isValidQuestion)
-        if (all.length === 0) continue
-
-        // Keep the first non-empty tier as our repeat fallback (true last resort)
-        if (fallbackRepeatPool.length === 0) {
-          fallbackRepeatPool = all
-          fallbackRepeatTier = t.name
-        }
-
-        const unused = usedCount > 0
-          ? all.filter((q: any) => !usedQuestionIds.has(String(q?.id ?? '')))
-          : all
-
-        if (unused.length > 0) {
-          selectionPool = unused
-          selectedTier = t.name
-          selectedTierTotal = all.length
-          console.log(
-            `[${matchId}] ✅ No-repeat selection using ${t.name} (${t.label}) (used=${usedCount}, tier_total=${all.length}, tier_unused=${unused.length}).`
-          )
-          break
-        }
-
-        // Tier had questions, but all were used already → broaden
-        console.warn(
-          `[${matchId}] ⚠️ Tier exhausted: ${t.name} (${t.label}) (used=${usedCount}, tier_total=${all.length}). Broadening...`
-        )
+      if (questionPool.length === 0) {
+        console.error(`[${matchId}] ❌ No valid questions available (need True/False or MCQ questions)`)
+        throw new Error('No valid questions available')
       }
 
-      if (selectionPool.length === 0) {
-        if (fallbackRepeatPool.length === 0) {
-          console.error(`[${matchId}] ❌ No valid questions available (need True/False or MCQ questions)`)
-          throw new Error('No valid questions available')
-        }
+      // Avoid repeats within the same match (fallback to repeats if pool exhausted, per product requirement).
+      const unusedPool = usedQuestionIds.size > 0
+        ? questionPool.filter((q: any) => !usedQuestionIds.has(String(q?.id ?? '')))
+        : questionPool
 
-        // True last resort: every tier we could fetch has 0 unused questions
-        selectionPool = fallbackRepeatPool
-        selectedTier = fallbackRepeatTier
-        selectedTierTotal = fallbackRepeatPool.length
+      const selectionPool = unusedPool.length > 0 ? unusedPool : questionPool
+
+      if (unusedPool.length === 0 && usedQuestionIds.size > 0) {
         console.warn(
-          `[${matchId}] ⚠️ All tiers exhausted (used=${usedCount}). Allowing repeat as last resort from ${fallbackRepeatTier} (pool=${fallbackRepeatPool.length}).`
+          `[${matchId}] ⚠️ Unused question pool exhausted (used=${usedQuestionIds.size}, pool=${questionPool.length}). Falling back to allowing repeats.`
+        )
+      } else {
+        console.log(
+          `[${matchId}] ✅ No-repeat selection active (used=${usedQuestionIds.size}, pool=${questionPool.length}, unused=${unusedPool.length}).`
         )
       }
 
@@ -1093,12 +1050,98 @@ async function selectAndBroadcastQuestion(
       const RECENT_POOL_MAX = 50
       const recentPool = selectionPool.slice(0, Math.min(RECENT_POOL_MAX, selectionPool.length))
       const selectedQuestion = recentPool[Math.floor(Math.random() * recentPool.length)]
-      console.log(
-        `[${matchId}] 🎯 Selected question (${selectedTier} pool_total=${selectedTierTotal}, pick_pool=${recentPool.length}): ${selectedQuestion.id} - "${selectedQuestion.title}"`
-      )
+      console.log(`[${matchId}] 🎯 Selected question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
 
-      questionDb = selectedQuestion
+      // Atomic claim: UPDATE only if question_id IS NULL
+      const { data: lock, error: lockError } = await supabase
+        .from('matches')
+        .update({
+          question_sent_at: new Date().toISOString(),
+          question_id: selectedQuestion.id,
+        })
+        .eq('id', matchId)
+        .is('question_id', null)
+        .select('id, question_id')
+        .maybeSingle()
 
+      if (lockError) {
+        console.error(`[${matchId}] ❌ Lock error:`, lockError)
+        throw lockError
+      }
+
+      if (!lock) {
+        // Lost race condition
+        console.log(`[${matchId}] ⚠️ Lost atomic lock, re-reading question_id...`)
+        
+        const { data: matchAfterRace } = await supabase
+          .from('matches')
+          .select('question_id, question_sent_at')
+          .eq('id', matchId)
+          .single()
+
+        if (!matchAfterRace?.question_id) {
+          throw new Error('Failed to claim question and no question found after race')
+        }
+
+        const { data: qAfterRace } = await supabase
+          .from('questions_v2')
+          .select('*')
+          .eq('id', matchAfterRace.question_id)
+          .single()
+
+        if (!qAfterRace) {
+          throw new Error(`Failed to fetch question ${matchAfterRace.question_id} after race`)
+        }
+
+        questionDb = qAfterRace
+        console.log(`[${matchId}] ✅ Using question claimed by other instance: ${questionDb.id}`)
+      } else {
+        questionDb = selectedQuestion
+        console.log(`[${matchId}] ✅ Won atomic lock, claimed question: ${questionDb.id}`)
+      }
+    }
+
+    // ===== Create or reuse match_rounds row with question_id (idempotent across Edge instances) =====
+    let newRound: any = null
+
+    // IDEMPOTENCY: another instance may have already created an active round (status main/steps)
+    const { data: existingRound, error: existingRoundError } = await supabase
+      .from('match_rounds')
+      .select('id, question_id, round_number, status')
+      .eq('match_id', matchId)
+      .in('status', ['main', 'steps'])
+      .maybeSingle()
+
+    if (existingRoundError) {
+      // This shouldn't normally happen; log and continue with insert path
+      console.warn(`[${matchId}] ⚠️ Error checking existing round:`, existingRoundError)
+    }
+
+    if (existingRound) {
+      console.log(`[${matchId}] ✅ Round already exists: ${existingRound.id}, reusing...`)
+      newRound = { id: existingRound.id }
+      if (typeof existingRound.round_number === 'number') {
+        roundNumberForUpdate = existingRound.round_number
+      }
+
+      // Treat existing round as authoritative if question_id differs (keep both clients in sync)
+      if (existingRound.question_id && existingRound.question_id !== questionDb.id) {
+        console.warn(
+          `[${matchId}] ⚠️ Existing round has different question_id (${existingRound.question_id}); re-fetching question to stay consistent`
+        )
+        const { data: existingQuestion, error: existingQuestionError } = await supabase
+          .from('questions_v2')
+          .select('*')
+          .eq('id', existingRound.question_id)
+          .single()
+
+        if (existingQuestionError || !existingQuestion) {
+          console.error(`[${matchId}] ❌ Failed to fetch existing round question:`, existingQuestionError)
+        } else {
+          questionDb = existingQuestion
+        }
+      }
+    } else {
       // ===== Create new match_rounds row with question_id (single source of truth) =====
       const { data: insertedRound, error: roundError } = await supabase
         .from('match_rounds')
@@ -1134,7 +1177,7 @@ async function selectAndBroadcastQuestion(
             throw fetchedRoundError
           }
 
-          if (!fetchedRound?.id || !fetchedRound.question_id) {
+          if (!fetchedRound) {
             console.error(`[${matchId}] ❌ Failed to find round after constraint violation`)
             throw new Error('Failed to create or find match_rounds row')
           }
@@ -1145,8 +1188,8 @@ async function selectAndBroadcastQuestion(
             roundNumberForUpdate = fetchedRound.round_number
           }
 
-          // Align questionDb with the fetched round (authoritative)
-          if (fetchedRound.question_id !== questionDb.id) {
+          // Align questionDb with the fetched round if needed
+          if (fetchedRound.question_id && fetchedRound.question_id !== questionDb.id) {
             const { data: fetchedQuestion, error: fetchedQuestionError } = await supabase
               .from('questions_v2')
               .select('*')
@@ -1155,10 +1198,9 @@ async function selectAndBroadcastQuestion(
 
             if (fetchedQuestionError || !fetchedQuestion) {
               console.error(`[${matchId}] ❌ Failed to fetch question for existing round:`, fetchedQuestionError)
-              throw fetchedQuestionError || new Error(`Failed to fetch question ${fetchedRound.question_id}`)
+            } else {
+              questionDb = fetchedQuestion
             }
-
-            questionDb = fetchedQuestion
           }
         } else {
           console.error(`[${matchId}] ❌ Failed to create match_rounds row:`, roundError)

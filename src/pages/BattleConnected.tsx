@@ -2,16 +2,12 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Check, X, Trophy, Clock } from 'lucide-react';
+import { Loader2, ArrowLeft, Check, X, Trophy, Clock, Zap } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
-import { StepCard } from '@/components/battle/StepCard';
-import { SingleStepCard } from '@/components/battle/SingleStepCard';
-import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
-import { RedYellowPatternBackground } from '@/components/battle/RedYellowPatternBackground';
-import { RollingNumber } from '@/components/battle/RollingNumber';
+import { Starfield } from '@/components/Starfield';
+import { QuestionGraph } from '@/components/math/QuestionGraph';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -20,14 +16,10 @@ export default function BattleConnected() {
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
-  const [resultsRevealStage, setResultsRevealStage] = useState<'tease' | 'final'>('final');
   const [shouldAnimateMyWins, setShouldAnimateMyWins] = useState<boolean>(false);
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
-  const resultsRevealKeyRef = useRef<string | null>(null);
-  const hasSignaledShutterReadyRef = useRef<boolean>(false);
-  const { isRunning: isShutterRunning, signalReady } = useElevatorShutter();
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -89,75 +81,10 @@ export default function BattleConnected() {
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, subStepTimeLeft, currentStep, currentSegment, currentSubStepIndex,
     submitEarlyAnswer, submitStepAnswer,
-    readyForNextRound,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
-    nextRoundCountdown,
-    isWebSocketConnected, waitingForOpponent,
-    allStepsComplete, waitingForOpponentToCompleteSteps
+    isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
+    allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
   } = useGame(match);
-
-  // If we arrived here via the purple elevator shutter transition, only open it once the
-  // first question has had a chance to render (fonts/KaTeX/layout) + a small delay.
-  useEffect(() => {
-    if (!isShutterRunning) {
-      hasSignaledShutterReadyRef.current = false;
-      return;
-    }
-
-    const canReveal =
-      status === 'playing' &&
-      !!question &&
-      (phase === 'main_question' || phase === 'question' || phase === 'steps') &&
-      (phase !== 'steps' || !!currentStep || (allStepsComplete && waitingForOpponentToCompleteSteps));
-
-    if (!canReveal) return;
-    if (hasSignaledShutterReadyRef.current) return;
-    hasSignaledShutterReadyRef.current = true;
-
-    let cancelled = false;
-
-    const waitRaf = () =>
-      new Promise<void>((resolve) => {
-        requestAnimationFrame(() => resolve());
-      });
-
-    const run = async () => {
-      // Wait for fonts (KaTeX) when available.
-      try {
-        const fonts = (document as any).fonts;
-        if (fonts?.ready && typeof fonts.ready.then === 'function') {
-          await fonts.ready;
-        }
-      } catch {
-        // ignore
-      }
-
-      // Let layout/paint catch up a couple frames.
-      await waitRaf();
-      await waitRaf();
-
-      // Small intentional delay so the reveal feels clean (and avoids “question pops in”).
-      await new Promise<void>((r) => setTimeout(r, 1000));
-
-      if (cancelled) return;
-      signalReady();
-    };
-
-    run().catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    isShutterRunning,
-    status,
-    question,
-    phase,
-    currentStep,
-    allStepsComplete,
-    waitingForOpponentToCompleteSteps,
-    signalReady,
-  ]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -190,29 +117,6 @@ export default function BattleConnected() {
     }
   }, [roundNumber, status]);
 
-  // Results suspense (UI-only): brief “locking in” tease, then reveal.
-  useEffect(() => {
-    // Only add suspense between rounds. If match is over, show results immediately.
-    if (status !== 'results' || !results || matchOver) {
-      setResultsRevealStage('final');
-      return;
-    }
-
-    const key = String((results as any).round_id ?? (results as any).roundId ?? currentRoundNumber ?? roundNumber ?? '');
-    if (resultsRevealKeyRef.current === key) return;
-    resultsRevealKeyRef.current = key;
-
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReducedMotion) {
-      setResultsRevealStage('final');
-      return;
-    }
-
-    setResultsRevealStage('tease');
-    const t = setTimeout(() => setResultsRevealStage('final'), 2000);
-    return () => clearTimeout(t);
-  }, [status, results, matchOver, currentRoundNumber, roundNumber]);
-
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
 
@@ -223,8 +127,8 @@ export default function BattleConnected() {
 
   if (!match || !currentUser) {
     return (
-      <div className="relative min-h-screen overflow-hidden text-white flex items-center justify-center">
-        <RedYellowPatternBackground />
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center relative overflow-hidden">
+        <Starfield />
         <div className="flex flex-col items-center gap-4 relative z-10">
           <div className="relative">
             <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin" />
@@ -239,10 +143,10 @@ export default function BattleConnected() {
   }
 
   if (status === 'error') {
-      return (
-      <div className="relative min-h-screen overflow-hidden text-white flex items-center justify-center p-4">
-        <RedYellowPatternBackground />
-        <div className="max-w-md w-full bg-[#160007] border border-red-500/25 p-8 rounded-2xl text-center relative z-10">
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
+        <Starfield />
+        <div className="max-w-md w-full bg-red-950/10 border border-red-500/20 p-8 rounded-2xl text-center relative z-10 backdrop-blur-sm">
           <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
             <X className="w-8 h-8 text-red-500" />
           </div>
@@ -260,8 +164,12 @@ export default function BattleConnected() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-white font-sans selection:bg-yellow-500/30">
-      <RedYellowPatternBackground />
+    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-blue-500/30 overflow-hidden relative">
+      <Starfield />
+      
+      {/* Background Elements */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505] pointer-events-none" />
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent pointer-events-none" />
       
       {/* Round Intro Overlay */}
       <AnimatePresence>
@@ -271,7 +179,7 @@ export default function BattleConnected() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8, filter: 'blur(20px)' }}
             transition={{ duration: 0.5 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none"
           >
             <div className="text-center">
               <motion.div 
@@ -449,52 +357,144 @@ export default function BattleConnected() {
             )}
 
             {/* MAIN QUESTION PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'main_question' && (
-              <MainQuestionCard
+            {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
+              <motion.div
                 key="main-question"
-                stem={question.stem || question.questionText || question.title}
-                imageUrl={question.imageUrl || (question as any).image_url || null}
-                structureSmiles={question.structureSmiles || (question as any).structure_smiles || null}
-                graph={
-                  (question as any).graph ||
-                  ((question as any).graph_equation
-                    ? { type: 'function', equation: String((question as any).graph_equation), color: 'white' }
-                    : null)
-                }
-                totalSteps={totalSteps}
-                isWebSocketConnected={isWebSocketConnected}
-                onSubmitEarly={() => {
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full max-w-3xl"
+              >
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  
+                  <div className="text-center">
+                    <div className="text-sm text-blue-400/60 font-mono mb-4 uppercase tracking-wider">
+                      Main Question
+                    </div>
+                    {(question as any)?.graph && (
+                      <div className="mb-6">
+                        <QuestionGraph graph={(question as any).graph} />
+                      </div>
+                    )}
+                    <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
+                      {question.stem || question.questionText || question.title}
+                    </h3>
+                    <div className="mt-6 text-sm text-white/40">
+                      {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Separate Early Answer Button - OUTSIDE card */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="w-full max-w-3xl mt-6"
+                >
+                  <button
+                    onClick={() => {
                       if (!isWebSocketConnected) {
                         toast.error('Connection lost. Please wait for reconnection...');
                         return;
                       }
                       submitEarlyAnswer();
                     }}
-              />
+                    disabled={!isWebSocketConnected}
+                    className={`w-full py-6 px-8 rounded-xl font-bold text-xl transition-all shadow-lg ${
+                      isWebSocketConnected
+                        ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
+                        : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
+                  </button>
+                </motion.div>
+              </motion.div>
             )}
 
             {/* STEPS PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'steps' && currentStep && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
-              <StepCard
+            {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
+              <motion.div
                 key="steps"
-                stepIndex={currentStepIndex}
-                totalSteps={totalSteps}
-                segment={currentSegment}
-                subStepIndex={currentSubStepIndex}
-                prompt={currentStep.prompt || currentStep.question}
-                diagramSmiles={(currentStep as any).diagramSmiles || (currentStep as any).diagram_smiles || null}
-                diagramImageUrl={(currentStep as any).diagramImageUrl || (currentStep as any).diagram_image_url || null}
-                graph={
-                  (question as any).graph ||
-                  ((question as any).graph_equation
-                    ? { type: 'function', equation: String((question as any).graph_equation), color: 'white' }
-                    : null)
-                }
-                options={currentStep.options}
-                answerSubmitted={answerSubmitted}
-                disabled={stepTimeLeft !== null && stepTimeLeft <= 0}
-                onSelectOption={(idx) => submitStepAnswer(currentStepIndex, idx)}
-              />
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full max-w-3xl"
+              >
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50" />
+                  
+                  <div className="text-center mb-6">
+                    <div className="text-sm text-amber-400/60 font-mono mb-2 uppercase tracking-wider">
+                      {currentSegment === 'sub'
+                        ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
+                        : `Step ${currentStepIndex + 1} of ${totalSteps}`}
+                    </div>
+                    <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
+                      {currentStep.prompt || currentStep.question}
+                    </h3>
+                    {currentSegment === 'sub' && (
+                      <p className="text-xs text-white/50 mt-3 font-mono">
+                        QUICK CHECK — must be correct to earn this step&apos;s marks
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => !answerSubmitted && submitStepAnswer(currentStepIndex, idx)}
+                        disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)}
+                        className={`
+                          relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
+                          ${answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)
+                            ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
+                            : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
+                          }
+                        `}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center gap-4 relative z-10">
+                          <div className={`
+                            w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
+                            ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'}
+                          `}>
+                            {String.fromCharCode(65 + idx)}
+                          </div>
+                          <span className="text-lg font-medium">{option}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {answerSubmitted && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }} 
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6 text-center"
+                    >
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-400 rounded-full text-sm font-medium border border-amber-500/20 backdrop-blur-sm">
+                        {/* During steps, always show "ANSWER SUBMITTED" - no waiting message */}
+                        {(phase === 'steps' || !waitingForOpponent) ? (
+                          <>
+                            <Check className="w-4 h-4" />
+                            ANSWER SUBMITTED
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            WAITING FOR OPPONENT...
+                          </>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
             )}
 
             {/* WAITING FOR OPPONENT TO COMPLETE ALL STEPS */}
@@ -504,7 +504,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
-                className="w-full max-w-2xl bg-[#160007] border border-red-500/25 rounded-3xl p-8 md:p-12 text-center"
+                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
               >
                 <div className="mb-6">
                   <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto mb-4" />
@@ -514,8 +514,8 @@ export default function BattleConnected() {
                   <p className="text-white/60 font-mono text-sm mb-4">
                     You have finished all {totalSteps} part{totalSteps !== 1 ? 's' : ''}
                   </p>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-full text-sm font-bold border border-black/20">
-                    <Loader2 className="w-4 h-4 animate-spin text-black/80" />
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     WAITING FOR OPPONENT TO FINISH ALL PARTS...
                   </div>
                 </div>
@@ -523,22 +523,66 @@ export default function BattleConnected() {
             )}
 
             {/* PLAYING STATE (Single-step) */}
-            {status === 'playing' && question && phase === 'question' && (
-              <SingleStepCard
+            {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
+              <motion.div
                 key="playing"
-                questionText={question.stem || question.questionText || question.title}
-                imageUrl={question.imageUrl || (question as any).image_url || null}
-                structureSmiles={question.structureSmiles || (question as any).structure_smiles || null}
-                graph={
-                  (question as any).graph ||
-                  ((question as any).graph_equation
-                    ? { type: 'function', equation: String((question as any).graph_equation), color: 'white' }
-                    : null)
-                }
-                options={question.steps?.[0]?.options ?? []}
-                answerSubmitted={answerSubmitted}
-                onSelectOption={(idx) => submitAnswer(idx)}
-              />
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full max-w-3xl"
+              >
+                {/* Question Card */}
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  
+                  <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
+                    {question.stem || question.questionText}
+                  </h3>
+                </div>
+
+                {/* Answers Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {question.steps?.[0]?.options?.filter(o => String(o).trim()).map((option, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => !answerSubmitted && submitAnswer(idx)}
+                      disabled={answerSubmitted}
+                      className={`
+                        relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
+                        ${answerSubmitted 
+                          ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
+                          : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-blue-500/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] active:scale-[0.98]'
+                        }
+                      `}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="flex items-center gap-4 relative z-10">
+                        <div className={`
+                          w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
+                          ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-blue-500 group-hover:text-white'}
+                        `}>
+                          {String.fromCharCode(65 + idx)}
+                        </div>
+                        <span className="text-lg font-medium">{option}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {answerSubmitted && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-6 text-center"
+                  >
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      AWAITING RESULT CONFIRMATION
+                    </div>
+                  </motion.div>
+                )}
+              </motion.div>
             )}
 
             {/* RESULTS STATE */}
@@ -557,93 +601,18 @@ export default function BattleConnected() {
             {status === 'results' && results && (
               <motion.div
                 key="results"
-                initial={{ opacity: 0, y: 18, scale: 0.98, filter: 'blur(10px)' }}
-                animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                className="relative w-full max-w-2xl rounded-3xl p-8 md:p-12 text-center overflow-hidden bg-[#0B1220] border border-white/10"
+                className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
               >
-                {(() => {
-                  const outcome =
-                    results.round_winner === currentUser ? 'win' : results.round_winner === null ? 'tie' : 'lose'
-                  const accent =
-                    outcome === 'win'
-                      ? 'rgba(250,204,21,0.20)'
-                      : outcome === 'lose'
-                        ? 'rgba(239,68,68,0.20)'
-                        : 'rgba(59,130,246,0.20)'
-                  const ringClass =
-                    outcome === 'win'
-                      ? 'ring-1 ring-yellow-400/20 shadow-[0_0_70px_rgba(250,204,21,0.12)]'
-                      : outcome === 'lose'
-                        ? 'ring-1 ring-red-500/20 shadow-[0_0_70px_rgba(239,68,68,0.12)]'
-                        : 'ring-1 ring-blue-500/20 shadow-[0_0_70px_rgba(59,130,246,0.12)]'
-
-                  return (
-                    <>
-                      {/* Ambient accent + glow */}
-                      <div
-                        aria-hidden="true"
-                        className="absolute inset-0 pointer-events-none opacity-60"
-                        style={{
-                          background: `radial-gradient(circle at 50% 0%, ${accent} 0%, transparent 55%)`,
-                        }}
-                      />
-                      <div className={`absolute inset-0 pointer-events-none ${ringClass}`} aria-hidden="true" />
-                    </>
-                  )
-                })()}
-
-                {resultsRevealStage === 'tease' ? (
-                  <div className="relative z-10 flex flex-col items-center justify-center py-10 md:py-12">
-                    <div className="text-xs font-mono text-white/70 uppercase tracking-widest">
-                      CALCULATING…
-                    </div>
-                    <div className="mt-4 text-4xl md:text-5xl font-black tracking-tight text-white/90">
-                      RESULTS
-                    </div>
-                    <div className="mt-4 text-[11px] font-mono text-white/50 uppercase tracking-widest">
-                      ROUND {currentRoundNumber || 1}
-                    </div>
-                  </div>
-                ) : (
-                  <motion.div
-                    className="relative z-10"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                  >
-                  <div className="mb-8">
-                  {!matchOver && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                      className="mb-4"
-                    >
-                      <div
-                        className={`inline-flex px-4 py-2 rounded-full border text-xs font-black uppercase tracking-[0.25em] ${
-                          results.round_winner === currentUser
-                            ? 'bg-yellow-400/15 border-yellow-400/25 text-yellow-200'
-                            : results.round_winner === null
-                              ? 'bg-blue-500/12 border-blue-400/20 text-blue-200'
-                              : 'bg-red-500/12 border-red-400/20 text-red-200'
-                        }`}
-                      >
-                        {results.round_winner === currentUser
-                          ? 'ROUND WON'
-                          : results.round_winner === null
-                            ? 'ROUND DRAW'
-                            : 'ROUND LOST'}
-                      </div>
-                    </motion.div>
-                  )}
+                <div className="mb-8">
                   {results.round_winner === currentUser ? (
                     <motion.div 
-                      initial={{ scale: 0, rotate: -18 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 220, damping: 18 }}
+                      initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring" }}
                       className="inline-block p-4 rounded-full bg-yellow-500/20 mb-4 ring-4 ring-yellow-500/10"
                     >
-                      <Trophy className="w-12 h-12 text-yellow-500 drop-shadow-[0_0_18px_rgba(250,204,21,0.25)]" />
+                      <Trophy className="w-12 h-12 text-yellow-500" />
                     </motion.div>
                   ) : results.round_winner === null ? (
                     <div className="inline-block p-4 rounded-full bg-white/10 mb-4 ring-4 ring-white/5">
@@ -663,29 +632,6 @@ export default function BattleConnected() {
                       <div className="text-lg font-bold mb-2">
                         Final Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
                       </div>
-                      {results.p1Score !== undefined && results.p2Score !== undefined && (
-                        <div className="text-lg font-bold mb-2">
-                          <span className="mr-2">Round Score:</span>
-                          <RollingNumber
-                            value={Number(isPlayer1 ? results.p1Score : results.p2Score)}
-                            digitClassName="tabular-nums"
-                            duration={1.1}
-                            cycles={3}
-                          />
-                          <span className="mx-3 text-white/50">-</span>
-                          <RollingNumber
-                            value={Number(isPlayer1 ? results.p2Score : results.p1Score)}
-                            digitClassName="tabular-nums"
-                            duration={1.1}
-                            cycles={3}
-                          />
-                        </div>
-                      )}
-                      {results.p1SubPoints !== undefined && results.p2SubPoints !== undefined && (
-                        <div className="text-xs text-white/60 font-mono mb-2">
-                          Sub-step Bonus: +{isPlayer1 ? results.p1SubPoints : results.p2SubPoints} / +{isPlayer1 ? results.p2SubPoints : results.p1SubPoints}
-                        </div>
-                      )}
                       <p className="text-white/40 font-mono text-sm">
                         {matchWinnerId === currentUser ? 'VICTORY ACHIEVED!' : 'BETTER LUCK NEXT TIME.'}
                       </p>
@@ -696,29 +642,11 @@ export default function BattleConnected() {
                         {results.round_winner === currentUser ? 'ROUND SECURED' : results.round_winner === null ? 'STALEMATE' : 'ROUND LOST'}
                       </h2>
                       <div className="text-sm text-white/60 font-mono mb-2">
-                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 3} needed
+                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
                       </div>
                       {results.p1Score !== undefined && results.p2Score !== undefined && (
                         <div className="text-lg font-bold mb-2">
-                          <span className="mr-2">Round Score:</span>
-                          <RollingNumber
-                            value={Number(isPlayer1 ? results.p1Score : results.p2Score)}
-                            digitClassName="tabular-nums"
-                            duration={1.1}
-                            cycles={3}
-                          />
-                          <span className="mx-3 text-white/50">-</span>
-                          <RollingNumber
-                            value={Number(isPlayer1 ? results.p2Score : results.p1Score)}
-                            digitClassName="tabular-nums"
-                            duration={1.1}
-                            cycles={3}
-                          />
-                        </div>
-                      )}
-                      {results.p1SubPoints !== undefined && results.p2SubPoints !== undefined && (
-                        <div className="text-xs text-white/60 font-mono mb-2">
-                          Sub-step Bonus: +{isPlayer1 ? results.p1SubPoints : results.p2SubPoints} / +{isPlayer1 ? results.p2SubPoints : results.p1SubPoints}
+                          Round Score: {isPlayer1 ? results.p1Score : results.p2Score} - {isPlayer1 ? results.p2Score : results.p1Score}
                         </div>
                       )}
                       <div className="text-sm font-bold mb-2">
@@ -736,50 +664,19 @@ export default function BattleConnected() {
                   <div className="mb-8">
                     {/* Calculate parts correct for each player */}
                     {(() => {
-                      const totalParts =
-                        typeof results.totalParts === 'number' && Number.isFinite(results.totalParts) && results.totalParts > 0
-                          ? results.totalParts
-                          : results.stepResults.length;
-
-                      const hasAggregateParts =
-                        typeof results.p1PartsCorrect === 'number' && typeof results.p2PartsCorrect === 'number';
-
-                      const getMainAnswer = (stepResult: any, which: 'p1' | 'p2') =>
-                        which === 'p1'
-                          ? (stepResult.p1MainAnswerIndex ?? stepResult.p1AnswerIndex)
-                          : (stepResult.p2MainAnswerIndex ?? stepResult.p2AnswerIndex);
-
-                      const getMainCorrect = (stepResult: any) =>
-                        stepResult.mainCorrectAnswer ?? stepResult.correctAnswer;
-
-                      const myPartsCorrect = hasAggregateParts
-                        ? (isPlayer1 ? results.p1PartsCorrect : results.p2PartsCorrect)
-                        : results.stepResults.filter((stepResult: any) => {
-                            const myPartCorrect = isPlayer1 ? stepResult.p1PartCorrect : stepResult.p2PartCorrect;
-                            if (typeof myPartCorrect === 'boolean') return myPartCorrect;
-
-                            // Legacy fallback (main-only)
-                            const myAnswer = getMainAnswer(stepResult, isPlayer1 ? 'p1' : 'p2');
-                            const correct = getMainCorrect(stepResult);
-                            return myAnswer !== null && myAnswer !== undefined && correct !== null && correct !== undefined && myAnswer === correct;
+                      const myPartsCorrect = results.stepResults.filter((stepResult) => {
+                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
+                        return myAnswer === stepResult.correctAnswer;
                       }).length;
                       
-                      const oppPartsCorrect = hasAggregateParts
-                        ? (isPlayer1 ? results.p2PartsCorrect : results.p1PartsCorrect)
-                        : results.stepResults.filter((stepResult: any) => {
-                            const oppPartCorrect = isPlayer1 ? stepResult.p2PartCorrect : stepResult.p1PartCorrect;
-                            if (typeof oppPartCorrect === 'boolean') return oppPartCorrect;
-
-                            // Legacy fallback (main-only)
-                            const oppAnswer = getMainAnswer(stepResult, isPlayer1 ? 'p2' : 'p1');
-                            const correct = getMainCorrect(stepResult);
-                            return oppAnswer !== null && oppAnswer !== undefined && correct !== null && correct !== undefined && oppAnswer === correct;
+                      const oppPartsCorrect = results.stepResults.filter((stepResult) => {
+                        const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
+                        return oppAnswer === stepResult.correctAnswer;
                       }).length;
                       
-                      // IMPORTANT: Winner logic is decided by the backend (round points = marks + sub-step bonus).
-                      // Use round_winner here to keep UI perfectly aligned with server scoring rules.
-                      const iWon = results.round_winner === currentUser;
-                      const isTie = results.round_winner === null;
+                      const totalSteps = results.stepResults.length;
+                      const iWon = myPartsCorrect > oppPartsCorrect;
+                      const isTie = myPartsCorrect === oppPartsCorrect;
                       
                       return (
                         <>
@@ -802,14 +699,10 @@ export default function BattleConnected() {
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
-                                <div className="flex items-baseline justify-center gap-2">
-                                  <RollingNumber value={Number(myPartsCorrect)} digitClassName="tabular-nums" duration={1.1} cycles={3} />
-                                  <span className="text-base md:text-lg font-mono text-white/70">OUT OF</span>
-                                  <span className="text-2xl md:text-3xl font-black text-white/80 tabular-nums">{totalParts}</span>
-                                </div>
+                                {myPartsCorrect} out of {totalSteps}
                               </div>
                               <div className="text-sm text-white/60 font-mono">
-                                {myPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - myPartsCorrect} incorrect`}
+                                {myPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - myPartsCorrect} incorrect`}
                               </div>
                             </motion.div>
                             
@@ -830,14 +723,10 @@ export default function BattleConnected() {
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
-                                <div className="flex items-baseline justify-center gap-2">
-                                  <RollingNumber value={Number(oppPartsCorrect)} digitClassName="tabular-nums" duration={1.1} cycles={3} />
-                                  <span className="text-base md:text-lg font-mono text-white/70">OUT OF</span>
-                                  <span className="text-2xl md:text-3xl font-black text-white/80 tabular-nums">{totalParts}</span>
-                                </div>
+                                {oppPartsCorrect} out of {totalSteps}
                               </div>
                               <div className="text-sm text-white/60 font-mono">
-                                {oppPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - oppPartsCorrect} incorrect`}
+                                {oppPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - oppPartsCorrect} incorrect`}
                               </div>
                             </motion.div>
                           </div>
@@ -868,20 +757,9 @@ export default function BattleConnected() {
                             </summary>
                             <div className="space-y-2 mt-3">
                               {results.stepResults.map((stepResult, idx) => {
-                                const myPartCorrect = isPlayer1 ? stepResult.p1PartCorrect : stepResult.p2PartCorrect
-                                const myCorrect = typeof myPartCorrect === 'boolean'
-                                  ? myPartCorrect
-                                  : (() => {
-                                    const myAnswer = isPlayer1
-                                        ? (stepResult.p1MainAnswerIndex ?? stepResult.p1AnswerIndex)
-                                        : (stepResult.p2MainAnswerIndex ?? stepResult.p2AnswerIndex)
-                                      const correct = stepResult.mainCorrectAnswer ?? stepResult.correctAnswer
-                                      return myAnswer !== null && myAnswer !== undefined && correct !== null && correct !== undefined && myAnswer === correct
-                                    })()
-
-                                const myAwarded = isPlayer1
-                                  ? (stepResult.p1StepAwarded ?? stepResult.p1Marks ?? 0)
-                                  : (stepResult.p2StepAwarded ?? stepResult.p2Marks ?? 0)
+                                const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
+                                const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
+                                const myCorrect = myAnswer === stepResult.correctAnswer
                                 return (
                                   <div
                                     key={idx}
@@ -892,7 +770,7 @@ export default function BattleConnected() {
                                     <div className="flex items-center justify-between">
                                       <span className="font-bold">Step {stepResult.stepIndex + 1}</span>
                                       <span className="font-mono">
-                                        {myCorrect ? '✓' : '✗'} {myAwarded} pts
+                                        {myCorrect ? '✓' : '✗'} {myMarks} pts
                                       </span>
                                     </div>
                                   </div>
@@ -921,11 +799,9 @@ export default function BattleConnected() {
                         {(() => {
                           const myAnswer = playerRole === 'player1' ? results.player1_answer : results.player2_answer
                           const myCorrect = (playerRole === 'player1' && results.player1_correct) || (playerRole === 'player2' && results.player2_correct)
-                          // Handle both boolean (0/1) and multi-option (0-5) answers
+                          // Handle both boolean (0/1) and multi-option (0-3) answers
                           const answerDisplay = myAnswer !== null && myAnswer !== undefined 
-                            ? (typeof myAnswer === 'number' && Number.isInteger(myAnswer) && myAnswer >= 0
-                                ? String.fromCharCode(65 + myAnswer)
-                                : String(myAnswer))
+                            ? (myAnswer === 0 ? 'A' : myAnswer === 1 ? 'B' : myAnswer === 2 ? 'C' : myAnswer === 3 ? 'D' : String(myAnswer))
                             : 'N/A'
                           return (
                             <>
@@ -949,11 +825,9 @@ export default function BattleConnected() {
                         {(() => {
                           const oppAnswer = playerRole === 'player1' ? results.player2_answer : results.player1_answer
                           const oppCorrect = (playerRole === 'player1' && results.player2_correct) || (playerRole === 'player2' && results.player1_correct)
-                          // Handle both boolean (0/1) and multi-option (0-5) answers
+                          // Handle both boolean (0/1) and multi-option (0-3) answers
                           const answerDisplay = oppAnswer !== null && oppAnswer !== undefined 
-                            ? (typeof oppAnswer === 'number' && Number.isInteger(oppAnswer) && oppAnswer >= 0
-                                ? String.fromCharCode(65 + oppAnswer)
-                                : String(oppAnswer))
+                            ? (oppAnswer === 0 ? 'A' : oppAnswer === 1 ? 'B' : oppAnswer === 2 ? 'C' : oppAnswer === 3 ? 'D' : String(oppAnswer))
                             : 'N/A'
                           return (
                             <>
@@ -981,41 +855,30 @@ export default function BattleConnected() {
 
                 {!matchOver && (
                   <div className="mt-6">
-                    <div className="flex flex-col items-center gap-3">
-                      {!isWebSocketConnected ? (
-                        <>
-                          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                          <div className="text-sm font-mono text-white/60">CONNECTING...</div>
-                        </>
-                      ) : typeof nextRoundCountdown === 'number' ? (
-                        nextRoundCountdown > 0 ? (
-                          <>
-                            <div className="text-xs font-mono text-white/50 tracking-widest">NEXT ROUND IN</div>
-                            <div className="text-5xl font-black tracking-tight">{nextRoundCountdown}s</div>
-                          </>
-                        ) : (
-                          <>
-                            <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                            <div className="text-sm font-mono text-white/60">STARTING NEXT ROUND...</div>
-                          </>
-                        )
-                      ) : (
-                        <>
-                          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                          <div className="text-sm font-mono text-white/60">STARTING NEXT ROUND...</div>
-                        </>
-                      )}
-
-                      {/* Manual safety net: if countdown is missing/stuck, allow player to re-request next round */}
-                      {isWebSocketConnected && nextRoundCountdown == null && (
+                    {!resultsAcknowledged ? (
                       <button
-                          onClick={() => readyForNextRound()}
-                          className="mt-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono text-white/70 hover:bg-white/10 hover:text-white transition-colors"
-                        >
-                          SYNC NEXT ROUND
+                        onClick={readyForNextRound}
+                        disabled={!isWebSocketConnected}
+                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-all shadow-lg ${
+                          isWebSocketConnected
+                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
+                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                        }`}
+                      >
+                        {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
                       </button>
-                      )}
+                    ) : waitingForOpponentToAcknowledge ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                        <div className="text-sm font-mono text-white/60">
+                          WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
                         </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm font-mono text-white/60 text-center">
+                        BOTH PLAYERS READY - STARTING NEXT ROUND...
+                      </div>
+                    )}
                   </div>
                 )}
                 {matchOver && (
@@ -1027,8 +890,6 @@ export default function BattleConnected() {
                       RETURN TO LOBBY
                     </button>
                   </div>
-                )}
-                </motion.div>
                 )}
               </motion.div>
             )}
