@@ -687,6 +687,7 @@ export type Database = {
           created_at: string
           difficulty: string
           id: string
+          is_enabled: boolean
           image_url: string | null
           main_question_timer_seconds: number
           level: string
@@ -706,6 +707,7 @@ export type Database = {
           created_at?: string
           difficulty: string
           id?: string
+          is_enabled?: boolean
           image_url?: string | null
           main_question_timer_seconds?: number
           level: string
@@ -725,6 +727,7 @@ export type Database = {
           created_at?: string
           difficulty?: string
           id?: string
+          is_enabled?: boolean
           image_url?: string | null
           main_question_timer_seconds?: number
           level?: string

@@ -185,6 +185,13 @@ export interface StepBasedQuestion {
 
     /** Optional graph config (ONE graph per question) */
     graph?: GraphConfig;
+
+    /**
+     * Admin-controlled flag (stored in questions_v2.is_enabled).
+     * When false, this question should be excluded from online battle selection.
+     * Practice mode may still surface it (product choice).
+     */
+    isEnabled?: boolean;
 }
 
 function isFiniteNumber(n: any): n is number {

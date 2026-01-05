@@ -985,6 +985,7 @@ async function selectAndBroadcastQuestion(
         let q = supabase
           .from('questions_v2')
           .select('*')
+          .eq('is_enabled', true)
           // Prefer newest questions so recently added/edited questions actually show up in-game.
           // Important: nullsFirst=false ensures rows missing updated_at don't float to the top.
           .order('updated_at', { ascending: false, nullsFirst: false })

@@ -94,6 +94,7 @@ type QuestionForm = {
   level: 'A1' | 'A2';
   difficulty: 'easy' | 'medium' | 'hard';
   rankTier: string;
+  isEnabled: boolean;
   stem: string;
   structureSmiles: string;
   // One graph per question (optional)
@@ -250,6 +251,7 @@ export default function AdminQuestions() {
       level: 'A1',
       difficulty: 'medium',
       rankTier: '',
+      isEnabled: true,
       stem: '',
       structureSmiles: '',
       graphEnabled: false,
@@ -345,6 +347,7 @@ export default function AdminQuestions() {
       level: q.level,
       difficulty: q.difficulty,
       rankTier: q.rankTier || '',
+      isEnabled: q.isEnabled !== false,
       stem: q.stem,
       structureSmiles: q.structureSmiles || '',
       graphEnabled: !!g,
@@ -1015,6 +1018,7 @@ export default function AdminQuestions() {
 
       const payload = {
         title: form.title,
+        is_enabled: form.isEnabled,
         subject: form.subject,
         chapter: form.chapter,
         level: form.level,
@@ -1477,7 +1481,7 @@ export default function AdminQuestions() {
                       className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border relative group ${selectedQuestionId === q.id
                           ? 'bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
                           : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
-                        }`}
+                        } ${q.isEnabled === false ? 'opacity-60' : ''}`}
                     >
                       {/* Delete button - appears on hover */}
                       <button
@@ -1494,6 +1498,16 @@ export default function AdminQuestions() {
                       </div>
 
                       <p className="text-xs text-white/60 mb-2 line-clamp-1">{q.chapter}</p>
+
+                      {q.isEnabled === false && (
+                        <Badge
+                          variant="outline"
+                          className="mb-2 border-0 bg-red-500/20 text-red-300 text-[10px] uppercase tracking-wider inline-flex items-center gap-1"
+                        >
+                          <XCircle className="w-3 h-3" />
+                          Disabled
+                        </Badge>
+                      )}
 
                       <div className="grid grid-cols-4 gap-2 mb-2 text-[10px] font-semibold">
                         <Badge variant="outline" className={`uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
@@ -1609,6 +1623,29 @@ export default function AdminQuestions() {
                           className={glassInput}
                           placeholder="e.g. Integration by Parts: ln(x)/x³"
                         />
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className={labelStyle}>Matchmaking</label>
+                        <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
+                          <label className="flex items-center gap-3 text-sm text-white/80 select-none">
+                            <input
+                              type="checkbox"
+                              checked={form.isEnabled}
+                              onChange={(e) => setForm({ ...form, isEnabled: e.target.checked })}
+                              className="h-4 w-4 accent-emerald-400"
+                            />
+                            Enabled (available in online battles)
+                          </label>
+                          <p className="text-xs text-white/40">
+                            If disabled, this question will not be selected in online battles. Practice remains unchanged.
+                          </p>
+                          {!form.isEnabled && (
+                            <p className="text-xs text-red-200/70">
+                              Disabled: this question is excluded from matchmaking selection.
+                            </p>
+                          )}
+                        </div>
                       </div>
 
                       <div>

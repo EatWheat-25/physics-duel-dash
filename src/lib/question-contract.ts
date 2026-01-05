@@ -104,6 +104,9 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
         topicTags = [];
     }
 
+    const rawIsEnabled = payload.isEnabled ?? payload.is_enabled;
+    const isEnabled = typeof rawIsEnabled === 'boolean' ? rawIsEnabled : true;
+
     const question: StepBasedQuestion = {
         id,
         title,
@@ -120,6 +123,7 @@ export function mapToStepBasedQuestion(payload: any): StepBasedQuestion {
         imageUrl: payload.imageUrl || payload.image_url || undefined,
         structureSmiles: payload.structureSmiles || payload.structure_smiles || undefined,
         graph: mapToGraphConfig(payload, steps) || undefined,
+        isEnabled,
     };
 
     console.log(`${context} ✅ Mapped question ${id}: "${title}" with ${steps.length} steps (marks=${totalMarks})`);
