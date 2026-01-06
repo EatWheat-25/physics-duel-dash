@@ -6,7 +6,7 @@ import { Loader2, ArrowLeft, Check, X, Trophy, Clock, Zap } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Starfield } from '@/components/Starfield';
+import { MatchPatternBackground } from '@/components/battle/MatchPatternBackground';
 import { QuestionGraph } from '@/components/math/QuestionGraph';
 
 export default function BattleConnected() {
@@ -127,8 +127,8 @@ export default function BattleConnected() {
 
   if (!match || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center relative overflow-hidden">
-        <Starfield />
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <MatchPatternBackground />
         <div className="flex flex-col items-center gap-4 relative z-10">
           <div className="relative">
             <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin" />
@@ -144,8 +144,8 @@ export default function BattleConnected() {
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
-        <Starfield />
+      <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+        <MatchPatternBackground />
         <div className="max-w-md w-full bg-red-950/10 border border-red-500/20 p-8 rounded-2xl text-center relative z-10 backdrop-blur-sm">
           <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
             <X className="w-8 h-8 text-red-500" />
@@ -164,11 +164,10 @@ export default function BattleConnected() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-blue-500/30 overflow-hidden relative">
-      <Starfield />
+    <div className="min-h-screen text-white font-sans selection:bg-blue-500/30 overflow-hidden relative">
+      <MatchPatternBackground />
       
       {/* Background Elements */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505] pointer-events-none" />
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent pointer-events-none" />
       
       {/* Round Intro Overlay */}
