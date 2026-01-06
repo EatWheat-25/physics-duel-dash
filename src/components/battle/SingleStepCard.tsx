@@ -41,7 +41,7 @@ export function SingleStepCard({
           </div>
         )}
 
-        <h3 className="text-2xl md:text-3xl font-bold leading-relaxed">
+        <h3 className="text-2xl md:text-3xl font-normal leading-relaxed text-left">
           <ScienceText text={questionText} />
         </h3>
 
@@ -74,7 +74,7 @@ export function SingleStepCard({
               <div className="paper-option-letter">
                 {String.fromCharCode(65 + idx)}
               </div>
-              <ScienceText text={option} className="text-lg font-medium" smilesSize="sm" />
+              <ScienceText text={option} className="text-lg font-normal" smilesSize="sm" />
             </div>
           </button>
         ))}

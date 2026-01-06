@@ -39,7 +39,7 @@ export function MainQuestionCard({
 
         <div className="space-y-4">
           <div className="paper-meta">Main Question</div>
-          <h3 className="text-2xl md:text-3xl font-bold leading-relaxed">
+          <h3 className="text-2xl md:text-3xl font-normal leading-relaxed text-left">
             <ScienceText text={stem} />
           </h3>
           {structureSmiles && (

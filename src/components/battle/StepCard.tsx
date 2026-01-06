@@ -57,7 +57,7 @@ export function StepCard({
               : `Step ${stepIndex + 1} of ${totalSteps}`}
           </div>
 
-          <h3 className="text-xl md:text-2xl font-bold leading-relaxed">
+          <h3 className="text-xl md:text-2xl font-normal leading-relaxed text-left">
             <ScienceText text={prompt} />
           </h3>
 
@@ -96,7 +96,7 @@ export function StepCard({
                 <div className="paper-option-letter">
                   {String.fromCharCode(65 + idx)}
                 </div>
-                <ScienceText text={option} className="text-lg font-medium" smilesSize="sm" />
+                <ScienceText text={option} className="text-lg font-normal" smilesSize="sm" />
               </div>
             </button>
           ))}

@@ -6,8 +6,10 @@ import { Loader2, ArrowLeft, Check, X, Trophy, Clock, Zap } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MatchPatternBackground } from '@/components/battle/MatchPatternBackground';
-import { QuestionGraph } from '@/components/math/QuestionGraph';
+import { RedYellowPatternBackground } from '@/components/battle/RedYellowPatternBackground';
+import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
+import { StepCard } from '@/components/battle/StepCard';
+import { SingleStepCard } from '@/components/battle/SingleStepCard';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -124,19 +126,20 @@ export default function BattleConnected() {
 
   const isPlayer1 = match?.player1_id === currentUser;
   const opponentId = isPlayer1 ? match?.player2_id : match?.player1_id;
+  const stepSegmentTimeLeft = currentSegment === 'sub' ? subStepTimeLeft : stepTimeLeft;
 
   if (!match || !currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-        <MatchPatternBackground />
-        <div className="flex flex-col items-center gap-4 relative z-10">
-          <div className="relative">
+        <RedYellowPatternBackground />
+        <div className="paper-card text-center relative z-10 w-full max-w-md">
+          <div className="relative w-16 h-16 mx-auto mb-6">
             <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin" />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-8 h-8 bg-blue-500/20 rounded-full animate-pulse" />
             </div>
           </div>
-          <p className="text-blue-500 font-mono tracking-widest text-sm">INITIALIZING BATTLEGROUND</p>
+          <p className="text-slate-700 font-mono tracking-widest text-sm">INITIALIZING BATTLEGROUND</p>
         </div>
       </div>
     );
@@ -145,16 +148,16 @@ export default function BattleConnected() {
   if (status === 'error') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-        <MatchPatternBackground />
-        <div className="max-w-md w-full bg-red-950/10 border border-red-500/20 p-8 rounded-2xl text-center relative z-10 backdrop-blur-sm">
+        <RedYellowPatternBackground />
+        <div className="max-w-md w-full paper-card text-center relative z-10">
           <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
             <X className="w-8 h-8 text-red-500" />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">CONNECTION LOST</h2>
-          <p className="text-red-200/60 mb-8 text-sm">{errorMessage || 'The neural link was severed.'}</p>
+          <h2 className="text-xl font-bold mb-2">CONNECTION LOST</h2>
+          <p className="text-slate-600 mb-8 text-sm">{errorMessage || 'The neural link was severed.'}</p>
           <button 
             onClick={() => navigate('/matchmaking-new')}
-            className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-colors"
+            className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-black rounded-xl font-bold transition-colors border border-black/20"
           >
             RETURN TO LOBBY
           </button>
@@ -165,10 +168,7 @@ export default function BattleConnected() {
 
   return (
     <div className="min-h-screen text-white font-sans selection:bg-blue-500/30 overflow-hidden relative">
-      <MatchPatternBackground />
-      
-      {/* Background Elements */}
-      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent pointer-events-none" />
+      <RedYellowPatternBackground />
       
       {/* Round Intro Overlay */}
       <AnimatePresence>
@@ -224,7 +224,7 @@ export default function BattleConnected() {
       </header>
 
       {/* Main Arena */}
-      <main className="relative z-10 w-full max-w-5xl mx-auto px-4 md:px-6 flex flex-col h-[calc(100vh-100px)]">
+      <main className="relative z-10 w-full max-w-7xl mx-auto px-4 md:px-6 flex flex-col h-[calc(100vh-100px)]">
         
         {/* Score/Status Bar */}
         <div className="grid grid-cols-3 gap-4 mb-8 items-end">
@@ -335,165 +335,71 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
-                className="text-center"
+                className="w-full max-w-xl"
               >
-                <div className="relative w-32 h-32 mx-auto mb-8">
-                  <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full" />
-                  <div className="absolute inset-0 border-2 border-t-blue-500 rounded-full animate-spin" />
-                  {status === 'both_connected' && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Check className="w-12 h-12 text-blue-500" />
-                    </div>
-                  )}
+                <div className="paper-card text-center">
+                  <div className="relative w-32 h-32 mx-auto mb-8">
+                    <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full" />
+                    <div className="absolute inset-0 border-2 border-t-blue-500 rounded-full animate-spin" />
+                    {status === 'both_connected' && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Check className="w-12 h-12 text-blue-500" />
+                      </div>
+                    )}
+                  </div>
+                  <h2 className="text-3xl font-bold mb-3 tracking-tight">
+                    {status === 'both_connected' ? 'OPPONENT LOCKED' : 'SEARCHING FOR TARGET'}
+                  </h2>
+                  <p className="text-slate-600 font-mono text-sm">
+                    {status === 'both_connected' ? 'INITIATING COMBAT SEQUENCE...' : 'SCANNING FREQUENCIES...'}
+                  </p>
                 </div>
-                <h2 className="text-3xl font-bold mb-3 tracking-tight">
-                  {status === 'both_connected' ? 'OPPONENT LOCKED' : 'SEARCHING FOR TARGET'}
-                </h2>
-                <p className="text-white/40 font-mono text-sm">
-                  {status === 'both_connected' ? 'INITIATING COMBAT SEQUENCE...' : 'SCANNING FREQUENCIES...'}
-                </p>
               </motion.div>
             )}
 
             {/* MAIN QUESTION PHASE (Multi-step) */}
             {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
-              <motion.div
-                key="main-question"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-3xl"
-              >
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
-                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
-                  <div className="text-center">
-                    <div className="text-sm text-blue-400/60 font-mono mb-4 uppercase tracking-wider">
-                      Main Question
-                    </div>
-                    {(question as any)?.graph && (
-                      <div className="mb-6">
-                        <QuestionGraph graph={(question as any).graph} />
-                      </div>
-                    )}
-                    <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
-                      {question.stem || question.questionText || question.title}
-                    </h3>
-                    <div className="mt-6 text-sm text-white/40">
-                      {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Separate Early Answer Button - OUTSIDE card */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="w-full max-w-3xl mt-6"
-                >
-                  <button
-                    onClick={() => {
-                      if (!isWebSocketConnected) {
-                        toast.error('Connection lost. Please wait for reconnection...');
-                        return;
-                      }
-                      submitEarlyAnswer();
-                    }}
-                    disabled={!isWebSocketConnected}
-                    className={`w-full py-6 px-8 rounded-xl font-bold text-xl transition-all shadow-lg ${
-                      isWebSocketConnected
-                        ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
-                        : 'bg-gray-600/50 cursor-not-allowed opacity-50'
-                    }`}
-                  >
-                    {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
-                  </button>
-                </motion.div>
-              </motion.div>
+              <div className="w-full max-w-6xl">
+                <MainQuestionCard
+                  stem={(question as any).stem || (question as any).questionText || (question as any).title || ''}
+                  imageUrl={(question as any).imageUrl || (question as any).image_url || null}
+                  structureSmiles={(question as any).structureSmiles || (question as any).structure_smiles || null}
+                  graph={(question as any).graph || null}
+                  totalSteps={totalSteps ?? 0}
+                  isWebSocketConnected={isWebSocketConnected}
+                  onSubmitEarly={() => {
+                    if (!isWebSocketConnected) {
+                      toast.error('Connection lost. Please wait for reconnection...');
+                      return;
+                    }
+                    submitEarlyAnswer();
+                  }}
+                />
+              </div>
             )}
 
             {/* STEPS PHASE (Multi-step) */}
             {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
-              <motion.div
-                key="steps"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-3xl"
-              >
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50" />
-                  
-                  <div className="text-center mb-6">
-                    <div className="text-sm text-amber-400/60 font-mono mb-2 uppercase tracking-wider">
-                      {currentSegment === 'sub'
-                        ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
-                        : `Step ${currentStepIndex + 1} of ${totalSteps}`}
-                    </div>
-                    <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
-                      {currentStep.prompt || currentStep.question}
-                    </h3>
-                    {currentSegment === 'sub' && (
-                      <p className="text-xs text-white/50 mt-3 font-mono">
-                        QUICK CHECK — must be correct to earn this step&apos;s marks
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => !answerSubmitted && submitStepAnswer(currentStepIndex, idx)}
-                        disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)}
-                        className={`
-                          relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
-                          ${answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)
-                            ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
-                            : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
-                          }
-                        `}
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="flex items-center gap-4 relative z-10">
-                          <div className={`
-                            w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
-                            ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'}
-                          `}>
-                            {String.fromCharCode(65 + idx)}
-                          </div>
-                          <span className="text-lg font-medium">{option}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {answerSubmitted && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }} 
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mt-6 text-center"
-                    >
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-400 rounded-full text-sm font-medium border border-amber-500/20 backdrop-blur-sm">
-                        {/* During steps, always show "ANSWER SUBMITTED" - no waiting message */}
-                        {(phase === 'steps' || !waitingForOpponent) ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            ANSWER SUBMITTED
-                          </>
-                        ) : (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            WAITING FOR OPPONENT...
-                          </>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-              </motion.div>
+              <div className="w-full max-w-6xl">
+                <StepCard
+                  stepIndex={currentStepIndex}
+                  totalSteps={totalSteps ?? 0}
+                  segment={currentSegment}
+                  subStepIndex={currentSubStepIndex}
+                  prompt={(currentStep as any).prompt || (currentStep as any).question || ''}
+                  diagramSmiles={(currentStep as any).diagramSmiles || (currentStep as any).diagram_smiles || null}
+                  diagramImageUrl={(currentStep as any).diagramImageUrl || (currentStep as any).diagram_image_url || null}
+                  graph={(currentStep as any).graph || null}
+                  options={(currentStep as any).options}
+                  answerSubmitted={answerSubmitted}
+                  disabled={
+                    answerSubmitted ||
+                    !isWebSocketConnected ||
+                    (stepSegmentTimeLeft !== null && stepSegmentTimeLeft <= 0)
+                  }
+                  onSelectOption={(idx) => submitStepAnswer(currentStepIndex, idx)}
+                />
+              </div>
             )}
 
             {/* WAITING FOR OPPONENT TO COMPLETE ALL STEPS */}
@@ -503,14 +409,14 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-2xl paper-card text-center"
               >
                 <div className="mb-6">
                   <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto mb-4" />
                   <h2 className="text-3xl font-bold mb-2 tracking-tight">
                     ALL PARTS COMPLETE
                   </h2>
-                  <p className="text-white/60 font-mono text-sm mb-4">
+                  <p className="text-slate-600 font-mono text-sm mb-4">
                     You have finished all {totalSteps} part{totalSteps !== 1 ? 's' : ''}
                   </p>
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
@@ -523,65 +429,22 @@ export default function BattleConnected() {
 
             {/* PLAYING STATE (Single-step) */}
             {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
-              <motion.div
-                key="playing"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-3xl"
-              >
-                {/* Question Card */}
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
-                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
-                  <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
-                    {question.stem || question.questionText}
-                  </h3>
-                </div>
-
-                {/* Answers Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {question.steps?.[0]?.options?.filter(o => String(o).trim()).map((option, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => !answerSubmitted && submitAnswer(idx)}
-                      disabled={answerSubmitted}
-                      className={`
-                        relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
-                        ${answerSubmitted 
-                          ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
-                          : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-blue-500/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] active:scale-[0.98]'
-                        }
-                      `}
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="flex items-center gap-4 relative z-10">
-                        <div className={`
-                          w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
-                          ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-blue-500 group-hover:text-white'}
-                        `}>
-                          {String.fromCharCode(65 + idx)}
-                        </div>
-                        <span className="text-lg font-medium">{option}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                {answerSubmitted && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }} 
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-6 text-center"
-                  >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      AWAITING RESULT CONFIRMATION
-                    </div>
-                  </motion.div>
-                )}
-              </motion.div>
+              <div className="w-full max-w-6xl">
+                <SingleStepCard
+                  questionText={
+                    (question as any).stem ||
+                    (question as any).questionText ||
+                    (question as any).text ||
+                    ''
+                  }
+                  imageUrl={(question as any).imageUrl || (question as any).image_url || null}
+                  structureSmiles={(question as any).structureSmiles || (question as any).structure_smiles || null}
+                  graph={(question as any).graph || null}
+                  options={(question as any).steps?.[0]?.options}
+                  answerSubmitted={answerSubmitted}
+                  onSelectOption={(idx) => submitAnswer(idx)}
+                />
+              </div>
             )}
 
             {/* RESULTS STATE */}
@@ -603,7 +466,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-4xl paper-card text-center"
               >
                 <div className="mb-8">
                   {results.round_winner === currentUser ? (
@@ -614,8 +477,8 @@ export default function BattleConnected() {
                       <Trophy className="w-12 h-12 text-yellow-500" />
                     </motion.div>
                   ) : results.round_winner === null ? (
-                    <div className="inline-block p-4 rounded-full bg-white/10 mb-4 ring-4 ring-white/5">
-                      <Clock className="w-12 h-12 text-white/60" />
+                    <div className="inline-block p-4 rounded-full bg-slate-100 mb-4 ring-4 ring-slate-200">
+                      <Clock className="w-12 h-12 text-slate-600" />
                     </div>
                   ) : (
                     <div className="inline-block p-4 rounded-full bg-red-500/20 mb-4 ring-4 ring-red-500/10">
@@ -631,7 +494,7 @@ export default function BattleConnected() {
                       <div className="text-lg font-bold mb-2">
                         Final Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
                       </div>
-                      <p className="text-white/40 font-mono text-sm">
+                      <p className="text-slate-600 font-mono text-sm">
                         {matchWinnerId === currentUser ? 'VICTORY ACHIEVED!' : 'BETTER LUCK NEXT TIME.'}
                       </p>
                     </>
@@ -640,7 +503,7 @@ export default function BattleConnected() {
                       <h2 className="text-4xl font-bold mb-2 tracking-tight">
                         {results.round_winner === currentUser ? 'ROUND SECURED' : results.round_winner === null ? 'STALEMATE' : 'ROUND LOST'}
                       </h2>
-                      <div className="text-sm text-white/60 font-mono mb-2">
+                      <div className="text-sm text-slate-600 font-mono mb-2">
                         Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
                       </div>
                       {results.p1Score !== undefined && results.p2Score !== undefined && (
@@ -651,7 +514,7 @@ export default function BattleConnected() {
                       <div className="text-sm font-bold mb-2">
                         Match Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
                       </div>
-                      <p className="text-white/40 font-mono text-sm">
+                      <p className="text-slate-600 font-mono text-sm">
                         {results.round_winner === currentUser ? 'EXCELLENT WORK, OPERATOR.' : 'ADJUST STRATEGY.'}
                       </p>
                     </>
@@ -694,13 +557,13 @@ export default function BattleConnected() {
                                   : 'bg-red-500/20 border-red-500/40'
                               }`}
                             >
-                              <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">YOU</div>
+                              <div className="text-xs font-mono text-slate-700 mb-2 uppercase tracking-wider opacity-70">YOU</div>
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
                                 {myPartsCorrect} out of {totalSteps}
                               </div>
-                              <div className="text-sm text-white/60 font-mono">
+                              <div className="text-sm text-slate-700 font-mono opacity-70">
                                 {myPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - myPartsCorrect} incorrect`}
                               </div>
                             </motion.div>
@@ -718,20 +581,20 @@ export default function BattleConnected() {
                                   : 'bg-red-500/20 border-red-500/40'
                               }`}
                             >
-                              <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">OPPONENT</div>
+                              <div className="text-xs font-mono text-slate-700 mb-2 uppercase tracking-wider opacity-70">OPPONENT</div>
                               <div className={`text-5xl md:text-6xl font-black mb-2 ${
                                 !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
                               }`}>
                                 {oppPartsCorrect} out of {totalSteps}
                               </div>
-                              <div className="text-sm text-white/60 font-mono">
+                              <div className="text-sm text-slate-700 font-mono opacity-70">
                                 {oppPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - oppPartsCorrect} incorrect`}
                               </div>
                             </motion.div>
                           </div>
                           
                           {/* Divider */}
-                          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent mb-6" />
+                          <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-300 to-transparent mb-6" />
                           
                           {/* Winner Announcement */}
                           <motion.div
@@ -751,7 +614,7 @@ export default function BattleConnected() {
                           
                           {/* Step-by-step breakdown (optional, smaller) */}
                           <details className="mt-4">
-                            <summary className="text-sm font-mono text-white/60 mb-3 uppercase tracking-wider cursor-pointer hover:text-white/80 transition-colors">
+                            <summary className="text-sm font-mono text-slate-600 mb-3 uppercase tracking-wider cursor-pointer hover:text-slate-900 transition-colors">
                               Step Breakdown
                             </summary>
                             <div className="space-y-2 mt-3">
@@ -844,7 +707,7 @@ export default function BattleConnected() {
                 {(!results.stepResults || results.stepResults.length === 0) && (results.player1_answer === undefined || results.player2_answer === undefined) && (
                   <div className="mb-8 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                     <div className="text-sm font-mono text-yellow-400 mb-2">⚠️ Results data structure mismatch</div>
-                    <div className="text-xs text-white/60 font-mono">
+                    <div className="text-xs text-slate-600 font-mono">
                       player1_answer: {results.player1_answer ?? 'null'} | 
                       player2_answer: {results.player2_answer ?? 'null'} | 
                       round_winner: {results.round_winner ?? 'null'}
@@ -858,10 +721,10 @@ export default function BattleConnected() {
                       <button
                         onClick={readyForNextRound}
                         disabled={!isWebSocketConnected}
-                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-all shadow-lg ${
+                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-colors border active:scale-[0.99] ${
                           isWebSocketConnected
-                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
-                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                            ? 'bg-yellow-500 hover:bg-yellow-400 text-black border-black/20 cursor-pointer'
+                            : 'bg-[#2B0A0F] text-white/60 border-red-500/20 cursor-not-allowed opacity-70'
                         }`}
                       >
                         {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
@@ -869,12 +732,12 @@ export default function BattleConnected() {
                     ) : waitingForOpponentToAcknowledge ? (
                       <div className="flex flex-col items-center gap-3">
                         <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                        <div className="text-sm font-mono text-white/60">
+                        <div className="text-sm font-mono text-slate-600">
                           WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
                         </div>
                       </div>
                     ) : (
-                      <div className="text-sm font-mono text-white/60 text-center">
+                      <div className="text-sm font-mono text-slate-600 text-center">
                         BOTH PLAYERS READY - STARTING NEXT ROUND...
                       </div>
                     )}
@@ -884,7 +747,7 @@ export default function BattleConnected() {
                   <div className="mt-4">
                     <button
                       onClick={() => navigate('/matchmaking-new')}
-                      className="px-6 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]"
+                      className="px-6 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-full border border-black/20 transition-colors active:scale-[0.99]"
                     >
                       RETURN TO LOBBY
                     </button>
