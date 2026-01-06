@@ -5,7 +5,7 @@ export const MatchPatternBackground = () => {
   // on a dark grey base for match pages.
   const patternSvg = encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
-      <g fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <g fill="none" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <!-- Book -->
         <path d="M26 34h34c6 0 10 4 10 10v44c0-6-4-10-10-10H26z"/>
         <path d="M26 34v44"/>
@@ -94,7 +94,7 @@ export const MatchPatternBackground = () => {
           backgroundRepeat: 'repeat',
           // Bigger tiles = bigger icons
           backgroundSize: '220px 220px',
-          opacity: 0.45,
+          opacity: 0.14,
         }}
       />
 
