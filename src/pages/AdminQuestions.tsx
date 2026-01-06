@@ -211,6 +211,10 @@ export default function AdminQuestions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [mappingErrors, setMappingErrors] = useState<string[]>([]);
 
+  // Bulk selection + actions (list)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+
   // Editor state
   const [mode, setMode] = useState<EditorMode>('idle');
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
@@ -236,12 +240,23 @@ export default function AdminQuestions() {
     });
   }, [questions, searchTerm]);
 
+  const selectedCount = selectedIds.size;
+  const allShownSelected = useMemo(() => {
+    if (filteredQuestions.length === 0) return false;
+    return filteredQuestions.every((q) => selectedIds.has(q.id));
+  }, [filteredQuestions, selectedIds]);
+
   // Load questions on mount and filter changes
   useEffect(() => {
     if (isAdmin) {
       fetchQuestions();
     }
   }, [isAdmin, filters]);
+
+  // Safety: clear selection when filter/search context changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filters, searchTerm]);
 
   function getEmptyForm(): QuestionForm {
     return {
@@ -327,6 +342,208 @@ export default function AdminQuestions() {
       toast.error(error.message || 'Failed to load questions');
     } finally {
       setLoadingQuestions(false);
+    }
+  }
+
+  function toggleSelected(questionId: string, nextChecked?: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const shouldSelect = typeof nextChecked === 'boolean' ? nextChecked : !next.has(questionId);
+      if (shouldSelect) next.add(questionId);
+      else next.delete(questionId);
+      return next;
+    });
+  }
+
+  function handleSelectAllShown() {
+    if (filteredQuestions.length === 0) return;
+    setSelectedIds(new Set(filteredQuestions.map((q) => q.id)));
+  }
+
+  function handleClearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  async function handleBulkSetEnabled(nextEnabled: boolean) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    setBulkActionLoading(true);
+    try {
+      const { error } = await supabase
+        .from('questions_v2')
+        .update({ is_enabled: nextEnabled } as any)
+        .in('id', ids);
+
+      if (error) throw error;
+
+      // Keep editor state consistent if the currently open question is included
+      if (selectedQuestionId && ids.includes(selectedQuestionId)) {
+        setForm((prev) => ({ ...prev, isEnabled: nextEnabled }));
+      }
+
+      toast.success(
+        `${nextEnabled ? 'Enabled' : 'Disabled'} ${ids.length} question${ids.length === 1 ? '' : 's'}`
+      );
+
+      setSelectedIds(new Set());
+      await fetchQuestions();
+    } catch (error: any) {
+      console.error('[AdminQuestions] Bulk enable/disable error:', error);
+      toast.error(error?.message || 'Failed to update selected questions');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }
+
+  async function deleteQuestionCascadeOrManual(questionId: string): Promise<void> {
+    // Try using the RPC function first (more reliable, handles everything in a transaction)
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('delete_question_cascade' as any, { p_question_id: questionId });
+
+    if (
+      !rpcError &&
+      rpcResult &&
+      typeof rpcResult === 'object' &&
+      rpcResult !== null &&
+      'success' in rpcResult &&
+      (rpcResult as any).success
+    ) {
+      return;
+    }
+
+    // If RPC function doesn't exist or failed, fall back to manual deletion
+    console.log('[AdminQuestions] RPC function not available or failed, using manual deletion');
+
+    // Delete related records first to avoid foreign key constraint violations
+    const { error: answersError } = await supabase
+      .from('match_answers')
+      .delete()
+      .eq('question_id', questionId);
+
+    if (answersError && !String((answersError as any).message || '').includes('does not exist')) {
+      console.warn('[AdminQuestions] Error deleting match_answers:', answersError);
+    }
+
+    const { error: roundsError } = await supabase
+      .from('match_rounds')
+      .delete()
+      .eq('question_id', questionId);
+
+    if (roundsError && !String((roundsError as any).message || '').includes('does not exist')) {
+      console.warn('[AdminQuestions] Error deleting match_rounds:', roundsError);
+    }
+
+    const { error: matchQuestionsError } = await supabase
+      .from('match_questions')
+      .delete()
+      .eq('question_id', questionId);
+
+    if (matchQuestionsError && !String((matchQuestionsError as any).message || '').includes('does not exist')) {
+      console.warn('[AdminQuestions] Error deleting match_questions (table may not exist):', matchQuestionsError);
+    }
+
+    // Handle matches table if it has question_id column
+    // Try to update to NULL first, then delete if that fails
+    const { error: matchesUpdateError } = await (supabase as any)
+      .from('matches')
+      .update({ question_id: null })
+      .eq('question_id', questionId);
+
+    if (
+      matchesUpdateError &&
+      !String((matchesUpdateError as any).message || '').includes('does not exist') &&
+      !String((matchesUpdateError as any).message || '').includes('null value')
+    ) {
+      // If update to NULL fails (column not nullable), try deleting matches
+      const { error: matchesDeleteError } = await (supabase as any)
+        .from('matches')
+        .delete()
+        .eq('question_id', questionId);
+
+      if (matchesDeleteError && !String((matchesDeleteError as any).message || '').includes('does not exist')) {
+        console.warn('[AdminQuestions] Error handling matches:', matchesDeleteError);
+      }
+    }
+
+    // Now delete the question itself
+    const { error } = await supabase
+      .from('questions_v2')
+      .delete()
+      .eq('id', questionId);
+
+    if (error) {
+      // If we still get a foreign key error, it means CASCADE isn't working
+      // Try one more time with the RPC if it was just a timing issue
+      const msg = String((error as any).message || '');
+      if (msg.includes('foreign key constraint') || msg.includes('violates')) {
+        const { data: retryResult, error: retryError } = await supabase
+          .rpc('delete_question_cascade' as any, { p_question_id: questionId });
+
+        if (
+          !retryError &&
+          retryResult &&
+          typeof retryResult === 'object' &&
+          retryResult !== null &&
+          'success' in retryResult &&
+          (retryResult as any).success
+        ) {
+          return;
+        }
+      }
+      throw error;
+    }
+  }
+
+  async function handleBulkDeleteSelected() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const ok = confirm(
+      ids.length === 1
+        ? 'Are you sure you want to delete this selected question? This cannot be undone.'
+        : `Are you sure you want to delete ${ids.length} selected questions? This cannot be undone.`
+    );
+    if (!ok) return;
+
+    setBulkActionLoading(true);
+    try {
+      const failures: Array<{ id: string; error: any }> = [];
+
+      for (const id of ids) {
+        try {
+          await deleteQuestionCascadeOrManual(id);
+        } catch (err: any) {
+          failures.push({ id, error: err });
+        }
+      }
+
+      // If the currently open question was deleted successfully, clear the editor.
+      if (selectedQuestionId && ids.includes(selectedQuestionId)) {
+        const failedIds = new Set(failures.map((f) => f.id));
+        if (!failedIds.has(selectedQuestionId)) {
+          setMode('idle');
+          setSelectedQuestionId(null);
+          setForm(getEmptyForm());
+        }
+      }
+
+      if (failures.length === 0) {
+        toast.success(`Deleted ${ids.length} question${ids.length === 1 ? '' : 's'} successfully!`);
+      } else {
+        console.error('[AdminQuestions] Bulk delete failures:', failures);
+        toast.warning(
+          `Deleted ${ids.length - failures.length}/${ids.length}. ${failures.length} failed (see console).`
+        );
+      }
+
+      setSelectedIds(new Set());
+      await fetchQuestions();
+    } catch (error: any) {
+      console.error('[AdminQuestions] Bulk delete error:', error);
+      toast.error(error?.message || 'Failed to delete selected questions');
+    } finally {
+      setBulkActionLoading(false);
     }
   }
 
@@ -1074,103 +1291,17 @@ export default function AdminQuestions() {
     if (!confirm('Are you sure you want to delete this question? This cannot be undone.')) return;
 
     try {
-      // Try using the RPC function first (more reliable, handles everything in a transaction)
-      const { data: rpcResult, error: rpcError } = await supabase
-        .rpc('delete_question_cascade' as any, { p_question_id: selectedQuestionId });
-
-      if (!rpcError && rpcResult && typeof rpcResult === 'object' && rpcResult !== null && 'success' in rpcResult && (rpcResult as any).success) {
-        // RPC function succeeded
-        toast.success('Question deleted successfully!');
-        setMode('idle');
-        setSelectedQuestionId(null);
-        setForm(getEmptyForm());
-        fetchQuestions();
-        return;
-      }
-
-      // If RPC function doesn't exist or failed, fall back to manual deletion
-      console.log('[AdminQuestions] RPC function not available or failed, using manual deletion');
-      
-      // Delete related records first to avoid foreign key constraint violations
-      // Delete match_answers that reference this question
-      const { error: answersError } = await supabase
-        .from('match_answers')
-        .delete()
-        .eq('question_id', selectedQuestionId);
-
-      if (answersError && !answersError.message.includes('does not exist')) {
-        console.warn('[AdminQuestions] Error deleting match_answers:', answersError);
-      }
-
-      // Delete match_rounds that reference this question
-      const { error: roundsError } = await supabase
-        .from('match_rounds')
-        .delete()
-        .eq('question_id', selectedQuestionId);
-
-      if (roundsError && !roundsError.message.includes('does not exist')) {
-        console.warn('[AdminQuestions] Error deleting match_rounds:', roundsError);
-      }
-
-      // Delete match_questions if the table exists
-      const { error: matchQuestionsError } = await supabase
-        .from('match_questions')
-        .delete()
-        .eq('question_id', selectedQuestionId);
-
-      if (matchQuestionsError && !matchQuestionsError.message.includes('does not exist')) {
-        // Table might not exist, which is fine
-        console.warn('[AdminQuestions] Error deleting match_questions (table may not exist):', matchQuestionsError);
-      }
-
-      // Handle matches table if it has question_id column
-      // Try to update to NULL first, then delete if that fails
-      const { error: matchesUpdateError } = await (supabase as any)
-        .from('matches')
-        .update({ question_id: null })
-        .eq('question_id', selectedQuestionId);
-
-      if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
-        // If update to NULL fails (column not nullable), try deleting matches
-        const { error: matchesDeleteError } = await (supabase as any)
-          .from('matches')
-          .delete()
-          .eq('question_id', selectedQuestionId);
-        
-        if (matchesDeleteError && !matchesDeleteError.message.includes('does not exist')) {
-          console.warn('[AdminQuestions] Error handling matches:', matchesDeleteError);
-        }
-      }
-
-      // Now delete the question itself
-      const { error } = await supabase
-        .from('questions_v2')
-        .delete()
-        .eq('id', selectedQuestionId);
-
-      if (error) {
-        // If we still get a foreign key error, it means CASCADE isn't working
-        // Try one more time with the RPC if it was just a timing issue
-        if (error.message?.includes('foreign key constraint') || error.message?.includes('violates')) {
-          const { data: retryResult, error: retryError } = await supabase
-            .rpc('delete_question_cascade' as any, { p_question_id: selectedQuestionId });
-          
-          if (!retryError && retryResult && typeof retryResult === 'object' && retryResult !== null && 'success' in retryResult && (retryResult as any).success) {
-            toast.success('Question deleted successfully!');
-            setMode('idle');
-            setSelectedQuestionId(null);
-            setForm(getEmptyForm());
-            fetchQuestions();
-            return;
-          }
-        }
-        throw error;
-      }
-
+      const id = selectedQuestionId;
+      await deleteQuestionCascadeOrManual(id);
       toast.success('Question deleted successfully!');
       setMode('idle');
       setSelectedQuestionId(null);
       setForm(getEmptyForm());
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       fetchQuestions();
     } catch (error: any) {
       console.error('[AdminQuestions] Delete error:', error);
@@ -1186,108 +1317,15 @@ export default function AdminQuestions() {
     }
 
     try {
-      // Try using the RPC function first (more reliable, handles everything in a transaction)
-      const { data: rpcResult, error: rpcError } = await supabase
-        .rpc('delete_question_cascade' as any, { p_question_id: questionId });
-
-      if (!rpcError && rpcResult && typeof rpcResult === 'object' && rpcResult !== null && 'success' in rpcResult && (rpcResult as any).success) {
-        // RPC function succeeded
-        toast.success('Question deleted successfully!');
-        
-        // If deleted question was selected, clear selection
-        if (selectedQuestionId === questionId) {
-          setMode('idle');
-          setSelectedQuestionId(null);
-          setForm(getEmptyForm());
-        }
-        
-        fetchQuestions();
-        return;
-      }
-
-      // If RPC function doesn't exist or failed, fall back to manual deletion
-      console.log('[AdminQuestions] RPC function not available or failed, using manual deletion');
-      
-      // Delete related records first to avoid foreign key constraint violations
-      // Delete match_answers that reference this question
-      const { error: answersError } = await supabase
-        .from('match_answers')
-        .delete()
-        .eq('question_id', questionId);
-
-      if (answersError && !answersError.message.includes('does not exist')) {
-        console.warn('[AdminQuestions] Error deleting match_answers:', answersError);
-      }
-
-      // Delete match_rounds that reference this question
-      const { error: roundsError } = await supabase
-        .from('match_rounds')
-        .delete()
-        .eq('question_id', questionId);
-
-      if (roundsError && !roundsError.message.includes('does not exist')) {
-        console.warn('[AdminQuestions] Error deleting match_rounds:', roundsError);
-      }
-
-      // Delete match_questions if the table exists
-      const { error: matchQuestionsError } = await supabase
-        .from('match_questions')
-        .delete()
-        .eq('question_id', questionId);
-
-      if (matchQuestionsError && !matchQuestionsError.message.includes('does not exist')) {
-        // Table might not exist, which is fine
-        console.warn('[AdminQuestions] Error deleting match_questions (table may not exist):', matchQuestionsError);
-      }
-
-      // Handle matches table if it has question_id column
-      // Try to update to NULL first, then delete if that fails
-      const { error: matchesUpdateError } = await (supabase as any)
-        .from('matches')
-        .update({ question_id: null })
-        .eq('question_id', questionId);
-
-      if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
-        // If update to NULL fails (column not nullable), try deleting matches
-        const { error: matchesDeleteError } = await (supabase as any)
-          .from('matches')
-          .delete()
-          .eq('question_id', questionId);
-        
-        if (matchesDeleteError && !matchesDeleteError.message.includes('does not exist')) {
-          console.warn('[AdminQuestions] Error handling matches:', matchesDeleteError);
-        }
-      }
-
-      // Now delete the question itself
-      const { error } = await supabase
-        .from('questions_v2')
-        .delete()
-        .eq('id', questionId);
-
-      if (error) {
-        // If we still get a foreign key error, it means CASCADE isn't working
-        // Try one more time with the RPC if it was just a timing issue
-        if (error.message?.includes('foreign key constraint') || error.message?.includes('violates')) {
-          const { data: retryResult, error: retryError } = await supabase
-            .rpc('delete_question_cascade' as any, { p_question_id: questionId });
-          
-          if (!retryError && retryResult && typeof retryResult === 'object' && retryResult !== null && 'success' in retryResult && (retryResult as any).success) {
-            toast.success('Question deleted successfully!');
-            if (selectedQuestionId === questionId) {
-              setMode('idle');
-              setSelectedQuestionId(null);
-              setForm(getEmptyForm());
-            }
-            fetchQuestions();
-            return;
-          }
-        }
-        throw error;
-      }
-
+      await deleteQuestionCascadeOrManual(questionId);
       toast.success('Question deleted successfully!');
-      
+
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(questionId);
+        return next;
+      });
+
       // If deleted question was selected, clear selection
       if (selectedQuestionId === questionId) {
         setMode('idle');
@@ -1464,6 +1502,83 @@ export default function AdminQuestions() {
                 </div>
               </div>
 
+              {/* Bulk selection controls */}
+              <div className="px-4 py-3 border-b border-white/10 bg-white/[0.04] backdrop-blur-md flex flex-wrap gap-3 justify-between items-center">
+                <div className="text-xs text-white/60 font-medium">
+                  {selectedCount > 0 ? (
+                    <span>
+                      <span className="text-emerald-300 font-bold">{selectedCount}</span> selected
+                    </span>
+                  ) : (
+                    <span>Select questions to enable bulk actions</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {selectedCount > 0 && (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleBulkSetEnabled(false)}
+                        disabled={bulkActionLoading}
+                        className="bg-red-500/10 border-red-500/20 text-red-200 hover:bg-red-500/20"
+                        title="Disable selected questions (exclude from online battles)"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Disable
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleBulkSetEnabled(true)}
+                        disabled={bulkActionLoading}
+                        className="bg-emerald-500/10 border-emerald-500/20 text-emerald-200 hover:bg-emerald-500/20"
+                        title="Enable selected questions (available in online battles)"
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Enable
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleBulkDeleteSelected}
+                        disabled={bulkActionLoading}
+                        className="bg-red-500/10 border-red-500/20 text-red-200 hover:bg-red-500/20"
+                        title="Delete selected questions (irreversible)"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSelectAllShown}
+                    disabled={bulkActionLoading || filteredQuestions.length === 0 || allShownSelected}
+                    className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+                    title="Select all questions currently shown by filters/search"
+                  >
+                    Select all shown
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleClearSelection}
+                    disabled={bulkActionLoading || selectedCount === 0}
+                    className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+                  >
+                    Clear selection
+                  </Button>
+                </div>
+              </div>
+
               <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
                 {loadingQuestions ? (
                   <div className="flex justify-center py-12">
@@ -1474,15 +1589,29 @@ export default function AdminQuestions() {
                     <p>No questions match the current filters/search.</p>
                   </div>
                 ) : (
-                  filteredQuestions.map((q) => (
-                    <div
-                      key={q.id}
-                      onClick={() => handleSelectQuestion(q)}
-                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border relative group ${selectedQuestionId === q.id
-                          ? 'bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
-                          : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
-                        } ${q.isEnabled === false ? 'opacity-60' : ''}`}
-                    >
+                  filteredQuestions.map((q) => {
+                    const isBulkSelected = selectedIds.has(q.id);
+                    return (
+                      <div
+                        key={q.id}
+                        onClick={() => handleSelectQuestion(q)}
+                        className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border relative group ${selectedQuestionId === q.id
+                            ? 'bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
+                            : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
+                          } ${isBulkSelected ? 'ring-2 ring-emerald-400/25 border-emerald-400/40' : ''} ${q.isEnabled === false ? 'opacity-60' : ''}`}
+                      >
+                        {/* Bulk select checkbox */}
+                        <input
+                          type="checkbox"
+                          checked={isBulkSelected}
+                          disabled={bulkActionLoading}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => toggleSelected(q.id, e.target.checked)}
+                          className="absolute top-2 left-2 h-4 w-4 accent-emerald-400"
+                          aria-label={`Select question ${q.title}`}
+                          title="Select for bulk actions"
+                        />
+
                       {/* Delete button - appears on hover */}
                       <button
                         onClick={(e) => handleDeleteFromList(q.id, e)}
@@ -1528,8 +1657,9 @@ export default function AdminQuestions() {
                         <span>{q.steps.length} step{q.steps.length === 1 ? '' : 's'}</span>
                         <span>{q.totalMarks} mark{q.totalMarks === 1 ? '' : 's'}</span>
                       </div>
-                    </div>
-                  ))
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
