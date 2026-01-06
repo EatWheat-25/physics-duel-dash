@@ -126,7 +126,7 @@ export interface QuestionSubStep {
     /** Index of correct option (0 <= correctAnswer < options.length) */
     correctAnswer: number;
 
-    /** Time limit for this sub-step in seconds (default: 5; null = no limit) */
+    /** Time limit for this sub-step in seconds (default: 15; null = no limit) */
     timeLimitSeconds: number | null;
 
     /** Explanation shown after answering (null = no explanation) */

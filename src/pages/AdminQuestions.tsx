@@ -290,7 +290,7 @@ export default function AdminQuestions() {
         options: ['', '', '', ''],
         correctAnswer: 0,
         marks: 1,
-        timeLimitSeconds: 30,
+        timeLimitSeconds: 15,
         explanation: '',
         subSteps: []
       }],
@@ -629,7 +629,7 @@ export default function AdminQuestions() {
             const v = typeof sub.correctAnswer === 'number' ? sub.correctAnswer : 0
             return Math.max(0, Math.min(maxIndex, Math.floor(v)))
           })(),
-          timeLimitSeconds: sub.timeLimitSeconds ?? 5,
+          timeLimitSeconds: sub.timeLimitSeconds ?? 15,
           explanation: sub.explanation || ''
         }))
       })),
@@ -709,7 +709,7 @@ export default function AdminQuestions() {
           options: ['', '', '', ''],
           correctAnswer: 0,
           marks: 1,
-          timeLimitSeconds: 30,
+          timeLimitSeconds: 15,
           explanation: '',
           subSteps: []
         }
@@ -852,7 +852,7 @@ export default function AdminQuestions() {
         prompt: '',
         options: ['True', 'False'],
         correctAnswer: 0,
-        timeLimitSeconds: 5,
+        timeLimitSeconds: 15,
         explanation: ''
       }
     ];
@@ -1182,7 +1182,7 @@ export default function AdminQuestions() {
               prompt: sub.prompt,
               options: subOptionsToSave,
               correctAnswer: subCorrect,
-              timeLimitSeconds: sub.timeLimitSeconds ?? 5,
+              timeLimitSeconds: sub.timeLimitSeconds ?? 15,
               explanation: sub.explanation || null
             };
           });
@@ -2342,7 +2342,7 @@ export default function AdminQuestions() {
                               </div>
                               <div>
                                 <label className={labelStyle}>Time (s)</label>
-                                <Input type="number" value={step.timeLimitSeconds ?? ''} onChange={e => updateStepField(index, 'timeLimitSeconds', e.target.value ? parseInt(e.target.value) : null)} className={glassInput} placeholder="30" />
+                                <Input type="number" value={step.timeLimitSeconds ?? ''} onChange={e => updateStepField(index, 'timeLimitSeconds', e.target.value ? parseInt(e.target.value) : null)} className={glassInput} placeholder="15" />
                               </div>
                             </div>
 
@@ -2408,7 +2408,7 @@ export default function AdminQuestions() {
                                             {sub.type === 'true_false' ? '✓ True/False' : '✓ MCQ'}
                                           </Badge>
                                           <Badge className="bg-white/10 text-white/70 border-0">
-                                            {(sub.timeLimitSeconds ?? 5)}s
+                                            {(sub.timeLimitSeconds ?? 15)}s
                                           </Badge>
                                         </div>
 
