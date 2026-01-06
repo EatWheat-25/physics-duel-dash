@@ -93,7 +93,7 @@ export const MatchPatternBackground = () => {
           backgroundImage: patternUrl,
           backgroundRepeat: 'repeat',
           // Bigger tiles = bigger icons
-          backgroundSize: '300px 300px',
+          backgroundSize: '220px 220px',
           opacity: 0.45,
         }}
       />
