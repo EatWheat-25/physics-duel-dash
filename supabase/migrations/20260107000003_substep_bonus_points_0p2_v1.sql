@@ -1,12 +1,12 @@
--- 20260104000000_substep_bonus_points_v1.sql
--- Add +1 bonus point per correct sub-step ("Quick Check") in multi-step rounds.
--- Round winner is determined by: (sum of awarded step marks) + (sum of correct sub-steps).
+-- 20260107000003_substep_bonus_points_0p2_v1.sql
+-- Sub-step scoring update:
+-- - Each correct sub-step awards +0.2 points (Quick Check bonus)
+-- - Step marks are awarded based ONLY on main-step correctness (sub-steps never remove marks)
+-- - Sub-step bonus points apply ONLY when the main-step was correct (unlocked)
 --
--- Notes:
--- - Keeps existing parts-correct fields for UI stats.
--- - Adds payload fields:
---   - p1_sub_points, p2_sub_points
---   - p1_round_points, p2_round_points
+-- Implementation detail:
+-- - Uses scaled integer "units" where 1 unit = 0.2 points (i.e. points = units / 5)
+--   to avoid float rounding issues.
 
 begin;
 
@@ -35,17 +35,27 @@ declare
 
   v_step_count int := 0;
 
-  -- Legacy "parts" scoring (still emitted for UI stats)
+  -- UI stats: "parts correct" now means MAIN steps correct
   v_p1_parts_correct int := 0;
   v_p2_parts_correct int := 0;
 
-  -- New scoring: marks + sub-step bonus points
+  -- Marks totals (integer marks)
   v_p1_marks_points int := 0;
   v_p2_marks_points int := 0;
-  v_p1_sub_points int := 0;
-  v_p2_sub_points int := 0;
-  v_p1_round_points int := 0;
-  v_p2_round_points int := 0;
+
+  -- Sub-step correctness totals (each correct sub-step = +1 unit = +0.2 points)
+  v_p1_sub_correct_total int := 0;
+  v_p2_sub_correct_total int := 0;
+
+  -- Scaled totals (1 unit = 0.2 points)
+  v_p1_round_units bigint := 0;
+  v_p2_round_units bigint := 0;
+
+  -- Exposed totals (numeric points)
+  v_p1_sub_points numeric := 0;
+  v_p2_sub_points numeric := 0;
+  v_p1_round_points numeric := 0;
+  v_p2_round_points numeric := 0;
 
   v_p1_wins int;
   v_p2_wins int;
@@ -68,6 +78,10 @@ declare
   v_p1_sub_correct_count int := 0;
   v_p2_sub_correct_count int := 0;
 
+  -- Awarded sub-step correct counts (0 if main incorrect)
+  v_p1_sub_correct_awarded int := 0;
+  v_p2_sub_correct_awarded int := 0;
+
   v_has_sub boolean := false;
   v_sub_count int := 0;
   v_marks int;
@@ -78,11 +92,15 @@ declare
   v_p1_sub_answers jsonb := '[]'::jsonb;
   v_p2_sub_answers jsonb := '[]'::jsonb;
 
+  -- Per-step computed flags
   v_p1_part_correct boolean;
   v_p2_part_correct boolean;
 
   v_p1_step_awarded int;
   v_p2_step_awarded int;
+
+  v_p1_sub_points_step numeric;
+  v_p2_sub_points_step numeric;
 
   v_step_results jsonb := '[]'::jsonb;
   v_payload jsonb;
@@ -232,13 +250,17 @@ begin
         or (segment = 'sub' and sub_step_index >= 0 and sub_step_index < v_sub_count)
       );
 
-    -- Sub correctness means ALL sub-steps correct (if any exist)
+    -- Sub correctness means ALL sub-steps correct (if any exist) (kept for UI detail)
     v_p1_sub_correct := case when v_has_sub then (v_p1_sub_correct_count = v_sub_count) else null end;
     v_p2_sub_correct := case when v_has_sub then (v_p2_sub_correct_count = v_sub_count) else null end;
 
-    -- Accumulate sub-step bonus points (+1 per correct sub-step)
-    v_p1_sub_points := v_p1_sub_points + coalesce(v_p1_sub_correct_count, 0);
-    v_p2_sub_points := v_p2_sub_points + coalesce(v_p2_sub_correct_count, 0);
+    -- Award sub-step bonus ONLY if the main step was correct (unlocked)
+    v_p1_sub_correct_awarded := case when coalesce(v_p1_main_correct, false) then coalesce(v_p1_sub_correct_count, 0) else 0 end;
+    v_p2_sub_correct_awarded := case when coalesce(v_p2_main_correct, false) then coalesce(v_p2_sub_correct_count, 0) else 0 end;
+
+    -- Accumulate awarded correct sub-steps
+    v_p1_sub_correct_total := v_p1_sub_correct_total + v_p1_sub_correct_awarded;
+    v_p2_sub_correct_total := v_p2_sub_correct_total + v_p2_sub_correct_awarded;
 
     -- Build per-player sub answer arrays aligned to sub_step_index (includes nulls for missing/timeouts)
     v_p1_sub_answers := '[]'::jsonb;
@@ -269,18 +291,23 @@ begin
        and a.player_id = v_match.player2_id;
     end if;
 
-    v_p1_part_correct := coalesce(v_p1_main_correct, false) and (case when v_has_sub then coalesce(v_p1_sub_correct, false) else true end);
-    v_p2_part_correct := coalesce(v_p2_main_correct, false) and (case when v_has_sub then coalesce(v_p2_sub_correct, false) else true end);
+    -- Part correctness (for UI stats) = MAIN correctness
+    v_p1_part_correct := coalesce(v_p1_main_correct, false);
+    v_p2_part_correct := coalesce(v_p2_main_correct, false);
 
     if v_p1_part_correct then v_p1_parts_correct := v_p1_parts_correct + 1; end if;
     if v_p2_part_correct then v_p2_parts_correct := v_p2_parts_correct + 1; end if;
 
+    -- Marks are awarded only for correct MAIN answer
     v_p1_step_awarded := case when v_p1_part_correct then v_marks else 0 end;
     v_p2_step_awarded := case when v_p2_part_correct then v_marks else 0 end;
 
     -- Accumulate marks points (awarded step marks)
     v_p1_marks_points := v_p1_marks_points + coalesce(v_p1_step_awarded, 0);
     v_p2_marks_points := v_p2_marks_points + coalesce(v_p2_step_awarded, 0);
+
+    v_p1_sub_points_step := coalesce(v_p1_sub_correct_awarded, 0)::numeric / 5;
+    v_p2_sub_points_step := coalesce(v_p2_sub_correct_awarded, 0)::numeric / 5;
 
     v_step_results := v_step_results || jsonb_build_array(
       jsonb_build_object(
@@ -307,22 +334,43 @@ begin
         'mainCorrectAnswer', v_main_correct_answer,
         'p1MainAnswerIndex', v_p1_main_answer,
         'p2MainAnswerIndex', v_p2_main_answer,
+        'p1MainCorrect', coalesce(v_p1_main_correct, false),
+        'p2MainCorrect', coalesce(v_p2_main_correct, false),
+        'p1SubCorrect', v_p1_sub_correct,
+        'p2SubCorrect', v_p2_sub_correct,
+        -- New scoring fields
+        'p1SubCorrectCount', v_p1_sub_correct_awarded,
+        'p2SubCorrectCount', v_p2_sub_correct_awarded,
+        'p1SubPoints', v_p1_sub_points_step,
+        'p2SubPoints', v_p2_sub_points_step,
         'p1PartCorrect', v_p1_part_correct,
         'p2PartCorrect', v_p2_part_correct,
         'p1StepAwarded', v_p1_step_awarded,
-        'p2StepAwarded', v_p2_step_awarded
+        'p2StepAwarded', v_p2_step_awarded,
+        -- Compatibility (legacy v2 shape)
+        'correctAnswer', v_main_correct_answer,
+        'p1AnswerIndex', v_p1_main_answer,
+        'p2AnswerIndex', v_p2_main_answer,
+        'p1Marks', v_p1_step_awarded,
+        'p2Marks', v_p2_step_awarded
       )
     );
   end loop;
 
-  -- Final round points (marks + sub-step bonus)
-  v_p1_round_points := coalesce(v_p1_marks_points, 0) + coalesce(v_p1_sub_points, 0);
-  v_p2_round_points := coalesce(v_p2_marks_points, 0) + coalesce(v_p2_sub_points, 0);
+  -- Compute scaled totals (units) and numeric points
+  v_p1_round_units := (coalesce(v_p1_marks_points, 0)::bigint * 5) + coalesce(v_p1_sub_correct_total, 0)::bigint;
+  v_p2_round_units := (coalesce(v_p2_marks_points, 0)::bigint * 5) + coalesce(v_p2_sub_correct_total, 0)::bigint;
 
-  -- Determine round winner by round points (NULL = draw)
-  if v_p1_round_points > v_p2_round_points then
+  v_p1_sub_points := coalesce(v_p1_sub_correct_total, 0)::numeric / 5;
+  v_p2_sub_points := coalesce(v_p2_sub_correct_total, 0)::numeric / 5;
+
+  v_p1_round_points := v_p1_round_units::numeric / 5;
+  v_p2_round_points := v_p2_round_units::numeric / 5;
+
+  -- Determine round winner by scaled units (NULL = draw)
+  if v_p1_round_units > v_p2_round_units then
     v_round_winner := v_match.player1_id;
-  elsif v_p2_round_points > v_p1_round_points then
+  elsif v_p2_round_units > v_p1_round_units then
     v_round_winner := v_match.player2_id;
   else
     v_round_winner := null;
@@ -413,6 +461,5 @@ alter function public.compute_multi_step_results_v3(uuid, uuid) set search_path 
 grant execute on function public.compute_multi_step_results_v3(uuid, uuid) to service_role;
 
 commit;
-
 
 

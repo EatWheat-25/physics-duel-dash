@@ -99,15 +99,18 @@ export interface QuestionStep {
 
     /**
      * Optional sub-steps inside this step.
-     * - NOT extra steps/parts (still counts toward the same step)
-     * - If present and ANY are failed, the whole step awards 0 marks (server enforces)
+     * - Sub-steps are ONLY shown if the player answers the MAIN step correctly (server-enforced in async mode)
+     * - Main-step marks are awarded based on MAIN correctness only (sub-steps never remove marks)
+     * - Each correct sub-step awards a small bonus (currently +0.2 points) to reduce draws
      */
     subSteps?: QuestionSubStep[];
 }
 
 /**
  * Optional sub-step inside a step.
- * Same answer shape as a normal step, but it awards no marks by itself.
+ * Same answer shape as a normal step.
+ * - Awards no marks by itself
+ * - Awards bonus points when correct (game rule)
  */
 export interface QuestionSubStep {
     /** Sub-step type - MCQ or True/False */

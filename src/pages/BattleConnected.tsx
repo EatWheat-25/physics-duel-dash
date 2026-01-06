@@ -128,6 +128,13 @@ export default function BattleConnected() {
   const opponentId = isPlayer1 ? match?.player2_id : match?.player1_id;
   const stepSegmentTimeLeft = currentSegment === 'sub' ? subStepTimeLeft : stepTimeLeft;
 
+  const formatPoints = (n: number | null | undefined): string => {
+    if (typeof n !== 'number' || !Number.isFinite(n)) return '0';
+    const rounded = Math.round(n);
+    if (Math.abs(n - rounded) < 1e-9) return String(rounded);
+    return n.toFixed(1);
+  };
+
   if (!match || !currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -508,7 +515,7 @@ export default function BattleConnected() {
                       </div>
                       {results.p1Score !== undefined && results.p2Score !== undefined && (
                         <div className="text-lg font-bold mb-2">
-                          Round Score: {isPlayer1 ? results.p1Score : results.p2Score} - {isPlayer1 ? results.p2Score : results.p1Score}
+                          Round Score: {isPlayer1 ? formatPoints(results.p1Score) : formatPoints(results.p2Score)} - {isPlayer1 ? formatPoints(results.p2Score) : formatPoints(results.p1Score)}
                         </div>
                       )}
                       <div className="text-sm font-bold mb-2">
@@ -526,19 +533,20 @@ export default function BattleConnected() {
                   <div className="mb-8">
                     {/* Calculate parts correct for each player */}
                     {(() => {
-                      const myPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
-                        return myAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
-                      const oppPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
-                        return oppAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
+                      const isPartCorrect = (sr: any, forPlayer1: boolean) => {
+                        const partCorrect = forPlayer1 ? sr?.p1PartCorrect : sr?.p2PartCorrect;
+                        if (typeof partCorrect === 'boolean') return partCorrect;
+                        const ans = forPlayer1 ? sr?.p1AnswerIndex : sr?.p2AnswerIndex;
+                        const correct = sr?.correctAnswer;
+                        return ans !== null && ans !== undefined && correct !== null && correct !== undefined && ans === correct;
+                      };
+
+                      const myPartsCorrect = results.stepResults.filter((sr) => isPartCorrect(sr, !!isPlayer1)).length;
+                      const oppPartsCorrect = results.stepResults.filter((sr) => isPartCorrect(sr, !isPlayer1)).length;
+
                       const totalSteps = results.stepResults.length;
-                      const iWon = myPartsCorrect > oppPartsCorrect;
-                      const isTie = myPartsCorrect === oppPartsCorrect;
+                      const isTie = (results.round_winner ?? null) === null;
+                      const iWon = !isTie && results.round_winner === currentUser;
                       
                       return (
                         <>
@@ -619,24 +627,29 @@ export default function BattleConnected() {
                             </summary>
                             <div className="space-y-2 mt-3">
                               {results.stepResults.map((stepResult, idx) => {
-                                const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex
-                                const myMarks = isPlayer1 ? stepResult.p1Marks : stepResult.p2Marks
-                                const myCorrect = myAnswer === stepResult.correctAnswer
-                                return (
-                                  <div
-                                    key={idx}
-                                    className={`p-2 rounded-lg border text-left text-xs ${
-                                      myCorrect ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-bold">Step {stepResult.stepIndex + 1}</span>
-                                      <span className="font-mono">
-                                        {myCorrect ? '✓' : '✗'} {myMarks} pts
-                                      </span>
-                                    </div>
-                                  </div>
-                                )
+                                    const myCorrect = isPartCorrect(stepResult, !!isPlayer1);
+                                    const myMarks = isPlayer1
+                                      ? (stepResult.p1StepAwarded ?? stepResult.p1Marks ?? 0)
+                                      : (stepResult.p2StepAwarded ?? stepResult.p2Marks ?? 0);
+                                    const mySubPoints = isPlayer1
+                                      ? (stepResult.p1SubPoints ?? 0)
+                                      : (stepResult.p2SubPoints ?? 0);
+
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className={`p-2 rounded-lg border text-left text-xs ${
+                                          myCorrect ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-bold">Step {stepResult.stepIndex + 1}</span>
+                                          <span className="font-mono">
+                                            {myCorrect ? '✓' : '✗'} {myMarks} / {formatPoints(mySubPoints)} pts
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
                               })}
                             </div>
                           </details>

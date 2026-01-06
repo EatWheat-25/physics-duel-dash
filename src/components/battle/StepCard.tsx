@@ -77,7 +77,7 @@ export function StepCard({
 
           {segment === 'sub' && (
             <p className="text-xs text-slate-600 font-mono">
-              QUICK CHECK — must be correct to earn this step&apos;s marks
+              QUICK CHECK — +0.2 bonus points per correct answer
             </p>
           )}
         </div>

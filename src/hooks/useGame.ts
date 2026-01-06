@@ -23,18 +23,30 @@ interface ConnectionState {
     round_winner: string | null
     p1Score?: number
     p2Score?: number
+    // V3 scoring fields (multi-step points)
+    p1SubPoints?: number
+    p2SubPoints?: number
+    p1RoundPoints?: number
+    p2RoundPoints?: number
     // V2 legacy: per-step results lived under payload.p1.steps
     // V3 (async segments): results live under payload.stepResults and include main/sub segments
     stepResults?: Array<{
       stepIndex: number
       marks?: number
       hasSubStep?: boolean
+      totalSubSteps?: number
       mainCorrectAnswer?: number
       subCorrectAnswer?: number | null
       p1MainAnswerIndex?: number | null
       p2MainAnswerIndex?: number | null
       p1SubAnswerIndex?: number | null
       p2SubAnswerIndex?: number | null
+      p1MainCorrect?: boolean
+      p2MainCorrect?: boolean
+      p1SubCorrectCount?: number
+      p2SubCorrectCount?: number
+      p1SubPoints?: number
+      p2SubPoints?: number
       p1PartCorrect?: boolean
       p2PartCorrect?: boolean
       p1StepAwarded?: number
@@ -189,6 +201,23 @@ export function useGame(match: MatchRow | null) {
         ? (payload.stepResults ?? payload.p1?.steps ?? payload.p1?.stepResults)
         : undefined
 
+    const p1RoundPoints =
+      payload.p1_round_points ??
+      payload.p1RoundPoints ??
+      undefined
+    const p2RoundPoints =
+      payload.p2_round_points ??
+      payload.p2RoundPoints ??
+      undefined
+    const p1SubPoints =
+      payload.p1_sub_points ??
+      payload.p1SubPoints ??
+      undefined
+    const p2SubPoints =
+      payload.p2_sub_points ??
+      payload.p2SubPoints ??
+      undefined
+
     const results = {
       player1_answer: mode === 'simple' ? payload.p1?.answer ?? null : null,
       player2_answer: mode === 'simple' ? payload.p2?.answer ?? null : null,
@@ -196,8 +225,13 @@ export function useGame(match: MatchRow | null) {
       player1_correct: payload.p1?.correct ?? false,
       player2_correct: payload.p2?.correct ?? false,
       round_winner: payload.round_winner ?? null,
-      p1Score: payload.p1?.total ?? 0,
-      p2Score: payload.p2?.total ?? 0,
+      // In multi-step rounds, prefer point-based fields; fall back to legacy totals.
+      p1Score: mode === 'steps' ? (p1RoundPoints ?? 0) : (payload.p1?.total ?? 0),
+      p2Score: mode === 'steps' ? (p2RoundPoints ?? 0) : (payload.p2?.total ?? 0),
+      p1SubPoints,
+      p2SubPoints,
+      p1RoundPoints,
+      p2RoundPoints,
       stepResults,
       p1PartsCorrect: payload.p1_parts_correct ?? payload.p1PartsCorrect ?? undefined,
       p2PartsCorrect: payload.p2_parts_correct ?? payload.p2PartsCorrect ?? undefined,
