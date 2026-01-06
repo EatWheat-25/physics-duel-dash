@@ -5,7 +5,7 @@ export const MatchPatternBackground = () => {
   // on a dark grey base for match pages.
   const patternSvg = encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
-      <g fill="none" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
         <!-- Book -->
         <path d="M26 34h34c6 0 10 4 10 10v44c0-6-4-10-10-10H26z"/>
         <path d="M26 34v44"/>
@@ -76,7 +76,7 @@ export const MatchPatternBackground = () => {
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(circle at 50% 40%, #1f2937 0%, #111827 52%, #0b0d10 100%)',
+            'radial-gradient(circle at 50% 45%, #0a0c10 0%, #050608 60%, #000000 100%)',
         }}
       />
 
@@ -92,8 +92,9 @@ export const MatchPatternBackground = () => {
           transformOrigin: 'center',
           backgroundImage: patternUrl,
           backgroundRepeat: 'repeat',
-          backgroundSize: '180px 180px',
-          opacity: 0.14,
+          // Bigger tiles = bigger icons
+          backgroundSize: '300px 300px',
+          opacity: 0.45,
         }}
       />
 
@@ -102,7 +103,7 @@ export const MatchPatternBackground = () => {
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(900px 650px at 50% 45%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.32) 62%, rgba(0,0,0,0.85) 100%)',
+            'radial-gradient(900px 650px at 50% 45%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.14) 70%, rgba(0,0,0,0.45) 100%)',
         }}
       />
     </div>
