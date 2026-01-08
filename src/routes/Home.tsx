@@ -212,7 +212,7 @@ export default function Home() {
   return (
     <div className="relative min-h-screen overflow-hidden text-white font-sans">
       {/* Study Icons Pattern Background */}
-      <StudyPatternBackground />
+      <StudyPatternBackground variant="battleNerds" />
 
       {/* Top bar (centered nav like reference) */}
       <header className="relative z-30 w-full px-4 sm:px-6 pt-5">
@@ -253,8 +253,10 @@ export default function Home() {
                     }`}
                     style={{
                       background: active ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)',
-                      border: active ? '1px solid rgba(163,230,53,0.22)' : '1px solid rgba(255,255,255,0.10)',
-                      boxShadow: active ? '0 0 28px rgba(163,230,53,0.10)' : undefined,
+                      border: active
+                        ? '1px solid hsl(var(--bn-secondary) / 0.22)'
+                        : '1px solid rgba(255,255,255,0.10)',
+                      boxShadow: active ? '0 0 28px hsl(var(--bn-secondary) / 0.10)' : undefined,
                     }}
                     aria-hidden="true"
                   />
@@ -264,7 +266,7 @@ export default function Home() {
                       className="absolute left-0 right-0 -bottom-1 mx-auto h-0.5 w-10 rounded-full"
                       style={{
                         background:
-                          'linear-gradient(90deg, rgba(163,230,53,0), rgba(163,230,53,1), rgba(163,230,53,0))',
+                          'linear-gradient(90deg, hsl(var(--bn-secondary) / 0), hsl(var(--bn-secondary)), hsl(var(--bn-secondary) / 0))',
                       }}
                     />
                   )}
@@ -366,7 +368,10 @@ export default function Home() {
             whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
             aria-label="Selected mode"
           >
-            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-lime-400/70" />
+            <div
+              className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+              style={{ background: 'hsl(var(--bn-secondary) / 0.7)' }}
+            />
             <div className="text-sm font-semibold text-white">UNRATED</div>
             <div className="text-xs text-white/55 mt-1">Selected Mode</div>
           </motion.button>
@@ -385,7 +390,10 @@ export default function Home() {
             whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
             aria-label="Open leaderboard"
           >
-            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-sky-400/70" />
+            <div
+              className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+              style={{ background: 'hsl(var(--bn-secondary) / 0.7)' }}
+            />
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-white">{rank.displayName}</div>
@@ -698,8 +706,8 @@ export default function Home() {
             onClick={() => navigate('/modes')}
             className="inline-flex items-center gap-2 rounded px-3 py-2 text-xs font-semibold"
             style={{
-              background: '#facc15',
-              color: '#0b1220',
+              background: 'hsl(var(--bn-secondary))',
+              color: 'hsl(var(--bn-primary-deep))',
               border: '1px solid rgba(0,0,0,0.35)',
               boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
             }}
@@ -737,8 +745,9 @@ export default function Home() {
                 onClick={() => navigate('/matchmaking-new?step=subject')}
                 className="px-7 py-4 rounded-2xl text-sm font-extrabold tracking-widest"
                 style={{
-                  background: 'linear-gradient(135deg, #a3e635, #22c55e)',
-                  color: '#0b1220',
+                  background:
+                    'linear-gradient(135deg, hsl(var(--bn-secondary)), hsl(var(--bn-secondary-deep)))',
+                  color: 'hsl(var(--bn-primary-deep))',
                   border: '1px solid rgba(0,0,0,0.45)',
                   boxShadow: '0 14px 44px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
                 }}
@@ -764,8 +773,9 @@ export default function Home() {
               disabled={matchmakingStatus === 'searching'}
               className="flex-1 min-w-[260px] px-8 py-6 text-2xl sm:text-3xl font-bold rounded-2xl"
               style={{
-                background: 'linear-gradient(135deg, #a3e635, #22c55e)',
-                color: '#0b1220',
+                background:
+                  'linear-gradient(135deg, hsl(var(--bn-secondary)), hsl(var(--bn-secondary-deep)))',
+                color: 'hsl(var(--bn-primary-deep))',
                 border: '1px solid rgba(0,0,0,0.45)',
                 boxShadow: '0 18px 55px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
                 opacity: matchmakingStatus === 'searching' ? 0.75 : 1,

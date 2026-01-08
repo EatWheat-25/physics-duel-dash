@@ -1,10 +1,21 @@
 import React from 'react';
 
-export const StudyPatternBackground = () => {
+type StudyPatternBackgroundVariant = 'default' | 'battleNerds';
+
+interface StudyPatternBackgroundProps {
+  variant?: StudyPatternBackgroundVariant;
+}
+
+export const StudyPatternBackground: React.FC<StudyPatternBackgroundProps> = ({
+  variant = 'default',
+}) => {
+  const isBattleNerds = variant === 'battleNerds';
+
   // Dense, repeating "study doodles" pattern (original vector, inspired by your reference wallpaper)
+  const patternStroke = isBattleNerds ? '#55C7FF' : '#22d3ee';
   const patternSvg = encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
-      <g fill="none" stroke="#22d3ee" stroke-opacity="0.30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g fill="none" stroke="${patternStroke}" stroke-opacity="0.30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <!-- Book -->
         <path d="M26 34h34c6 0 10 4 10 10v44c0-6-4-10-10-10H26z"/>
         <path d="M26 34v44"/>
@@ -73,9 +84,24 @@ export const StudyPatternBackground = () => {
       <div 
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(circle at 50% 50%, #0f172a 0%, #000000 100%)',
+          background: isBattleNerds
+            ? 'radial-gradient(circle at 60% 55%, hsl(var(--bn-primary)) 0%, hsl(var(--bn-primary-deep)) 62%, #000000 100%)'
+            : 'radial-gradient(circle at 50% 50%, #0f172a 0%, #000000 100%)',
         }}
       />
+
+      {/* BattleNerds: soft light-blue fade in top-left */}
+      {isBattleNerds && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: [
+              'radial-gradient(900px 650px at 12% 12%, hsl(var(--bn-secondary) / 0.22) 0%, transparent 62%)',
+              'radial-gradient(700px 500px at 18% 22%, hsl(var(--bn-secondary-deep) / 0.12) 0%, transparent 58%)',
+            ].join(','),
+          }}
+        />
+      )}
 
       {/* 2. Dense repeating pattern overlay */}
       <div
@@ -100,12 +126,12 @@ export const StudyPatternBackground = () => {
       {/* 4. Electric Blue Glow Drifts */}
       <div 
         className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-20 animate-blob-float"
-        style={{ background: '#06b6d4' }} // Cyan-500
+        style={{ background: isBattleNerds ? 'hsl(var(--bn-secondary))' : '#06b6d4' }} // Cyan-500
       />
       <div 
         className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-10 animate-blob-float"
         style={{ 
-          background: '#3b82f6', // Blue-500
+          background: isBattleNerds ? 'hsl(var(--bn-secondary-deep))' : '#3b82f6', // Blue-500
           animationDelay: '-5s' 
         }} 
       />

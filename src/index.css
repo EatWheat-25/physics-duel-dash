@@ -36,6 +36,13 @@ All colors MUST be HSL.
   --background: 240 20% 6%;           /* Deep space black */
   --foreground: 0 0% 100%;            /* Pure white text */
 
+  /* === BattleNerds Brand Tokens (Lobby/Home recolor) === */
+  /* Stored as HSL triplets for use with hsl(var(--bn-*) / <alpha>) */
+  --bn-primary: 215 65% 14%;          /* Brand navy (approx #0B1E3B) */
+  --bn-primary-deep: 220 70% 8%;      /* Deeper navy stop for gradients */
+  --bn-secondary: 203 100% 64%;       /* Brand sky (approx #55C7FF) */
+  --bn-secondary-deep: 210 100% 56%;  /* Deeper sky stop for gradients */
+
   --card: 240 15% 10%;                /* Dark panels */
   --card-foreground: 0 0% 100%;       /* Pure white text */
   
