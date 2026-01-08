@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { RankMenu } from '@/components/RankMenu';
-import { ChevronRight, History, LogOut, Plus, Settings, Shield, Sparkles, Trophy, X } from 'lucide-react';
+import { ChevronRight, History, LogOut, Plus, Settings, Shield, Trophy, X } from 'lucide-react';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +12,7 @@ import { getRankByPoints } from '@/types/ranking';
 import { useMatchmakingPrefs } from '@/store/useMatchmakingPrefs';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { BrandMark } from '@/components/BrandMark';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -218,20 +219,7 @@ export default function Home() {
       <header className="relative z-30 w-full px-4 sm:px-6 pt-5">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-[180px]">
-            <div
-              className="h-10 w-10 rounded-2xl flex items-center justify-center"
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(18px)',
-              }}
-            >
-              <Sparkles className="w-4 h-4 text-white/90" />
-            </div>
-            <div className="leading-tight">
-              <div className="font-semibold text-sm sm:text-base">BattleNerds</div>
-              <div className="text-xs text-white/60">Lobby</div>
-            </div>
+            <BrandMark />
           </div>
 
           <nav className="hidden md:flex items-center justify-center gap-8" aria-label="Primary navigation">
