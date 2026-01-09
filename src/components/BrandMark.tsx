@@ -20,7 +20,7 @@ export function BrandMark({ className }: BrandMarkProps) {
       />
 
       {/* Brand text (image) */}
-      <div className="relative h-7 sm:h-8 w-[200px] sm:w-[240px]">
+      <div className="relative h-7 sm:h-8 w-[220px] sm:w-[260px] overflow-hidden">
         {/* Contrast glow behind the darker “Battle” side (no image edits) */}
         <div
           className="absolute -inset-y-3 -inset-x-4 rounded-2xl pointer-events-none"
@@ -38,8 +38,10 @@ export function BrandMark({ className }: BrandMarkProps) {
         <img
           src="/brand/battle-nerds-text.png"
           alt="Battle Nerds"
-          className="relative h-full w-full object-contain select-none"
+          className="relative h-full w-full object-cover select-none"
           style={{
+            // This PNG is very tall; cover + positioned crop keeps the actual text tight next to the mascot.
+            objectPosition: "left 76%",
             filter:
               // Soft outline + depth so the dark “Battle” letters remain readable on dark/blue backgrounds
               "drop-shadow(0 0 2px rgba(255,255,255,0.22)) drop-shadow(0 0 16px rgba(0,0,0,0.55)) drop-shadow(0 0 22px hsl(var(--bn-secondary) / 0.16))",
