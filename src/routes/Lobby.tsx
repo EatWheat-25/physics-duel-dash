@@ -7,6 +7,7 @@ import { useActivePlayerCount } from '@/hooks/useActivePlayerCount';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, ArrowLeft, BookOpen, GraduationCap, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BrandMark } from '@/components/BrandMark';
 
 type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'grade-9' | 'grade-10' | 'grade-11' | 'grade-12' | 'as-level' | 'a2-level';
@@ -87,7 +88,8 @@ export default function Lobby() {
     <div className="relative min-h-screen overflow-hidden">
       <StudyPatternBackground />
 
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute top-4 left-4 z-20 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <BrandMark />
         <Button
           variant="ghost"
           size="sm"

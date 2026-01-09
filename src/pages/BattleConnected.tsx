@@ -10,6 +10,7 @@ import { RedYellowPatternBackground } from '@/components/battle/RedYellowPattern
 import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
 import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
+import { BrandMark } from '@/components/BrandMark';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -211,16 +212,19 @@ export default function BattleConnected() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="relative z-20 w-full max-w-7xl mx-auto p-4 md:p-6 flex justify-between items-center">
-        <button 
-          onClick={() => navigate('/matchmaking-new')}
-          className="flex items-center gap-2 text-white/40 hover:text-white transition-colors group"
-        >
-          <div className="p-2 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-          </div>
-          <span className="text-sm font-medium tracking-wide">EXIT</span>
-        </button>
+      <header className="relative z-20 w-full max-w-7xl mx-auto p-4 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <BrandMark />
+          <button 
+            onClick={() => navigate('/matchmaking-new')}
+            className="flex items-center gap-2 text-white/40 hover:text-white transition-colors group"
+          >
+            <div className="p-2 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+              <ArrowLeft className="w-4 h-4" />
+            </div>
+            <span className="text-sm font-medium tracking-wide">EXIT</span>
+          </button>
+        </div>
 
         <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full backdrop-blur-md">
           <div className={`w-2 h-2 rounded-full ${status.includes('connected') || status === 'playing' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />

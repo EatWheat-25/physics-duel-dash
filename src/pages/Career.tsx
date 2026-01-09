@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, History } from 'lucide-react';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { Button } from '@/components/ui/button';
+import { BrandMark } from '@/components/BrandMark';
 
 export default function Career() {
   const navigate = useNavigate();
@@ -22,7 +23,8 @@ export default function Career() {
         }}
       />
 
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute top-4 left-4 z-20 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <BrandMark />
         <Button
           variant="ghost"
           size="sm"

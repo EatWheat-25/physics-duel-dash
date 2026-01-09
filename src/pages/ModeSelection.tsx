@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calculator, Atom, Play } from 'lucide-react';
+import { BrandMark } from '@/components/BrandMark';
 
 const ModeSelection: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<'math' | 'physics' | null>(null);
@@ -135,7 +136,8 @@ const ModeSelection: React.FC = () => {
 
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
-        <div className="p-8">
+        <div className="p-8 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <BrandMark />
           <Link 
             to="/" 
             className="inline-flex items-center gap-3 text-white/70 hover:text-white transition-all duration-200 text-sm font-medium"

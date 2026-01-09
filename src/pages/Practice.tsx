@@ -13,6 +13,7 @@ import { Starfield } from '@/components/Starfield';
 import { QuestionViewer } from '@/components/questions/QuestionViewer';
 import { useQuestions } from '@/hooks/useQuestions';
 import { QuestionSubject, QuestionLevel } from '@/types/questions';
+import { BrandMark } from '@/components/BrandMark';
 
 export default function Practice() {
   const navigate = useNavigate();
@@ -50,7 +51,8 @@ export default function Practice() {
       <Starfield />
 
       {/* Back button */}
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute top-4 left-4 z-20 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <BrandMark />
         <Button
           variant="ghost"
           size="sm"

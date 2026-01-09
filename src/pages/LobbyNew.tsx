@@ -7,6 +7,7 @@ import { useMatchmaking } from '@/hooks/useMatchmaking';
 import { toast } from 'sonner';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { useMatchmakingPrefs } from '@/store/useMatchmakingPrefs';
+import { BrandMark } from '@/components/BrandMark';
 
 type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'A1' | 'A2' | 'Both';
@@ -196,7 +197,8 @@ export default function LobbyNew() {
         }}
       />
       
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute top-4 left-4 z-20 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <BrandMark />
         <motion.button
           onClick={handleBack}
           className="gap-2 px-4 py-2 font-semibold bg-white/5 backdrop-blur-xl border border-white/15 text-white hover:bg-white/10 transition-all rounded-xl"

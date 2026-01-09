@@ -6,6 +6,7 @@ import { BottomNav } from '@/components/BottomNav';
 import { PlayerHubCard } from '@/components/hub/PlayerHubCard';
 import { QuickActionsStrip } from '@/components/hub/QuickActionsStrip';
 import { Button } from '@/components/ui/button';
+import { BrandMark } from '@/components/BrandMark';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -26,7 +27,8 @@ export default function Profile() {
         }}
       />
 
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute top-4 left-4 z-20 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <BrandMark />
         <Button
           variant="ghost"
           size="sm"

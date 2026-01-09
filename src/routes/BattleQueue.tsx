@@ -7,6 +7,7 @@ import { GameMode } from '@/types/gameMode';
 import { Button } from '@/components/ui/button';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
 import { loadMatchmakingPrefs, saveMatchmakingPrefs } from '@/utils/matchmakingPrefs';
+import { BrandMark } from '@/components/BrandMark';
 
 const AVAILABLE_MODES: { id: GameMode; title: string; emoji: string }[] = [
   { id: 'A1-Only', title: 'A1-Only Mode', emoji: '📐' },
@@ -99,58 +100,62 @@ export default function BattleQueue() {
       <div className="relative z-10 min-h-screen px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button & Mode Selector - Top Left */}
         <div className="max-w-7xl mx-auto mb-8">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate(-1)}
-              className="gap-2 font-bold uppercase tracking-wider bg-card/80 backdrop-blur-xl border border-border hover:border-primary/40"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </Button>
-            
-            <div className="relative inline-block">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              disabled={status === 'searching' || status === 'matched'}
-              className="flex items-center gap-3 px-6 py-3 rounded-2xl text-sm font-bold uppercase tracking-wider transition-all duration-300 bg-card/80 backdrop-blur-xl border border-border hover:border-primary/40 text-foreground"
-            >
-              <span className="text-xl">
-                {selectedMode ? AVAILABLE_MODES.find(m => m.id === selectedMode)?.emoji : '🎮'}
-              </span>
-              <span>
-                {selectedMode ? AVAILABLE_MODES.find(m => m.id === selectedMode)?.title : 'Select Mode'}
-              </span>
-              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <BrandMark />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(-1)}
+                className="gap-2 font-bold uppercase tracking-wider bg-card/80 backdrop-blur-xl border border-border hover:border-primary/40"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back</span>
+              </Button>
+              
+              <div className="relative inline-block">
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                disabled={status === 'searching' || status === 'matched'}
+                className="flex items-center gap-3 px-6 py-3 rounded-2xl text-sm font-bold uppercase tracking-wider transition-all duration-300 bg-card/80 backdrop-blur-xl border border-border hover:border-primary/40 text-foreground"
+              >
+                <span className="text-xl">
+                  {selectedMode ? AVAILABLE_MODES.find(m => m.id === selectedMode)?.emoji : '🎮'}
+                </span>
+                <span>
+                  {selectedMode ? AVAILABLE_MODES.find(m => m.id === selectedMode)?.title : 'Select Mode'}
+                </span>
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-            <AnimatePresence>
-              {isDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute top-full mt-2 left-0 w-64 bg-card/95 backdrop-blur-xl border border-border rounded-2xl overflow-hidden shadow-xl z-50"
-                >
-                  {AVAILABLE_MODES.map((mode) => (
-                    <button
-                      key={mode.id}
-                      onClick={() => {
-                        setSelectedMode(mode.id);
-                        setIsDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-6 py-4 text-left transition-all duration-200 hover:bg-primary/10 ${
-                        selectedMode === mode.id ? 'bg-primary/20 text-primary' : 'text-foreground'
-                      }`}
-                    >
-                      <span className="text-2xl">{mode.emoji}</span>
-                      <span className="font-bold text-sm">{mode.title}</span>
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full mt-2 left-0 w-64 bg-card/95 backdrop-blur-xl border border-border rounded-2xl overflow-hidden shadow-xl z-50"
+                  >
+                    {AVAILABLE_MODES.map((mode) => (
+                      <button
+                        key={mode.id}
+                        onClick={() => {
+                          setSelectedMode(mode.id);
+                          setIsDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-3 px-6 py-4 text-left transition-all duration-200 hover:bg-primary/10 ${
+                          selectedMode === mode.id ? 'bg-primary/20 text-primary' : 'text-foreground'
+                        }`}
+                      >
+                        <span className="text-2xl">{mode.emoji}</span>
+                        <span className="font-bold text-sm">{mode.title}</span>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              </div>
+            </div>
             </div>
           </div>
         </div>
