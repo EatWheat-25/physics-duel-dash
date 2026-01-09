@@ -29,7 +29,7 @@ export function BrandMark({ className }: BrandMarkProps) {
           className="relative h-full w-full object-cover select-none"
           style={{
             // This PNG is very tall; crop to keep the actual text in view (avoid the “blank bar”).
-            objectPosition: "center 50%",
+            objectPosition: "center 62%",
             filter:
               // Soft outline + depth so the dark “Battle” letters remain readable on dark/blue backgrounds
               "drop-shadow(0 0 3px rgba(255,255,255,0.30)) drop-shadow(0 0 18px rgba(0,0,0,0.70)) drop-shadow(0 0 26px hsl(var(--bn-secondary) / 0.18))",
