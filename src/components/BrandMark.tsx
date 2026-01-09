@@ -6,37 +6,43 @@ type BrandMarkProps = {
 
 export function BrandMark({ className }: BrandMarkProps) {
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={cn("flex items-center gap-2 sm:gap-3", className)}>
       {/* Mascot */}
-      <div
-        className="h-10 w-10 shrink-0 rounded-2xl overflow-hidden flex items-center justify-center"
+      <img
+        src="/brand/mascot.png"
+        alt="Battle Nerds mascot"
+        className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 object-contain select-none"
         style={{
-          background: "rgba(255, 255, 255, 0.06)",
-          border: "1px solid rgba(255, 255, 255, 0.12)",
-          backdropFilter: "blur(18px)",
+          filter:
+            "drop-shadow(0 0 22px hsl(var(--bn-secondary) / 0.35)) drop-shadow(0 0 28px rgba(0,0,0,0.55))",
         }}
-      >
-        <img
-          src="/brand/mascot.png"
-          alt="Battle Nerds mascot"
-          className="h-full w-full object-cover select-none"
-          style={{
-            filter:
-              "drop-shadow(0 0 12px hsl(var(--bn-secondary) / 0.25)) drop-shadow(0 0 18px rgba(0,0,0,0.45))",
-          }}
-          draggable={false}
-        />
-      </div>
+        draggable={false}
+      />
 
       {/* Brand text (image) */}
-      <div className="h-7 w-[160px] sm:w-[180px] overflow-hidden">
+      <div className="relative h-7 sm:h-8 w-[200px] sm:w-[240px]">
+        {/* Contrast glow behind the darker “Battle” side (no image edits) */}
+        <div
+          className="absolute -inset-y-3 -inset-x-4 rounded-2xl pointer-events-none"
+          style={{
+            background: [
+              // Lift the left side (Battle) so it doesn't camouflage into the background
+              "radial-gradient(260px 90px at 22% 50%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.10) 45%, transparent 72%)",
+              // Brand sky glow for the right side (Nerds), kept subtle
+              "radial-gradient(300px 100px at 78% 50%, hsl(var(--bn-secondary) / 0.18) 0%, transparent 68%)",
+            ].join(","),
+            filter: "blur(12px)",
+          }}
+          aria-hidden="true"
+        />
         <img
           src="/brand/battle-nerds-text.png"
           alt="Battle Nerds"
-          className="h-full w-full object-cover select-none"
+          className="relative h-full w-full object-contain select-none"
           style={{
             filter:
-              "drop-shadow(0 0 14px rgba(0,0,0,0.65)) drop-shadow(0 0 20px hsl(var(--bn-secondary) / 0.18))",
+              // Soft outline + depth so the dark “Battle” letters remain readable on dark/blue backgrounds
+              "drop-shadow(0 0 2px rgba(255,255,255,0.22)) drop-shadow(0 0 16px rgba(0,0,0,0.55)) drop-shadow(0 0 22px hsl(var(--bn-secondary) / 0.16))",
           }}
           draggable={false}
         />
