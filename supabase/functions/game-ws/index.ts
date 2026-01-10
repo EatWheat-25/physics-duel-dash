@@ -66,7 +66,7 @@ interface RoundStartEvent {
 interface QuestionReceivedEvent {
   type: 'QUESTION_RECEIVED'
   question: any // Raw question object from questions_v2
-  timer_end_at: string // ISO timestamp when timer expires (60 seconds from now)
+  timer_end_at: string // ISO timestamp when timer expires (derived from steps[0].timeLimitSeconds when available)
 }
 
 interface AnswerReceivedEvent {
@@ -735,10 +735,19 @@ async function broadcastQuestion(
     // Clear any existing game state (multi-step state)
     cleanupGameState(matchId)
 
-    // Timeout for answer submission (60 seconds / 1 minute)
-    const TIMEOUT_SECONDS = 60
+    // Timeout for answer submission (single-step): prefer per-step timer if present
+    const DEFAULT_TIMEOUT_SECONDS = 60
+
+    const firstStep = Array.isArray(steps) ? steps[0] : null
+    const stepSecondsRaw = firstStep?.timeLimitSeconds ?? firstStep?.time_limit_seconds
+    const stepSeconds = Number(stepSecondsRaw)
+
+    const TIMEOUT_SECONDS =
+      Number.isFinite(stepSeconds) && stepSeconds > 0
+        ? Math.floor(stepSeconds)
+        : DEFAULT_TIMEOUT_SECONDS
     
-    // Calculate timer end time (60 seconds from now)
+    // Calculate timer end time (from TIMEOUT_SECONDS)
     const timerEndAt = new Date(Date.now() + TIMEOUT_SECONDS * 1000).toISOString()
     
     const questionReceivedEvent: QuestionReceivedEvent = {
@@ -777,7 +786,7 @@ async function broadcastQuestion(
 
     console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
 
-    // Start timeout for answer submission (60 seconds / 1 minute)
+    // Start timeout for answer submission (single-step)
     const timeoutId = setTimeout(async () => {
       console.log(`[${matchId}] ⏰ Timeout triggered after ${TIMEOUT_SECONDS}s`)
       
