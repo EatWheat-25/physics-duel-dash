@@ -215,9 +215,16 @@ export default function Home() {
       {/* Study Icons Pattern Background */}
       <StudyPatternBackground variant="battleNerds" />
 
-      {/* Top bar (centered nav like reference) */}
-      <header className="relative z-30 w-full px-4 sm:px-6 pt-5 shrink-0">
-        <div className="flex items-center justify-between gap-4">
+      {/* Top bar */}
+      <header className="relative z-30 w-full shrink-0">
+        {/* Thin dark strip for contrast against the wallpaper */}
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/80 via-black/55 to-transparent backdrop-blur-xl"
+          aria-hidden="true"
+        />
+
+        <div className="relative px-4 sm:px-6 pt-5">
+          <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 min-w-[180px]">
             <BrandMark />
           </div>
@@ -333,6 +340,7 @@ export default function Home() {
             >
               <LogOut className="w-4 h-4 text-white/90" />
             </button>
+          </div>
           </div>
         </div>
       </header>
