@@ -16,7 +16,7 @@ export default function NewHome() {
   const [subject, setSubject] = useState('physics');
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-[100dvh] overflow-hidden">
       <Starfield />
 
       <div
@@ -27,9 +27,9 @@ export default function NewHome() {
         }}
       />
 
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32">
+      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-[clamp(1rem,3vh,2rem)] pb-[clamp(6rem,14vh,8rem)]">
         <motion.div
-          className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-8 items-center mb-12"
+          className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 md:gap-8 items-end mb-[clamp(2rem,5vh,3rem)]"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
@@ -43,7 +43,7 @@ export default function NewHome() {
             </p>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
             <div className="flex flex-col items-center">
               <motion.div
                 className="relative w-32 h-32 rounded-full overflow-hidden mb-3"
@@ -90,7 +90,7 @@ export default function NewHome() {
 
         <motion.button
           onClick={onStartDailyChallenge}
-          className="relative w-full mb-8 p-8 rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914]"
+          className="relative w-full mb-[clamp(1rem,3vh,2rem)] p-[clamp(1.25rem,3vh,2rem)] rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--magenta)] focus:ring-offset-2 focus:ring-offset-[#060914]"
           style={{
             background: 'linear-gradient(135deg, var(--magenta), var(--violet), var(--indigo))',
             boxShadow: '0 0 60px rgba(242,55,212,0.3)',
@@ -113,7 +113,7 @@ export default function NewHome() {
         </motion.button>
 
         <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"
+          className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-[clamp(1rem,3vh,2rem)]"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
@@ -136,7 +136,7 @@ export default function NewHome() {
         </motion.div>
 
         <motion.div
-          className="text-center mt-16"
+          className="text-center mt-[clamp(1.5rem,5vh,4rem)]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.6 }}

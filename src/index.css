@@ -156,6 +156,12 @@ All colors MUST be HSL.
 
 /* ===== BASE STYLES ===== */
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   * {
     @apply border-border;
   }
@@ -164,6 +170,8 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
     background: var(--gradient-bg);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    /* Prevent page (body) scrolling; routes should manage overflow internally. */
+    overflow: hidden;
     overflow-x: hidden;
     color: white;
   }

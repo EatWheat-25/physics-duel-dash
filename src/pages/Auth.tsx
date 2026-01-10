@@ -155,7 +155,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+    <div className="relative h-full flex items-center justify-center overflow-hidden">
       <Starfield />
       
       {/* Dark gradient overlay */}
@@ -197,7 +197,7 @@ export default function Auth() {
         }} 
       />
       
-      <div className="relative z-10 w-full max-w-md p-8 space-y-6 bg-card/80 backdrop-blur-sm rounded-xl border border-game-border shadow-lg">
+      <div className="relative z-10 w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-auto p-8 space-y-6 bg-card/80 backdrop-blur-sm rounded-xl border border-game-border shadow-lg">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold">Welcome</h1>
           <p className="text-muted-foreground">

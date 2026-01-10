@@ -102,9 +102,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
         }}
       >
-        <div className="flex items-center justify-between relative">
+        <div className="flex items-end justify-between relative">
           {/* Logo */}
-          <div className="flex items-center gap-8">
+          <div className="flex items-end gap-8">
             <motion.div
               whileHover={{ scale: 1.05 }}
               className="flex items-center gap-3"
@@ -112,7 +112,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
                 <Cpu className="w-6 h-6 text-white font-bold" />
               </div>
-              <h1 className="text-3xl font-black text-white" style={{ fontFamily: 'Roboto, sans-serif' }}>BATTLE NERDS</h1>
+              <h1
+                className="text-3xl font-black text-white leading-none"
+                style={{ fontFamily: 'Roboto, sans-serif' }}
+              >
+                BATTLE NERDS
+              </h1>
             </motion.div>
           
             {/* Navigation */}

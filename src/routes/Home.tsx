@@ -211,12 +211,12 @@ export default function Home() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-white font-sans">
+    <div className="relative h-full overflow-hidden text-white font-sans flex flex-col">
       {/* Study Icons Pattern Background */}
       <StudyPatternBackground variant="battleNerds" />
 
       {/* Top bar (centered nav like reference) */}
-      <header className="relative z-30 w-full px-4 sm:px-6 pt-5">
+      <header className="relative z-30 w-full px-4 sm:px-6 pt-5 shrink-0">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-[180px]">
             <BrandMark />
@@ -337,7 +337,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="relative z-20 min-h-[calc(100vh-120px)]">
+      <main className="relative z-20 flex-1 min-h-0">
         {/* Keep the lobby clean like the reference (no large character overlay) */}
 
         {/* Left stack (reference-style tiles) */}
