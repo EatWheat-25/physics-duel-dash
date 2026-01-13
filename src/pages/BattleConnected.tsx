@@ -161,6 +161,8 @@ export default function BattleConnected() {
   const isPlayer1 = match?.player1_id === currentUser;
   const opponentId = isPlayer1 ? match?.player2_id : match?.player1_id;
   const stepSegmentTimeLeft = currentSegment === 'sub' ? subStepTimeLeft : stepTimeLeft;
+  const hasStartedMatch = status === 'playing' || status === 'results' || status === 'match_finished' || !!question;
+  const isConnectingPhase = status === 'connecting' || status === 'connected' || status === 'both_connected';
 
   const myMeta = currentUser ? playerRanks[currentUser] : undefined;
   const oppMeta = opponentId ? playerRanks[opponentId] : undefined;
@@ -409,7 +411,7 @@ export default function BattleConnected() {
         <div className="flex-1 relative flex items-center justify-center">
           <AnimatePresence mode="wait">
             {/* CONNECTING STATE */}
-            {(status === 'connecting' || status === 'connected' || status === 'both_connected') && (
+            {isConnectingPhase && (
               <motion.div
                 key="connecting"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -428,11 +430,37 @@ export default function BattleConnected() {
                     )}
                   </div>
                   <h2 className="text-3xl font-bold mb-3 tracking-tight">
-                    {status === 'both_connected' ? 'OPPONENT LOCKED' : 'SEARCHING FOR TARGET'}
+                    {hasStartedMatch
+                      ? 'RECONNECTING...'
+                      : status === 'both_connected'
+                      ? 'OPPONENT LOCKED'
+                      : 'SEARCHING FOR TARGET'}
                   </h2>
                   <p className="text-slate-600 font-mono text-sm">
-                    {status === 'both_connected' ? 'INITIATING COMBAT SEQUENCE...' : 'SCANNING FREQUENCIES...'}
+                    {hasStartedMatch
+                      ? 'RESTORING LINK...'
+                      : status === 'both_connected'
+                      ? 'INITIATING COMBAT SEQUENCE...'
+                      : 'SCANNING FREQUENCIES...'}
                   </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* In-match reconnect hint (keeps UX clear if status stays playing but socket is down) */}
+            {hasStartedMatch && !isWebSocketConnected && status !== 'match_finished' && (
+              <motion.div
+                key="reconnecting-banner"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute top-4 left-1/2 -translate-x-1/2 z-30"
+              >
+                <div className="px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 backdrop-blur-md flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                  <span className="text-xs font-mono text-blue-200 uppercase tracking-wider">
+                    RECONNECTING...
+                  </span>
                 </div>
               </motion.div>
             )}
