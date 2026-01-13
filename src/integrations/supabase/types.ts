@@ -350,6 +350,8 @@ export type Database = {
           player2_id: string
           player2_score: number | null
           questions: Json
+          ranked_applied_at: string | null
+          ranked_payload: Json | null
           started_at: string | null
           status: Database["public"]["Enums"]["match_status"]
           subject: string
@@ -366,6 +368,8 @@ export type Database = {
           player2_id: string
           player2_score?: number | null
           questions: Json
+          ranked_applied_at?: string | null
+          ranked_payload?: Json | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["match_status"]
           subject: string
@@ -382,12 +386,81 @@ export type Database = {
           player2_id?: string
           player2_score?: number | null
           questions?: Json
+          ranked_applied_at?: string | null
+          ranked_payload?: Json | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["match_status"]
           subject?: string
           winner_id?: string | null
         }
         Relationships: []
+      }
+      player_rank_points_history: {
+        Row: {
+          accuracy_pct: number
+          correct_parts: number
+          created_at: string
+          delta: number
+          id: number
+          match_id: string
+          new_points: number
+          old_points: number
+          opponent_id: string
+          outcome: string
+          player_id: string
+          total_parts: number
+        }
+        Insert: {
+          accuracy_pct: number
+          correct_parts: number
+          created_at?: string
+          delta: number
+          id?: number
+          match_id: string
+          new_points: number
+          old_points: number
+          opponent_id: string
+          outcome: string
+          player_id: string
+          total_parts: number
+        }
+        Update: {
+          accuracy_pct?: number
+          correct_parts?: number
+          created_at?: string
+          delta?: number
+          id?: number
+          match_id?: string
+          new_points?: number
+          old_points?: number
+          opponent_id?: string
+          outcome?: string
+          player_id?: string
+          total_parts?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_rank_points_history_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_rank_points_history_opponent_id_fkey"
+            columns: ["opponent_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_rank_points_history_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       matches_new: {
         Row: {
@@ -519,6 +592,7 @@ export type Database = {
           display_name: string
           id: string
           mmr: number
+          rank_points: number
           region: string | null
           updated_at: string | null
         }
@@ -526,6 +600,7 @@ export type Database = {
           display_name: string
           id: string
           mmr?: number
+          rank_points?: number
           region?: string | null
           updated_at?: string | null
         }
@@ -533,6 +608,7 @@ export type Database = {
           display_name?: string
           id?: string
           mmr?: number
+          rank_points?: number
           region?: string | null
           updated_at?: string | null
         }

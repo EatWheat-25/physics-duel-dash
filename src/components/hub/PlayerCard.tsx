@@ -11,7 +11,7 @@ import { getRankByPoints } from '@/types/ranking';
 interface PlayerStats {
   accuracy: number | null;
   winrate: number | null;
-  mmr: number | null;
+  rank_points: number | null;
   rank_tier: string;
   level: number;
   avatar_url?: string;
@@ -31,50 +31,42 @@ export function PlayerCard() {
         // Fetch player data
         const { data: playerData } = await supabase
           .from('players')
-          .select('mmr')
+          .select('rank_points')
           .eq('id', user.id)
           .single();
 
-        // Calculate stats from match history
-        const { data: matches } = await supabase
-          .from('matches_new')
-          .select('winner_id, p1, p2, p1_score, p2_score')
-          .or(`p1.eq.${user.id},p2.eq.${user.id}`)
-          .eq('state', 'completed')
-          .order('ended_at', { ascending: false })
+        // Calculate stats from ranked history (season)
+        const { data: history } = await supabase
+          .from('player_rank_points_history')
+          .select('outcome, accuracy_pct')
+          .eq('player_id', user.id)
+          .order('created_at', { ascending: false })
           .limit(50);
 
         let wins = 0;
         let totalMatches = 0;
-        let totalQuestions = 0;
-        let correctAnswers = 0;
+        let totalAcc = 0;
+        let accCount = 0;
 
-        if (matches) {
-          totalMatches = matches.length;
-          matches.forEach((match) => {
-            if (match.winner_id === user.id) wins++;
-            
-            // Approximate accuracy from scores (assuming each match had similar question counts)
-            const playerScore = match.p1 === user.id ? match.p1_score : match.p2_score;
-            const opponentScore = match.p1 === user.id ? match.p2_score : match.p1_score;
-            const totalScore = (playerScore || 0) + (opponentScore || 0);
-            
-            if (totalScore > 0) {
-              correctAnswers += playerScore || 0;
-              totalQuestions += totalScore;
+        if (history) {
+          totalMatches = history.length;
+          history.forEach((h) => {
+            if (h.outcome === 'win') wins++;
+            if (typeof h.accuracy_pct === 'number') {
+              totalAcc += h.accuracy_pct;
+              accCount++;
             }
           });
         }
 
-        const mmr = playerData?.mmr || 1000;
-        const rank = getRankByPoints(mmr);
-        // Calculate level from MMR (1 level per 100 MMR, starting at level 1)
-        const level = Math.max(1, Math.floor(mmr / 100) + 1);
+        const rankPoints = playerData?.rank_points ?? 0;
+        const rank = getRankByPoints(rankPoints);
+        const level = 1;
 
         setStats({
-          accuracy: totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : null,
+          accuracy: accCount > 0 ? Math.round(totalAcc / accCount) : null,
           winrate: totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : null,
-          mmr,
+          rank_points: rankPoints,
           rank_tier: rank.tier,
           level,
           avatar_url: profile?.username ? undefined : undefined, // Will use placeholder
@@ -132,16 +124,16 @@ export function PlayerCard() {
   }
 
   const colors = rankColor(stats.rank_tier as RankTier);
-  const rank = getRankByPoints(stats.mmr || 1000);
+  const rank = getRankByPoints(stats.rank_points ?? 0);
 
   const getRankEmoji = (tier: string) => {
     const emojiMap: Record<string, string> = {
       'Bronze': '🥉',
       'Silver': '🥈',
       'Gold': '🥇',
+      'Platinum': '🟪',
       'Diamond': '💎',
-      'Unbeatable': '🔥',
-      'Pocket Calculator': '🧮',
+      'Ruby': '♦',
     };
     return emojiMap[tier] || '🥉';
   };
@@ -198,7 +190,7 @@ export function PlayerCard() {
                   letterSpacing: '0.05em'
                 }}
               >
-                {rank.tier} {rank.subRank}
+                {rank.tier}
               </div>
             </div>
           </div>
@@ -215,7 +207,7 @@ export function PlayerCard() {
                 LEVEL {stats.level || 1}
               </span>
             </div>
-            {stats.mmr !== null && (
+            {stats.rank_points !== null && (
               <div className="flex flex-col items-end">
                 <span 
                   className="text-lg font-bold text-white"
@@ -223,9 +215,9 @@ export function PlayerCard() {
                     fontFamily: 'Orbitron, Inter, system-ui, sans-serif'
                   }}
                 >
-                  {stats.mmr}
+                  {stats.rank_points}
                 </span>
-                <span className="text-[10px] uppercase tracking-wider text-white/60">MMR</span>
+                <span className="text-[10px] uppercase tracking-wider text-white/60">POINTS</span>
               </div>
             )}
           </div>
@@ -261,6 +253,18 @@ export function PlayerCard() {
               </span>
             </div>
           )}
+
+          {/* Valorant-style rank icon (bottom-center) */}
+          {rank.imageUrl && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex flex-col items-center">
+              <img
+                src={rank.imageUrl}
+                alt={rank.tier}
+                className="w-14 h-14 drop-shadow-[0_10px_24px_rgba(0,0,0,0.55)]"
+                loading="lazy"
+              />
+            </div>
+          )}
         </div>
 
         {/* Player Name Section */}
@@ -275,7 +279,7 @@ export function PlayerCard() {
             {profile?.username || 'Player'}
           </div>
           <div className="text-sm text-white/70 uppercase tracking-wider">
-            {rank.tier} {rank.subRank}
+            {rank.tier}
           </div>
         </div>
 

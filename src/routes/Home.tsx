@@ -23,7 +23,7 @@ export default function Home() {
   const { subject: mmSubject, level: mmLevel } = useMatchmakingPrefs();
   const { status: matchmakingStatus, startMatchmaking, leaveQueue } = useMatchmaking();
   const [rankMenuOpen, setRankMenuOpen] = useState(false);
-  const [currentMMR, setCurrentMMR] = useState<number>(0);
+  const [currentRankPoints, setCurrentRankPoints] = useState<number>(0);
   const [queueTime, setQueueTime] = useState(0);
   const initialOnboardingStatus =
     profile?.onboarding_completed ? 'complete' : profile ? 'incomplete' : 'unknown';
@@ -90,27 +90,27 @@ export default function Home() {
     if (!user) return;
     if (onboardingStatus !== 'complete') return;
     
-    const fetchMMR = async () => {
+    const fetchRankPoints = async () => {
       try {
         const { data } = await supabase
           .from('players')
-          .select('mmr')
+          .select('rank_points')
           .eq('id', user.id)
           .single();
 
-        if (data?.mmr) {
-          setCurrentMMR(data.mmr);
+        if (data?.rank_points != null) {
+          setCurrentRankPoints(data.rank_points);
         }
       } catch (error) {
-        console.error('Error fetching MMR:', error);
+        console.error('Error fetching rank points:', error);
       }
     };
 
-    fetchMMR();
+    fetchRankPoints();
 
     // Subscribe to realtime updates
     const channel = supabase
-      .channel('player-mmr-updates')
+      .channel('player-rank-points-updates')
       .on(
         'postgres_changes',
         {
@@ -120,8 +120,8 @@ export default function Home() {
           filter: `id=eq.${user.id}`,
         },
         (payload) => {
-          if (payload.new.mmr) {
-            setCurrentMMR(payload.new.mmr);
+          if (payload.new.rank_points != null) {
+            setCurrentRankPoints(payload.new.rank_points);
           }
         }
       )
@@ -147,9 +147,9 @@ export default function Home() {
 
   const heroSrc = selectedCharacter?.avatar ?? '';
   const heroIsVideo = heroSrc.toLowerCase().endsWith('.mp4');
-  const mmr = currentMMR || 1000;
-  const rank = getRankByPoints(mmr);
-  const level = Math.max(1, Math.floor(mmr / 100) + 1);
+  const points = currentRankPoints ?? 0;
+  const rank = getRankByPoints(points);
+  const level = 1;
   const username = profile?.username ?? user?.email?.split('@')[0] ?? 'Player';
   const initial = (username?.[0] || '?').toUpperCase();
   const hasMatchmakingPrefs = Boolean(mmSubject && mmLevel);
@@ -555,8 +555,8 @@ export default function Home() {
                       <div className="mt-1 text-xs text-white/55">Level {level}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-white tabular-nums">{mmr}</div>
-                      <div className="text-xs text-white/55">MMR</div>
+                      <div className="text-2xl font-bold text-white tabular-nums">{points}</div>
+                      <div className="text-xs text-white/55">Points</div>
                     </div>
                   </div>
 
@@ -859,7 +859,7 @@ export default function Home() {
         </div>
 
       </main>
-      <RankMenu open={rankMenuOpen} onOpenChange={setRankMenuOpen} currentMMR={currentMMR} />
+      <RankMenu open={rankMenuOpen} onOpenChange={setRankMenuOpen} currentPoints={currentRankPoints} />
     </div>
   );
 }

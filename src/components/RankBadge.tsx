@@ -15,8 +15,8 @@ const RankBadge: React.FC<RankBadgeProps> = ({
   size = 'md',
   className = '' 
 }) => {
-  const rankData = RANKS.find(r => r.tier === rank.tier && r.subRank === rank.subRank) || RANKS[0];
-  const isTopRank = rank.tier === 'Pocket Calculator';
+  const rankData = RANKS.find(r => r.tier === rank.tier) || RANKS[0];
+  const isTopRank = rank.tier === 'Ruby';
   
   const sizeClasses = {
     sm: 'text-xs px-3 py-1.5',

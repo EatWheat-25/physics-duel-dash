@@ -1,4 +1,4 @@
-export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond' | 'Master' | 'Immortal' | 'Radiant';
+export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond' | 'Ruby';
 
 export interface RankColors {
   outline: string;
@@ -13,9 +13,7 @@ export function rankColor(tier: RankTier): RankColors {
     Gold: { base: '#F5C542', glow: 'rgba(245, 197, 66, 0.4)', inner: '#C9A035' },
     Platinum: { base: '#9B8CFF', glow: 'rgba(155, 140, 255, 0.4)', inner: '#7A6ACC' },
     Diamond: { base: '#5AD1FF', glow: 'rgba(90, 209, 255, 0.4)', inner: '#3BA8CC' },
-    Master: { base: '#C26CFF', glow: 'rgba(194, 108, 255, 0.4)', inner: '#9B4ECC' },
-    Immortal: { base: '#FF67A1', glow: 'rgba(255, 103, 161, 0.4)', inner: '#CC4F7E' },
-    Radiant: { base: '#7AF4FF', glow: 'rgba(122, 244, 255, 0.45)', inner: '#56C4CC' },
+    Ruby: { base: '#FF4A4A', glow: 'rgba(255, 74, 74, 0.45)', inner: '#CC3030' },
   };
 
   const colors = colorMap[tier] || colorMap.Bronze;

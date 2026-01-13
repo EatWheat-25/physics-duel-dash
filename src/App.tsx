@@ -34,6 +34,7 @@ import AdminQuestions from "./pages/AdminQuestions";
 import AdminLogin from "./pages/AdminLogin";
 import OnlineBattlePage from "./pages/OnlineBattlePage";
 import BattleConnected from "./pages/BattleConnected";
+import MatchResults from "./pages/MatchResults";
 import DebugQuestions from "./pages/DebugQuestions";
 import Practice from "./pages/Practice";
 import MatchSandbox from "./pages/MatchSandbox";
@@ -105,6 +106,7 @@ const App = () => {
                       {/* <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} /> */}
                       <Route path="/online-battle-new/:matchId" element={<BattleConnected />} />
                       <Route path="/battle/:matchId" element={<BattleConnected />} />
+                      <Route path="/match-results/:matchId" element={<MatchResults />} />
                       <Route
                         path="/physics-battle"
                         element={

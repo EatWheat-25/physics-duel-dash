@@ -11,6 +11,7 @@ import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
 import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
 import { BrandMark } from '@/components/BrandMark';
+import { getRankByPoints } from '@/types/ranking';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -23,6 +24,8 @@ export default function BattleConnected() {
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
+  const [playerRanks, setPlayerRanks] = useState<Record<string, { display_name: string; rank_points: number }>>({});
+  const [redirectedToResults, setRedirectedToResults] = useState(false);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -77,6 +80,36 @@ export default function BattleConnected() {
     }
   }, [currentUser]);
 
+  // Fetch rank points + display names for both players (RLS-safe via RPC)
+  useEffect(() => {
+    if (!match?.player1_id || !match?.player2_id) return;
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc('get_players_rank_public_v1', {
+        p_ids: [match.player1_id, match.player2_id],
+      });
+
+      if (cancelled) return;
+      if (error || !Array.isArray(data)) return;
+
+      const map: Record<string, { display_name: string; rank_points: number }> = {};
+      for (const row of data as any[]) {
+        if (row?.id) {
+          map[String(row.id)] = {
+            display_name: String(row.display_name ?? 'Player'),
+            rank_points: Number(row.rank_points ?? 0),
+          };
+        }
+      }
+      setPlayerRanks(map);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [match?.player1_id, match?.player2_id]);
+
   const { 
     status, playerRole, errorMessage, question, answerSubmitted, 
     results, roundNumber, lastRoundWinner, consecutiveWinsCount, 
@@ -128,6 +161,22 @@ export default function BattleConnected() {
   const isPlayer1 = match?.player1_id === currentUser;
   const opponentId = isPlayer1 ? match?.player2_id : match?.player1_id;
   const stepSegmentTimeLeft = currentSegment === 'sub' ? subStepTimeLeft : stepTimeLeft;
+
+  const myMeta = currentUser ? playerRanks[currentUser] : undefined;
+  const oppMeta = opponentId ? playerRanks[opponentId] : undefined;
+  const myRank = getRankByPoints(myMeta?.rank_points ?? 0);
+  const oppRank = getRankByPoints(oppMeta?.rank_points ?? 0);
+
+  // When the match is fully over, redirect to the ranked results page.
+  useEffect(() => {
+    if (!matchId) return;
+    if (!matchOver) return;
+    if (redirectedToResults) return;
+    // Wait until both players have acknowledged the final results to avoid yanking mid-screen.
+    if (!resultsAcknowledged || waitingForOpponentToAcknowledge) return;
+    setRedirectedToResults(true);
+    navigate(`/match-results/${matchId}`);
+  }, [matchId, matchOver, resultsAcknowledged, waitingForOpponentToAcknowledge, redirectedToResults, navigate]);
 
   const formatPoints = (n: number | null | undefined): string => {
     if (typeof n !== 'number' || !Number.isFinite(n)) return '0';
@@ -269,7 +318,17 @@ export default function BattleConnected() {
               </div>
               <div>
                 <div className="text-xs text-blue-200/50 font-mono mb-0.5">OPERATOR</div>
-                <div className="font-bold text-shadow-glow text-lg">YOU</div>
+                <div className="flex items-center gap-2">
+                  {myRank.imageUrl && (
+                    <img
+                      src={myRank.imageUrl}
+                      alt={myRank.tier}
+                      className="w-6 h-6"
+                      loading="lazy"
+                    />
+                  )}
+                  <div className="font-bold text-shadow-glow text-lg">{myMeta?.display_name ?? 'YOU'}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -330,7 +389,17 @@ export default function BattleConnected() {
               </div>
               <div>
                 <div className="text-xs text-red-200/50 font-mono mb-0.5">TARGET</div>
-                <div className="font-bold text-shadow-glow text-lg">OPPONENT</div>
+                <div className="flex items-center gap-2 justify-end">
+                  <div className="font-bold text-shadow-glow text-lg">{oppMeta?.display_name ?? 'OPPONENT'}</div>
+                  {oppRank.imageUrl && (
+                    <img
+                      src={oppRank.imageUrl}
+                      alt={oppRank.tier}
+                      className="w-6 h-6"
+                      loading="lazy"
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -763,10 +832,10 @@ export default function BattleConnected() {
                 {matchOver && (
                   <div className="mt-4">
                     <button
-                      onClick={() => navigate('/matchmaking-new')}
+                      onClick={() => navigate(`/match-results/${matchId}`)}
                       className="px-6 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-full border border-black/20 transition-colors active:scale-[0.99]"
                     >
-                      RETURN TO LOBBY
+                      VIEW MATCH RESULTS
                     </button>
                   </div>
                 )}
