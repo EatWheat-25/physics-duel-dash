@@ -278,10 +278,25 @@ export default function BattleConnected() {
         </div>
 
         <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full backdrop-blur-md">
-          <div className={`w-2 h-2 rounded-full ${status.includes('connected') || status === 'playing' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
-          <span className="text-xs font-mono text-blue-200 uppercase tracking-wider">
-            {status.replace('_', ' ')}
-          </span>
+          {(() => {
+            const inMatch = status === 'playing' || status === 'results'
+            const isReconnecting = inMatch && !isWebSocketConnected
+            const label = isReconnecting ? 'reconnecting' : status.replace('_', ' ')
+            const dotClass =
+              isReconnecting
+                ? 'bg-yellow-500 animate-pulse'
+                : (status.includes('connected') || status === 'playing')
+                ? 'bg-green-500 animate-pulse'
+                : 'bg-yellow-500'
+            return (
+              <>
+                <div className={`w-2 h-2 rounded-full ${dotClass}`} />
+                <span className="text-xs font-mono text-blue-200 uppercase tracking-wider">
+                  {label}
+                </span>
+              </>
+            )
+          })()}
         </div>
       </header>
 

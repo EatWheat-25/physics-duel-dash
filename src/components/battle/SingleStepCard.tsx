@@ -31,7 +31,8 @@ export function SingleStepCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="w-full"
+      // Ensure the answer grid stays above any accidental overlays (prevents C/D click interception).
+      className="w-full relative z-10"
     >
       {/* Question Card */}
       <div className="paper-card mb-8">
@@ -62,7 +63,7 @@ export function SingleStepCard({
       </div>
 
       {/* Answers Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
         {visibleOptions.map((option, idx) => (
           <button
             key={idx}

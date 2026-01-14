@@ -28,7 +28,8 @@ export function MainQuestionCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="w-full"
+      // Keep the main question content above any overlays for consistent interaction/layout.
+      className="w-full relative z-10"
     >
       <div className="paper-card mb-8">
         {paperGraph && (

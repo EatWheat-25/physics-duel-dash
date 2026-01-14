@@ -25,6 +25,8 @@ export function useMatchmaking() {
   const queueStartTimeRef = useRef<number | null>(null);
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
+  const requestedSubjectRef = useRef<string | null>(null);
+  const requestedLevelRef = useRef<string | null>(null);
 
   const runMatchFoundTransition = useCallback(
     (match: MatchRow) => {
@@ -64,11 +66,17 @@ export function useMatchmaking() {
         }
 
         // Check if user has a match in matches table
-        const { data: matches, error } = await supabase
+        let query = supabase
           .from('matches')
           .select('*')
           .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
           .eq('status', 'pending')
+        
+        // If we know what we queued for, filter to that to avoid picking up a stale pending match.
+        if (requestedSubjectRef.current) query = query.eq('subject', requestedSubjectRef.current);
+        if (requestedLevelRef.current) query = query.eq('mode', requestedLevelRef.current);
+
+        const { data: matches, error } = await query
           .order('created_at', { ascending: false })
           .limit(1);
 
@@ -150,6 +158,8 @@ export function useMatchmaking() {
     queueStartTimeRef.current = startedAt;
     setQueueStartTime(startedAt);
     setState(prev => ({ ...prev, status: 'searching', error: null }));
+    requestedSubjectRef.current = subject;
+    requestedLevelRef.current = level;
 
     try {
       // Get current user
@@ -209,12 +219,19 @@ export function useMatchmaking() {
         });
         setQueueStartTime(null);
         queueStartTimeRef.current = null;
+        requestedSubjectRef.current = null;
+        requestedLevelRef.current = null;
 
         toast.success('Match found! Starting battle...');
         runMatchFoundTransition(match);
       } else if (data?.matched === false && data?.queued === true) {
         // Queued - stay in searching state and let polling handle match detection
         console.log('[MATCHMAKING] Queued, will poll for match...');
+        // Prefer server-side queue timestamp to avoid client clock skew causing “old match ignored”.
+        if (data?.queued_at) {
+          const serverMs = new Date(String(data.queued_at)).getTime();
+          if (Number.isFinite(serverMs)) queueStartTimeRef.current = serverMs;
+        }
         toast.info('Searching for opponent...');
         // Polling effect will handle match detection
       } else {
@@ -242,6 +259,8 @@ export function useMatchmaking() {
       toast.error(`Failed to start matchmaking. ${errorHint ? errorHint : 'Please try again.'}`);
       setQueueStartTime(null);
       queueStartTimeRef.current = null;
+      requestedSubjectRef.current = null;
+      requestedLevelRef.current = null;
       
       // Clear polling on error
       if (pollIntervalRef.current) {
@@ -286,6 +305,8 @@ export function useMatchmaking() {
     isSearchingRef.current = false;
     setQueueStartTime(null);
     queueStartTimeRef.current = null;
+    requestedSubjectRef.current = null;
+    requestedLevelRef.current = null;
   }, []);
 
   return {

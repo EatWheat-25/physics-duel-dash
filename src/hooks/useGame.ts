@@ -3,6 +3,10 @@ import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
 import type { MatchRow } from '@/types/schema'
 import { mapRawToQuestion } from '@/utils/questionMapper'
 
+const ENABLE_RESULTS_POLL_FALLBACK =
+  String(import.meta.env.VITE_ENABLE_RESULTS_POLL_FALLBACK ?? '').toLowerCase() === '1' ||
+  String(import.meta.env.VITE_ENABLE_RESULTS_POLL_FALLBACK ?? '').toLowerCase() === 'true'
+
 interface ConnectionState {
   status: 'connecting' | 'connected' | 'both_connected' | 'playing' | 'results' | 'error' | 'match_finished'
   playerRole: 'player1' | 'player2' | null
@@ -165,15 +169,6 @@ export function useGame(match: MatchRow | null) {
   })
 
   const wsRef = useRef<WebSocket | null>(null)
-  const connectRef = useRef<(() => void) | null>(null)
-  const closeWsRef = useRef<(() => void) | null>(null)
-  const reconnectTimeoutRef = useRef<number | null>(null)
-  const reconnectAttemptRef = useRef<number>(0)
-  const reconnectingRef = useRef<boolean>(false)
-  const shouldReconnectRef = useRef<boolean>(true)
-  const hasEverPlayedRef = useRef<boolean>(false)
-  const latestStateRef = useRef<ConnectionState>(state)
-  const rehydrateInFlightRef = useRef<Promise<void> | null>(null)
   const heartbeatRef = useRef<number | null>(null)
   const matchIdRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
@@ -188,12 +183,9 @@ export function useGame(match: MatchRow | null) {
   const localResultsVersionRef = useRef<number>(0)
   const processedRoundIdsRef = useRef<Set<string>>(new Set())
   const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
-
-  // Keep a live snapshot for WS callbacks (avoids stale closures).
-  useEffect(() => {
-    latestStateRef.current = state
-    if (state.status === 'playing') hasEverPlayedRef.current = true
-  }, [state])
+  const reconnectAttemptsRef = useRef<number>(0)
+  const reconnectTimeoutRef = useRef<number | null>(null)
+  const unmountedRef = useRef<boolean>(false)
 
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
   const applyResults = useCallback((payload: any) => {
@@ -314,159 +306,49 @@ export function useGame(match: MatchRow | null) {
     console.log('[useGame] ✅ State updated with results from applyResults')
   }, [])
 
-  const clearReconnectTimer = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-      reconnectTimeoutRef.current = null
-    }
-  }, [])
+  // DB-authoritative question rehydration (prevents “OPPONENT LOCKED” forever if WS message is missed).
+  const rehydrateQuestionFromDb = useCallback(async (questionId: string) => {
+    try {
+      if (!questionId) return
+      const { data, error } = await supabase
+        .from('questions_v2')
+        .select('*')
+        .eq('id', questionId)
+        .single() as { data: any; error: any }
 
-  const closeWs = useCallback(() => {
-    clearReconnectTimer()
-    if (wsRef.current) {
-      try {
-        wsRef.current.close()
-      } catch {
-        // ignore
-      }
-      wsRef.current = null
-    }
-    setIsWebSocketConnected(false)
-    if (heartbeatRef.current) {
-      clearInterval(heartbeatRef.current)
-      heartbeatRef.current = null
-    }
-  }, [clearReconnectTimer])
+      if (error || !data) return
+      const mapped = mapRawToQuestion(data)
+      setState(prev => {
+        const prevId = (prev.question as any)?.id
+        if (prevId && prevId === mapped?.id) return prev
 
-  useEffect(() => {
-    closeWsRef.current = closeWs
-    return () => {
-      closeWsRef.current = null
-    }
-  }, [closeWs])
+        const totalSteps = Array.isArray(mapped?.steps) ? mapped.steps.length : 0
+        const inferredPhase: ConnectionState['phase'] =
+          totalSteps > 1 ? 'main_question' : 'question'
 
-  const scheduleReconnect = useCallback(() => {
-    if (!shouldReconnectRef.current) return
-    if (!matchIdRef.current) return
+        // Don’t override results/match-finished screens.
+        const nextStatus =
+          prev.status === 'results' || prev.status === 'match_finished'
+            ? prev.status
+            : 'playing'
 
-    const s = latestStateRef.current
-    // Don't reconnect if the match is over or we deliberately ended.
-    if (s.status === 'match_finished' || s.matchOver) return
-
-    if (reconnectTimeoutRef.current) return // already scheduled
-
-    reconnectingRef.current = true
-    const attempt = reconnectAttemptRef.current
-    const baseMs = 500
-    const maxMs = 8000
-    const delay = Math.min(maxMs, baseMs * Math.pow(2, attempt))
-    const jitter = Math.floor(Math.random() * 200)
-    const waitMs = delay + jitter
-
-    console.warn('[useGame] 🔄 Scheduling WS reconnect in', waitMs, 'ms (attempt', attempt + 1, ')')
-
-    reconnectTimeoutRef.current = window.setTimeout(() => {
-      reconnectTimeoutRef.current = null
-      reconnectAttemptRef.current = attempt + 1
-      // Trigger reconnect by running the connection flow again (same match id).
-      // Close any half-open socket first, then reconnect.
-      closeWsRef.current?.()
-      connectRef.current?.()
-    }, waitMs)
-  }, [])
-
-  const rehydrateAfterReconnect = useCallback(async () => {
-    if (!match?.id) return
-    if (rehydrateInFlightRef.current) return rehydrateInFlightRef.current
-
-    rehydrateInFlightRef.current = (async () => {
-      try {
-        const { data: matchData, error } = await supabase
-          .from('matches')
-          .select(
-            'id, status, winner_id, current_round_id, current_round_number, target_rounds_to_win, question_id, question_sent_at, player1_id, player2_id, player1_answered_at, player2_answered_at, results_payload, results_version, results_round_id'
-          )
-          .eq('id', match.id)
-          .single() as { data: any; error: any }
-
-        if (error || !matchData) return
-
-        // Keep round metadata aligned.
-        if (matchData.current_round_id) {
-          currentRoundIdRef.current = matchData.current_round_id
-        }
-
-        setState(prev => ({
+        return {
           ...prev,
-          currentRoundId: matchData.current_round_id ?? prev.currentRoundId,
-          currentRoundNumber: matchData.current_round_number ?? prev.currentRoundNumber,
-          targetRoundsToWin: matchData.target_rounds_to_win ?? prev.targetRoundsToWin,
-          matchOver: !!matchData.winner_id,
-          matchWinnerId: matchData.winner_id ?? prev.matchWinnerId
-        }))
-
-        // If results exist (Realtime/WS may have been missed during disconnect), apply them.
-        if (
-          matchData.results_payload &&
-          (matchData.results_version ?? 0) > localResultsVersionRef.current &&
-          (matchData.results_round_id === matchData.current_round_id || matchData.current_round_id == null)
-        ) {
-          localResultsVersionRef.current = matchData.results_version ?? 0
-          applyResults(matchData.results_payload)
-          return
+          status: nextStatus,
+          phase: inferredPhase,
+          question: mapped,
+          totalSteps,
+          currentStepIndex: 0,
+          currentStep: totalSteps > 0 ? mapped.steps?.[0] ?? null : null,
+          answerSubmitted: false,
+          waitingForOpponent: false,
+          errorMessage: null
         }
-
-        // Single-step rehydrate: if there is an active question_id, fetch and restore it.
-        if (matchData.question_id) {
-          const { data: q } = await supabase
-            .from('questions_v2')
-            .select('*')
-            .eq('id', matchData.question_id)
-            .maybeSingle() as { data: any; error: any }
-
-          if (!q) return
-
-          const mappedQuestion = mapRawToQuestion(q)
-
-          // Recompute timer_end_at from question_sent_at + per-step time limit (fallback 60s).
-          let timeoutSeconds = 60
-          try {
-            const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
-            const first = Array.isArray(steps) ? steps[0] : null
-            const stepSecondsRaw = first?.timeLimitSeconds ?? first?.time_limit_seconds
-            const n = Number(stepSecondsRaw)
-            if (Number.isFinite(n) && n > 0) timeoutSeconds = Math.floor(n)
-          } catch {
-            // ignore
-          }
-          const sentAtMs = matchData.question_sent_at ? new Date(matchData.question_sent_at).getTime() : Date.now()
-          const timerEndAt = new Date(sentAtMs + timeoutSeconds * 1000).toISOString()
-
-          const currentUserId = userIdRef.current
-          const isP1 = matchData.player1_id && currentUserId === matchData.player1_id
-          const answeredAt = isP1 ? matchData.player1_answered_at : matchData.player2_answered_at
-          const oppAnsweredAt = isP1 ? matchData.player2_answered_at : matchData.player1_answered_at
-
-          setState(prev => ({
-            ...prev,
-            status: prev.status === 'results' || prev.status === 'match_finished' ? prev.status : 'playing',
-            phase: 'question',
-            question: mappedQuestion,
-            timerEndAt,
-            answerSubmitted: !!answeredAt,
-            waitingForOpponent: !!answeredAt && !oppAnsweredAt,
-            errorMessage: null
-          }))
-        }
-      } catch (err) {
-        console.warn('[useGame] Rehydrate after reconnect failed:', err)
-      } finally {
-        rehydrateInFlightRef.current = null
-      }
-    })()
-
-    return rehydrateInFlightRef.current
-  }, [match?.id, applyResults])
+      })
+    } catch (e) {
+      console.error('[useGame] Failed to rehydrate question from DB:', e)
+    }
+  }, [])
 
   // Listen for polling-detected results (fallback if WS message missed)
   useEffect(() => {
@@ -636,6 +518,8 @@ export function useGame(match: MatchRow | null) {
   }, [state.stepEndsAt, state.phase, state.currentSegment])
 
   useEffect(() => {
+    // This effect re-runs per match; reset unmounted flag for the new run.
+    unmountedRef.current = false
     if (!match) {
         setState(prev => ({
           ...prev,
@@ -648,6 +532,17 @@ export function useGame(match: MatchRow | null) {
 
     const connect = async () => {
       try {
+        // Clear any scheduled reconnect before creating a fresh socket.
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current)
+          reconnectTimeoutRef.current = null
+        }
+
+        // If we already have an open/connecting socket, don't create another.
+        if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+          return
+        }
+
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError || !user) {
@@ -708,16 +603,13 @@ export function useGame(match: MatchRow | null) {
           console.log('[useGame] WebSocket connected')
           hasConnectedRef.current = false
           setIsWebSocketConnected(true)
-          setState(prev => {
-            // If we were already mid-match, don't drop back to connecting/searching UI.
-            const keepStatus =
-              prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished'
-            return {
-              ...prev,
-              status: keepStatus ? prev.status : 'connecting',
-              errorMessage: null
-            }
-          })
+          reconnectAttemptsRef.current = 0
+          setState(prev => ({
+            ...prev,
+            // If we were already playing/showing results, keep that UI stable during reconnect.
+            status: (prev.status === 'playing' || prev.status === 'results') ? prev.status : 'connecting',
+            errorMessage: null
+          }))
 
           // Send JOIN_MATCH message
           const joinMessage = {
@@ -738,9 +630,6 @@ export function useGame(match: MatchRow | null) {
               wsRef.current.send(JSON.stringify({ type: 'PING' }))
             }
           }, 25000) as unknown as number
-
-          // Successful open resets backoff.
-          reconnectAttemptRef.current = 0
         }
 
         ws.onmessage = (event) => {
@@ -764,33 +653,19 @@ export function useGame(match: MatchRow | null) {
             if (message.type === 'CONNECTED') {
               console.log('[useGame] CONNECTED message received, updating state')
               hasConnectedRef.current = true
-              setState(prev => {
-                const keepStatus =
-                  prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished'
-                return {
-                  ...prev,
-                  status: keepStatus ? prev.status : 'connected',
-                  playerRole: message.player,
-                  errorMessage: null
-                }
-              })
-
-              // If this was a reconnect, rehydrate state so we don't stall waiting for missed server messages.
-              if (reconnectingRef.current) {
-                reconnectingRef.current = false
-                void rehydrateAfterReconnect()
-              }
+              setState(prev => ({
+                ...prev,
+                status: 'connected',
+                playerRole: message.player,
+                errorMessage: null
+              }))
             } else if (message.type === 'BOTH_CONNECTED') {
               console.log('[useGame] BOTH_CONNECTED message received - both players ready!')
-              setState(prev => {
-                const keepStatus =
-                  prev.status === 'playing' || prev.status === 'results' || prev.status === 'match_finished'
-                return {
-                  ...prev,
-                  status: keepStatus ? prev.status : 'both_connected',
-                  errorMessage: null
-                }
-              })
+              setState(prev => ({
+                ...prev,
+                status: 'both_connected',
+                errorMessage: null
+              }))
             } else if (message.type === 'QUESTION_RECEIVED') {
               console.log('[useGame] QUESTION_RECEIVED message received')
               try {
@@ -906,16 +781,23 @@ export function useGame(match: MatchRow | null) {
               }))
             } else if (message.type === 'ANSWER_SUBMITTED') {
               console.log('[useGame] ANSWER_SUBMITTED message received')
+              const bothAnswered =
+                typeof (message as any).both_answered === 'boolean'
+                  ? Boolean((message as any).both_answered)
+                  : false
               setState(prev => ({
                 ...prev,
                 answerSubmitted: true,
-                waitingForOpponent: !message.both_answered
+                // If the server didn't include both_answered, assume false (we're waiting).
+                waitingForOpponent: !bothAnswered
               }))
             } else if (message.type === 'ANSWER_RECEIVED') {
               console.log('[useGame] ANSWER_RECEIVED message received - opponent answered')
               setState(prev => ({
                 ...prev,
-                waitingForOpponent: true
+                // Server broadcasts this to BOTH clients, but only the submitter should “wait”.
+                // If I haven't submitted yet, I should still be able to answer (not be stuck “waiting”).
+                waitingForOpponent: !!prev.answerSubmitted
               }))
             } else if (message.type === 'RESULTS_RECEIVED') {
               console.log('[useGame] RESULTS_RECEIVED message received (WebSocket fast-path)', message)
@@ -1073,13 +955,6 @@ export function useGame(match: MatchRow | null) {
 
         ws.onerror = (error) => {
           console.error('[useGame] WebSocket error:', error)
-          // Don't permanently error out mid-match; schedule reconnect instead.
-          const s = latestStateRef.current
-          if (s.status === 'playing' || s.status === 'results') {
-            console.warn('[useGame] WS error during match - scheduling reconnect')
-            scheduleReconnect()
-            return
-          }
           setState(prev => ({
             ...prev,
             status: 'error',
@@ -1104,15 +979,33 @@ export function useGame(match: MatchRow | null) {
             heartbeatRef.current = null
           }
           setState(prev => {
-            if (prev.status === 'error' || prev.status === 'match_finished') return prev
-            // If we were already playing/results, keep the gameplay state and let UI show "reconnecting".
-            const keepStatus = prev.status === 'playing' || prev.status === 'results'
-            return {
-              ...prev,
-              status: keepStatus ? prev.status : 'connecting'
+            if (prev.status !== 'error') {
+              return {
+                ...prev,
+                // Preserve in-match UI; don't bounce back to “SEARCHING” if we drop mid-round.
+                status: (prev.status === 'playing' || prev.status === 'results') ? prev.status : 'connecting'
+              }
             }
+            return prev
           })
-          scheduleReconnect()
+
+          // Auto-reconnect with backoff (unless unmounted).
+          if (!unmountedRef.current) {
+            const attempt = Math.min(6, (reconnectAttemptsRef.current || 0) + 1)
+            reconnectAttemptsRef.current = attempt
+            const delayMs = Math.min(8000, 500 * Math.pow(2, attempt - 1))
+            console.log(`[useGame] Scheduling reconnect attempt ${attempt} in ${delayMs}ms`)
+            reconnectTimeoutRef.current = window.setTimeout(() => {
+              reconnectTimeoutRef.current = null
+              if (unmountedRef.current) return
+              // Allow connect() to create a new socket.
+              if (wsRef.current) {
+                try { wsRef.current.close() } catch {}
+                wsRef.current = null
+              }
+              void connect()
+            }, delayMs) as unknown as number
+          }
         }
       } catch (error: any) {
         console.error('[useGame] Connection error:', error)
@@ -1125,16 +1018,14 @@ export function useGame(match: MatchRow | null) {
       }
     }
 
-    shouldReconnectRef.current = true
-    connectRef.current = () => {
-      void connect()
-    }
-    void connect()
+    connect()
 
     return () => {
-      shouldReconnectRef.current = false
-      connectRef.current = null
-      clearReconnectTimer()
+      unmountedRef.current = true
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
@@ -1154,7 +1045,7 @@ export function useGame(match: MatchRow | null) {
         pollingIntervalRef.current = null
       }
     }
-  }, [match?.id, closeWs, clearReconnectTimer, rehydrateAfterReconnect, scheduleReconnect])
+  }, [match?.id])
 
   // On mount: Initial SELECT to check for existing results (handles reload/late join)
   useEffect(() => {
@@ -1164,7 +1055,7 @@ export function useGame(match: MatchRow | null) {
       try {
         const { data: matchData, error } = await supabase
           .from('matches')
-          .select('results_computed_at, results_payload, results_version, results_round_id, current_round_id, current_round_number, status, winner_id')
+          .select('results_computed_at, results_payload, results_version, results_round_id, current_round_id, current_round_number, status, winner_id, question_id')
           .eq('id', match.id)
           .single() as { data: any; error: any }
 
@@ -1193,13 +1084,18 @@ export function useGame(match: MatchRow | null) {
             applyResults(matchData.results_payload)
           }
         }
+
+        // If a question is already assigned (e.g., late join / reconnect), rehydrate it from DB.
+        if (matchData.question_id) {
+          await rehydrateQuestionFromDb(String(matchData.question_id))
+        }
       } catch (err) {
         console.error('[useGame] Error checking existing results on mount:', err)
       }
     }
 
     checkExistingResults()
-  }, [match?.id, applyResults])
+  }, [match?.id, applyResults, rehydrateQuestionFromDb])
 
   // Realtime subscription for matches table (primary results delivery mechanism)
   useEffect(() => {
@@ -1224,6 +1120,11 @@ export function useGame(match: MatchRow | null) {
 
         // Handle results updates (handles both NULL → NOT NULL and out-of-order events)
         const newPayload = payload.new
+
+        // DB-authoritative question assignment (if WS missed the message).
+        if (newPayload?.question_id) {
+          void rehydrateQuestionFromDb(String(newPayload.question_id))
+        }
 
         // Track canonical current round identity for match_rounds Realtime sync
         if (newPayload?.current_round_id && newPayload.current_round_id !== currentRoundIdRef.current) {
@@ -1303,7 +1204,7 @@ export function useGame(match: MatchRow | null) {
         realtimeChannelRef.current = null
       }
     }
-  }, [match?.id, applyResults])
+  }, [match?.id, applyResults, rehydrateQuestionFromDb])
 
   const applyRoundRow = useCallback((roundRow: any) => {
     if (!roundRow) return
@@ -1513,8 +1414,17 @@ export function useGame(match: MatchRow | null) {
         ws.send(JSON.stringify(submitMessage))
       } else {
         // Single-step answer
-        if (answerIndex !== 0 && answerIndex !== 1) {
-          console.error('[useGame] Invalid answer index:', answerIndex)
+        const optionCount = Array.isArray((prev as any)?.question?.steps?.[0]?.options)
+          ? Number((prev as any).question.steps[0].options.length)
+          : 6 // Server allows 0–5; use 6 as a safe upper bound if we don't know.
+        if (
+          typeof answerIndex !== 'number' ||
+          !Number.isFinite(answerIndex) ||
+          !Number.isInteger(answerIndex) ||
+          answerIndex < 0 ||
+          answerIndex >= Math.max(2, optionCount)
+        ) {
+          console.error('[useGame] Invalid answer index:', answerIndex, { optionCount })
           return prev
         }
         const submitMessage = {
@@ -1525,7 +1435,7 @@ export function useGame(match: MatchRow | null) {
         ws.send(JSON.stringify(submitMessage))
         
         // V2: Start polling fallback (2s timeout, then poll every 1s)
-        if (matchIdRef.current) {
+        if (ENABLE_RESULTS_POLL_FALLBACK && matchIdRef.current) {
           // Clear any existing polling
           if (pollingTimeoutRef.current) {
             clearTimeout(pollingTimeoutRef.current)

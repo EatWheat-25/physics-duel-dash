@@ -41,7 +41,8 @@ export function StepCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="w-full"
+      // Ensure option buttons stay above any accidental overlays (prevents C/D click interception).
+      className="w-full relative z-10"
     >
       <div className="paper-card mb-8">
         {paperGraph && (
@@ -82,7 +83,7 @@ export function StepCard({
           )}
         </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
           {visibleOptions.map((option, idx) => (
             <button
               key={idx}
