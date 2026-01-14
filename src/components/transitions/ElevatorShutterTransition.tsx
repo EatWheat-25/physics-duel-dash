@@ -41,9 +41,11 @@ type ElevatorShutterContextValue = {
 
 const ElevatorShutterContext = createContext<ElevatorShutterContextValue | null>(null);
 
-// Matte purple ceramic (theme-matched)
-const CERAMIC_PURPLE = '#5B4BBE';
-const CERAMIC_PURPLE_DARK = '#3E3391';
+// Dark team doors (left blue, right red)
+const DOOR_BLUE = '#22356F';
+const DOOR_BLUE_DARK = '#121B3C';
+const DOOR_RED = '#6F1F2D';
+const DOOR_RED_DARK = '#3A0F17';
 
 export function ElevatorShutterProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
@@ -204,7 +206,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '-100%' }}
           animate={leftControls}
           style={{
-            background: `linear-gradient(180deg, ${CERAMIC_PURPLE} 0%, ${CERAMIC_PURPLE_DARK} 100%)`,
+            background: `linear-gradient(180deg, ${DOOR_BLUE} 0%, ${DOOR_BLUE_DARK} 100%)`,
             boxShadow:
               'inset 0 0 0 1px rgba(0,0,0,0.06), inset -18px 0 28px rgba(0,0,0,0.12)',
             willChange: 'transform',
@@ -234,7 +236,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             className="absolute inset-0 pointer-events-none opacity-40 z-0"
             style={{
               background:
-                'radial-gradient(900px 700px at 18% 18%, rgba(168,85,247,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 85% 75%, rgba(196,181,253,0.14) 0%, transparent 60%)',
+                'radial-gradient(900px 700px at 18% 18%, rgba(59,130,246,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 85% 75%, rgba(96,165,250,0.14) 0%, transparent 60%)',
             }}
           />
         </motion.div>
@@ -245,7 +247,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '100%' }}
           animate={rightControls}
           style={{
-            background: `linear-gradient(180deg, ${CERAMIC_PURPLE} 0%, ${CERAMIC_PURPLE_DARK} 100%)`,
+            background: `linear-gradient(180deg, ${DOOR_RED} 0%, ${DOOR_RED_DARK} 100%)`,
             boxShadow:
               'inset 0 0 0 1px rgba(0,0,0,0.06), inset 18px 0 28px rgba(0,0,0,0.12)',
             willChange: 'transform',
@@ -275,103 +277,107 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             className="absolute inset-0 pointer-events-none opacity-40 z-0"
             style={{
               background:
-                'radial-gradient(900px 700px at 82% 18%, rgba(168,85,247,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 18% 75%, rgba(196,181,253,0.14) 0%, transparent 60%)',
+                'radial-gradient(900px 700px at 82% 18%, rgba(239,68,68,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 18% 75%, rgba(248,113,113,0.14) 0%, transparent 60%)',
             }}
           />
         </motion.div>
 
-        {/* Center seam + VS badge */}
-        <div className="absolute left-1/2 top-0 h-full w-px bg-black/20 shadow-[0_0_12px_rgba(0,0,0,0.4)]" />
-        <motion.div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={textControls}
-        >
-          <div className="relative">
-            <div className="absolute left-1/2 top-[-160px] h-[320px] w-px bg-white/15" />
+        {active && (
+          <>
+            {/* Center seam + VS badge */}
+            <div className="absolute left-1/2 top-0 h-full w-px bg-black/20 shadow-[0_0_12px_rgba(0,0,0,0.4)]" />
             <motion.div
-              className="relative rounded-full border border-white/20 bg-black/40 px-6 py-3 text-lg md:text-xl font-extrabold tracking-[0.4em] text-white"
-              style={{
-                textShadow:
-                  '0 0 16px rgba(196,181,253,0.6), 0 0 40px rgba(168,85,247,0.25)',
-              }}
-              animate={active ? { scale: [1, 1.06, 1] } : { scale: 1 }}
-              transition={{
-                duration: 0.9,
-                repeat: active ? Infinity : 0,
-                ease: 'easeInOut',
-              }}
+              className="absolute inset-0 flex items-center justify-center"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={textControls}
             >
-              VS
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Top message */}
-        <motion.div
-          className="absolute left-1/2 top-8 -translate-x-1/2 text-center"
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={textControls}
-          style={{ willChange: 'opacity, transform' }}
-        >
-          <div
-            className="relative text-center"
-            style={{
-              color: '#F8FAFC',
-              textShadow:
-                '0 0 18px rgba(196,181,253,0.85), 0 0 48px rgba(168,85,247,0.35)',
-            }}
-          >
-            {/* Subtle animated glow blob behind text (transform/opacity only for 60fps) */}
-            <motion.div
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
-              style={{
-                width: 420,
-                height: 180,
-                background: 'rgba(168, 85, 247, 0.25)',
-              }}
-              animate={
-                active
-                  ? { opacity: [0.18, 0.32, 0.18], scale: [1, 1.08, 1] }
-                  : { opacity: 0, scale: 1 }
-              }
-              transition={{
-                duration: 1.1,
-                repeat: active ? Infinity : 0,
-                ease: 'easeInOut',
-              }}
-            />
-
-            <motion.div
-              className="text-3xl md:text-4xl font-extrabold tracking-wider relative"
-              animate={active ? { y: [0, -2, 0] } : { y: 0 }}
-              transition={{
-                duration: 0.85,
-                repeat: active ? Infinity : 0,
-                ease: 'easeInOut',
-              }}
-            >
-              {message}
+              <div className="relative">
+                <div className="absolute left-1/2 top-[-160px] h-[320px] w-px bg-white/15" />
+                <motion.div
+                  className="relative rounded-full border border-white/20 bg-black/40 px-6 py-3 text-lg md:text-xl font-extrabold tracking-[0.4em] text-white"
+                  style={{
+                    textShadow:
+                      '0 0 16px rgba(196,181,253,0.6), 0 0 40px rgba(168,85,247,0.25)',
+                  }}
+                  animate={active ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+                  transition={{
+                    duration: 0.9,
+                    repeat: active ? Infinity : 0,
+                    ease: 'easeInOut',
+                  }}
+                >
+                  VS
+                </motion.div>
+              </div>
             </motion.div>
 
-            {/* Small scan line animation */}
-            <div className="mt-4 h-px w-64 mx-auto bg-black/10 overflow-hidden">
-              <motion.div
-                className="h-full w-24"
+            {/* Top message */}
+            <motion.div
+              className="absolute inset-x-0 top-8 flex justify-center text-center"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={textControls}
+              style={{ willChange: 'opacity, transform' }}
+            >
+              <div
+                className="relative text-center"
                 style={{
-                  background:
-                    'linear-gradient(90deg, rgba(196,181,253,0), rgba(196,181,253,0.95), rgba(196,181,253,0))',
+                  color: '#F8FAFC',
+                  textShadow:
+                    '0 0 18px rgba(196,181,253,0.85), 0 0 48px rgba(168,85,247,0.35)',
                 }}
-                animate={active ? { x: ['-40%', '160%'] } : { x: '-40%' }}
-                transition={{
-                  duration: 1.15,
-                  repeat: active ? Infinity : 0,
-                  ease: 'easeInOut',
-                }}
-              />
-            </div>
-          </div>
-        </motion.div>
+              >
+                {/* Subtle animated glow blob behind text (transform/opacity only for 60fps) */}
+                <motion.div
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+                  style={{
+                    width: 420,
+                    height: 180,
+                    background: 'rgba(168, 85, 247, 0.25)',
+                  }}
+                  animate={
+                    active
+                      ? { opacity: [0.18, 0.32, 0.18], scale: [1, 1.08, 1] }
+                      : { opacity: 0, scale: 1 }
+                  }
+                  transition={{
+                    duration: 1.1,
+                    repeat: active ? Infinity : 0,
+                    ease: 'easeInOut',
+                  }}
+                />
+
+                <motion.div
+                  className="text-3xl md:text-4xl font-extrabold tracking-wider relative"
+                  animate={active ? { y: [0, -2, 0] } : { y: 0 }}
+                  transition={{
+                    duration: 0.85,
+                    repeat: active ? Infinity : 0,
+                    ease: 'easeInOut',
+                  }}
+                >
+                  {message}
+                </motion.div>
+
+                {/* Small scan line animation */}
+                <div className="mt-4 h-px w-64 mx-auto bg-black/10 overflow-hidden">
+                  <motion.div
+                    className="h-full w-24"
+                    style={{
+                      background:
+                        'linear-gradient(90deg, rgba(196,181,253,0), rgba(196,181,253,0.95), rgba(196,181,253,0))',
+                    }}
+                    animate={active ? { x: ['-40%', '160%'] } : { x: '-40%' }}
+                    transition={{
+                      duration: 1.15,
+                      repeat: active ? Infinity : 0,
+                      ease: 'easeInOut',
+                    }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
       </div>
     </ElevatorShutterContext.Provider>
   );
