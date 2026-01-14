@@ -65,6 +65,7 @@ interface ConnectionState {
     p1PartsCorrect?: number
     p2PartsCorrect?: number
     totalParts?: number
+    computedAt?: string
   } | null
   // Stage 3: Tug-of-war state (deprecated, kept for compatibility)
   roundNumber: number
@@ -364,7 +365,8 @@ export function useGame(match: MatchRow | null) {
           correct_answer: detail.correct_answer,
           player1_correct: detail.player1_correct,
           player2_correct: detail.player2_correct,
-          round_winner: detail.round_winner
+          round_winner: detail.round_winner,
+          computedAt: detail.results_computed_at ?? detail.resultsComputedAt ?? undefined
         },
         waitingForOpponent: false
       }))
@@ -405,7 +407,7 @@ export function useGame(match: MatchRow | null) {
       try {
         const { data: matchRow, error } = await supabase
           .from('matches')
-          .select('results_payload, results_version, results_round_id, current_round_id')
+          .select('results_payload, results_version, results_round_id, current_round_id, results_computed_at')
           .eq('id', match.id)
           .single() as { data: any; error: any }
 
@@ -418,7 +420,10 @@ export function useGame(match: MatchRow | null) {
         if (hasPayload && roundMatch && version > localResultsVersionRef.current) {
           console.log('[useGame] ✅ Multi-step polling fallback found results_payload; applying...')
           localResultsVersionRef.current = version
-          applyResults(matchRow.results_payload)
+          applyResults({
+            ...matchRow.results_payload,
+            computed_at: matchRow.results_payload?.computed_at ?? matchRow.results_computed_at
+          })
         }
 
         if (attempts >= maxAttempts) {
@@ -826,7 +831,10 @@ export function useGame(match: MatchRow | null) {
                   localResultsVersionRef.current = msg.results_version
                 }
                 // Don't add roundId here - applyResults will handle it
-                applyResults(msg.results_payload)
+                applyResults({
+                  ...msg.results_payload,
+                  computed_at: msg.results_payload?.computed_at ?? msg.results_computed_at
+                })
               } else {
                 // Legacy WS format - construct payload manually
                 const payload = {
@@ -1081,7 +1089,10 @@ export function useGame(match: MatchRow | null) {
             matchData.results_payload &&
             matchData.results_round_id === matchData.current_round_id
           ) {
-            applyResults(matchData.results_payload)
+            applyResults({
+              ...matchData.results_payload,
+              computed_at: matchData.results_payload?.computed_at ?? matchData.results_computed_at
+            })
           }
         }
 
@@ -1176,7 +1187,10 @@ export function useGame(match: MatchRow | null) {
             payload: newPayload.results_payload
           })
           localResultsVersionRef.current = newVersion
-          applyResults(newPayload.results_payload)
+          applyResults({
+            ...newPayload.results_payload,
+            computed_at: newPayload.results_payload?.computed_at ?? newPayload.results_computed_at
+          })
         } else {
           // Log detailed rejection reason
           console.warn('[useGame] ⚠️ Ignoring Realtime results:', {
@@ -1519,7 +1533,8 @@ export function useGame(match: MatchRow | null) {
             pollData = {
               both_answered: true,
               results_payload: matchData.results_payload,
-              results_version: matchData.results_version ?? 0
+              results_version: matchData.results_version ?? 0,
+              results_computed_at: matchData.results_computed_at
             }
             
             console.log('[useGame] ✅ Found results_payload via polling (fallback)')
@@ -1583,7 +1598,10 @@ export function useGame(match: MatchRow | null) {
           if (data.results_version) {
             localResultsVersionRef.current = data.results_version
           }
-          applyResults(data.results_payload)
+          applyResults({
+            ...data.results_payload,
+            computed_at: data.results_payload?.computed_at ?? data.results_computed_at
+          })
         } else if (pollCount >= maxPolls) {
           // Stop polling after max attempts
           console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls, 'attempts')

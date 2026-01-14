@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -10,7 +10,6 @@ import { RedYellowPatternBackground } from '@/components/battle/RedYellowPattern
 import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
 import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
-import { RoundTransitionOverlay } from '@/components/battle/RoundTransitionOverlay';
 import { BrandMark } from '@/components/BrandMark';
 import { getRankByPoints } from '@/types/ranking';
 
@@ -27,8 +26,9 @@ export default function BattleConnected() {
   const prevOppWinsRef = useRef<number>(0);
   const [playerRanks, setPlayerRanks] = useState<Record<string, { display_name: string; rank_points: number }>>({});
   const [redirectedToResults, setRedirectedToResults] = useState(false);
-  const [roundTransitionSeconds, setRoundTransitionSeconds] = useState<number | null>(null);
-  const [autoReadySent, setAutoReadySent] = useState(false);
+  const [roundTransitionNowMs, setRoundTransitionNowMs] = useState(() => Date.now());
+  const fallbackResultsAtRef = useRef<number | null>(null);
+  const autoReadySentRef = useRef(false);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -156,40 +156,78 @@ export default function BattleConnected() {
     }
   }, [roundNumber, status]);
 
-  // Round transition countdown (auto-advance after results)
+  const isRoundTransition = status === 'results' && !!results && !matchOver;
+  const computedAtMsRaw = results?.computedAt ? Date.parse(results.computedAt) : NaN;
+  const computedAtMs = Number.isFinite(computedAtMsRaw) ? computedAtMsRaw : null;
+  const roundTransitionStartMs = computedAtMs ?? fallbackResultsAtRef.current;
+  const roundTransitionEndsAtMs = roundTransitionStartMs ? roundTransitionStartMs + 10000 : null;
+  const roundTransitionSecondsLeft = roundTransitionEndsAtMs
+    ? Math.max(0, Math.ceil((roundTransitionEndsAtMs - roundTransitionNowMs) / 1000))
+    : null;
+
+  // Initialize fallback timestamp when results arrive (in case computedAt missing)
   useEffect(() => {
-    if (status !== 'results' || !results || matchOver) {
-      setRoundTransitionSeconds(null);
-      setAutoReadySent(false);
+    if (isRoundTransition) {
+      if (!computedAtMs) {
+        if (!fallbackResultsAtRef.current) {
+          fallbackResultsAtRef.current = Date.now();
+        }
+      } else {
+        fallbackResultsAtRef.current = null;
+      }
+      autoReadySentRef.current = false;
+      setRoundTransitionNowMs(Date.now());
       return;
     }
-    setRoundTransitionSeconds(10);
-    setAutoReadySent(false);
-  }, [status, results, matchOver]);
+    fallbackResultsAtRef.current = null;
+    autoReadySentRef.current = false;
+  }, [isRoundTransition, computedAtMs, results?.round_id]);
 
-  useEffect(() => {
-    if (roundTransitionSeconds === null || roundTransitionSeconds <= 0) return;
-    const timer = window.setTimeout(() => {
-      setRoundTransitionSeconds(prev => (prev === null ? prev : Math.max(prev - 1, 0)));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [roundTransitionSeconds]);
-
-  useEffect(() => {
-    if (roundTransitionSeconds === null || roundTransitionSeconds > 0) return;
-    if (status !== 'results' || matchOver) return;
-    if (resultsAcknowledged || autoReadySent || !isWebSocketConnected) return;
+  const attemptAutoAdvance = useCallback(() => {
+    if (!isRoundTransition || !roundTransitionEndsAtMs) return;
+    if (resultsAcknowledged || autoReadySentRef.current || !isWebSocketConnected) return;
+    if (Date.now() < roundTransitionEndsAtMs) return;
     readyForNextRound();
-    setAutoReadySent(true);
+    autoReadySentRef.current = true;
   }, [
-    roundTransitionSeconds,
-    status,
-    matchOver,
+    isRoundTransition,
+    roundTransitionEndsAtMs,
     resultsAcknowledged,
-    autoReadySent,
     isWebSocketConnected,
     readyForNextRound
   ]);
+
+  useEffect(() => {
+    if (!isRoundTransition) return;
+    const interval = window.setInterval(() => {
+      setRoundTransitionNowMs(Date.now());
+    }, 250);
+    return () => clearInterval(interval);
+  }, [isRoundTransition]);
+
+  useEffect(() => {
+    attemptAutoAdvance();
+  }, [attemptAutoAdvance, roundTransitionNowMs]);
+
+  useEffect(() => {
+    if (!isRoundTransition || !roundTransitionEndsAtMs) return;
+    const delay = Math.max(0, roundTransitionEndsAtMs - Date.now());
+    const timeout = window.setTimeout(() => {
+      setRoundTransitionNowMs(Date.now());
+      attemptAutoAdvance();
+    }, delay + 25);
+    return () => clearTimeout(timeout);
+  }, [isRoundTransition, roundTransitionEndsAtMs, attemptAutoAdvance]);
+
+  useEffect(() => {
+    const handleVisibility = () => attemptAutoAdvance();
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
+  }, [attemptAutoAdvance]);
 
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
@@ -201,6 +239,14 @@ export default function BattleConnected() {
   const stepSegmentTimeLeft = currentSegment === 'sub' ? subStepTimeLeft : stepTimeLeft;
   const hasStartedMatch = status === 'playing' || status === 'results' || status === 'match_finished' || !!question;
   const isConnectingPhase = status === 'connecting' || status === 'connected' || status === 'both_connected';
+  const roundLabel = `ROUND ${currentRoundNumber || roundNumber || 0}${
+    phase === 'steps' && totalSteps > 0
+      ? ` • STEP ${currentStepIndex + 1}/${totalSteps}${currentSegment === 'sub' ? ` • SUB ${currentSubStepIndex + 1}` : ''}`
+      : ''
+  }`;
+  const showRoundTransition = isRoundTransition && roundTransitionEndsAtMs !== null;
+  const roundCountdownValue = showRoundTransition ? (roundTransitionSecondsLeft ?? 0) : null;
+  const isRoundCountdownCritical = showRoundTransition && (roundCountdownValue ?? 10) <= 3;
 
   const myMeta = currentUser ? playerRanks[currentUser] : undefined;
   const oppMeta = opponentId ? playerRanks[opponentId] : undefined;
@@ -300,14 +346,6 @@ export default function BattleConnected() {
         )}
       </AnimatePresence>
 
-      <RoundTransitionOverlay
-        isVisible={status === 'results' && !!results && !matchOver}
-        secondsLeft={roundTransitionSeconds ?? 10}
-        hasAcknowledged={resultsAcknowledged}
-        waitingForOpponent={waitingForOpponentToAcknowledge}
-        isConnected={isWebSocketConnected}
-      />
-
       {/* Header */}
       <header className="relative z-20 w-full max-w-7xl mx-auto p-4 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -399,17 +437,24 @@ export default function BattleConnected() {
           {/* Timer / Round Indicator */}
           <div className="flex flex-col items-center pb-2">
             <div className="text-xs text-white/30 font-mono mb-2 uppercase tracking-widest">
-              ROUND {currentRoundNumber || roundNumber || 0}
-              {phase === 'steps' && totalSteps > 0 && ` • STEP ${currentStepIndex + 1}/${totalSteps}${currentSegment === 'sub' ? ` • SUB ${currentSubStepIndex + 1}` : ''}`}
+              {showRoundTransition ? 'NEXT ROUND IN' : roundLabel}
             </div>
-            <div className={`text-5xl font-black font-mono tracking-tighter tabular-nums transition-colors duration-300 ${
-              ((phase === 'main_question' && (mainQuestionTimeLeft ?? 60) <= 10) ||
-               (phase === 'steps' && (stepTimeLeft ?? 15) <= (currentSegment === 'sub' ? 2 : 5)) ||
-               (phase === 'question' && (timeRemaining ?? 60) <= 10))
-                ? 'text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
-                : 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]'
-            }`}>
-              {phase === 'main_question' && mainQuestionTimeLeft !== null
+            <div
+              className={`text-5xl font-black font-mono tracking-tighter tabular-nums transition-colors duration-300 ${
+                showRoundTransition
+                  ? isRoundCountdownCritical
+                    ? 'text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]'
+                    : 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+                  : ((phase === 'main_question' && (mainQuestionTimeLeft ?? 60) <= 10) ||
+                     (phase === 'steps' && (stepTimeLeft ?? 15) <= (currentSegment === 'sub' ? 2 : 5)) ||
+                     (phase === 'question' && (timeRemaining ?? 60) <= 10))
+                    ? 'text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]'
+                    : 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+              }`}
+            >
+              {showRoundTransition
+                ? `${roundCountdownValue ?? 0}`
+                : phase === 'main_question' && mainQuestionTimeLeft !== null
                 ? `${Math.floor(mainQuestionTimeLeft / 60)}:${String(mainQuestionTimeLeft % 60).padStart(2, '0')}`
                 : phase === 'steps' && stepTimeLeft !== null
                 ? `${stepTimeLeft}s`
