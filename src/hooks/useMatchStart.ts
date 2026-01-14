@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { useRef, useCallback, useEffect } from 'react';
+import { playMatchFoundSound } from '@/utils/matchSounds';
 
 type StartArgs = { subject: string; chapter: string; mode?: string };
 type Navigate = (matchId: string) => void;
@@ -52,6 +53,7 @@ export function useMatchStart(userId: string, onNavigate: Navigate) {
         
         gotMatchRef.current = true;
         cleanup();
+        playMatchFoundSound();
         onNavigate(matchId);
       }
     );
@@ -94,6 +96,7 @@ export function useMatchStart(userId: string, onNavigate: Navigate) {
       if (!gotMatchRef.current) {
         gotMatchRef.current = true;
         cleanup();
+        playMatchFoundSound();
         onNavigate(data.match.id);
       }
       return;

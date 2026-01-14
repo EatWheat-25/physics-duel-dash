@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
 import { loadMatchmakingPrefs, saveMatchmakingPrefs } from '@/utils/matchmakingPrefs';
 import { BrandMark } from '@/components/BrandMark';
+import { playMatchStartSound } from '@/utils/matchSounds';
 
 const AVAILABLE_MODES: { id: GameMode; title: string; emoji: string }[] = [
   { id: 'A1-Only', title: 'A1-Only Mode', emoji: '📐' },
@@ -83,6 +84,8 @@ export default function BattleQueue() {
 
     const level = levelParam ?? levelFromMode(selectedMode);
     if (!level) return;
+
+    playMatchStartSound();
 
     saveMatchmakingPrefs({ subject, level });
     await startMatchmaking(subject, level);

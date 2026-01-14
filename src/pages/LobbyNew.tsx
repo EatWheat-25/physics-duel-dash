@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { useMatchmakingPrefs } from '@/store/useMatchmakingPrefs';
 import { BrandMark } from '@/components/BrandMark';
+import { playMatchStartSound } from '@/utils/matchSounds';
 
 type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'A1' | 'A2' | 'Both';
@@ -144,6 +145,8 @@ export default function LobbyNew() {
   const handleStartQueue = async () => {
     if (!selectedSubject || !selectedGrade || status === 'searching' || isButtonLoading) return;
     
+    playMatchStartSound();
+
     // Immediately show loading state for instant feedback
     setIsButtonLoading(true);
     

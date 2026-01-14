@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, ArrowLeft, BookOpen, GraduationCap, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BrandMark } from '@/components/BrandMark';
+import { playMatchStartSound } from '@/utils/matchSounds';
 
 type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'grade-9' | 'grade-10' | 'grade-11' | 'grade-12' | 'as-level' | 'a2-level';
@@ -61,6 +62,8 @@ export default function Lobby() {
 
   const handleStartQueue = async () => {
     if (!selectedSubject || !selectedGrade || status === 'searching') return;
+
+    playMatchStartSound();
 
     await startMatchmaking();
   };

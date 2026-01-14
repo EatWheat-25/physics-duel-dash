@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
+import { playMatchFoundSound } from '@/utils/matchSounds'
 import type { MatchRow } from '@/types/schema'
 
 interface MatchmakingState {
@@ -79,6 +80,7 @@ export function useMatchmakingSimple() {
           error: null
         })
 
+        playMatchFoundSound()
         toast.success('Match found!')
 
         // Navigate to battle page
@@ -151,6 +153,7 @@ export function useMatchmakingSimple() {
             error: null
           })
 
+          playMatchFoundSound()
           toast.success('Match found!')
 
           // Navigate to battle

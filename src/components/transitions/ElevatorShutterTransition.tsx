@@ -1,5 +1,20 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { motion, useAnimation } from 'framer-motion';
+import { LobbyPlayerCard } from '@/components/lobby/LobbyPlayerCard';
+import { getRankByPoints } from '@/types/ranking';
+
+export type MatchDoorPlayer = {
+  displayName: string;
+  rankPoints: number | null;
+  level: number;
+  initial: string;
+  isPlaceholder?: boolean;
+};
+
+export type MatchDoorPlayers = {
+  left: MatchDoorPlayer;
+  right: MatchDoorPlayer;
+};
 
 type StartMatchOptions = {
   message?: string;
@@ -14,11 +29,13 @@ type StartMatchOptions = {
    * This is used to ensure the first question is fully rendered before revealing the battle screen.
    */
   waitForReady?: boolean;
+  players?: MatchDoorPlayers | null;
 };
 
 type ElevatorShutterContextValue = {
   startMatch: (options?: StartMatchOptions) => Promise<void>;
   signalReady: () => void;
+  setMatchPlayers: (players: MatchDoorPlayers | null) => void;
   isRunning: boolean;
 };
 
@@ -32,6 +49,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
   const [active, setActive] = useState(false);
   const [message, setMessage] = useState('MATCH FOUND');
   const [isRunning, setIsRunning] = useState(false);
+  const [matchPlayers, setMatchPlayersState] = useState<MatchDoorPlayers | null>(null);
 
   const leftControls = useAnimation();
   const rightControls = useAnimation();
@@ -42,6 +60,10 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
   const readyTokenRef = useRef<number>(0);
   const noiseLeftId = useMemo(() => `shutterNoiseLeft-${Math.random().toString(36).slice(2, 9)}`, []);
   const noiseRightId = useMemo(() => `shutterNoiseRight-${Math.random().toString(36).slice(2, 9)}`, []);
+
+  const setMatchPlayers = useCallback((players: MatchDoorPlayers | null) => {
+    setMatchPlayersState(players);
+  }, []);
 
   const signalReady = useCallback(() => {
     const resolve = readyResolveRef.current;
@@ -56,6 +78,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
       loadingMs = 2000,
       onClosed,
       waitForReady = false,
+      players = null,
     }: StartMatchOptions = {}) => {
       if (runningRef.current) return;
       runningRef.current = true;
@@ -76,6 +99,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           : null;
 
       setMessage(message);
+      setMatchPlayers(players);
       setActive(true);
 
       // Ensure consistent initial positions
@@ -132,13 +156,34 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
       ]);
 
       setActive(false);
+      setMatchPlayers(null);
       setIsRunning(false);
       runningRef.current = false;
     },
-    [leftControls, rightControls, textControls]
+    [leftControls, rightControls, textControls, setMatchPlayers]
   );
 
-  const value = useMemo(() => ({ startMatch, signalReady, isRunning }), [startMatch, signalReady, isRunning]);
+  const value = useMemo(
+    () => ({ startMatch, signalReady, setMatchPlayers, isRunning }),
+    [startMatch, signalReady, setMatchPlayers, isRunning]
+  );
+
+  const leftPlayer = matchPlayers?.left ?? {
+    displayName: 'YOU',
+    rankPoints: null,
+    level: 1,
+    initial: 'Y',
+    isPlaceholder: true,
+  };
+  const rightPlayer = matchPlayers?.right ?? {
+    displayName: 'OPPONENT',
+    rankPoints: null,
+    level: 1,
+    initial: 'O',
+    isPlaceholder: true,
+  };
+  const leftRank = getRankByPoints(leftPlayer.rankPoints ?? 0);
+  const rightRank = getRankByPoints(rightPlayer.rankPoints ?? 0);
 
   return (
     <ElevatorShutterContext.Provider value={value}>
@@ -165,8 +210,19 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             willChange: 'transform',
           }}
         >
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <LobbyPlayerCard
+              rank={leftRank}
+              level={leftPlayer.level}
+              points={leftPlayer.rankPoints}
+              username={leftPlayer.displayName}
+              initial={leftPlayer.initial}
+              isInteractive={false}
+              isPlaceholder={leftPlayer.isPlaceholder}
+            />
+          </div>
           {/* Matte grain texture */}
-          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
+          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none z-0">
             <filter id={noiseLeftId}>
               <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
               <feColorMatrix type="saturate" values="0" />
@@ -175,7 +231,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           </svg>
           {/* Soft toon-ish shading to feel more “ceramic” than flat */}
           <div
-            className="absolute inset-0 pointer-events-none opacity-40"
+            className="absolute inset-0 pointer-events-none opacity-40 z-0"
             style={{
               background:
                 'radial-gradient(900px 700px at 18% 18%, rgba(168,85,247,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 85% 75%, rgba(196,181,253,0.14) 0%, transparent 60%)',
@@ -195,8 +251,19 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             willChange: 'transform',
           }}
         >
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <LobbyPlayerCard
+              rank={rightRank}
+              level={rightPlayer.level}
+              points={rightPlayer.rankPoints}
+              username={rightPlayer.displayName}
+              initial={rightPlayer.initial}
+              isInteractive={false}
+              isPlaceholder={rightPlayer.isPlaceholder}
+            />
+          </div>
           {/* Matte grain texture */}
-          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none">
+          <svg className="absolute inset-0 w-full h-full opacity-[0.08] pointer-events-none z-0">
             <filter id={noiseRightId}>
               <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
               <feColorMatrix type="saturate" values="0" />
@@ -205,7 +272,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           </svg>
           {/* Soft toon-ish shading to feel more “ceramic” than flat */}
           <div
-            className="absolute inset-0 pointer-events-none opacity-40"
+            className="absolute inset-0 pointer-events-none opacity-40 z-0"
             style={{
               background:
                 'radial-gradient(900px 700px at 82% 18%, rgba(168,85,247,0.18) 0%, transparent 55%), radial-gradient(800px 700px at 18% 75%, rgba(196,181,253,0.14) 0%, transparent 60%)',
@@ -213,9 +280,36 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           />
         </motion.div>
 
-        {/* Center text */}
+        {/* Center seam + VS badge */}
+        <div className="absolute left-1/2 top-0 h-full w-px bg-black/20 shadow-[0_0_12px_rgba(0,0,0,0.4)]" />
         <motion.div
-          className="absolute inset-0 flex items-center justify-center"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={textControls}
+        >
+          <div className="relative">
+            <div className="absolute left-1/2 top-[-160px] h-[320px] w-px bg-white/15" />
+            <motion.div
+              className="relative rounded-full border border-white/20 bg-black/40 px-6 py-3 text-lg md:text-xl font-extrabold tracking-[0.4em] text-white"
+              style={{
+                textShadow:
+                  '0 0 16px rgba(196,181,253,0.6), 0 0 40px rgba(168,85,247,0.25)',
+              }}
+              animate={active ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+              transition={{
+                duration: 0.9,
+                repeat: active ? Infinity : 0,
+                ease: 'easeInOut',
+              }}
+            >
+              VS
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* Top message */}
+        <motion.div
+          className="absolute left-1/2 top-8 -translate-x-1/2 text-center"
           initial={{ opacity: 0, scale: 0.98 }}
           animate={textControls}
           style={{ willChange: 'opacity, transform' }}
@@ -232,8 +326,8 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
             <motion.div
               className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
               style={{
-                width: 520,
-                height: 220,
+                width: 420,
+                height: 180,
                 background: 'rgba(168, 85, 247, 0.25)',
               }}
               animate={

@@ -1,6 +1,7 @@
 import { useMatchmakingSimple } from '@/hooks/useMatchmakingSimple'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
+import { playMatchStartSound } from '@/utils/matchSounds'
 
 /**
  * Simple Matchmaking Test Page
@@ -23,7 +24,10 @@ export default function MatchmakingTest() {
             <div className="space-y-4">
               <p className="text-lg">Ready to find an opponent?</p>
               <Button
-                onClick={() => startMatchmaking()}
+                onClick={() => {
+                  playMatchStartSound()
+                  startMatchmaking()
+                }}
                 size="lg"
                 className="w-full"
               >

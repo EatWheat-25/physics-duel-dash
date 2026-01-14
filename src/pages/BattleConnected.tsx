@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Check, X, Trophy, Clock, Zap } from 'lucide-react';
+import { Loader2, ArrowLeft, Check, X, Trophy, Clock } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,7 @@ import { RedYellowPatternBackground } from '@/components/battle/RedYellowPattern
 import { MainQuestionCard } from '@/components/battle/MainQuestionCard';
 import { StepCard } from '@/components/battle/StepCard';
 import { SingleStepCard } from '@/components/battle/SingleStepCard';
+import { RoundTransitionOverlay } from '@/components/battle/RoundTransitionOverlay';
 import { BrandMark } from '@/components/BrandMark';
 import { getRankByPoints } from '@/types/ranking';
 
@@ -26,6 +27,8 @@ export default function BattleConnected() {
   const prevOppWinsRef = useRef<number>(0);
   const [playerRanks, setPlayerRanks] = useState<Record<string, { display_name: string; rank_points: number }>>({});
   const [redirectedToResults, setRedirectedToResults] = useState(false);
+  const [roundTransitionSeconds, setRoundTransitionSeconds] = useState<number | null>(null);
+  const [autoReadySent, setAutoReadySent] = useState(false);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -153,6 +156,41 @@ export default function BattleConnected() {
     }
   }, [roundNumber, status]);
 
+  // Round transition countdown (auto-advance after results)
+  useEffect(() => {
+    if (status !== 'results' || !results || matchOver) {
+      setRoundTransitionSeconds(null);
+      setAutoReadySent(false);
+      return;
+    }
+    setRoundTransitionSeconds(10);
+    setAutoReadySent(false);
+  }, [status, results, matchOver]);
+
+  useEffect(() => {
+    if (roundTransitionSeconds === null || roundTransitionSeconds <= 0) return;
+    const timer = window.setTimeout(() => {
+      setRoundTransitionSeconds(prev => (prev === null ? prev : Math.max(prev - 1, 0)));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [roundTransitionSeconds]);
+
+  useEffect(() => {
+    if (roundTransitionSeconds === null || roundTransitionSeconds > 0) return;
+    if (status !== 'results' || matchOver) return;
+    if (resultsAcknowledged || autoReadySent || !isWebSocketConnected) return;
+    readyForNextRound();
+    setAutoReadySent(true);
+  }, [
+    roundTransitionSeconds,
+    status,
+    matchOver,
+    resultsAcknowledged,
+    autoReadySent,
+    isWebSocketConnected,
+    readyForNextRound
+  ]);
+
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
 
@@ -261,6 +299,14 @@ export default function BattleConnected() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <RoundTransitionOverlay
+        isVisible={status === 'results' && !!results && !matchOver}
+        secondsLeft={roundTransitionSeconds ?? 10}
+        hasAcknowledged={resultsAcknowledged}
+        waitingForOpponent={waitingForOpponentToAcknowledge}
+        isConnected={isWebSocketConnected}
+      />
 
       {/* Header */}
       <header className="relative z-20 w-full max-w-7xl mx-auto p-4 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -844,34 +890,6 @@ export default function BattleConnected() {
                   </div>
                 )}
 
-                {!matchOver && (
-                  <div className="mt-6">
-                    {!resultsAcknowledged ? (
-                      <button
-                        onClick={readyForNextRound}
-                        disabled={!isWebSocketConnected}
-                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-colors border active:scale-[0.99] ${
-                          isWebSocketConnected
-                            ? 'bg-yellow-500 hover:bg-yellow-400 text-black border-black/20 cursor-pointer'
-                            : 'bg-[#2B0A0F] text-white/60 border-red-500/20 cursor-not-allowed opacity-70'
-                        }`}
-                      >
-                        {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
-                      </button>
-                    ) : waitingForOpponentToAcknowledge ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                        <div className="text-sm font-mono text-slate-600">
-                          WAITING FOR OPPONENT TO FINISH VIEWING RESULTS...
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-sm font-mono text-slate-600 text-center">
-                        BOTH PLAYERS READY - STARTING NEXT ROUND...
-                      </div>
-                    )}
-                  </div>
-                )}
                 {matchOver && (
                   <div className="mt-4">
                     <button
