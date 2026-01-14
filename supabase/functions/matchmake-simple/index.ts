@@ -41,6 +41,7 @@ Deno.serve(async (req) => {
     const body = (await req.json().catch(() => ({}))) as {
       subject?: string
       level?: string
+      forceNew?: boolean
     }
 
     let subject = body.subject ?? 'math'
@@ -62,31 +63,35 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Idempotency: if the user already has a live match, return it instead of creating a new one.
-    // This prevents “split brain” where each client ends up routed into different match_ids.
-    const { data: existingMatch } = await supabase
-      .from('matches')
-      .select('*')
-      .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
-      .in('status', ['pending', 'active', 'results'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    if (!body.forceNew) {
+      // Idempotency: if the user already has a live match, return it instead of creating a new one.
+      // This prevents “split brain” where each client ends up routed into different match_ids.
+      const { data: existingMatch } = await supabase
+        .from('matches')
+        .select('*')
+        .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+        .in('status', ['pending', 'active', 'results'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-    if (existingMatch?.id) {
-      console.log(`[MM] ♻️ Reusing existing match for ${user.id}: ${existingMatch.id}`)
-      return new Response(
-        JSON.stringify({
-          matched: true,
-          match: existingMatch,
-          match_id: existingMatch.id,
-          reused: true
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+      if (existingMatch?.id) {
+        console.log(`[MM] ♻️ Reusing existing match for ${user.id}: ${existingMatch.id}`)
+        return new Response(
+          JSON.stringify({
+            matched: true,
+            match: existingMatch,
+            match_id: existingMatch.id,
+            reused: true
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+    } else {
+      console.log(`[MM] forceNew enabled - skipping existing match reuse for ${user.id}`)
     }
 
     // Step 1: Add this player to queue (only if not already waiting)

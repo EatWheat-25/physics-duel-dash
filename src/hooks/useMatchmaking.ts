@@ -13,6 +13,10 @@ interface MatchmakingState {
   error: string | null;
 }
 
+type StartMatchmakingOptions = {
+  forceNew?: boolean;
+};
+
 export function useMatchmaking() {
   const navigate = useNavigate();
   const { startMatch, setMatchPlayers } = useElevatorShutter();
@@ -224,7 +228,7 @@ export function useMatchmaking() {
     };
   }, [state.status, runMatchFoundTransition]);
 
-  const startMatchmaking = useCallback(async (subject: string, level: string) => {
+  const startMatchmaking = useCallback(async (subject: string, level: string, options: StartMatchmakingOptions = {}) => {
     if (isSearchingRef.current) {
       console.log('[MATCHMAKING] Already searching, ignoring duplicate call');
       return;
@@ -258,7 +262,7 @@ export function useMatchmaking() {
 
       // Call matchmaker edge function with subject and level
       const { data, error } = await supabase.functions.invoke('matchmake-simple', {
-        body: { subject, level },
+        body: { subject, level, forceNew: options.forceNew },
       });
 
       // If the user cancelled while this request was in-flight, ignore late results.

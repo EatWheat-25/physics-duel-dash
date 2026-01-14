@@ -206,7 +206,7 @@ export default function Home() {
     // Keep normalization consistent with LobbyNew
     if (level === 'Both') level = 'A2';
 
-    startMatchmaking(subject, level);
+    startMatchmaking(subject, level, { forceNew: true });
   };
 
   const handleCancelMatchmaking = async () => {
