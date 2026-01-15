@@ -61,13 +61,13 @@ export interface QuestionStep {
     id: string;
 
     /** 0-based display order (0 = first step) */
-    index: number;
+    index?: number;
 
     /** Step type - MCQ or True/False */
-    type: 'mcq' | 'true_false';
+    type?: 'mcq' | 'true_false';
 
     /** Step heading/title (e.g., "Find the derivative") */
-    title: string;
+    title?: string;
 
     /** The actual question text for this step */
     prompt: string;
@@ -163,13 +163,13 @@ export interface StepBasedQuestion {
     rankTier?: string;
 
     /** Main question context/setup/stem */
-    stem: string;
+    stem?: string;
 
     /**
      * Time limit (seconds) for the main question phase (before steps begin).
      * Server-enforced; Admin-configurable; clamped to a safe range.
      */
-    mainQuestionTimerSeconds: number;
+    mainQuestionTimerSeconds?: number;
 
     /** Total marks (sum of all step marks) */
     totalMarks: number;

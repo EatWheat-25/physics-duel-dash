@@ -6,7 +6,7 @@ import { playMatchFoundSound } from '@/utils/matchSounds'
 import type { MatchRow } from '@/types/schema'
 
 interface MatchmakingState {
-  status: 'idle' | 'queuing' | 'matched'
+  status: 'idle' | 'queuing' | 'matched' | 'searching'
   matchId: string | null
   error: string | null
 }
@@ -137,7 +137,7 @@ export function useMatchmakingSimple() {
         }
 
         if (matches && matches.length > 0) {
-          const match = matches[0] as MatchRow
+          const match = matches[0] as any
 
           console.log('[MATCHMAKING] Match found!', match.id)
 

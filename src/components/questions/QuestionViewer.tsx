@@ -194,7 +194,7 @@ export function QuestionViewer({
               <Badge variant="outline">{currentQuestion.subject}</Badge>
               <Badge variant="outline">{currentQuestion.level}</Badge>
               <Badge variant="secondary">{currentQuestion.difficulty}</Badge>
-              {currentQuestion.rank_tier && <Badge variant="default">{currentQuestion.rank_tier}</Badge>}
+              {currentQuestion.rankTier && <Badge variant="default">{currentQuestion.rankTier}</Badge>}
             </div>
             <CardTitle className="text-2xl">{currentQuestion.title}</CardTitle>
             <CardDescription className="text-base">
@@ -377,11 +377,11 @@ export function QuestionViewer({
             )}
 
             {/* Topic tags */}
-            {currentQuestion.topic_tags && currentQuestion.topic_tags.length > 0 && (
+            {currentQuestion.topicTags && currentQuestion.topicTags.length > 0 && (
               <div className="pt-4 border-t">
                 <p className="text-sm text-gray-500 mb-2">Topics:</p>
                 <div className="flex flex-wrap gap-2">
-                  {currentQuestion.topic_tags.map((tag, idx) => (
+                  {currentQuestion.topicTags.map((tag, idx) => (
                     <span key={idx} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded">{tag}</span>
                   ))}
                 </div>

@@ -26,8 +26,8 @@ export default function DebugQuestions() {
   useEffect(() => {
     const checkDatabase = async () => {
       try {
-        const { count, error } = await supabase
-          .from('questions')
+        const { count, error } = await (supabase as any)
+          .from('questions_v2')
           .select('*', { count: 'exact', head: true });
 
         if (error) {
