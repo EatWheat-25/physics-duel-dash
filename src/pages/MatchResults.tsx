@@ -39,9 +39,9 @@ export default function MatchResults() {
     let cancelled = false
 
     const fetchOnce = async (): Promise<boolean> => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('matches')
-        .select('player1_id, player2_id, player1_score, player2_score, winner_id, ranked_payload')
+        .select('player1_id, player2_id, player1_score, player2_score, winner_id, results_payload')
         .eq('id', matchId)
         .single()
 
@@ -59,8 +59,8 @@ export default function MatchResults() {
         winner_id: data.winner_id,
       })
 
-      if (data.ranked_payload) {
-        setRankedPayload(data.ranked_payload as any)
+      if (data.results_payload) {
+        setRankedPayload(data.results_payload as any)
         setLoading(false)
         return true
       }

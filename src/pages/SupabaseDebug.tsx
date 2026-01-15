@@ -34,7 +34,7 @@ export default function SupabaseDebug() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: err } = await supabase
+      const { data, error: err } = await (supabase as any)
         .from(table)
         .select('*')
         .limit(10);
@@ -80,8 +80,8 @@ export default function SupabaseDebug() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: err } = await supabase
-        .from('questions')
+      const { data, error: err } = await (supabase as any)
+        .from('questions_v2')
         .select('*')
         .limit(10);
 

@@ -28,48 +28,25 @@ export function PlayerCard() {
 
     const fetchStats = async () => {
       try {
-        // Fetch player data
+        // Fetch player data - using mmr as proxy for rank points since rank_points doesn't exist
         const { data: playerData } = await supabase
           .from('players')
-          .select('rank_points')
+          .select('mmr')
           .eq('id', user.id)
-          .single();
+          .single() as any;
 
-        // Calculate stats from ranked history (season)
-        const { data: history } = await supabase
-          .from('player_rank_points_history')
-          .select('outcome, accuracy_pct')
-          .eq('player_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        let wins = 0;
-        let totalMatches = 0;
-        let totalAcc = 0;
-        let accCount = 0;
-
-        if (history) {
-          totalMatches = history.length;
-          history.forEach((h) => {
-            if (h.outcome === 'win') wins++;
-            if (typeof h.accuracy_pct === 'number') {
-              totalAcc += h.accuracy_pct;
-              accCount++;
-            }
-          });
-        }
-
-        const rankPoints = playerData?.rank_points ?? 0;
+        // Since player_rank_points_history table doesn't exist, use placeholder stats
+        const rankPoints = (playerData?.mmr ?? 0) as number;
         const rank = getRankByPoints(rankPoints);
         const level = 1;
 
         setStats({
-          accuracy: accCount > 0 ? Math.round(totalAcc / accCount) : null,
-          winrate: totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : null,
+          accuracy: null,
+          winrate: null,
           rank_points: rankPoints,
           rank_tier: rank.tier,
           level,
-          avatar_url: profile?.username ? undefined : undefined, // Will use placeholder
+          avatar_url: profile?.username ? undefined : undefined,
         });
       } catch (error) {
         console.error('Error fetching player stats:', error);

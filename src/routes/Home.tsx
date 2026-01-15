@@ -94,14 +94,14 @@ export default function Home() {
     
     const fetchRankPoints = async () => {
       try {
-        const { data } = await supabase
+        const { data } = await (supabase as any)
           .from('players')
-          .select('rank_points')
+          .select('mmr')
           .eq('id', user.id)
           .single();
 
-        if (data?.rank_points != null) {
-          setCurrentRankPoints(data.rank_points);
+        if (data?.mmr != null) {
+          setCurrentRankPoints(data.mmr);
         }
       } catch (error) {
         console.error('Error fetching rank points:', error);

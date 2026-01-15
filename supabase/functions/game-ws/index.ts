@@ -255,7 +255,7 @@ function clearAsyncProgressSweep(matchId: string): void {
   lastAsyncProgressKeys.delete(matchId)
 }
 
-function ensureAsyncProgressSweep(matchId: string, supabase: ReturnType<typeof createClient>): void {
+function ensureAsyncProgressSweep(matchId: string, supabase: any): void {
   if (asyncProgressSweepIntervals.has(matchId)) return
 
   const intervalId = setInterval(() => {
@@ -271,7 +271,7 @@ function ensureAsyncProgressSweep(matchId: string, supabase: ReturnType<typeof c
 
 async function runAsyncProgressSweepTick(
   matchId: string,
-  supabase: ReturnType<typeof createClient>
+  supabase: any
 ): Promise<void> {
   const gameState = gameStates.get(matchId)
   const matchSockets = sockets.get(matchId)
@@ -403,7 +403,7 @@ async function runAsyncProgressSweepTick(
 async function computeAndBroadcastMultiStepResultsV3(
   matchId: string,
   roundId: string,
-  supabase: ReturnType<typeof createClient>
+  supabase: any
 ): Promise<void> {
   const key = `${matchId}:${roundId}`
   if (multiStepResultsComputeInProgress.has(key)) return

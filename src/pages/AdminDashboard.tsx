@@ -151,10 +151,10 @@ export default function AdminDashboard() {
 
       // Handle matches table if it has question_id column
       // Try to update to NULL first, then delete if that fails
-      const { error: matchesUpdateError } = await supabase
+      const { error: matchesUpdateError } = await (supabase as any)
         .from('matches')
-        .update({ question_id: null } as any)
-        .eq('question_id' as any, questionId);
+        .update({ question_id: null })
+        .eq('question_id', questionId);
 
       if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
         // If update to NULL fails (column not nullable), try deleting matches

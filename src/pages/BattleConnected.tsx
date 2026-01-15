@@ -89,7 +89,7 @@ export default function BattleConnected() {
 
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase.rpc('get_players_rank_public_v1', {
+      const { data, error } = await (supabase.rpc as any)('get_players_rank_public_v1', {
         p_ids: [match.player1_id, match.player2_id],
       });
 
@@ -181,7 +181,7 @@ export default function BattleConnected() {
     }
     fallbackResultsAtRef.current = null;
     autoReadySentRef.current = false;
-  }, [isRoundTransition, computedAtMs, results?.round_id]);
+  }, [isRoundTransition, computedAtMs, (results as any)?.round_id]);
 
   const attemptAutoAdvance = useCallback(() => {
     if (!isRoundTransition || !roundTransitionEndsAtMs) return;

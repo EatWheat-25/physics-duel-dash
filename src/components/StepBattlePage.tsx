@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
-import { StepBasedQuestion, BattleProgress, StepResult } from '@/types/questions';
+import { StepBasedQuestion, StepResult } from '@/types/questions';
 import { ScienceText } from '@/components/chem/ScienceText';
 
 interface StepMatchStats {
@@ -73,7 +73,9 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
       playerAnswer: answerIndex,
       opponentAnswer,
       correct,
+      opponentCorrect,
       marksEarned,
+      opponentMarksEarned,
       explanation: currentStep.explanation
     };
     setStepResults(prev => [...prev, stepResult]);
@@ -300,7 +302,7 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
           className="cyber-card p-6"
         >
           <p className="text-lg font-medium leading-relaxed">
-            <ScienceText text={currentQuestion.questionText} />
+            <ScienceText text={currentQuestion.stem} />
           </p>
         </motion.div>
 
@@ -323,7 +325,7 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
             </div>
             
             <h4 className="text-xl font-medium mb-6">
-              <ScienceText text={currentStep.question.split(',').pop()?.trim() || currentStep.question} />
+              <ScienceText text={currentStep.prompt.split(',').pop()?.trim() || currentStep.prompt} />
             </h4>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

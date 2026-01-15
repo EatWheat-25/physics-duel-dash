@@ -65,7 +65,7 @@ export default function Lobby() {
 
     playMatchStartSound();
 
-    await startMatchmaking();
+    await startMatchmaking(selectedSubject, selectedGrade);
   };
 
   const handleLeaveQueue = async () => {
