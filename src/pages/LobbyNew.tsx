@@ -33,7 +33,9 @@ export default function LobbyNew() {
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
   const [queueTime, setQueueTime] = useState(0);
   const [isButtonLoading, setIsButtonLoading] = useState(false);
-  const { status, startMatchmaking, leaveQueue, match } = useMatchmaking();
+  const matchmaking = useMatchmaking() as any;
+  const status = matchmaking.status;
+  const { startMatchmaking, leaveQueue, match } = matchmaking;
   const autostart = useMemo(() => searchParams.get('autostart') === '1', [searchParams]);
   const forcedStep = useMemo(() => {
     const s = searchParams.get('step');
@@ -155,7 +157,7 @@ export default function LobbyNew() {
     let level = selectedGrade;
     
     // Normalize subject: 'maths' → 'math'
-    if (subject === 'maths') subject = 'math';
+    if ((subject as string) === 'maths') subject = 'math';
     
     // Normalize level: ensure uppercase 'A1' or 'A2'
     if (level === 'Both') level = 'A2';

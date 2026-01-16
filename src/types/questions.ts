@@ -54,17 +54,18 @@ export type GraphConfig =
  */
 export interface QuestionStep {
   id: string;
-  index: number;                    // 0-based display order
-  type: 'mcq' | 'true_false';        // Multiple choice question or True/False
-  title: string;                     // Step heading (e.g., "Find the derivative")
-  prompt: string;                    // The actual question text for this step
+  index?: number;                    // 0-based display order (optional for compat)
+  type?: 'mcq' | 'true_false';        // Multiple choice question or True/False
+  title?: string;                     // Step heading (e.g., "Find the derivative")
+  prompt?: string;                    // The actual question text for this step
+  question?: string;                  // Alias for prompt (backwards compat)
   diagramSmiles?: string;            // Optional SMILES string for a step-level skeletal diagram
   diagramImageUrl?: string;          // Optional image URL for a step-level diagram
   options: string[];                 // MCQ: 2–6 options, True/False: exactly 2 options
   correctAnswer: number;             // Index of correct option (0 <= correctAnswer < options.length)
-  timeLimitSeconds: number | null;   // Time limit for this step (null = no limit)
+  timeLimitSeconds?: number | null;   // Time limit for this step (null = no limit)
   marks: number;                     // Points awarded for this step
-  explanation: string | null;        // Explanation shown after answering
+  explanation?: string | null;        // Explanation shown after answering
 }
 
 /**
@@ -79,13 +80,45 @@ export interface StepBasedQuestion {
   level: QuestionLevel;
   difficulty: QuestionDifficulty;
   rankTier?: RankTier;
-  stem: string;                      // Main question context/setup
+  stem?: string;                      // Main question context/setup
+  questionText?: string;              // Alias for stem (backwards compat)
   totalMarks: number;                // Sum of all step marks
   topicTags: string[];               // e.g., ["integration", "by-parts"]
   steps: QuestionStep[];             // ALWAYS sorted by index (0..n)
   imageUrl?: string;                 // Optional question image
   structureSmiles?: string;          // Optional SMILES string for a main-question skeletal diagram
   graph?: GraphConfig;               // Optional graph config (one per question)
+}
+
+// ============================================================================
+// BATTLE PROGRESS TYPES
+// ============================================================================
+
+/**
+ * Result of a single step in a battle.
+ */
+export interface StepResult {
+  stepIndex?: number;
+  stepId?: string;
+  isCorrect?: boolean;
+  correct?: boolean;
+  marksEarned?: number;
+  selectedOption?: number | null;
+  playerAnswer?: number | null;
+  opponentAnswer?: number | null;
+  correctAnswer?: number;
+  explanation?: string | null;
+}
+
+/**
+ * Overall battle progress tracking.
+ */
+export interface BattleProgress {
+  currentStepIndex: number;
+  totalSteps: number;
+  playerScore: number;
+  opponentScore: number;
+  stepResults: StepResult[];
 }
 
 // ============================================================================

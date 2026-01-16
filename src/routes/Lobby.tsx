@@ -32,7 +32,9 @@ export default function Lobby() {
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
   const [queueTime, setQueueTime] = useState(0);
   const activePlayerCount = useActivePlayerCount();
-  const { status, startMatchmaking, leaveQueue, match } = useMatchmaking();
+  const matchmaking = useMatchmaking() as any;
+  const status = matchmaking.status;
+  const { startMatchmaking, leaveQueue, match } = matchmaking;
 
   useEffect(() => {
     document.title = 'Battle Lobby | BattleNerds';

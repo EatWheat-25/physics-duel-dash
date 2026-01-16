@@ -11,7 +11,14 @@ interface MatchmakingState {
   error: string | null;
 }
 
-export function useMatchmaking() {
+export function useMatchmaking(): {
+  status: 'idle' | 'searching' | 'matched';
+  match: MatchRow | null;
+  error: string | null;
+  startMatchmaking: (subject?: string, level?: string) => Promise<void>;
+  leaveQueue: () => Promise<void>;
+  queueStartTime: number | null;
+} {
   const navigate = useNavigate();
   const { startMatch } = useElevatorShutter();
   const [state, setState] = useState<MatchmakingState>({
