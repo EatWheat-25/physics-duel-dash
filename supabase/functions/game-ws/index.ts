@@ -159,6 +159,87 @@ const asyncProgressSweepIntervals = new Map<string, number>() // matchId -> inte
 const lastAsyncProgressKeys = new Map<string, Map<string, string>>() // matchId -> (playerId -> key)
 const multiStepResultsComputeInProgress = new Set<string>() // `${matchId}:${roundId}`
 
+// Connection freshness window for considering a player "connected"
+const CONNECTION_TTL_MS = 60_000
+
+interface ConnectionStatus {
+  player1At: string | null
+  player2At: string | null
+  player1Fresh: boolean
+  player2Fresh: boolean
+}
+
+function isFreshConnectionTimestamp(value: string | null, nowMs: number): boolean {
+  if (!value) return false
+  const parsed = Date.parse(value)
+  if (!Number.isFinite(parsed)) return false
+  return nowMs - parsed <= CONNECTION_TTL_MS
+}
+
+async function fetchConnectionStatus(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<ConnectionStatus | null> {
+  const { data: matchStatus, error: statusError } = await supabase
+    .from('matches')
+    .select('player1_connected_at, player2_connected_at')
+    .eq('id', matchId)
+    .single()
+
+  if (statusError || !matchStatus) {
+    console.error(`[${matchId}] ❌ Failed to query connection status:`, statusError)
+    return null
+  }
+
+  const nowMs = Date.now()
+  const player1Fresh = isFreshConnectionTimestamp(matchStatus.player1_connected_at, nowMs)
+  const player2Fresh = isFreshConnectionTimestamp(matchStatus.player2_connected_at, nowMs)
+
+  const updates: Record<string, null> = {}
+  if (matchStatus.player1_connected_at && !player1Fresh) {
+    updates.player1_connected_at = null
+  }
+  if (matchStatus.player2_connected_at && !player2Fresh) {
+    updates.player2_connected_at = null
+  }
+
+  if (Object.keys(updates).length > 0) {
+    const { error: cleanupError } = await supabase
+      .from('matches')
+      .update(updates)
+      .eq('id', matchId)
+    if (cleanupError) {
+      console.warn(`[${matchId}] ⚠️ Failed to clear stale connection timestamps:`, cleanupError)
+    }
+  }
+
+  return {
+    player1At: matchStatus.player1_connected_at ?? null,
+    player2At: matchStatus.player2_connected_at ?? null,
+    player1Fresh,
+    player2Fresh
+  }
+}
+
+async function refreshConnectionHeartbeat(
+  matchId: string,
+  socket: WebSocket,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const role = (socket as any)._playerRole as 'player1' | 'player2' | undefined
+  if (!role) return
+
+  const connectionColumn = role === 'player1' ? 'player1_connected_at' : 'player2_connected_at'
+  const { error: updateError } = await supabase
+    .from('matches')
+    .update({ [connectionColumn]: new Date().toISOString() })
+    .eq('id', matchId)
+
+  if (updateError) {
+    console.warn(`[${matchId}] ⚠️ Failed to refresh ${connectionColumn}:`, updateError)
+  }
+}
+
 // Track game state for multi-step questions
 interface GameState {
   currentPhase: 'question' | 'main_question' | 'steps' | 'result'
@@ -1309,29 +1390,29 @@ async function checkAndBroadcastBothConnected(
 ): Promise<boolean> {
   // Query database to check connection status (works across all instances!)
   // IMPORTANT: We check RIGHT BEFORE broadcasting to catch disconnects
-  const { data: matchStatus, error: statusError } = await supabase
-    .from('matches')
-    .select('player1_connected_at, player2_connected_at')
-    .eq('id', matchId)
-    .single()
+  const connectionStatus = await fetchConnectionStatus(matchId, supabase)
+  if (!connectionStatus) return false
 
-  if (statusError || !matchStatus) {
-    console.error(`[${matchId}] ❌ Failed to query connection status:`, statusError)
-    return false
-  }
+  const bothConnected = connectionStatus.player1Fresh && connectionStatus.player2Fresh
+  const player1Label = connectionStatus.player1Fresh
+    ? '✅ Connected'
+    : connectionStatus.player1At
+      ? '⚠️ Stale'
+      : '❌ Not connected'
+  const player2Label = connectionStatus.player2Fresh
+    ? '✅ Connected'
+    : connectionStatus.player2At
+      ? '⚠️ Stale'
+      : '❌ Not connected'
 
-  const player1Connected = matchStatus.player1_connected_at !== null
-  const player2Connected = matchStatus.player2_connected_at !== null
-  const bothConnected = player1Connected && player2Connected
-  
-  console.log(`[${matchId}] Checking both connected status (from database):`)
-  console.log(`  - Player1 (${match.player1_id}): ${player1Connected ? '✅ Connected' : '❌ Not connected'}`)
-  console.log(`  - Player2 (${match.player2_id}): ${player2Connected ? '✅ Connected' : '❌ Not connected'}`)
+  console.log(`[${matchId}] Checking both connected status (fresh <= ${CONNECTION_TTL_MS / 1000}s):`)
+  console.log(`  - Player1 (${match.player1_id}): ${player1Label}`)
+  console.log(`  - Player2 (${match.player2_id}): ${player2Label}`)
   console.log(`  - Both connected: ${bothConnected ? '✅ YES' : '❌ NO'}`)
 
   // If not both connected, return false immediately (don't broadcast)
   if (!bothConnected) {
-    const connectedCount = (player1Connected ? 1 : 0) + (player2Connected ? 1 : 0)
+    const connectedCount = (connectionStatus.player1Fresh ? 1 : 0) + (connectionStatus.player2Fresh ? 1 : 0)
     console.log(`[${matchId}] ⏳ Waiting for both players - currently ${connectedCount}/2 connected`)
     return false
   }
@@ -3082,18 +3163,11 @@ async function handleJoinMatch(
   const checkConnection = async (): Promise<boolean> => {
     if (bothConnectedSent) return true // Already sent
     
-    // Query database for current connection status
-    const { data: matchStatus, error: statusError } = await supabase
-      .from('matches')
-      .select('player1_connected_at, player2_connected_at')
-      .eq('id', matchId)
-      .single()
-    
-    if (statusError || !matchStatus) {
-      return false
-    }
-    
-    if (matchStatus.player1_connected_at && matchStatus.player2_connected_at) {
+    // Query database for current connection status (with freshness)
+    const connectionStatus = await fetchConnectionStatus(matchId, supabase)
+    if (!connectionStatus) return false
+
+    if (connectionStatus.player1Fresh && connectionStatus.player2Fresh) {
       // Both connected! Attempt to broadcast
       console.log(`[${matchId}] ✅ [WS] Both players connected detected in checkConnection`)
       // NOTE: checkAndBroadcastBothConnected will re-check the database
@@ -3282,7 +3356,8 @@ Deno.serve(async (req) => {
       console.log(`[${matchId}] 📨 Parsed message:`, message)
 
       if (message.type === 'PING') {
-        // Lightweight heartbeat - respond with PONG (no game logic)
+        // Lightweight heartbeat - refresh connection and respond with PONG
+        await refreshConnectionHeartbeat(matchId, socket, supabase)
         try {
           socket.send(JSON.stringify({ type: 'PONG' }))
         } catch (_err) {
