@@ -100,7 +100,7 @@ export interface AnswerSubmitMessage {
   type: 'answer_submit';
   questionId: string;
   stepId: string;
-  answer: number; // Option index (0, 1, or 2)
+  answer: number; // Option index (0..options length - 1)
 }
 
 export interface ReadyForOptionsMessage {

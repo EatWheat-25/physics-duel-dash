@@ -1273,7 +1273,14 @@ export function useGame(match: MatchRow | null) {
         ws.send(JSON.stringify(submitMessage))
       } else {
         // Single-step answer
-        if (answerIndex !== 0 && answerIndex !== 1) {
+        const rawOptions = Array.isArray(prev.question?.steps?.[0]?.options)
+          ? prev.question.steps[0].options
+          : Array.isArray((prev.question as any)?.options)
+            ? (prev.question as any).options
+            : []
+        const normalizedOptions = rawOptions.filter((opt: any) => String(opt).trim() !== '')
+        const maxAllowed = normalizedOptions.length > 0 ? normalizedOptions.length - 1 : 5
+        if (answerIndex < 0 || answerIndex > maxAllowed) {
           console.error('[useGame] Invalid answer index:', answerIndex)
           return prev
         }
