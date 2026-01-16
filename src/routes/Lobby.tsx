@@ -314,10 +314,10 @@ export default function Lobby() {
 
                   <motion.button
                     onClick={handleStartQueue}
-                    disabled={status === 'searching'}
+                    disabled={(status as any) === 'searching' || (status as any) === 'queuing'}
                     className="relative px-12 py-6 rounded-full font-bold text-2xl uppercase tracking-wider transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-magenta-400 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-br from-red-500 to-red-400 text-white shadow-[0_0_40px_rgba(255,51,51,0.5)]"
-                    whileHover={status !== 'searching' ? { scale: 1.1 } : {}}
-                    whileTap={status !== 'searching' ? { scale: 0.95 } : {}}
+                    whileHover={!((status as any) === 'searching' || (status as any) === 'queuing') ? { scale: 1.1 } : {}}
+                    whileTap={!((status as any) === 'searching' || (status as any) === 'queuing') ? { scale: 0.95 } : {}}
                     animate={{
                       boxShadow: [
                         '0 0 40px rgba(255,51,51,0.5)',
@@ -332,7 +332,7 @@ export default function Lobby() {
                     }}
                   >
                     <Zap className="w-6 h-6 inline mr-2" />
-                    {status === 'searching' ? 'STARTING...' : 'START BATTLE'}
+                    {((status as any) === 'searching' || (status as any) === 'queuing') ? 'STARTING...' : 'START BATTLE'}
                   </motion.button>
 
                   <p className="text-sm mt-6 text-muted-foreground">
