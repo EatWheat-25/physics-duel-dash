@@ -61,13 +61,13 @@ export interface QuestionStep {
     id: string;
 
     /** 0-based display order (0 = first step) */
-    index?: number;
+    index: number;
 
     /** Step type - MCQ or True/False */
-    type?: 'mcq' | 'true_false';
+    type: 'mcq' | 'true_false';
 
     /** Step heading/title (e.g., "Find the derivative") */
-    title?: string;
+    title: string;
 
     /** The actual question text for this step */
     prompt: string;
@@ -99,18 +99,15 @@ export interface QuestionStep {
 
     /**
      * Optional sub-steps inside this step.
-     * - Sub-steps are ONLY shown if the player answers the MAIN step correctly (server-enforced in async mode)
-     * - Main-step marks are awarded based on MAIN correctness only (sub-steps never remove marks)
-     * - Each correct sub-step awards a small bonus (currently +0.2 points) to reduce draws
+     * - NOT extra steps/parts (still counts toward the same step)
+     * - If present and ANY are failed, the whole step awards 0 marks (server enforces)
      */
     subSteps?: QuestionSubStep[];
 }
 
 /**
  * Optional sub-step inside a step.
- * Same answer shape as a normal step.
- * - Awards no marks by itself
- * - Awards bonus points when correct (game rule)
+ * Same answer shape as a normal step, but it awards no marks by itself.
  */
 export interface QuestionSubStep {
     /** Sub-step type - MCQ or True/False */
@@ -129,7 +126,7 @@ export interface QuestionSubStep {
     /** Index of correct option (0 <= correctAnswer < options.length) */
     correctAnswer: number;
 
-    /** Time limit for this sub-step in seconds (default: 15; null = no limit) */
+    /** Time limit for this sub-step in seconds (default: 5; null = no limit) */
     timeLimitSeconds: number | null;
 
     /** Explanation shown after answering (null = no explanation) */
@@ -163,13 +160,13 @@ export interface StepBasedQuestion {
     rankTier?: string;
 
     /** Main question context/setup/stem */
-    stem?: string;
+    stem: string;
 
     /**
      * Time limit (seconds) for the main question phase (before steps begin).
      * Server-enforced; Admin-configurable; clamped to a safe range.
      */
-    mainQuestionTimerSeconds?: number;
+    mainQuestionTimerSeconds: number;
 
     /** Total marks (sum of all step marks) */
     totalMarks: number;

@@ -11,30 +11,41 @@ import {
 interface RankMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentPoints?: number;
+  currentMMR?: number;
 }
 
-export function RankMenu({ open, onOpenChange, currentPoints = 0 }: RankMenuProps) {
+export function RankMenu({ open, onOpenChange, currentMMR = 0 }: RankMenuProps) {
   // Group ranks by tier
   const ranksByTier: Record<RankTier, typeof RANKS> = {
     'Bronze': [],
     'Silver': [],
     'Gold': [],
-    'Platinum': [],
     'Diamond': [],
-    'Ruby': [],
+    'Unbeatable': [],
+    'Pocket Calculator': [],
   };
 
   RANKS.forEach(rank => {
     ranksByTier[rank.tier].push(rank);
   });
 
-  const tierOrder: RankTier[] = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ruby'];
+  const tierOrder: RankTier[] = [
+    'Bronze',
+    'Silver',
+    'Gold',
+    'Diamond',
+    'Unbeatable',
+    'Pocket Calculator',
+  ];
 
   const getCurrentRankIndex = () => {
-    const currentRank = RANKS.find(r => currentPoints >= r.minPoints && currentPoints <= r.maxPoints);
+    const currentRank = RANKS.find(r => 
+      currentMMR >= r.minPoints && currentMMR <= r.maxPoints
+    );
     if (!currentRank) return -1;
-    return RANKS.findIndex(r => r.tier === currentRank.tier);
+    return RANKS.findIndex(r => 
+      r.tier === currentRank.tier && r.subRank === currentRank.subRank
+    );
   };
 
   const currentRankIndex = getCurrentRankIndex();
@@ -55,7 +66,12 @@ export function RankMenu({ open, onOpenChange, currentPoints = 0 }: RankMenuProp
             if (tierRanks.length === 0) return null;
 
             const tierData = tierRanks[0];
-            const isCurrentTier = tierRanks.some(r => RANKS.findIndex(rank => rank.tier === r.tier) === currentRankIndex);
+            const isCurrentTier = tierRanks.some(r => {
+              const rankIndex = RANKS.findIndex(rank => 
+                rank.tier === r.tier && rank.subRank === r.subRank
+              );
+              return rankIndex === currentRankIndex;
+            });
 
             return (
               <motion.div
@@ -98,21 +114,29 @@ export function RankMenu({ open, onOpenChange, currentPoints = 0 }: RankMenuProp
                         <span className="ml-2 text-sm text-primary">(Current Tier)</span>
                       )}
                     </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {tier === 'Ruby' ? 'Top rank (season cap)' : 'Climb by earning points'}
-                    </p>
+                    {tier === 'Pocket Calculator' ? (
+                      <p className="text-sm text-muted-foreground">
+                        Elite rank for top 1,000 players
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {tierRanks.length} sub-ranks available
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {tierRanks.map((rank, rankSubIndex) => {
-                    const rankIndex = RANKS.findIndex(r => r.tier === rank.tier);
+                    const rankIndex = RANKS.findIndex(r => 
+                      r.tier === rank.tier && r.subRank === rank.subRank
+                    );
                     const isCurrentRank = rankIndex === currentRankIndex;
-                    const isUnlocked = currentPoints >= rank.minPoints;
+                    const isUnlocked = currentMMR >= rank.minPoints;
 
                     return (
                       <motion.div
-                        key={`${rank.tier}`}
+                        key={`${rank.tier}-${rank.subRank}`}
                         initial={{ opacity: 0, y: 20, scale: 0.9 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{
@@ -145,7 +169,10 @@ export function RankMenu({ open, onOpenChange, currentPoints = 0 }: RankMenuProp
                             ) : (
                               <span className="text-2xl">{rank.emoji}</span>
                             )}
-                            <span className="font-bold text-sm" style={{ color: rank.color }}>
+                            <span
+                              className="font-bold text-sm"
+                              style={{ color: rank.color }}
+                            >
                               {rank.displayName}
                             </span>
                           </div>
@@ -157,10 +184,12 @@ export function RankMenu({ open, onOpenChange, currentPoints = 0 }: RankMenuProp
                           <div>
                             {rank.minPoints === 0
                               ? 'Starting rank'
-                              : `${rank.minPoints} - ${rank.maxPoints} Points`}
+                              : `${rank.minPoints} - ${rank.maxPoints} MMR`}
                           </div>
-                          {tier === 'Ruby' && (
-                            <div className="text-primary font-semibold">Season cap: 1500</div>
+                          {tier === 'Pocket Calculator' && (
+                            <div className="text-primary font-semibold">
+                              Top 1,000 Elite
+                            </div>
                           )}
                         </div>
                       </motion.div>
@@ -175,9 +204,10 @@ export function RankMenu({ open, onOpenChange, currentPoints = 0 }: RankMenuProp
         <div className="mt-6 p-4 rounded-lg bg-primary/10 border border-primary/20">
           <h4 className="font-bold text-sm mb-2 text-primary">How Ranking Works</h4>
           <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-            <li>Win, lose, or draw to gain points based on your accuracy</li>
-            <li>Ranks are Bronze → Ruby (0–1500)</li>
-            <li>Points are computed server-side after each match</li>
+            <li>Win matches to gain MMR (Match Making Rating)</li>
+            <li>Each win grants +25 MMR, each loss deducts -20 MMR</li>
+            <li>Rank up by reaching the required MMR threshold</li>
+            <li>Pocket Calculator is reserved for the top 1,000 players globally</li>
           </ul>
         </div>
       </DialogContent>

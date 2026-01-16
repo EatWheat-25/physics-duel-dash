@@ -13,7 +13,7 @@ export function PlayerHubCard() {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const username = profile?.username || userData.username || 'Player';
-  const points = userData.currentPoints || 0;
+  const mmr = userData.currentPoints || 0;
   const wins = userData.wins || 0;
   const streak = userData.winStreak || 0;
 
@@ -136,7 +136,7 @@ export function PlayerHubCard() {
                     className="text-xs uppercase tracking-wider font-medium"
                     style={{ color: 'var(--text-dim)' }}
                   >
-                    Points
+                    MMR Rating
                   </span>
                   <Target className="w-4 h-4" style={{ color: 'var(--violet)' }} />
                 </div>
@@ -144,7 +144,7 @@ export function PlayerHubCard() {
                   className="text-2xl md:text-3xl font-bold"
                   style={{ color: 'var(--text-primary)' }}
                 >
-                  {points}
+                  {mmr}
                 </div>
               </div>
 

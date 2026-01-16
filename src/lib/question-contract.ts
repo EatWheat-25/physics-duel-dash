@@ -327,7 +327,7 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
             }
 
             const rawSubTime = rawSub.timeLimitSeconds ?? rawSub.time_limit_seconds;
-            const subTimeLimitSeconds = typeof rawSubTime === 'number' ? rawSubTime : 15;
+            const subTimeLimitSeconds = typeof rawSubTime === 'number' ? rawSubTime : 5;
 
             mapped.push({
                 type: subType as 'mcq' | 'true_false',

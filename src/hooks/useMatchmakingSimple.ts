@@ -2,11 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
-import { playMatchFoundSound } from '@/utils/matchSounds'
 import type { MatchRow } from '@/types/schema'
 
 interface MatchmakingState {
-  status: 'idle' | 'queuing' | 'matched' | 'searching'
+  status: 'idle' | 'queuing' | 'matched'
   matchId: string | null
   error: string | null
 }
@@ -80,7 +79,6 @@ export function useMatchmakingSimple() {
           error: null
         })
 
-        playMatchFoundSound()
         toast.success('Match found!')
 
         // Navigate to battle page
@@ -137,7 +135,7 @@ export function useMatchmakingSimple() {
         }
 
         if (matches && matches.length > 0) {
-          const match = matches[0] as any
+          const match = matches[0] as MatchRow
 
           console.log('[MATCHMAKING] Match found!', match.id)
 
@@ -153,7 +151,6 @@ export function useMatchmakingSimple() {
             error: null
           })
 
-          playMatchFoundSound()
           toast.success('Match found!')
 
           // Navigate to battle

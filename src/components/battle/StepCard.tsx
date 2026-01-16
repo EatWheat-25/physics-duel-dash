@@ -41,8 +41,7 @@ export function StepCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      // Ensure option buttons stay above any accidental overlays (prevents C/D click interception).
-      className="w-full relative z-10"
+      className="w-full"
     >
       <div className="paper-card mb-8">
         {paperGraph && (
@@ -58,7 +57,7 @@ export function StepCard({
               : `Step ${stepIndex + 1} of ${totalSteps}`}
           </div>
 
-          <h3 className="text-xl md:text-2xl font-normal leading-relaxed text-left">
+          <h3 className="text-xl md:text-2xl font-bold leading-relaxed">
             <ScienceText text={prompt} />
           </h3>
 
@@ -78,12 +77,12 @@ export function StepCard({
 
           {segment === 'sub' && (
             <p className="text-xs text-slate-600 font-mono">
-              QUICK CHECK — +0.2 bonus points per correct answer
+              QUICK CHECK — must be correct to earn this step&apos;s marks
             </p>
           )}
         </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           {visibleOptions.map((option, idx) => (
             <button
               key={idx}
@@ -97,7 +96,7 @@ export function StepCard({
                 <div className="paper-option-letter">
                   {String.fromCharCode(65 + idx)}
                 </div>
-                <ScienceText text={option} className="text-lg font-normal" smilesSize="sm" />
+                <ScienceText text={option} className="text-lg font-medium" smilesSize="sm" />
               </div>
             </button>
           ))}

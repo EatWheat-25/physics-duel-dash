@@ -31,8 +31,7 @@ export function SingleStepCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      // Ensure the answer grid stays above any accidental overlays (prevents C/D click interception).
-      className="w-full relative z-10"
+      className="w-full"
     >
       {/* Question Card */}
       <div className="paper-card mb-8">
@@ -42,7 +41,7 @@ export function SingleStepCard({
           </div>
         )}
 
-        <h3 className="text-2xl md:text-3xl font-normal leading-relaxed text-left">
+        <h3 className="text-2xl md:text-3xl font-bold leading-relaxed">
           <ScienceText text={questionText} />
         </h3>
 
@@ -63,7 +62,7 @@ export function SingleStepCard({
       </div>
 
       {/* Answers Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visibleOptions.map((option, idx) => (
           <button
             key={idx}
@@ -75,7 +74,7 @@ export function SingleStepCard({
               <div className="paper-option-letter">
                 {String.fromCharCode(65 + idx)}
               </div>
-              <ScienceText text={option} className="text-lg font-normal" smilesSize="sm" />
+              <ScienceText text={option} className="text-lg font-medium" smilesSize="sm" />
             </div>
           </button>
         ))}

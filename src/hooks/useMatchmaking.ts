@@ -4,8 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { MatchRow } from '@/types/schema';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
-import type { MatchDoorPlayers } from '@/components/transitions/ElevatorShutterTransition';
-import { playMatchFoundSound } from '@/utils/matchSounds';
 
 interface MatchmakingState {
   status: 'idle' | 'searching' | 'matched';
@@ -13,13 +11,9 @@ interface MatchmakingState {
   error: string | null;
 }
 
-type StartMatchmakingOptions = {
-  forceNew?: boolean;
-};
-
 export function useMatchmaking() {
   const navigate = useNavigate();
-  const { startMatch, setMatchPlayers } = useElevatorShutter();
+  const { startMatch } = useElevatorShutter();
   const [state, setState] = useState<MatchmakingState>({
     status: 'idle',
     match: null,
@@ -31,110 +25,23 @@ export function useMatchmaking() {
   const queueStartTimeRef = useRef<number | null>(null);
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
-  const requestedSubjectRef = useRef<string | null>(null);
-  const requestedLevelRef = useRef<string | null>(null);
-  const currentUserIdRef = useRef<string | null>(null);
-
-  const buildPlaceholderPlayers = useCallback((): MatchDoorPlayers => {
-    return {
-      left: {
-        displayName: 'YOU',
-        rankPoints: null,
-        level: 1,
-        initial: 'Y',
-        isPlaceholder: true,
-      },
-      right: {
-        displayName: 'OPPONENT',
-        rankPoints: null,
-        level: 1,
-        initial: 'O',
-        isPlaceholder: true,
-      },
-    };
-  }, []);
-
-  const hydrateMatchPlayers = useCallback(
-    async (match: MatchRow) => {
-      try {
-        if (!currentUserIdRef.current) {
-          const { data: { user } } = await supabase.auth.getUser();
-          currentUserIdRef.current = user?.id ?? null;
-        }
-
-        const currentUserId = currentUserIdRef.current;
-        if (!currentUserId) return;
-
-        const isPlayer1 = match.player1_id === currentUserId;
-        const opponentId = isPlayer1 ? match.player2_id : match.player1_id;
-
-        const { data, error } = await (supabase as any).rpc('get_players_rank_public_v1', {
-          p_ids: [currentUserId, opponentId],
-        });
-
-        if (error || !Array.isArray(data)) {
-          console.warn('[MATCHMAKING] Rank RPC unavailable (non-blocking).', error);
-          return;
-        }
-
-        const map: Record<string, { display_name: string; rank_points: number }> = {};
-        for (const row of data as any[]) {
-          if (row?.id) {
-            map[String(row.id)] = {
-              display_name: String(row.display_name ?? 'Player'),
-              rank_points: Number(row.rank_points ?? 0),
-            };
-          }
-        }
-
-        const myRow = map[currentUserId];
-        const oppRow = map[opponentId];
-
-        const leftDisplay = myRow?.display_name ?? 'YOU';
-        const rightDisplay = oppRow?.display_name ?? 'OPPONENT';
-
-        setMatchPlayers({
-          left: {
-            displayName: leftDisplay,
-            rankPoints: myRow?.rank_points ?? null,
-            level: 1,
-            initial: (leftDisplay?.[0] || 'Y').toUpperCase(),
-            isPlaceholder: !myRow,
-          },
-          right: {
-            displayName: rightDisplay,
-            rankPoints: oppRow?.rank_points ?? null,
-            level: 1,
-            initial: (rightDisplay?.[0] || 'O').toUpperCase(),
-            isPlaceholder: !oppRow,
-          },
-        });
-      } catch (error) {
-        console.error('[MATCHMAKING] Failed to hydrate match players:', error);
-      }
-    },
-    [setMatchPlayers]
-  );
 
   const runMatchFoundTransition = useCallback(
     (match: MatchRow) => {
-      const placeholderPlayers = buildPlaceholderPlayers();
       // Purple elevator shutter: close doors, navigate behind, then open once BattleConnected signals question is rendered.
       void startMatch({
         message: 'MATCH FOUND',
         // Timeout fallback so we never hang forever if the battle page fails to signal readiness.
         loadingMs: 15000,
         waitForReady: true,
-        players: placeholderPlayers,
         onClosed: () => {
           navigate(`/online-battle-new/${match.id}`, {
             state: { match },
           });
         },
       });
-      void hydrateMatchPlayers(match);
     },
-    [navigate, startMatch, buildPlaceholderPlayers, hydrateMatchPlayers]
+    [navigate, startMatch]
   );
 
   // Poll for matches when in searching state
@@ -157,17 +64,11 @@ export function useMatchmaking() {
         }
 
         // Check if user has a match in matches table
-        let query = supabase
+        const { data: matches, error } = await supabase
           .from('matches')
           .select('*')
           .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
-          .eq('status', 'pending' as any)
-        
-        // If we know what we queued for, filter to that to avoid picking up a stale pending match.
-        if (requestedSubjectRef.current) query = query.eq('subject', requestedSubjectRef.current);
-        if (requestedLevelRef.current) query = query.eq('mode', requestedLevelRef.current);
-
-        const { data: matches, error } = await query
+          .eq('status', 'pending')
           .order('created_at', { ascending: false })
           .limit(1);
 
@@ -208,7 +109,6 @@ export function useMatchmaking() {
           setQueueStartTime(null);
           queueStartTimeRef.current = null;
 
-          playMatchFoundSound();
           toast.success('Match found! Starting battle...');
           runMatchFoundTransition(match);
         } else {
@@ -231,7 +131,7 @@ export function useMatchmaking() {
     };
   }, [state.status, runMatchFoundTransition]);
 
-  const startMatchmaking = useCallback(async (subject: string, level: string, options: StartMatchmakingOptions = {}) => {
+  const startMatchmaking = useCallback(async (subject: string, level: string) => {
     if (isSearchingRef.current) {
       console.log('[MATCHMAKING] Already searching, ignoring duplicate call');
       return;
@@ -250,8 +150,6 @@ export function useMatchmaking() {
     queueStartTimeRef.current = startedAt;
     setQueueStartTime(startedAt);
     setState(prev => ({ ...prev, status: 'searching', error: null }));
-    requestedSubjectRef.current = subject;
-    requestedLevelRef.current = level;
 
     try {
       // Get current user
@@ -259,13 +157,12 @@ export function useMatchmaking() {
       if (userError || !user) {
         throw new Error('No authenticated user');
       }
-      currentUserIdRef.current = user.id;
 
       console.log(`[MATCHMAKING] Starting matchmaking for user ${user.id} (subject: ${subject}, level: ${level})`);
 
       // Call matchmaker edge function with subject and level
       const { data, error } = await supabase.functions.invoke('matchmake-simple', {
-        body: { subject, level, forceNew: options.forceNew },
+        body: { subject, level },
       });
 
       // If the user cancelled while this request was in-flight, ignore late results.
@@ -312,20 +209,12 @@ export function useMatchmaking() {
         });
         setQueueStartTime(null);
         queueStartTimeRef.current = null;
-        requestedSubjectRef.current = null;
-        requestedLevelRef.current = null;
 
-        playMatchFoundSound();
         toast.success('Match found! Starting battle...');
         runMatchFoundTransition(match);
       } else if (data?.matched === false && data?.queued === true) {
         // Queued - stay in searching state and let polling handle match detection
         console.log('[MATCHMAKING] Queued, will poll for match...');
-        // Prefer server-side queue timestamp to avoid client clock skew causing “old match ignored”.
-        if (data?.queued_at) {
-          const serverMs = new Date(String(data.queued_at)).getTime();
-          if (Number.isFinite(serverMs)) queueStartTimeRef.current = serverMs;
-        }
         toast.info('Searching for opponent...');
         // Polling effect will handle match detection
       } else {
@@ -353,8 +242,6 @@ export function useMatchmaking() {
       toast.error(`Failed to start matchmaking. ${errorHint ? errorHint : 'Please try again.'}`);
       setQueueStartTime(null);
       queueStartTimeRef.current = null;
-      requestedSubjectRef.current = null;
-      requestedLevelRef.current = null;
       
       // Clear polling on error
       if (pollIntervalRef.current) {
@@ -399,8 +286,6 @@ export function useMatchmaking() {
     isSearchingRef.current = false;
     setQueueStartTime(null);
     queueStartTimeRef.current = null;
-    requestedSubjectRef.current = null;
-    requestedLevelRef.current = null;
   }, []);
 
   return {

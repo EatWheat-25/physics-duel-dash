@@ -66,7 +66,7 @@ interface RoundStartEvent {
 interface QuestionReceivedEvent {
   type: 'QUESTION_RECEIVED'
   question: any // Raw question object from questions_v2
-  timer_end_at: string // ISO timestamp when timer expires (derived from steps[0].timeLimitSeconds when available)
+  timer_end_at: string // ISO timestamp when timer expires (60 seconds from now)
 }
 
 interface AnswerReceivedEvent {
@@ -148,57 +148,6 @@ interface RoundStartedEvent {
   consecutive_wins_count: number
 }
 
-const PROTOCOL_VERSION = 2
-const ENABLE_WS_FASTPATH = false
-
-type RoundPhase = 'main' | 'steps' | 'results' | 'done'
-
-interface PlayerSnapshot {
-  id: string | null
-  answered: boolean
-  completed: boolean
-  currentStepIndex: number | null
-  currentSegment: 'main' | 'sub' | null
-  currentSubStepIndex: number | null
-  segmentEndsAt: string | null
-}
-
-interface StateSnapshotEvent {
-  type: 'STATE_SNAPSHOT'
-  protocolVersion: number
-  serverTime: string
-  matchId: string
-  roundId: string | null
-  roundNumber: number
-  targetRoundsToWin: number
-  phase: RoundPhase
-  phaseSeq: number
-  stateVersion?: number
-  endsAt: string | null
-  question: any | null
-  totalSteps: number
-  players: {
-    p1: PlayerSnapshot | null
-    p2: PlayerSnapshot | null
-  }
-  playerRoundWins: { [playerId: string]: number }
-  resultsPayload?: any | null
-  resultsVersion?: number | null
-  matchOver: boolean
-  matchWinnerId: string | null
-}
-
-interface PhaseUpdateEvent {
-  type: 'PHASE_UPDATE'
-  protocolVersion: number
-  serverTime: string
-  matchId: string
-  roundId: string
-  phase: RoundPhase
-  phaseSeq: number
-  endsAt: string | null
-}
-
 // Track sockets locally (for broadcasting) - each instance only tracks its own sockets
 const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 
@@ -209,9 +158,6 @@ const matchTimeouts = new Map<string, number>() // matchId -> timeoutId
 const asyncProgressSweepIntervals = new Map<string, number>() // matchId -> intervalId
 const lastAsyncProgressKeys = new Map<string, Map<string, string>>() // matchId -> (playerId -> key)
 const multiStepResultsComputeInProgress = new Set<string>() // `${matchId}:${roundId}`
-
-// Phase scheduler (non-authoritative tick loop)
-const phaseSchedulers = new Map<string, number>() // matchId -> intervalId
 
 // Track game state for multi-step questions
 interface GameState {
@@ -309,7 +255,7 @@ function clearAsyncProgressSweep(matchId: string): void {
   lastAsyncProgressKeys.delete(matchId)
 }
 
-function ensureAsyncProgressSweep(matchId: string, supabase: any): void {
+function ensureAsyncProgressSweep(matchId: string, supabase: ReturnType<typeof createClient>): void {
   if (asyncProgressSweepIntervals.has(matchId)) return
 
   const intervalId = setInterval(() => {
@@ -325,12 +271,13 @@ function ensureAsyncProgressSweep(matchId: string, supabase: any): void {
 
 async function runAsyncProgressSweepTick(
   matchId: string,
-  supabase: any
+  supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  const gameState = gameStates.get(matchId)
   const matchSockets = sockets.get(matchId)
 
   // Stop sweep if match no longer active on this instance
-  if (!matchSockets || matchSockets.size === 0) {
+  if (!matchSockets || matchSockets.size === 0 || !gameState || gameState.progressMode !== 'async' || gameState.currentPhase !== 'steps') {
     clearAsyncProgressSweep(matchId)
     return
   }
@@ -343,18 +290,6 @@ async function runAsyncProgressSweepTick(
 
   if (matchError || !matchRow?.current_round_id) return
   const roundId = matchRow.current_round_id as string
-
-  const { data: roundRow, error: roundError } = await supabase
-    .from('match_rounds')
-    .select('id, phase, status, question_id')
-    .eq('id', roundId)
-    .single()
-  if (roundError || !roundRow) return
-  const roundPhase = (roundRow.phase ?? roundRow.status ?? 'main') as string
-  if (roundPhase !== 'steps') {
-    clearAsyncProgressSweep(matchId)
-    return
-  }
 
   // Advance any overdue segments (idempotent + serialized by advisory locks in SQL)
   {
@@ -389,17 +324,8 @@ async function runAsyncProgressSweepTick(
 
   if (progressRowsError || !Array.isArray(progressRows)) return
 
-  let steps: any[] = []
-  if (roundRow.question_id) {
-    const { data: q } = await supabase
-      .from('questions_v2')
-      .select('steps')
-      .eq('id', roundRow.question_id)
-      .single()
-    steps = normalizeSteps(q?.steps)
-  }
+  const steps = normalizeSteps(gameState.currentQuestion?.steps)
   const hasSteps = steps.length > 0
-  let progressChanged = false
 
   // Completion state (for waiting UI). We broadcast this when it changes.
   const byPlayer = new Map<string, any>()
@@ -414,7 +340,6 @@ async function runAsyncProgressSweepTick(
     const prevKey = lastAsyncProgressKeys.get(matchId)?.get(pid)
     if (key === prevKey) continue
     setLastAsyncProgressKey(matchId, pid, key)
-    progressChanged = true
 
     // If player finished, waiting UI is driven by ALL_STEPS_COMPLETE_WAITING
     if (row.completed_at) continue
@@ -467,23 +392,18 @@ async function runAsyncProgressSweepTick(
     }
     if (matchRow.player1_id) sendToPlayer(matchId, matchRow.player1_id, waitingEvent)
     if (matchRow.player2_id) sendToPlayer(matchId, matchRow.player2_id, waitingEvent)
-    progressChanged = true
 
     // If both players are complete, compute results immediately (idempotent).
     if (p1Complete && p2Complete) {
       await computeAndBroadcastMultiStepResultsV3(matchId, roundId, supabase)
     }
   }
-
-  if (progressChanged) {
-    await broadcastSnapshotToMatch(matchId, supabase)
-  }
 }
 
 async function computeAndBroadcastMultiStepResultsV3(
   matchId: string,
   roundId: string,
-  supabase: any
+  supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   const key = `${matchId}:${roundId}`
   if (multiStepResultsComputeInProgress.has(key)) return
@@ -511,7 +431,30 @@ async function computeAndBroadcastMultiStepResultsV3(
       return
     }
 
-    await attemptPhaseAdvance(matchId, supabase, { forceSnapshot: true })
+    // FAST-PATH: broadcast via WebSocket (Realtime on matches delivers cross-instance)
+    const resultsEvent = {
+      type: 'RESULTS_RECEIVED',
+      results_payload: payload,
+      results_version: rpcResult.results_version,
+      round_number: payload.round_number,
+      round_id: payload.round_id ?? roundId
+    }
+    broadcastToMatch(matchId, resultsEvent)
+
+    // Reset readiness tracking for results acknowledgment
+    const matchState = matchStates.get(matchId)
+    if (matchState) {
+      matchState.p1ResultsAcknowledged = false
+      matchState.p2ResultsAcknowledged = false
+      matchState.roundTransitionInProgress = false
+      if (payload.player_round_wins && typeof payload.player_round_wins === 'object') {
+        const next = new Map<string, number>()
+        Object.entries(payload.player_round_wins).forEach(([pid, wins]) => {
+          next.set(pid, Number(wins) || 0)
+        })
+        matchState.playerRoundWins = next
+      }
+    }
 
     const gameState = gameStates.get(matchId)
     if (gameState) {
@@ -574,277 +517,6 @@ function sendToPlayer(
   }
 
   console.log(`[${matchId}] 📤 Sent ${event.type} to player ${playerId}: ${sentCount} socket(s)`)
-}
-
-async function buildStateSnapshot(
-  matchId: string,
-  supabase: ReturnType<typeof createClient>
-): Promise<StateSnapshotEvent | null> {
-  const { data: matchRow, error: matchError } = await supabase
-    .from('matches')
-    .select(
-      [
-        'id',
-        'status',
-        'winner_id',
-        'current_round_id',
-        'current_round_number',
-        'target_rounds_to_win',
-        'player1_id',
-        'player2_id',
-        'player1_answered_at',
-        'player2_answered_at',
-        'player1_round_wins',
-        'player2_round_wins',
-        'results_payload',
-        'results_round_id',
-        'results_version'
-      ].join(',')
-    )
-    .eq('id', matchId)
-    .single()
-
-  if (matchError || !matchRow) {
-    console.warn(`[${matchId}] ⚠️ Failed to load match snapshot`, matchError)
-    return null
-  }
-
-  let roundRow: any = null
-  if (matchRow.current_round_id) {
-    const { data: roundData, error: roundError } = await supabase
-      .from('match_rounds')
-      .select('id, question_id, phase, phase_seq, state_version, ends_at, status')
-      .eq('id', matchRow.current_round_id)
-      .single()
-
-    if (!roundError && roundData) {
-      roundRow = roundData
-    }
-  }
-
-  let question: any | null = null
-  let totalSteps = 0
-  if (roundRow?.question_id) {
-    const { data: q, error: qError } = await supabase
-      .from('questions_v2')
-      .select('*')
-      .eq('id', roundRow.question_id)
-      .single()
-    if (!qError && q) {
-      question = q
-      try {
-        const steps = Array.isArray(q.steps) ? q.steps : JSON.parse(q.steps ?? '[]')
-        totalSteps = Array.isArray(steps) ? steps.length : 0
-      } catch {
-        totalSteps = 0
-      }
-    }
-  }
-
-  const playerRoundWins: { [playerId: string]: number } = {}
-  if (matchRow.player1_id) playerRoundWins[matchRow.player1_id] = Number(matchRow.player1_round_wins || 0)
-  if (matchRow.player2_id) playerRoundWins[matchRow.player2_id] = Number(matchRow.player2_round_wins || 0)
-
-  const phase: RoundPhase = (roundRow?.phase ?? roundRow?.status ?? 'main') as RoundPhase
-  const phaseSeq = Number.isFinite(roundRow?.phase_seq) ? Number(roundRow.phase_seq) : 0
-  const stateVersion = Number.isFinite(roundRow?.state_version) ? Number(roundRow.state_version) : 0
-  const endsAt = roundRow?.ends_at ? String(roundRow.ends_at) : null
-
-  const players: { p1: PlayerSnapshot | null; p2: PlayerSnapshot | null } = {
-    p1: matchRow.player1_id
-      ? {
-          id: matchRow.player1_id,
-          answered: !!matchRow.player1_answered_at,
-          completed: false,
-          currentStepIndex: null,
-          currentSegment: null,
-          currentSubStepIndex: null,
-          segmentEndsAt: null
-        }
-      : null,
-    p2: matchRow.player2_id
-      ? {
-          id: matchRow.player2_id,
-          answered: !!matchRow.player2_answered_at,
-          completed: false,
-          currentStepIndex: null,
-          currentSegment: null,
-          currentSubStepIndex: null,
-          segmentEndsAt: null
-        }
-      : null
-  }
-
-  if (phase === 'steps' && roundRow?.id) {
-    const { data: progressRows } = await supabase
-      .from('match_round_player_progress_v1')
-      .select('player_id, current_step_index, current_segment, current_sub_step_index, segment_ends_at, completed_at')
-      .eq('match_id', matchId)
-      .eq('round_id', roundRow.id)
-
-    ;(progressRows ?? []).forEach((row: any) => {
-      const next: PlayerSnapshot = {
-        id: row.player_id,
-        answered: false,
-        completed: !!row.completed_at,
-        currentStepIndex: Number.isFinite(row.current_step_index) ? Number(row.current_step_index) : 0,
-        currentSegment: row.current_segment === 'sub' ? 'sub' : 'main',
-        currentSubStepIndex: Number.isFinite(row.current_sub_step_index)
-          ? Number(row.current_sub_step_index)
-          : 0,
-        segmentEndsAt: row.segment_ends_at ? String(row.segment_ends_at) : null
-      }
-      if (players.p1?.id === row.player_id) players.p1 = next
-      if (players.p2?.id === row.player_id) players.p2 = next
-    })
-  }
-
-  const resultsPayload =
-    matchRow.results_payload && matchRow.results_round_id === matchRow.current_round_id
-      ? matchRow.results_payload
-      : null
-
-  const matchOver = !!matchRow.winner_id || matchRow.status === 'finished' || matchRow.status === 'completed'
-  const matchWinnerId = matchRow.winner_id ?? null
-
-  return {
-    type: 'STATE_SNAPSHOT',
-    protocolVersion: PROTOCOL_VERSION,
-    serverTime: new Date().toISOString(),
-    matchId,
-    roundId: roundRow?.id ?? null,
-    roundNumber: Number(matchRow.current_round_number || 0),
-    targetRoundsToWin: Number(matchRow.target_rounds_to_win || 0),
-    phase,
-    phaseSeq,
-    stateVersion,
-    endsAt,
-    question,
-    totalSteps,
-    players,
-    playerRoundWins,
-    resultsPayload,
-    resultsVersion: matchRow.results_version ?? null,
-    matchOver,
-    matchWinnerId
-  }
-}
-
-async function sendSnapshotToSocket(
-  matchId: string,
-  socket: WebSocket,
-  supabase: ReturnType<typeof createClient>
-): Promise<void> {
-  const snapshot = await buildStateSnapshot(matchId, supabase)
-  if (!snapshot) return
-  if (socket.readyState !== WebSocket.OPEN) return
-  socket.send(JSON.stringify(snapshot))
-}
-
-async function broadcastSnapshotToMatch(
-  matchId: string,
-  supabase: ReturnType<typeof createClient>
-): Promise<void> {
-  const matchSockets = sockets.get(matchId)
-  if (!matchSockets || matchSockets.size === 0) return
-  const snapshot = await buildStateSnapshot(matchId, supabase)
-  if (!snapshot) return
-  matchSockets.forEach((socket) => {
-    if (socket.readyState === WebSocket.OPEN) {
-      try {
-        socket.send(JSON.stringify(snapshot))
-      } catch (err) {
-        console.error(`[${matchId}] ❌ Error sending STATE_SNAPSHOT:`, err)
-      }
-    }
-  })
-}
-
-async function attemptPhaseAdvance(
-  matchId: string,
-  supabase: ReturnType<typeof createClient>,
-  options?: { forceSnapshot?: boolean }
-): Promise<void> {
-  const { data: matchRow } = await supabase
-    .from('matches')
-    .select('id, winner_id, current_round_id, status')
-    .eq('id', matchId)
-    .single()
-
-  if (!matchRow?.current_round_id) return
-
-  const { data: roundRow } = await supabase
-    .from('match_rounds')
-    .select('id, phase, phase_seq, ends_at')
-    .eq('id', matchRow.current_round_id)
-    .single()
-
-  if (!roundRow) return
-
-  const { data: advanceResult, error: advanceError } = await supabase.rpc('advance_round_phase_v1', {
-    p_match_id: matchId,
-    p_round_id: roundRow.id,
-    p_expected_phase_seq: roundRow.phase_seq,
-    p_client_seen_at: new Date().toISOString()
-  })
-
-  if (advanceError) {
-    console.warn(`[${matchId}] ⚠️ advance_round_phase_v1 error`, advanceError)
-    return
-  }
-
-  if (advanceResult?.advanced) {
-    const updateEvent: PhaseUpdateEvent = {
-      type: 'PHASE_UPDATE',
-      protocolVersion: PROTOCOL_VERSION,
-      serverTime: new Date().toISOString(),
-      matchId,
-      roundId: roundRow.id,
-      phase: advanceResult.phase,
-      phaseSeq: advanceResult.phase_seq,
-      endsAt: advanceResult.ends_at ?? null
-    }
-    broadcastToMatch(matchId, updateEvent)
-    await broadcastSnapshotToMatch(matchId, supabase)
-
-    if (advanceResult.phase === 'steps') {
-      ensureAsyncProgressSweep(matchId, supabase)
-    }
-
-    if (advanceResult.phase === 'done') {
-      if (!matchRow.winner_id && matchRow.status === 'in_progress') {
-        await selectAndBroadcastQuestion(matchId, supabase)
-      }
-    }
-    return
-  }
-
-  if (advanceResult?.error === 'phase_seq_mismatch') {
-    await broadcastSnapshotToMatch(matchId, supabase)
-    return
-  }
-
-  if (options?.forceSnapshot) {
-    await broadcastSnapshotToMatch(matchId, supabase)
-  }
-}
-
-function ensurePhaseScheduler(matchId: string, supabase: ReturnType<typeof createClient>): void {
-  if (phaseSchedulers.has(matchId)) return
-  const intervalId = setInterval(() => {
-    attemptPhaseAdvance(matchId, supabase).catch((err) => {
-      console.warn(`[${matchId}] ⚠️ Phase scheduler tick failed:`, err)
-    })
-  }, 1000) as unknown as number
-  phaseSchedulers.set(matchId, intervalId)
-}
-
-function clearPhaseScheduler(matchId: string): void {
-  const intervalId = phaseSchedulers.get(matchId)
-  if (intervalId) {
-    clearInterval(intervalId)
-    phaseSchedulers.delete(matchId)
-  }
 }
 
 /**
@@ -1063,19 +735,10 @@ async function broadcastQuestion(
     // Clear any existing game state (multi-step state)
     cleanupGameState(matchId)
 
-    // Timeout for answer submission (single-step): prefer per-step timer if present
-    const DEFAULT_TIMEOUT_SECONDS = 60
-
-    const firstStep = Array.isArray(steps) ? steps[0] : null
-    const stepSecondsRaw = firstStep?.timeLimitSeconds ?? firstStep?.time_limit_seconds
-    const stepSeconds = Number(stepSecondsRaw)
-
-    const TIMEOUT_SECONDS =
-      Number.isFinite(stepSeconds) && stepSeconds > 0
-        ? Math.floor(stepSeconds)
-        : DEFAULT_TIMEOUT_SECONDS
+    // Timeout for answer submission (60 seconds / 1 minute)
+    const TIMEOUT_SECONDS = 60
     
-    // Calculate timer end time (from TIMEOUT_SECONDS)
+    // Calculate timer end time (60 seconds from now)
     const timerEndAt = new Date(Date.now() + TIMEOUT_SECONDS * 1000).toISOString()
     
     const questionReceivedEvent: QuestionReceivedEvent = {
@@ -1114,7 +777,7 @@ async function broadcastQuestion(
 
     console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
 
-    // Start timeout for answer submission (single-step)
+    // Start timeout for answer submission (60 seconds / 1 minute)
     const timeoutId = setTimeout(async () => {
       console.log(`[${matchId}] ⏰ Timeout triggered after ${TIMEOUT_SECONDS}s`)
       
@@ -1173,7 +836,7 @@ async function broadcastQuestion(
           .eq('id', matchId)
           .single()
         
-        if (matchResults && ENABLE_WS_FASTPATH) {
+        if (matchResults) {
           const resultsEvent: ResultsReceivedEvent = {
             type: 'RESULTS_RECEIVED',
             player1_answer: matchResults.player1_answer,
@@ -1444,9 +1107,9 @@ async function selectAndBroadcastQuestion(
     // IDEMPOTENCY: another instance may have already created an active round (status main/steps)
     const { data: existingRound, error: existingRoundError } = await supabase
       .from('match_rounds')
-      .select('id, question_id, round_number, status, phase, phase_seq, ends_at')
+      .select('id, question_id, round_number, status')
       .eq('match_id', matchId)
-      .in('status', ['main', 'steps', 'results'])
+      .in('status', ['main', 'steps'])
       .maybeSingle()
 
     if (existingRoundError) {
@@ -1454,9 +1117,6 @@ async function selectAndBroadcastQuestion(
       console.warn(`[${matchId}] ⚠️ Error checking existing round:`, existingRoundError)
     }
 
-    const reusedExistingRound = !!existingRound
-    const existingRoundPhase = existingRound?.phase
-    const existingRoundPhaseSeq = existingRound?.phase_seq
     if (existingRound) {
       console.log(`[${matchId}] ✅ Round already exists: ${existingRound.id}, reusing...`)
       newRound = { id: existingRound.id }
@@ -1507,9 +1167,9 @@ async function selectAndBroadcastQuestion(
 
           const { data: fetchedRound, error: fetchedRoundError } = await supabase
             .from('match_rounds')
-            .select('id, question_id, round_number, status, phase, phase_seq, ends_at')
+            .select('id, question_id, round_number, status')
             .eq('match_id', matchId)
-            .in('status', ['main', 'steps', 'results'])
+            .in('status', ['main', 'steps'])
             .maybeSingle()
 
           if (fetchedRoundError) {
@@ -1611,43 +1271,8 @@ async function selectAndBroadcastQuestion(
       gameStates.set(matchId, newGameState)
     }
     
-    // Initialize phase/timer for the round if this is a fresh round (or missing phase fields).
-    const shouldInitPhase = !reusedExistingRound || !existingRoundPhase || !Number.isFinite(existingRoundPhaseSeq)
-    if (shouldInitPhase) {
-      let steps: any[] = []
-      try {
-        steps = Array.isArray(questionDb.steps) ? questionDb.steps : JSON.parse(questionDb.steps ?? '[]')
-      } catch {
-        steps = []
-      }
-      const firstStep = Array.isArray(steps) ? steps[0] : null
-      const fallbackMainSeconds = Array.isArray(steps) && steps.length > 1 ? 15 : 60
-      const rawMainTimer = (questionDb as any)?.main_question_timer_seconds
-      const stepSecondsRaw = firstStep?.timeLimitSeconds ?? firstStep?.time_limit_seconds
-      let mainSeconds =
-        (Number.isFinite(Number(rawMainTimer)) ? Number(rawMainTimer) : Number(stepSecondsRaw)) ||
-        fallbackMainSeconds
-      if (!Number.isFinite(mainSeconds)) mainSeconds = fallbackMainSeconds
-      mainSeconds = Math.max(5, Math.min(600, Math.floor(mainSeconds)))
-
-      const mainQuestionEndsAt = new Date(Date.now() + mainSeconds * 1000).toISOString()
-      await supabase
-        .from('match_rounds')
-        .update({
-          phase: 'main',
-          phase_seq: 0,
-          phase_started_at: new Date().toISOString(),
-          ends_at: mainQuestionEndsAt,
-          main_question_ends_at: mainQuestionEndsAt,
-          status: 'main',
-          current_step_index: 0,
-          step_ends_at: null
-        })
-        .eq('id', newRound.id)
-    }
-
     console.log(`[${matchId}] ✅ Selected new question from DB: ${questionDb.id}`)
-    await broadcastSnapshotToMatch(matchId, supabase)
+    await broadcastQuestion(matchId, questionDb, supabase, newRound.id)
   } catch (error) {
     console.error(`[${matchId}] ❌ Error in atomic question selection:`, error)
     
@@ -1765,7 +1390,6 @@ async function checkAndBroadcastBothConnected(
 function cleanupGameState(matchId: string): void {
   // Clear any async progress sweep interval for this match (per-instance)
   clearAsyncProgressSweep(matchId)
-  clearPhaseScheduler(matchId)
 
   const state = gameStates.get(matchId)
   if (state) {
@@ -2385,12 +2009,8 @@ async function calculateStepResults(
       round_number: payload.round_number || state.roundNumber,
       round_id: payload.round_id || matchData.current_round_id
     }
-    if (ENABLE_WS_FASTPATH) {
-      console.log(`[${matchId}] ⚡ WS fast-path: Broadcasting to local sockets`)
-      if (ENABLE_WS_FASTPATH) {
-        broadcastToMatch(matchId, resultsEvent)
-      }
-    }
+    console.log(`[${matchId}] ⚡ WS fast-path: Broadcasting to local sockets`)
+    broadcastToMatch(matchId, resultsEvent)
 
     // Initialize readiness tracking for results acknowledgment
     const matchState = matchStates.get(matchId)
@@ -2423,36 +2043,14 @@ async function handleEarlyAnswer(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  console.log(`[${matchId}] ⚡ Early answer received - forcing main phase end`)
-  try {
-    const { data: matchRow, error: matchError } = await supabase
-      .from('matches')
-      .select('current_round_id')
-      .eq('id', matchId)
-      .single()
-
-    if (matchError || !matchRow?.current_round_id) {
-      console.warn(`[${matchId}] ⚠️ EARLY_ANSWER could not find current_round_id`, matchError)
-    } else {
-      const nowIso = new Date().toISOString()
-      const { error: roundError } = await supabase
-        .from('match_rounds')
-        .update({
-          ends_at: nowIso,
-          main_question_ends_at: nowIso
-        })
-        .eq('id', matchRow.current_round_id)
-
-      if (roundError) {
-        console.warn(`[${matchId}] ⚠️ EARLY_ANSWER failed to update round ends_at`, roundError)
-      }
-    }
-  } catch (err) {
-    console.warn(`[${matchId}] ⚠️ EARLY_ANSWER exception while forcing end`, err)
+  const state = gameStates.get(matchId)
+  if (!state || state.currentPhase !== 'main_question') {
+    console.warn(`[${matchId}] ⚠️ Cannot handle early answer - invalid state`)
+    return
   }
 
-  await attemptPhaseAdvance(matchId, supabase, { forceSnapshot: true })
-  await broadcastSnapshotToMatch(matchId, supabase)
+  console.log(`[${matchId}] ⚡ Early answer received - transitioning to steps`)
+  await transitionToSteps(matchId, supabase)
 }
 
 /**
@@ -2468,8 +2066,18 @@ async function handleStepAnswer(
   socket: WebSocket,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
+  const state = gameStates.get(matchId)
+  if (!state || state.currentPhase !== 'steps') {
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'Invalid step answer submission'
+    } as GameErrorEvent))
+    return
+  }
+
   // DB-driven async progression: advance THIS player immediately after answering.
   // This avoids "wait for opponent/timer" between parts.
+  if (state.progressMode === 'async') {
     // Resolve current round id + players
     const { data: matchRow, error: matchError } = await supabase
       .from('matches')
@@ -2483,18 +2091,6 @@ async function handleStepAnswer(
     }
 
     const roundId = matchRow.current_round_id as string
-
-    const { data: roundRow } = await supabase
-      .from('match_rounds')
-      .select('id, question_id, phase, status')
-      .eq('id', roundId)
-      .single()
-
-    const roundPhase = (roundRow?.phase ?? roundRow?.status ?? 'main') as string
-    if (roundPhase !== 'steps') {
-      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Not in steps phase' } as GameErrorEvent))
-      return
-    }
 
     // Ensure progress rows exist (idempotent)
     const { error: initError } = await supabase.rpc('init_round_progress_v1', {
@@ -2544,7 +2140,6 @@ async function handleStepAnswer(
         p2Complete
       }
       sendToPlayer(matchId, playerId, waitingEvent, socket)
-      await broadcastSnapshotToMatch(matchId, supabase)
       return
     }
 
@@ -2561,15 +2156,7 @@ async function handleStepAnswer(
     }
 
     // Ensure we have the question payload to compute correctness + build next segment UI
-    let steps: any[] = []
-    if (roundRow?.question_id) {
-      const { data: q } = await supabase
-        .from('questions_v2')
-        .select('steps')
-        .eq('id', roundRow.question_id)
-        .single()
-      steps = normalizeSteps(q?.steps)
-    }
+    const steps = normalizeSteps(state.currentQuestion?.steps)
     if (steps.length === 0) {
       socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Question steps not loaded' } as GameErrorEvent))
       return
@@ -2607,7 +2194,6 @@ async function handleStepAnswer(
         }
         sendToPlayer(matchId, playerId, resyncEvent, socket)
       }
-      await broadcastSnapshotToMatch(matchId, supabase)
       return
     }
 
@@ -2675,7 +2261,6 @@ async function handleStepAnswer(
         }
         sendToPlayer(matchId, playerId, resyncEvent, socket)
       }
-      await broadcastSnapshotToMatch(matchId, supabase)
       return
     }
 
@@ -2764,8 +2349,122 @@ async function handleStepAnswer(
     }
 
     sendToPlayer(matchId, playerId, phaseChangeEvent, socket)
-    await broadcastSnapshotToMatch(matchId, supabase)
     return
+  }
+
+  // Ensure this submission matches the current canonical segment
+  if (
+    state.currentStepIndex !== stepIndex ||
+    state.currentSegment !== segment ||
+    state.currentSubStepIndex !== subStepIndex
+  ) {
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'Out of sync - please wait for the next segment'
+    } as GameErrorEvent))
+    return
+  }
+
+  // Determine correct answer for this segment (main step or specific sub-step)
+  const steps = normalizeSteps(state.currentQuestion.steps)
+  const mainStep = steps[stepIndex]
+  const subSteps = normalizeSubSteps(mainStep)
+  const segmentStep = segment === 'main' ? mainStep : subSteps[subStepIndex]
+
+  if (!segmentStep) {
+    socket.send(JSON.stringify({
+      type: 'GAME_ERROR',
+      message: 'Invalid segment'
+    } as GameErrorEvent))
+    return
+  }
+
+  const correctAnswer = coerceCorrectAnswerIndex(segmentStep)
+  const roundIndex = Math.max(0, (state.roundNumber || 1) - 1)
+  const isCorrect = answerIndex === correctAnswer
+
+  // Store answer in memory (single source of truth for progression on this instance)
+  if (!state.playerStepAnswers.has(playerId)) state.playerStepAnswers.set(playerId, new Map())
+  if (!state.playerSubStepAnswers.has(playerId)) state.playerSubStepAnswers.set(playerId, new Map())
+
+  if (segment === 'main') {
+    const perPlayer = state.playerStepAnswers.get(playerId)!
+    if (perPlayer.has(stepIndex)) {
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Already answered' } as GameErrorEvent))
+      return
+    }
+    perPlayer.set(stepIndex, answerIndex)
+  } else {
+    const perPlayer = state.playerSubStepAnswers.get(playerId)!
+    if (!perPlayer.has(stepIndex)) perPlayer.set(stepIndex, new Map())
+    const perStep = perPlayer.get(stepIndex)!
+    if (perStep.has(subStepIndex)) {
+      socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Already answered' } as GameErrorEvent))
+      return
+    }
+    perStep.set(subStepIndex, answerIndex)
+  }
+
+  // Persist (best-effort) for cross-instance visibility
+  try {
+    supabase
+      .from('match_step_answers_v2')
+      .upsert({
+        match_id: matchId,
+        round_index: roundIndex,
+        question_id: state.currentQuestion?.id ?? '',
+        player_id: playerId,
+        step_index: stepIndex,
+        segment: segment,
+        sub_step_index: segment === 'sub' ? subStepIndex : 0,
+        selected_option: answerIndex,
+        is_correct: isCorrect,
+        response_time_ms: 0
+      }, {
+        onConflict: 'match_id,round_index,player_id,question_id,step_index,segment,sub_step_index'
+      })
+      .then(({ error }) => {
+        if (error) {
+          console.error(`[${matchId}] ❌ [STEP] DB upsert error for step ${stepIndex} ${segment}${segment === 'sub' ? `#${subStepIndex}` : ''}:`, error)
+        }
+      })
+      .catch(() => {})
+  } catch {
+    // ignore
+  }
+
+  const hasSegmentAnswer = (pid: string) => {
+    if (segment === 'main') {
+      return (state.playerStepAnswers.get(pid) || new Map()).has(stepIndex)
+    }
+    const perPlayer = state.playerSubStepAnswers.get(pid)
+    const perStep = perPlayer?.get(stepIndex)
+    return !!perStep?.has(subStepIndex)
+  }
+
+  const p1Done = state.p1Id ? hasSegmentAnswer(state.p1Id) : true
+  const p2Done = state.p2Id ? hasSegmentAnswer(state.p2Id) : true
+  const bothDone = p1Done && p2Done
+
+  const stepAnswerEvent: StepAnswerReceivedEvent = {
+    type: 'STEP_ANSWER_RECEIVED',
+    stepIndex,
+    segment,
+    subStepIndex,
+    playerId,
+    waitingForOpponent: !bothDone
+  }
+
+  socket.send(JSON.stringify(stepAnswerEvent))
+
+  if (bothDone) {
+    // Clear timer BEFORE advancing to prevent race with timeout
+    if (state.segmentTimer) {
+      clearTimeout(state.segmentTimer)
+      state.segmentTimer = null
+    }
+    await moveToNextStep(matchId, supabase)
+  }
 }
 
 /**
@@ -3023,8 +2722,36 @@ async function handleSubmitAnswerV2(
   // Realtime will deliver results to all clients (primary mechanism)
   // WebSocket broadcast as fallback in case Realtime is delayed/fails
   if (data.both_answered && data.results_payload) {
-    console.log(`[${matchId}] ✅ [V2] Results computed - requesting phase advance`)
-    await attemptPhaseAdvance(matchId, supabase, { forceSnapshot: true })
+    // Clear timeout since both answered early
+    const existingTimeout = matchTimeouts.get(matchId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+      matchTimeouts.delete(matchId)
+      console.log(`[${matchId}] ✅ [V2] Cleared timeout - both players answered early`)
+    }
+
+    // PRIMARY: Realtime will deliver results (works across Edge instances)
+    // FALLBACK: Also send WebSocket message in case Realtime is delayed/fails
+    console.log(`[${matchId}] ✅ [V2] Results computed - sending via WebSocket (Realtime fallback)`)
+    
+    const resultsEvent = {
+      type: 'RESULTS_RECEIVED',
+      results_payload: data.results_payload,
+      results_version: data.results_version || 0,
+      round_number: data.results_payload?.round_number || 0
+    }
+    broadcastToMatch(matchId, resultsEvent)
+
+    // Initialize readiness tracking for results acknowledgment
+    const matchState = matchStates.get(matchId)
+    if (matchState) {
+      matchState.p1ResultsAcknowledged = false
+      matchState.p2ResultsAcknowledged = false
+      matchState.roundTransitionInProgress = false
+    }
+
+    // Don't auto-transition - wait for both players to acknowledge results
+    console.log(`[${matchId}] ⏳ [V2] Waiting for both players to acknowledge results before starting next round`)
   } else {
     // Only one answered - get match to determine player role for broadcast
     const { data: matchData } = await supabase
@@ -3041,9 +2768,7 @@ async function handleSubmitAnswerV2(
       }
       broadcastToMatch(matchId, answerReceivedEvent)
     }
-    await attemptPhaseAdvance(matchId, supabase, { forceSnapshot: true })
   }
-  await broadcastSnapshotToMatch(matchId, supabase)
 }
 
 /**
@@ -3223,8 +2948,47 @@ async function handleReadyForNextRound(
     return
   }
 
-  await attemptPhaseAdvance(matchId, supabase, { forceSnapshot: true })
-  await broadcastSnapshotToMatch(matchId, supabase)
+  // If results are currently computed, clear round fields to allow selecting the next round question.
+  // If another instance already transitioned, results_computed_at may already be NULL; that's fine.
+  if (matchRow.results_computed_at) {
+    const { data: resetResult, error: resetError } = await supabase.rpc('start_next_round_stage3', {
+      p_match_id: matchId
+    })
+
+    if (resetError) {
+      // If RPC is missing (migration not applied), fall back to a direct update (server has service role).
+      if (
+        resetError.code === '42883' ||
+        resetError.message?.includes('does not exist') ||
+        resetError.message?.includes('function')
+      ) {
+        console.warn(`[${matchId}] ⚠️ start_next_round_stage3 not available; using direct DB fallback`, resetError)
+        await supabase
+          .from('matches')
+          .update({
+            question_id: null,
+            question_sent_at: null
+          })
+          .eq('id', matchId)
+          .eq('status', 'in_progress')
+          .is('winner_id', null)
+      } else {
+        console.warn(`[${matchId}] ⚠️ start_next_round_stage3 failed; continuing with idempotent selection`, resetError)
+      }
+    } else if (resetResult && resetResult.success === false) {
+      console.warn(`[${matchId}] ⚠️ start_next_round_stage3 returned not-ready; continuing with idempotent selection`, resetResult)
+    }
+  }
+
+  // Idempotent, cross-instance-safe: will reuse an existing active round if another instance already created it.
+  await selectAndBroadcastQuestion(matchId, supabase)
+
+  // Acknowledge request (client may ignore; kept for backwards compatibility)
+  socket.send(JSON.stringify({
+    type: 'READY_FOR_NEXT_ROUND',
+    playerId,
+    waitingForOpponent: false
+  }))
 }
 
 /**
@@ -3304,10 +3068,6 @@ async function handleJoinMatch(
   ;(socket as any)._playerRole = playerRole
 
   console.log(`[${matchId}] ✅ Player ${playerRole} (${playerId}) connected and confirmed`)
-
-  // Start phase scheduler + send authoritative snapshot
-  ensurePhaseScheduler(matchId, supabase)
-  await sendSnapshotToSocket(matchId, socket, supabase)
 
   // 5. Check if both players are connected (query database) and broadcast if so
   // Add a small delay to ensure database update is committed
@@ -3513,8 +3273,6 @@ Deno.serve(async (req) => {
     // Connection tracking is now done via database, no need to check local state here
   }
 
-  const lastPingAdvanceAt = new Map<string, number>()
-
   socket.onmessage = async (event) => {
     try {
       console.log(`[${matchId}] 📨 Raw message received:`, event.data)
@@ -3522,22 +3280,11 @@ Deno.serve(async (req) => {
       console.log(`[${matchId}] 📨 Parsed message:`, message)
 
       if (message.type === 'PING') {
-        // Lightweight heartbeat - respond with PONG
+        // Lightweight heartbeat - respond with PONG (no game logic)
         try {
           socket.send(JSON.stringify({ type: 'PONG' }))
         } catch (_err) {
           // Ignore send errors for heartbeat
-        }
-        // Opportunistic phase advancement (throttled) to avoid timer stalls.
-        try {
-          const now = Date.now()
-          const last = lastPingAdvanceAt.get(matchId) ?? 0
-          if (now - last >= 2000) {
-            lastPingAdvanceAt.set(matchId, now)
-            await attemptPhaseAdvance(matchId, supabase)
-          }
-        } catch (err) {
-          console.warn(`[${matchId}] ⚠️ PING phase advance failed:`, err)
         }
       } else if (message.type === 'JOIN_MATCH') {
         console.log(`[${matchId}] Processing JOIN_MATCH from user ${user.id}`)
@@ -3567,60 +3314,55 @@ Deno.serve(async (req) => {
         await handleStepAnswer(matchId, user.id, stepIdx, seg, subIdx, ansIdx, socket, supabase)
       } else if (message.type === 'SUBMIT_ANSWER') {
         console.log(`[${matchId}] Processing SUBMIT_ANSWER from user ${user.id}`)
-        // DB-authoritative routing: check phase from DB, then route.
-        let roundPhase: string | null = null
-        try {
-          const { data: matchRow } = await supabase
-            .from('matches')
-            .select('current_round_id')
-            .eq('id', matchId)
-            .single()
+        // Check if we're in step phase - if so, route to step handler
+        const state = gameStates.get(matchId)
+        if (state && state.currentPhase === 'steps') {
+          if (state.progressMode === 'async') {
+            // In async mode, derive canonical step/segment from DB progress to avoid out-of-sync.
+            try {
+              const { data: matchRow } = await supabase
+                .from('matches')
+                .select('current_round_id')
+                .eq('id', matchId)
+                .single()
 
-          const roundId = matchRow?.current_round_id as string | undefined
-          if (roundId) {
-            const { data: roundRow } = await supabase
-              .from('match_rounds')
-              .select('phase, status')
-              .eq('id', roundId)
-              .single()
-            roundPhase = (roundRow?.phase ?? roundRow?.status ?? null) as string | null
-          }
-        } catch {
-          roundPhase = null
-        }
+              const roundId = matchRow?.current_round_id as string | undefined
+              if (roundId) {
+                const { data: progress } = await supabase
+                  .from('match_round_player_progress_v1')
+                  .select('*')
+                  .eq('match_id', matchId)
+                  .eq('round_id', roundId)
+                  .eq('player_id', user.id)
+                  .maybeSingle()
 
-        if (roundPhase === 'steps') {
-          try {
-            const { data: matchRow } = await supabase
-              .from('matches')
-              .select('current_round_id')
-              .eq('id', matchId)
-              .single()
+                const pStep = Number(progress?.current_step_index ?? 0)
+                const pSeg = ((progress?.current_segment === 'sub') ? 'sub' : 'main') as 'main' | 'sub'
+                const pSub = pSeg === 'sub' ? Number((progress as any)?.current_sub_step_index ?? 0) : 0
 
-            const roundId = matchRow?.current_round_id as string | undefined
-            if (roundId) {
-              const { data: progress } = await supabase
-                .from('match_round_player_progress_v1')
-                .select('*')
-                .eq('match_id', matchId)
-                .eq('round_id', roundId)
-                .eq('player_id', user.id)
-                .maybeSingle()
-
-              const pStep = Number(progress?.current_step_index ?? 0)
-              const pSeg = ((progress?.current_segment === 'sub') ? 'sub' : 'main') as 'main' | 'sub'
-              const pSub = pSeg === 'sub' ? Number((progress as any)?.current_sub_step_index ?? 0) : 0
-
-              await handleStepAnswer(matchId, user.id, pStep, pSeg, pSub, message.answer, socket, supabase)
-              return
+                await handleStepAnswer(matchId, user.id, pStep, pSeg, pSub, message.answer, socket, supabase)
+              } else {
+                await handleStepAnswer(matchId, user.id, state.currentStepIndex, state.currentSegment, state.currentSubStepIndex, message.answer, socket, supabase)
+              }
+            } catch {
+              await handleStepAnswer(matchId, user.id, state.currentStepIndex, state.currentSegment, state.currentSubStepIndex, message.answer, socket, supabase)
             }
-          } catch {
-            // Fall through to submit answer if progress lookup failed.
+          } else {
+            await handleStepAnswer(
+              matchId,
+              user.id,
+              state.currentStepIndex,
+              state.currentSegment,
+              state.currentSubStepIndex,
+              message.answer,
+              socket,
+              supabase
+            )
           }
+        } else {
+          // V2: Always use handleSubmitAnswerV2 (migrations must be deployed first)
+          await handleSubmitAnswerV2(matchId, user.id, message.answer, socket, supabase)
         }
-
-        // V2: Always use handleSubmitAnswerV2 (migrations must be deployed first)
-        await handleSubmitAnswerV2(matchId, user.id, message.answer, socket, supabase)
       } else if (message.type === 'READY_FOR_NEXT_ROUND') {
         console.log(`[${matchId}] Processing READY_FOR_NEXT_ROUND from user ${user.id}`)
         await handleReadyForNextRound(matchId, user.id, socket, supabase)

@@ -7,9 +7,6 @@
 
 export type RoundPhase = 'thinking' | 'choosing' | 'result';
 
-// V2 authoritative phases (server-scheduled)
-export type RoundPhaseV2 = 'main' | 'steps' | 'results' | 'done';
-
 export interface QuestionDTO {
   id: string;
   title: string;
@@ -97,52 +94,6 @@ export interface MatchEndEvent {
   };
 }
 
-// V2 authoritative snapshot + phase updates
-export interface PlayerSnapshot {
-  id: string | null;
-  answered: boolean;
-  completed: boolean;
-  currentStepIndex: number | null;
-  currentSegment: 'main' | 'sub' | null;
-  currentSubStepIndex: number | null;
-  segmentEndsAt: string | null;
-}
-
-export interface StateSnapshotEvent {
-  type: 'STATE_SNAPSHOT';
-  protocolVersion: number;
-  serverTime: string;
-  matchId: string;
-  roundId: string | null;
-  roundNumber: number;
-  targetRoundsToWin: number;
-  phase: RoundPhaseV2;
-  phaseSeq: number;
-  endsAt: string | null;
-  question: any | null;
-  totalSteps: number;
-  players: {
-    p1: PlayerSnapshot | null;
-    p2: PlayerSnapshot | null;
-  };
-  playerRoundWins: { [playerId: string]: number };
-  resultsPayload?: any | null;
-  resultsVersion?: number | null;
-  matchOver: boolean;
-  matchWinnerId: string | null;
-}
-
-export interface PhaseUpdateEvent {
-  type: 'PHASE_UPDATE';
-  protocolVersion: number;
-  serverTime: string;
-  matchId: string;
-  roundId: string;
-  phase: RoundPhaseV2;
-  phaseSeq: number;
-  endsAt: string | null;
-}
-
 // Client → Server Events
 
 export interface AnswerSubmitMessage {
@@ -162,9 +113,7 @@ export type ServerGameEvent =
   | RoundStartEvent
   | PhaseChangeEvent
   | RoundResultEvent
-  | MatchEndEvent
-  | StateSnapshotEvent
-  | PhaseUpdateEvent;
+  | MatchEndEvent;
 
 // Union type for all client messages
 export type ClientGameMessage = AnswerSubmitMessage | ReadyForOptionsMessage;

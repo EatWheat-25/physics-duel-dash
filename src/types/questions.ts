@@ -54,44 +54,17 @@ export type GraphConfig =
  */
 export interface QuestionStep {
   id: string;
-  index?: number;                    // 0-based display order (optional for backwards compat)
-  type?: 'mcq' | 'true_false';        // Multiple choice question or True/False
-  title?: string;                     // Step heading (e.g., "Find the derivative")
-  prompt?: string;                    // The actual question text for this step
-  question?: string;                  // Alias for prompt (backwards compatibility)
+  index: number;                    // 0-based display order
+  type: 'mcq' | 'true_false';        // Multiple choice question or True/False
+  title: string;                     // Step heading (e.g., "Find the derivative")
+  prompt: string;                    // The actual question text for this step
   diagramSmiles?: string;            // Optional SMILES string for a step-level skeletal diagram
   diagramImageUrl?: string;          // Optional image URL for a step-level diagram
   options: string[];                 // MCQ: 2–6 options, True/False: exactly 2 options
   correctAnswer: number;             // Index of correct option (0 <= correctAnswer < options.length)
-  timeLimitSeconds?: number | null;   // Time limit for this step (null = no limit)
+  timeLimitSeconds: number | null;   // Time limit for this step (null = no limit)
   marks: number;                     // Points awarded for this step
-  explanation?: string | null;        // Explanation shown after answering
-}
-
-/**
- * Result of a single step in a battle
- */
-export interface StepResult {
-  stepId: string;
-  playerAnswer: number;
-  opponentAnswer: number;
-  correct: boolean;
-  opponentCorrect: boolean;
-  marksEarned: number;
-  opponentMarksEarned: number;
-  explanation?: string | null;
-}
-
-/**
- * Progress tracking for a battle
- */
-export interface BattleProgress {
-  currentQuestionIndex: number;
-  currentStepIndex: number;
-  playerMarks: number;
-  opponentMarks: number;
-  completedSteps: number;
-  totalSteps: number;
+  explanation: string | null;        // Explanation shown after answering
 }
 
 /**
@@ -106,8 +79,7 @@ export interface StepBasedQuestion {
   level: QuestionLevel;
   difficulty: QuestionDifficulty;
   rankTier?: RankTier;
-  stem?: string;                      // Main question context/setup
-  questionText?: string;              // Alias for stem (backwards compatibility)
+  stem: string;                      // Main question context/setup
   totalMarks: number;                // Sum of all step marks
   topicTags: string[];               // e.g., ["integration", "by-parts"]
   steps: QuestionStep[];             // ALWAYS sorted by index (0..n)

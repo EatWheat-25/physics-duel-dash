@@ -28,8 +28,7 @@ export function MainQuestionCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      // Keep the main question content above any overlays for consistent interaction/layout.
-      className="w-full relative z-10"
+      className="w-full"
     >
       <div className="paper-card mb-8">
         {paperGraph && (
@@ -40,7 +39,7 @@ export function MainQuestionCard({
 
         <div className="space-y-4">
           <div className="paper-meta">Main Question</div>
-          <h3 className="text-2xl md:text-3xl font-normal leading-relaxed text-left">
+          <h3 className="text-2xl md:text-3xl font-bold leading-relaxed">
             <ScienceText text={stem} />
           </h3>
           {structureSmiles && (

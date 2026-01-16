@@ -4,7 +4,6 @@ import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import type { Question, GameEvent } from '@/types/schema'
-import { ScienceText } from '@/components/chem/ScienceText'
 
 /**
  * Simple Battle Page
@@ -131,9 +130,7 @@ export default function BattleSimple() {
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-card border border-border rounded-lg p-8">
-          <h1 className="text-3xl font-bold mb-6">
-            <ScienceText text={question.text} />
-          </h1>
+          <h1 className="text-3xl font-bold mb-6">{question.text}</h1>
 
           <div className="space-y-4">
             {steps.options.map((option, index) => (
@@ -142,7 +139,7 @@ export default function BattleSimple() {
                 className="w-full text-left p-4 border border-border rounded-lg hover:bg-accent transition"
               >
                 <span className="font-bold mr-2">{String.fromCharCode(65 + index)}.</span>
-                <ScienceText text={option} />
+                {option}
               </button>
             ))}
           </div>

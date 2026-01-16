@@ -54,11 +54,8 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
   const hasRankedUp = (previousRank.tier !== currentRank.tier || previousRank.subRank !== currentRank.subRank);
 
   const accuracy = Math.round((matchStats.correctAnswers / matchStats.totalQuestions) * 100);
-  const pointsIntoRank = Math.max(0, userData.currentPoints - currentRank.minPoints);
-  const previousPointsIntoRank = Math.max(0, previousPoints - currentRank.minPoints);
-  const pointsToNextRank = nextRank ? (nextRank.minPoints - currentRank.minPoints) : (currentRank.maxPoints - currentRank.minPoints + 1);
-  const progressInCurrentRank = pointsToNextRank > 0 ? (pointsIntoRank / pointsToNextRank) * 100 : 0;
-  const previousProgressInRank = pointsToNextRank > 0 ? (previousPointsIntoRank / pointsToNextRank) * 100 : 0;
+  const progressInCurrentRank = ((userData.currentPoints - currentRank.minPoints) / (currentRank.maxPoints - currentRank.minPoints)) * 100;
+  const previousProgressInRank = Math.max(0, ((previousPoints - currentRank.minPoints) / (currentRank.maxPoints - currentRank.minPoints)) * 100);
 
   const getGameHighlight = () => {
     if (matchStats.wrongAnswers === 0 && matchStats.won) return { text: "FLAWLESS VICTORY!", color: "text-battle-success", icon: Star };
@@ -192,7 +189,7 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
             >
               {pointsCounter > 0 ? '+' : ''}{pointsCounter}
             </div>
-            <div className="text-sm text-muted-foreground font-medium">Points</div>
+            <div className="text-sm text-muted-foreground font-medium">XP Points</div>
           </div>
         </motion.div>
 
@@ -209,7 +206,7 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
               <div>
                 <div className="text-lg font-semibold">{currentRank.displayName}</div>
                 <div className="text-xs text-muted-foreground">
-                  {pointsIntoRank} / {pointsToNextRank} Points
+                  {userData.currentPoints} / {currentRank.maxPoints === 99999 ? '∞' : currentRank.maxPoints} XP
                 </div>
               </div>
             </div>
@@ -219,7 +216,7 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
                 <div className="text-right">
                   <div className="text-lg font-semibold">{nextRank.displayName}</div>
                   <div className="text-xs text-muted-foreground">
-                    {pointsToNextRank} Points to rank up
+                    {nextRank.minPoints} XP
                   </div>
                 </div>
                 <RankBadge rank={{ tier: nextRank.tier, subRank: nextRank.subRank }} size="md" />
