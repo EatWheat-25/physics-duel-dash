@@ -2415,7 +2415,34 @@ async function handleEarlyAnswer(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
-  console.log(`[${matchId}] ⚡ Early answer received - requesting phase check`)
+  console.log(`[${matchId}] ⚡ Early answer received - forcing main phase end`)
+  try {
+    const { data: matchRow, error: matchError } = await supabase
+      .from('matches')
+      .select('current_round_id')
+      .eq('id', matchId)
+      .single()
+
+    if (matchError || !matchRow?.current_round_id) {
+      console.warn(`[${matchId}] ⚠️ EARLY_ANSWER could not find current_round_id`, matchError)
+    } else {
+      const nowIso = new Date().toISOString()
+      const { error: roundError } = await supabase
+        .from('match_rounds')
+        .update({
+          ends_at: nowIso,
+          main_question_ends_at: nowIso
+        })
+        .eq('id', matchRow.current_round_id)
+
+      if (roundError) {
+        console.warn(`[${matchId}] ⚠️ EARLY_ANSWER failed to update round ends_at`, roundError)
+      }
+    }
+  } catch (err) {
+    console.warn(`[${matchId}] ⚠️ EARLY_ANSWER exception while forcing end`, err)
+  }
+
   await attemptPhaseAdvance(matchId, supabase, { forceSnapshot: true })
 }
 
