@@ -14,5 +14,3 @@ ALTER TABLE public.questions_v2
   ALTER COLUMN main_question_timer_seconds SET DEFAULT 180,
   ALTER COLUMN main_question_timer_seconds SET NOT NULL;
 
-
-

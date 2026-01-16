@@ -2,6 +2,108 @@
 
 This document defines the complete WebSocket protocol for real-time 1v1 battles.
 
+## Protocol v2 (authoritative snapshot + phase updates)
+
+The server is the single source of truth for match state. Clients **must** render from
+`STATE_SNAPSHOT` and only advance when `phaseSeq` increases.
+
+### Server → Client (authoritative)
+
+#### 1) STATE_SNAPSHOT (required on connect/reconnect)
+```json
+{
+  "type": "STATE_SNAPSHOT",
+  "protocolVersion": 2,
+  "serverTime": "2026-01-15T12:00:00.000Z",
+  "matchId": "uuid",
+  "roundId": "uuid",
+  "roundNumber": 3,
+  "targetRoundsToWin": 3,
+  "phase": "main",
+  "phaseSeq": 5,
+  "endsAt": "2026-01-15T12:00:15.000Z",
+  "question": { "id": "uuid", "steps": [] },
+  "totalSteps": 1,
+  "players": {
+    "p1": { "id": "uuid", "answered": false, "completed": false, "currentStepIndex": null, "currentSegment": null, "currentSubStepIndex": null, "segmentEndsAt": null },
+    "p2": { "id": "uuid", "answered": true, "completed": false, "currentStepIndex": null, "currentSegment": null, "currentSubStepIndex": null, "segmentEndsAt": null }
+  },
+  "playerRoundWins": { "playerId": 1 },
+  "resultsPayload": null,
+  "resultsVersion": 0,
+  "matchOver": false,
+  "matchWinnerId": null
+}
+```
+
+#### 2) PHASE_UPDATE (phase-only delta)
+```json
+{
+  "type": "PHASE_UPDATE",
+  "protocolVersion": 2,
+  "serverTime": "2026-01-15T12:00:15.000Z",
+  "matchId": "uuid",
+  "roundId": "uuid",
+  "phase": "steps",
+  "phaseSeq": 6,
+  "endsAt": "2026-01-15T12:00:55.000Z"
+}
+```
+
+### Phase transitions (v2)
+
+| From | To | Trigger |
+| --- | --- | --- |
+| `main` | `steps` | Multi-step question and `endsAt` elapsed |
+| `main` | `results` | Single-step results ready or timeout forced |
+| `steps` | `results` | All players complete or `endsAt` forced |
+| `results` | `done` | Results timer elapsed |
+| `done` | `main` | Next round created (if match not finished) |
+
+### Client → Server (v2)
+
+#### 1) JOIN_MATCH
+```json
+{
+  "type": "JOIN_MATCH",
+  "match_id": "uuid",
+  "player_id": "uuid"
+}
+```
+
+#### 2) SUBMIT_ANSWER (single-step)
+```json
+{
+  "type": "SUBMIT_ANSWER",
+  "answer": 2
+}
+```
+
+#### 3) SUBMIT_SEGMENT_ANSWER (multi-step)
+```json
+{
+  "type": "SUBMIT_SEGMENT_ANSWER",
+  "stepIndex": 0,
+  "segment": "main",
+  "subStepIndex": 0,
+  "answerIndex": 1
+}
+```
+
+#### 4) READY_FOR_NEXT_ROUND (optional nudge)
+```json
+{
+  "type": "READY_FOR_NEXT_ROUND"
+}
+```
+
+---
+
+## Legacy events (deprecated)
+
+Older events (`QUESTION_RECEIVED`, `ROUND_START`, `PHASE_CHANGE`, `RESULTS_RECEIVED`, etc.)
+may still be emitted for backwards compatibility but are **not authoritative**.
+
 ## Connection
 
 **URL Format:**

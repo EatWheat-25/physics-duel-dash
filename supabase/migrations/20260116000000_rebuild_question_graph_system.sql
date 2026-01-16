@@ -134,4 +134,3 @@ alter table public.questions_v2
 
 commit;
 
-

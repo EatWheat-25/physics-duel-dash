@@ -31,10 +31,3 @@ WHERE tc.constraint_name = 'match_rounds_question_id_fkey'
   AND tc.table_schema = 'public';
 
 -- Should show delete_rule = 'CASCADE'
-
-
-
-
-
-
-

@@ -7,6 +7,8 @@ const ENABLE_RESULTS_POLL_FALLBACK =
   String(import.meta.env.VITE_ENABLE_RESULTS_POLL_FALLBACK ?? '').toLowerCase() === '1' ||
   String(import.meta.env.VITE_ENABLE_RESULTS_POLL_FALLBACK ?? '').toLowerCase() === 'true'
 
+const ENABLE_LEGACY_REALTIME = false
+
 interface ConnectionState {
   status: 'connecting' | 'connected' | 'both_connected' | 'playing' | 'results' | 'error' | 'match_finished'
   playerRole: 'player1' | 'player2' | null
@@ -174,6 +176,7 @@ export function useGame(match: MatchRow | null) {
   const matchIdRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
   const lastVisibilityChangeRef = useRef<number>(0)
+  const lastResyncAtRef = useRef<number>(0)
   const hasConnectedRef = useRef<boolean>(false)
   const pollingTimeoutRef = useRef<number | null>(null)
   const pollingIntervalRef = useRef<number | null>(null)
@@ -183,6 +186,9 @@ export function useGame(match: MatchRow | null) {
   const currentRoundIdRef = useRef<string | null>(null)
   const localResultsVersionRef = useRef<number>(0)
   const processedRoundIdsRef = useRef<Set<string>>(new Set())
+  const phaseSeqRef = useRef<number>(-1)
+  const serverTimeOffsetRef = useRef<number>(0)
+  const usingV2Ref = useRef<boolean>(false)
   const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
   const reconnectAttemptsRef = useRef<number>(0)
   const reconnectTimeoutRef = useRef<number | null>(null)
@@ -307,6 +313,132 @@ export function useGame(match: MatchRow | null) {
     console.log('[useGame] ✅ State updated with results from applyResults')
   }, [])
 
+  const applySnapshot = useCallback((snapshot: any) => {
+    if (!snapshot || snapshot.protocolVersion !== 2) return
+    usingV2Ref.current = true
+
+    const roundId = snapshot.roundId ?? null
+    const prevRoundId = currentRoundIdRef.current
+    const incomingSeq = Number(snapshot.phaseSeq ?? 0)
+    const isSameRound = !!roundId && roundId === prevRoundId
+    if (isSameRound && incomingSeq <= phaseSeqRef.current) {
+      return
+    }
+    if (roundId && roundId !== prevRoundId) {
+      processedRoundIdsRef.current.clear()
+      currentRoundIdRef.current = roundId
+    }
+    phaseSeqRef.current = incomingSeq
+
+    if (snapshot.serverTime) {
+      const serverMs = Date.parse(String(snapshot.serverTime))
+      if (Number.isFinite(serverMs)) {
+        serverTimeOffsetRef.current = serverMs - Date.now()
+      }
+    }
+
+    const mappedQuestion = snapshot.question ? mapRawToQuestion(snapshot.question) : null
+    const totalSteps = Array.isArray(mappedQuestion?.steps) ? mappedQuestion.steps.length : Number(snapshot.totalSteps ?? 0)
+    const isMultiStep = totalSteps > 1
+
+    const isPlayer1 = match?.player1_id && match.player1_id === userIdRef.current
+    const isPlayer2 = match?.player2_id && match.player2_id === userIdRef.current
+    const selfSnapshot = isPlayer1 ? snapshot.players?.p1 : snapshot.players?.p2
+    const oppSnapshot = isPlayer1 ? snapshot.players?.p2 : snapshot.players?.p1
+
+    const phase = snapshot.phase as ConnectionState['phase'] | 'main' | 'steps' | 'results' | 'done'
+    const nextPhase: ConnectionState['phase'] =
+      phase === 'steps'
+        ? 'steps'
+        : phase === 'results'
+          ? 'result'
+          : phase === 'main'
+            ? (isMultiStep ? 'main_question' : 'question')
+            : 'result'
+
+    const nextStatus: ConnectionState['status'] =
+      snapshot.matchOver
+        ? 'match_finished'
+        : phase === 'results'
+          ? 'results'
+          : phase === 'done'
+            ? 'connecting'
+            : 'playing'
+
+    const nextMainEndsAt = phase === 'main' ? (snapshot.endsAt ?? null) : null
+    const nextStepEndsAt = phase === 'steps'
+      ? (selfSnapshot?.segmentEndsAt ?? snapshot.endsAt ?? null)
+      : null
+
+    const nextStepIndex = phase === 'steps'
+      ? Number(selfSnapshot?.currentStepIndex ?? 0)
+      : 0
+    const nextSegment = phase === 'steps'
+      ? ((selfSnapshot?.currentSegment === 'sub' ? 'sub' : 'main') as 'main' | 'sub')
+      : 'main'
+    const nextSubStepIndex = phase === 'steps'
+      ? Number(selfSnapshot?.currentSubStepIndex ?? 0)
+      : 0
+
+    const nextCurrentStep = phase === 'steps'
+      ? (mappedQuestion?.steps?.[nextStepIndex] ?? null)
+      : null
+    const nextCurrentSubStep =
+      phase === 'steps' && nextSegment === 'sub'
+        ? (nextCurrentStep?.subSteps?.[nextSubStepIndex] ??
+           nextCurrentStep?.subStep ??
+           nextCurrentStep?.sub_step ??
+           null)
+        : null
+
+    if (snapshot.resultsVersion != null && Number(snapshot.resultsVersion) > localResultsVersionRef.current) {
+      localResultsVersionRef.current = Number(snapshot.resultsVersion)
+    }
+    if (snapshot.resultsPayload) {
+      applyResults({
+        ...snapshot.resultsPayload,
+        computed_at: snapshot.resultsPayload?.computed_at ?? snapshot.resultsPayload?.computedAt
+      })
+    }
+
+    const shouldClearResults = !snapshot.resultsPayload && phase !== 'results'
+
+    setState(prev => ({
+      ...prev,
+      status: nextStatus,
+      playerRole: isPlayer1 ? 'player1' : isPlayer2 ? 'player2' : prev.playerRole,
+      phase: nextPhase,
+      question: mappedQuestion,
+      totalSteps,
+      currentStepIndex: nextStepIndex,
+      currentSegment: nextSegment,
+      currentSubStepIndex: nextSubStepIndex,
+      currentStep: nextCurrentStep,
+      currentSubStep: nextCurrentSubStep,
+      mainQuestionEndsAt: nextMainEndsAt,
+      stepEndsAt: nextStepEndsAt,
+      timerEndAt: phase === 'main' && !isMultiStep ? (snapshot.endsAt ?? null) : null,
+      answerSubmitted: phase === 'main' ? !!selfSnapshot?.answered : false,
+      waitingForOpponent: phase === 'main' ? (!!selfSnapshot?.answered && !oppSnapshot?.answered) : false,
+      allStepsComplete: phase === 'steps' ? !!selfSnapshot?.completed : false,
+      waitingForOpponentToCompleteSteps:
+        phase === 'steps' ? (!!selfSnapshot?.completed && !oppSnapshot?.completed) : false,
+      resultsAcknowledged: false,
+      waitingForOpponentToAcknowledge: false,
+      results: shouldClearResults ? null : prev.results,
+      currentRoundId: roundId ?? prev.currentRoundId,
+      currentRoundNumber: Number(snapshot.roundNumber ?? prev.currentRoundNumber),
+      targetRoundsToWin: Number(snapshot.targetRoundsToWin ?? prev.targetRoundsToWin),
+      playerRoundWins: snapshot.playerRoundWins ?? prev.playerRoundWins,
+      matchOver: !!snapshot.matchOver,
+      matchWinnerId: snapshot.matchWinnerId ?? null,
+      roundNumber: Number(snapshot.roundNumber ?? prev.roundNumber),
+      matchFinished: !!snapshot.matchOver,
+      matchWinner: snapshot.matchWinnerId ?? null,
+      errorMessage: null
+    }))
+  }, [applyResults, match])
+
   // DB-authoritative question rehydration (prevents “OPPONENT LOCKED” forever if WS message is missed).
   const rehydrateQuestionFromDb = useCallback(async (questionId: string) => {
     try {
@@ -353,6 +485,7 @@ export function useGame(match: MatchRow | null) {
 
   // Listen for polling-detected results (fallback if WS message missed)
   useEffect(() => {
+    if (!ENABLE_RESULTS_POLL_FALLBACK) return
     const handlePollingResults = (event: CustomEvent) => {
       const detail = event.detail
       console.log('[useGame] Polling detected results - updating state manually')
@@ -381,7 +514,7 @@ export function useGame(match: MatchRow | null) {
   // Multi-step safety net: if we finished all parts but results didn't arrive (WS/Realtime),
   // poll matches.results_payload until it appears.
   useEffect(() => {
-    if (!match?.id) return
+    if (!match?.id || !ENABLE_LEGACY_REALTIME) return
 
     const shouldPoll =
       state.status === 'playing' &&
@@ -457,7 +590,7 @@ export function useGame(match: MatchRow | null) {
     }
 
     const updateTimer = () => {
-      const now = Date.now()
+      const now = Date.now() + serverTimeOffsetRef.current
       const endTime = new Date(state.timerEndAt!).getTime()
       const remaining = Math.max(0, Math.round((endTime - now) / 1000))
       
@@ -486,7 +619,7 @@ export function useGame(match: MatchRow | null) {
     }
 
     const updateTimer = () => {
-      const now = Date.now()
+      const now = Date.now() + serverTimeOffsetRef.current
       const endTime = new Date(state.mainQuestionEndsAt!).getTime()
       const remaining = Math.max(0, Math.round((endTime - now) / 1000))
       
@@ -506,7 +639,7 @@ export function useGame(match: MatchRow | null) {
     }
 
     const updateTimer = () => {
-      const now = Date.now()
+      const now = Date.now() + serverTimeOffsetRef.current
       const endTime = new Date(state.stepEndsAt!).getTime()
       const remaining = Math.max(0, Math.round((endTime - now) / 1000))
       
@@ -642,6 +775,61 @@ export function useGame(match: MatchRow | null) {
             console.log('[useGame] Raw message received:', event.data)
             const message = JSON.parse(event.data)
             console.log('[useGame] Parsed message:', message)
+
+            if (message.type === 'STATE_SNAPSHOT') {
+              applySnapshot(message)
+              return
+            }
+
+            if (message.type === 'PHASE_UPDATE' && message.protocolVersion === 2) {
+              usingV2Ref.current = true
+              const incomingSeq = Number(message.phaseSeq ?? 0)
+              if (incomingSeq > phaseSeqRef.current) {
+                phaseSeqRef.current = incomingSeq
+              }
+              setState(prev => {
+                const isMulti = prev.totalSteps > 1
+                const nextPhase =
+                  message.phase === 'steps'
+                    ? 'steps'
+                    : message.phase === 'results'
+                      ? 'result'
+                      : message.phase === 'main'
+                        ? (isMulti ? 'main_question' : 'question')
+                        : prev.phase
+                return {
+                  ...prev,
+                  status: prev.matchOver
+                    ? 'match_finished'
+                    : (message.phase === 'results'
+                      ? 'results'
+                      : message.phase === 'done'
+                        ? 'connecting'
+                        : 'playing'),
+                  phase: nextPhase,
+                  mainQuestionEndsAt: message.phase === 'main' ? (message.endsAt ?? null) : null,
+                  stepEndsAt: message.phase === 'steps' ? (message.endsAt ?? null) : null,
+                  timerEndAt: message.phase === 'main' && !isMulti ? (message.endsAt ?? null) : null,
+                  answerSubmitted: false,
+                  waitingForOpponent: false,
+                  allStepsComplete: false,
+                  waitingForOpponentToCompleteSteps: false,
+                  resultsAcknowledged: false,
+                  waitingForOpponentToAcknowledge: false
+                }
+              })
+              return
+            }
+
+            if (
+              usingV2Ref.current &&
+              message.type !== 'validation_error' &&
+              message.type !== 'error' &&
+              message.type !== 'GAME_ERROR'
+            ) {
+              console.log('[useGame] Ignoring legacy message in v2 mode:', message.type)
+              return
+            }
 
             // Handle lowercase "connected" - just ignore it (it's initial connection confirmation)
             if (message.type === 'connected') {
@@ -1057,7 +1245,7 @@ export function useGame(match: MatchRow | null) {
 
   // On mount: Initial SELECT to check for existing results (handles reload/late join)
   useEffect(() => {
-    if (!match?.id) return
+    if (!match?.id || !ENABLE_LEGACY_REALTIME) return
 
     const checkExistingResults = async () => {
       try {
@@ -1110,7 +1298,7 @@ export function useGame(match: MatchRow | null) {
 
   // Realtime subscription for matches table (primary results delivery mechanism)
   useEffect(() => {
-    if (!match?.id) return
+    if (!match?.id || !ENABLE_LEGACY_REALTIME) return
 
     console.log('[useGame] Setting up Realtime subscription for match:', match.id)
 
@@ -1174,6 +1362,11 @@ export function useGame(match: MatchRow | null) {
         const hasPayload = newPayload.results_payload != null
         const versionCheck = newVersion > localResultsVersionRef.current
         const roundMatch = newPayload.results_round_id === newPayload.current_round_id || newPayload.current_round_id === null
+        const hasLateResults =
+          hasPayload &&
+          versionCheck &&
+          !roundMatch &&
+          Boolean(newPayload.results_round_id)
         if (
           hasPayload &&
           versionCheck &&
@@ -1191,6 +1384,34 @@ export function useGame(match: MatchRow | null) {
             ...newPayload.results_payload,
             computed_at: newPayload.results_payload?.computed_at ?? newPayload.results_computed_at
           })
+        } else if (hasLateResults) {
+          console.warn('[useGame] ⚠️ Late Realtime results detected, applying and resyncing:', {
+            version: newVersion,
+            local_version: localResultsVersionRef.current,
+            results_round_id: newPayload.results_round_id,
+            current_round_id: newPayload.current_round_id
+          })
+          localResultsVersionRef.current = newVersion
+          applyResults({
+            ...newPayload.results_payload,
+            computed_at: newPayload.results_payload?.computed_at ?? newPayload.results_computed_at
+          })
+          const ws = wsRef.current
+          const matchId = matchIdRef.current
+          const userId = userIdRef.current
+          if (ws && ws.readyState === WebSocket.OPEN && matchId && userId) {
+            const now = Date.now()
+            if (now - lastResyncAtRef.current > 2000) {
+              const joinMessage = {
+                type: 'JOIN_MATCH',
+                match_id: matchId,
+                player_id: userId
+              }
+              console.log('[useGame] Late-results resync - re-sending JOIN_MATCH')
+              ws.send(JSON.stringify(joinMessage))
+              lastResyncAtRef.current = now
+            }
+          }
         } else {
           // Log detailed rejection reason
           console.warn('[useGame] ⚠️ Ignoring Realtime results:', {
@@ -1281,7 +1502,7 @@ export function useGame(match: MatchRow | null) {
 
   // Realtime subscription for match_rounds (DB-authoritative phase + step progression)
   useEffect(() => {
-    if (!match?.id) return
+    if (!match?.id || !ENABLE_LEGACY_REALTIME) return
 
     const channel = supabase
       .channel(`match_rounds:${match.id}`)

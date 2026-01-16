@@ -55,10 +55,3 @@ WHERE tc.constraint_name = 'matches_question_id_fkey'
   AND tc.table_schema = 'public';
 
 -- Should show delete_rule = 'CASCADE'
-
-
-
-
-
-
-

@@ -1,5 +1,12 @@
 // Import 3-phase event types from gameEvents
-import type { RoundStartEvent, PhaseChangeEvent, RoundResultEvent, MatchEndEvent } from '@/types/gameEvents';
+import type {
+  RoundStartEvent,
+  PhaseChangeEvent,
+  RoundResultEvent,
+  MatchEndEvent,
+  StateSnapshotEvent,
+  PhaseUpdateEvent
+} from '@/types/gameEvents';
 import { SUPABASE_URL } from '@/integrations/supabase/client';
 
 export interface GameStartEvent {
@@ -75,6 +82,8 @@ export type ServerEvent =
   | RoundStartEvent
   | PhaseChangeEvent
   | RoundResultEvent
+  | StateSnapshotEvent
+  | PhaseUpdateEvent
   | ValidationErrorEvent
   | ErrorEvent;
 
@@ -143,6 +152,8 @@ export interface ConnectGameWSOptions {
   onRoundStart?: (event: RoundStartEvent) => void;
   onPhaseChange?: (event: PhaseChangeEvent) => void;
   onRoundResult?: (event: RoundResultEvent) => void;
+  onStateSnapshot?: (event: StateSnapshotEvent) => void;
+  onPhaseUpdate?: (event: PhaseUpdateEvent) => void;
   onValidationError?: (event: ValidationErrorEvent) => void;
   onError?: (error: Error) => void;
   onClose?: () => void;
@@ -163,6 +174,8 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
     onRoundStart,
     onPhaseChange,
     onRoundResult,
+    onStateSnapshot,
+    onPhaseUpdate,
 
     onValidationError,
     onError,
@@ -259,6 +272,16 @@ export function connectGameWS(options: ConnectGameWSOptions): WebSocket {
         case 'ROUND_RESULT':
           console.log(`WS: Round ${message.roundIndex} result - tug: ${message.tugOfWar}`);
           onRoundResult?.(message);
+          break;
+
+        case 'STATE_SNAPSHOT':
+          console.log('WS: State snapshot received');
+          onStateSnapshot?.(message);
+          break;
+
+        case 'PHASE_UPDATE':
+          console.log(`WS: Phase update to ${message.phase}`);
+          onPhaseUpdate?.(message);
           break;
 
         case 'validation_error':
