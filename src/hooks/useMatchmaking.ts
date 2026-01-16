@@ -72,7 +72,10 @@ export function useMatchmaking() {
           p_ids: [currentUserId, opponentId],
         });
 
-        if (error || !Array.isArray(data)) return;
+        if (error || !Array.isArray(data)) {
+          console.warn('[MATCHMAKING] Rank RPC unavailable (non-blocking).', error);
+          return;
+        }
 
         const map: Record<string, { display_name: string; rank_points: number }> = {};
         for (const row of data as any[]) {

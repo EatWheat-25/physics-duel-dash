@@ -149,6 +149,7 @@ interface RoundStartedEvent {
 }
 
 const PROTOCOL_VERSION = 2
+const ENABLE_WS_FASTPATH = false
 
 type RoundPhase = 'main' | 'steps' | 'results' | 'done'
 
@@ -172,6 +173,7 @@ interface StateSnapshotEvent {
   targetRoundsToWin: number
   phase: RoundPhase
   phaseSeq: number
+  stateVersion?: number
   endsAt: string | null
   question: any | null
   totalSteps: number
@@ -611,7 +613,7 @@ async function buildStateSnapshot(
   if (matchRow.current_round_id) {
     const { data: roundData, error: roundError } = await supabase
       .from('match_rounds')
-      .select('id, question_id, phase, phase_seq, ends_at, status')
+      .select('id, question_id, phase, phase_seq, state_version, ends_at, status')
       .eq('id', matchRow.current_round_id)
       .single()
 
@@ -645,6 +647,7 @@ async function buildStateSnapshot(
 
   const phase: RoundPhase = (roundRow?.phase ?? roundRow?.status ?? 'main') as RoundPhase
   const phaseSeq = Number.isFinite(roundRow?.phase_seq) ? Number(roundRow.phase_seq) : 0
+  const stateVersion = Number.isFinite(roundRow?.state_version) ? Number(roundRow.state_version) : 0
   const endsAt = roundRow?.ends_at ? String(roundRow.ends_at) : null
 
   const players: { p1: PlayerSnapshot | null; p2: PlayerSnapshot | null } = {
@@ -714,6 +717,7 @@ async function buildStateSnapshot(
     targetRoundsToWin: Number(matchRow.target_rounds_to_win || 0),
     phase,
     phaseSeq,
+    stateVersion,
     endsAt,
     question,
     totalSteps,
@@ -1169,7 +1173,7 @@ async function broadcastQuestion(
           .eq('id', matchId)
           .single()
         
-        if (matchResults) {
+        if (matchResults && ENABLE_WS_FASTPATH) {
           const resultsEvent: ResultsReceivedEvent = {
             type: 'RESULTS_RECEIVED',
             player1_answer: matchResults.player1_answer,
@@ -2381,8 +2385,12 @@ async function calculateStepResults(
       round_number: payload.round_number || state.roundNumber,
       round_id: payload.round_id || matchData.current_round_id
     }
-    console.log(`[${matchId}] ⚡ WS fast-path: Broadcasting to local sockets`)
-    broadcastToMatch(matchId, resultsEvent)
+    if (ENABLE_WS_FASTPATH) {
+      console.log(`[${matchId}] ⚡ WS fast-path: Broadcasting to local sockets`)
+      if (ENABLE_WS_FASTPATH) {
+        broadcastToMatch(matchId, resultsEvent)
+      }
+    }
 
     // Initialize readiness tracking for results acknowledgment
     const matchState = matchStates.get(matchId)
@@ -2444,6 +2452,7 @@ async function handleEarlyAnswer(
   }
 
   await attemptPhaseAdvance(matchId, supabase, { forceSnapshot: true })
+  await broadcastSnapshotToMatch(matchId, supabase)
 }
 
 /**
@@ -3034,6 +3043,7 @@ async function handleSubmitAnswerV2(
     }
     await attemptPhaseAdvance(matchId, supabase, { forceSnapshot: true })
   }
+  await broadcastSnapshotToMatch(matchId, supabase)
 }
 
 /**
@@ -3214,6 +3224,7 @@ async function handleReadyForNextRound(
   }
 
   await attemptPhaseAdvance(matchId, supabase, { forceSnapshot: true })
+  await broadcastSnapshotToMatch(matchId, supabase)
 }
 
 /**
@@ -3502,6 +3513,8 @@ Deno.serve(async (req) => {
     // Connection tracking is now done via database, no need to check local state here
   }
 
+  const lastPingAdvanceAt = new Map<string, number>()
+
   socket.onmessage = async (event) => {
     try {
       console.log(`[${matchId}] 📨 Raw message received:`, event.data)
@@ -3509,11 +3522,22 @@ Deno.serve(async (req) => {
       console.log(`[${matchId}] 📨 Parsed message:`, message)
 
       if (message.type === 'PING') {
-        // Lightweight heartbeat - respond with PONG (no game logic)
+        // Lightweight heartbeat - respond with PONG
         try {
           socket.send(JSON.stringify({ type: 'PONG' }))
         } catch (_err) {
           // Ignore send errors for heartbeat
+        }
+        // Opportunistic phase advancement (throttled) to avoid timer stalls.
+        try {
+          const now = Date.now()
+          const last = lastPingAdvanceAt.get(matchId) ?? 0
+          if (now - last >= 2000) {
+            lastPingAdvanceAt.set(matchId, now)
+            await attemptPhaseAdvance(matchId, supabase)
+          }
+        } catch (err) {
+          console.warn(`[${matchId}] ⚠️ PING phase advance failed:`, err)
         }
       } else if (message.type === 'JOIN_MATCH') {
         console.log(`[${matchId}] Processing JOIN_MATCH from user ${user.id}`)
@@ -3543,55 +3567,60 @@ Deno.serve(async (req) => {
         await handleStepAnswer(matchId, user.id, stepIdx, seg, subIdx, ansIdx, socket, supabase)
       } else if (message.type === 'SUBMIT_ANSWER') {
         console.log(`[${matchId}] Processing SUBMIT_ANSWER from user ${user.id}`)
-        // Check if we're in step phase - if so, route to step handler
-        const state = gameStates.get(matchId)
-        if (state && state.currentPhase === 'steps') {
-          if (state.progressMode === 'async') {
-            // In async mode, derive canonical step/segment from DB progress to avoid out-of-sync.
-            try {
-              const { data: matchRow } = await supabase
-                .from('matches')
-                .select('current_round_id')
-                .eq('id', matchId)
-                .single()
+        // DB-authoritative routing: check phase from DB, then route.
+        let roundPhase: string | null = null
+        try {
+          const { data: matchRow } = await supabase
+            .from('matches')
+            .select('current_round_id')
+            .eq('id', matchId)
+            .single()
 
-              const roundId = matchRow?.current_round_id as string | undefined
-              if (roundId) {
-                const { data: progress } = await supabase
-                  .from('match_round_player_progress_v1')
-                  .select('*')
-                  .eq('match_id', matchId)
-                  .eq('round_id', roundId)
-                  .eq('player_id', user.id)
-                  .maybeSingle()
-
-                const pStep = Number(progress?.current_step_index ?? 0)
-                const pSeg = ((progress?.current_segment === 'sub') ? 'sub' : 'main') as 'main' | 'sub'
-                const pSub = pSeg === 'sub' ? Number((progress as any)?.current_sub_step_index ?? 0) : 0
-
-                await handleStepAnswer(matchId, user.id, pStep, pSeg, pSub, message.answer, socket, supabase)
-              } else {
-                await handleStepAnswer(matchId, user.id, state.currentStepIndex, state.currentSegment, state.currentSubStepIndex, message.answer, socket, supabase)
-              }
-            } catch {
-              await handleStepAnswer(matchId, user.id, state.currentStepIndex, state.currentSegment, state.currentSubStepIndex, message.answer, socket, supabase)
-            }
-          } else {
-            await handleStepAnswer(
-              matchId,
-              user.id,
-              state.currentStepIndex,
-              state.currentSegment,
-              state.currentSubStepIndex,
-              message.answer,
-              socket,
-              supabase
-            )
+          const roundId = matchRow?.current_round_id as string | undefined
+          if (roundId) {
+            const { data: roundRow } = await supabase
+              .from('match_rounds')
+              .select('phase, status')
+              .eq('id', roundId)
+              .single()
+            roundPhase = (roundRow?.phase ?? roundRow?.status ?? null) as string | null
           }
-        } else {
-          // V2: Always use handleSubmitAnswerV2 (migrations must be deployed first)
-          await handleSubmitAnswerV2(matchId, user.id, message.answer, socket, supabase)
+        } catch {
+          roundPhase = null
         }
+
+        if (roundPhase === 'steps') {
+          try {
+            const { data: matchRow } = await supabase
+              .from('matches')
+              .select('current_round_id')
+              .eq('id', matchId)
+              .single()
+
+            const roundId = matchRow?.current_round_id as string | undefined
+            if (roundId) {
+              const { data: progress } = await supabase
+                .from('match_round_player_progress_v1')
+                .select('*')
+                .eq('match_id', matchId)
+                .eq('round_id', roundId)
+                .eq('player_id', user.id)
+                .maybeSingle()
+
+              const pStep = Number(progress?.current_step_index ?? 0)
+              const pSeg = ((progress?.current_segment === 'sub') ? 'sub' : 'main') as 'main' | 'sub'
+              const pSub = pSeg === 'sub' ? Number((progress as any)?.current_sub_step_index ?? 0) : 0
+
+              await handleStepAnswer(matchId, user.id, pStep, pSeg, pSub, message.answer, socket, supabase)
+              return
+            }
+          } catch {
+            // Fall through to submit answer if progress lookup failed.
+          }
+        }
+
+        // V2: Always use handleSubmitAnswerV2 (migrations must be deployed first)
+        await handleSubmitAnswerV2(matchId, user.id, message.answer, socket, supabase)
       } else if (message.type === 'READY_FOR_NEXT_ROUND') {
         console.log(`[${matchId}] Processing READY_FOR_NEXT_ROUND from user ${user.id}`)
         await handleReadyForNextRound(matchId, user.id, socket, supabase)

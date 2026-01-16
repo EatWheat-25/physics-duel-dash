@@ -89,23 +89,34 @@ export default function BattleConnected() {
 
     let cancelled = false;
     (async () => {
-      const { data, error } = await (supabase.rpc as any)('get_players_rank_public_v1', {
-        p_ids: [match.player1_id, match.player2_id],
-      });
+      try {
+        const { data, error } = await (supabase.rpc as any)('get_players_rank_public_v1', {
+          p_ids: [match.player1_id, match.player2_id],
+        });
 
-      if (cancelled) return;
-      if (error || !Array.isArray(data)) return;
+        if (cancelled) return;
+        if (error || !Array.isArray(data)) {
+          console.warn('[BattleConnected] Rank RPC unavailable (non-blocking).', error);
+          setPlayerRanks({});
+          return;
+        }
 
-      const map: Record<string, { display_name: string; rank_points: number }> = {};
-      for (const row of data as any[]) {
-        if (row?.id) {
-          map[String(row.id)] = {
-            display_name: String(row.display_name ?? 'Player'),
-            rank_points: Number(row.rank_points ?? 0),
-          };
+        const map: Record<string, { display_name: string; rank_points: number }> = {};
+        for (const row of data as any[]) {
+          if (row?.id) {
+            map[String(row.id)] = {
+              display_name: String(row.display_name ?? 'Player'),
+              rank_points: Number(row.rank_points ?? 0),
+            };
+          }
+        }
+        setPlayerRanks(map);
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[BattleConnected] Rank RPC failed (non-blocking).', err);
+          setPlayerRanks({});
         }
       }
-      setPlayerRanks(map);
     })();
 
     return () => {

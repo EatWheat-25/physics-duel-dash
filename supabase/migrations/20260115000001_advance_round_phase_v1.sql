@@ -3,6 +3,20 @@
 
 begin;
 
+create or replace function public.get_match_snapshot_v1(
+  p_match_id uuid
+) returns jsonb
+language sql
+as $$
+  select jsonb_build_object(
+    'match', to_jsonb(m),
+    'round', to_jsonb(r)
+  )
+  from public.matches m
+  left join public.match_rounds r on r.id = m.current_round_id
+  where m.id = p_match_id;
+$$;
+
 create or replace function public.advance_round_phase_v1(
   p_match_id uuid,
   p_round_id uuid,
@@ -23,6 +37,7 @@ declare
   v_new_seq int;
   v_results jsonb;
   v_results_round_id uuid;
+  v_both_answered boolean := false;
   v_steps jsonb;
   v_step jsonb;
   v_sub jsonb;
@@ -49,6 +64,9 @@ begin
     return jsonb_build_object('success', false, 'error', 'round_not_found');
   end if;
 
+  -- Advisory lock per round to prevent cross-instance double-advance.
+  perform pg_advisory_xact_lock(hashtext(p_round_id::text));
+
   v_phase := coalesce(v_round.phase, v_round.status, 'main');
 
   if v_round.phase_seq <> p_expected_phase_seq then
@@ -57,7 +75,8 @@ begin
       'error', 'phase_seq_mismatch',
       'phase', v_phase,
       'phase_seq', v_round.phase_seq,
-      'ends_at', v_round.ends_at
+      'ends_at', v_round.ends_at,
+      'snapshot', public.get_match_snapshot_v1(p_match_id)
     );
   end if;
 
@@ -69,15 +88,16 @@ begin
   for update;
 
   if not found then
-    return jsonb_build_object('success', false, 'error', 'match_not_found');
+    return jsonb_build_object('success', false, 'error', 'match_not_found', 'snapshot', public.get_match_snapshot_v1(p_match_id));
   end if;
 
   if v_match.current_round_id is null or v_match.current_round_id <> p_round_id then
-    return jsonb_build_object('success', false, 'error', 'round_id_mismatch');
+    return jsonb_build_object('success', false, 'error', 'round_id_mismatch', 'snapshot', public.get_match_snapshot_v1(p_match_id));
   end if;
 
   v_results := v_match.results_payload;
   v_results_round_id := v_match.results_round_id;
+  v_both_answered := (v_match.player1_answered_at is not null and v_match.player2_answered_at is not null);
 
   -- ===== Phase: main =====
   if v_phase = 'main' then
@@ -102,11 +122,25 @@ begin
         'phase', v_next_phase,
         'phase_seq', v_new_seq,
         'ends_at', v_next_ends_at,
-        'reason', 'results_ready'
+        'reason', 'results_ready',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
       );
     end if;
 
-    -- Not due yet
+    -- Both answered but results missing: report and stop.
+    if v_both_answered and v_results is null then
+      return jsonb_build_object(
+        'success', false,
+        'advanced', false,
+        'phase', v_phase,
+        'phase_seq', v_round.phase_seq,
+        'ends_at', v_round.ends_at,
+        'reason', 'results_missing_after_both_answered',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
+      );
+    end if;
+
+    -- Not due yet (and not fully answered)
     if v_round.ends_at is not null and v_now < v_round.ends_at then
       return jsonb_build_object(
         'success', true,
@@ -114,7 +148,8 @@ begin
         'phase', v_phase,
         'phase_seq', v_round.phase_seq,
         'ends_at', v_round.ends_at,
-        'reason', 'not_due'
+        'reason', 'not_due',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
       );
     end if;
 
@@ -226,7 +261,8 @@ begin
         'phase', v_next_phase,
         'phase_seq', v_new_seq,
         'ends_at', v_next_ends_at,
-        'reason', 'main_timeout_to_steps'
+        'reason', 'main_timeout_to_steps',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
       );
     end if;
 
@@ -263,11 +299,12 @@ begin
         'phase', v_next_phase,
         'phase_seq', v_new_seq,
         'ends_at', v_next_ends_at,
-        'reason', 'timeout_results'
+        'reason', 'timeout_results',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
       );
     end if;
 
-    return jsonb_build_object('success', false, 'error', 'results_missing_after_timeout');
+    return jsonb_build_object('success', false, 'error', 'results_missing_after_timeout', 'snapshot', public.get_match_snapshot_v1(p_match_id));
   end if;
 
   -- ===== Phase: steps =====
@@ -293,7 +330,8 @@ begin
         'phase', v_next_phase,
         'phase_seq', v_new_seq,
         'ends_at', v_next_ends_at,
-        'reason', 'results_ready'
+        'reason', 'results_ready',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
       );
     end if;
 
@@ -341,7 +379,8 @@ begin
         'phase', v_next_phase,
         'phase_seq', v_new_seq,
         'ends_at', v_next_ends_at,
-        'reason', 'steps_completed'
+        'reason', 'steps_completed',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
       );
     end if;
 
@@ -353,7 +392,8 @@ begin
         'phase', v_phase,
         'phase_seq', v_round.phase_seq,
         'ends_at', v_round.ends_at,
-        'reason', 'not_due'
+        'reason', 'not_due',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
       );
     end if;
 
@@ -390,11 +430,12 @@ begin
         'phase', v_next_phase,
         'phase_seq', v_new_seq,
         'ends_at', v_next_ends_at,
-        'reason', 'forced_timeout'
+        'reason', 'forced_timeout',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
       );
     end if;
 
-    return jsonb_build_object('success', false, 'error', 'results_missing_after_force');
+    return jsonb_build_object('success', false, 'error', 'results_missing_after_force', 'snapshot', public.get_match_snapshot_v1(p_match_id));
   end if;
 
   -- ===== Phase: results =====
@@ -406,7 +447,8 @@ begin
         'phase', v_phase,
         'phase_seq', v_round.phase_seq,
         'ends_at', v_round.ends_at,
-        'reason', 'not_due'
+        'reason', 'not_due',
+        'snapshot', public.get_match_snapshot_v1(p_match_id)
       );
     end if;
 
@@ -428,7 +470,8 @@ begin
       'phase', v_next_phase,
       'phase_seq', v_new_seq,
       'ends_at', null,
-      'reason', 'results_done'
+      'reason', 'results_done',
+      'snapshot', public.get_match_snapshot_v1(p_match_id)
     );
   end if;
 
@@ -439,7 +482,8 @@ begin
     'phase', v_phase,
     'phase_seq', v_round.phase_seq,
     'ends_at', v_round.ends_at,
-    'reason', 'no_transition'
+    'reason', 'no_transition',
+    'snapshot', public.get_match_snapshot_v1(p_match_id)
   );
 end;
 $$;

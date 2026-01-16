@@ -187,6 +187,7 @@ export function useGame(match: MatchRow | null) {
   const localResultsVersionRef = useRef<number>(0)
   const processedRoundIdsRef = useRef<Set<string>>(new Set())
   const phaseSeqRef = useRef<number>(-1)
+  const stateVersionRef = useRef<number>(-1)
   const serverTimeOffsetRef = useRef<number>(0)
   const usingV2Ref = useRef<boolean>(false)
   const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
@@ -319,9 +320,16 @@ export function useGame(match: MatchRow | null) {
 
     const roundId = snapshot.roundId ?? null
     const prevRoundId = currentRoundIdRef.current
+    const snapshotStateVersion = Number(snapshot.stateVersion ?? snapshot.state_version ?? NaN)
+    const hasStateVersion = Number.isFinite(snapshotStateVersion)
     const incomingSeq = Number(snapshot.phaseSeq ?? 0)
     const isSameRound = !!roundId && roundId === prevRoundId
-    if (isSameRound && incomingSeq <= phaseSeqRef.current) {
+    if (hasStateVersion) {
+      if (isSameRound && snapshotStateVersion <= stateVersionRef.current) {
+        return
+      }
+      stateVersionRef.current = snapshotStateVersion
+    } else if (isSameRound && incomingSeq <= phaseSeqRef.current) {
       return
     }
     if (roundId && roundId !== prevRoundId) {
@@ -391,10 +399,14 @@ export function useGame(match: MatchRow | null) {
            null)
         : null
 
-    if (snapshot.resultsVersion != null && Number(snapshot.resultsVersion) > localResultsVersionRef.current) {
-      localResultsVersionRef.current = Number(snapshot.resultsVersion)
+    const incomingResultsVersion =
+      snapshot.resultsVersion != null ? Number(snapshot.resultsVersion) : null
+    const shouldApplyResults =
+      incomingResultsVersion == null || incomingResultsVersion > localResultsVersionRef.current
+    if (shouldApplyResults && incomingResultsVersion != null) {
+      localResultsVersionRef.current = incomingResultsVersion
     }
-    if (snapshot.resultsPayload) {
+    if (snapshot.resultsPayload && shouldApplyResults) {
       applyResults({
         ...snapshot.resultsPayload,
         computed_at: snapshot.resultsPayload?.computed_at ?? snapshot.resultsPayload?.computedAt
