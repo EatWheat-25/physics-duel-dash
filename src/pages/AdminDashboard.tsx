@@ -158,10 +158,10 @@ export default function AdminDashboard() {
 
       if (matchesUpdateError && !matchesUpdateError.message.includes('does not exist') && !matchesUpdateError.message.includes('null value')) {
         // If update to NULL fails (column not nullable), try deleting matches
-        const { error: matchesDeleteError } = await supabase
+        const { error: matchesDeleteError } = await (supabase
           .from('matches')
           .delete()
-          .eq('question_id' as any, questionId);
+          .eq('question_id', questionId) as any);
         
         if (matchesDeleteError && !matchesDeleteError.message.includes('does not exist')) {
           console.warn('[AdminDashboard] Error handling matches:', matchesDeleteError);

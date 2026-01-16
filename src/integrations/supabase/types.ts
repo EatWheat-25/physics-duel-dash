@@ -702,6 +702,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          last_seen_at: string
           level: string
           player_id: string
           status: string
@@ -710,6 +711,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          last_seen_at?: string
           level?: string
           player_id: string
           status?: string
@@ -718,6 +720,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          last_seen_at?: string
           level?: string
           player_id?: string
           status?: string
@@ -1141,6 +1144,15 @@ export type Database = {
         Returns: Json
       }
       latexify_option: { Args: { input: string }; Returns: string }
+      matchmake_simple_v1: {
+        Args: {
+          p_force_new?: boolean
+          p_level: string
+          p_player_id: string
+          p_subject: string
+        }
+        Returns: Json
+      }
       pick_next_question_v2: {
         Args: { p_match_id: string }
         Returns: {

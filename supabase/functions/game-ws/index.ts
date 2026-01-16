@@ -286,7 +286,7 @@ async function runAsyncProgressSweepTick(
     .from('matches')
     .select('current_round_id, player1_id, player2_id')
     .eq('id', matchId)
-    .single()
+    .single() as { data: any; error: any }
 
   if (matchError || !matchRow?.current_round_id) return
   const roundId = matchRow.current_round_id as string
@@ -295,14 +295,14 @@ async function runAsyncProgressSweepTick(
   {
     // PostgREST cannot disambiguate overloaded functions unless we include all parameters.
     // Prefer the (p_match_id, p_round_id, p_force) signature; fallback to legacy 2-arg if needed.
-    const { error: err3 } = await supabase.rpc('auto_advance_overdue_segments_v1', {
+    const { error: err3 } = await (supabase.rpc as any)('auto_advance_overdue_segments_v1', {
       p_match_id: matchId,
       p_round_id: roundId,
       p_force: false
     })
     if (err3) {
       // Fallback: older deployments may only have the 2-arg version
-      const { error: err2 } = await supabase.rpc('auto_advance_overdue_segments_v1', {
+      const { error: err2 } = await (supabase.rpc as any)('auto_advance_overdue_segments_v1', {
         p_match_id: matchId,
         p_round_id: roundId
       })
@@ -410,10 +410,10 @@ async function computeAndBroadcastMultiStepResultsV3(
   multiStepResultsComputeInProgress.add(key)
 
   try {
-    const { data: rpcResult, error: rpcError } = await supabase.rpc('compute_multi_step_results_v3', {
+    const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)('compute_multi_step_results_v3', {
       p_match_id: matchId,
       p_round_id: roundId
-    })
+    }) as { data: any; error: any }
 
     if (rpcError) {
       console.error(`[${matchId}] ❌ Error calling compute_multi_step_results_v3:`, rpcError)
@@ -753,14 +753,16 @@ async function broadcastQuestion(
     })
     
     let sentCount = 0
-    matchSockets.forEach((socket, index) => {
+    let socketIndex = 0
+    matchSockets.forEach((socket) => {
+      socketIndex++
       if (socket.readyState === WebSocket.OPEN) {
         try {
           socket.send(JSON.stringify(questionReceivedEvent))
           sentCount++
-          console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${index + 1}`)
+          console.log(`[${matchId}] ✅ Sent QUESTION_RECEIVED to socket ${socketIndex}`)
         } catch (error) {
-          console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${index + 1}:`, error)
+          console.error(`[${matchId}] ❌ Error sending QUESTION_RECEIVED to socket ${socketIndex}:`, error)
         }
       }
     })
@@ -769,11 +771,11 @@ async function broadcastQuestion(
     console.log(`[${matchId}] ✅ [WS] QUESTION_RECEIVED broadcast completed`)
     
     // Update match status
-    await supabase
+    await (supabase
       .from('matches')
-      .update({ status: 'in_progress' })
+      .update({ status: 'in_progress' } as any)
       .eq('id', matchId)
-      .neq('status', 'in_progress')
+      .neq('status', 'in_progress') as any)
 
     console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
 
@@ -785,7 +787,7 @@ async function broadcastQuestion(
         .from('matches')
         .select('player1_answer, player2_answer, results_computed_at')
         .eq('id', matchId)
-        .single()
+        .single() as { data: any; error: any }
       
       if (!match) {
         console.error(`[${matchId}] ❌ Match not found during timeout`)
@@ -802,17 +804,17 @@ async function broadcastQuestion(
         let timeoutError = null
         let timeoutResult = null
         
-        const { data: stage3Result, error: stage3Error } = await supabase.rpc('force_timeout_stage3', {
+        const { data: stage3Result, error: stage3Error } = await (supabase.rpc as any)('force_timeout_stage3', {
           p_match_id: matchId
-        })
+        }) as { data: any; error: any }
         
         if (stage3Error) {
           // Check if RPC function doesn't exist (Stage 3 migration not applied)
           if (stage3Error.code === '42883' || stage3Error.message?.includes('does not exist') || stage3Error.message?.includes('function')) {
             console.log(`[${matchId}] ⚠️ force_timeout_stage3 not found - falling back to force_timeout_stage2`)
-            const { data: stage2Result, error: stage2Error } = await supabase.rpc('force_timeout_stage2', {
+            const { data: stage2Result, error: stage2Error } = await (supabase.rpc as any)('force_timeout_stage2', {
               p_match_id: matchId
-            })
+            }) as { data: any; error: any }
             timeoutError = stage2Error
             timeoutResult = stage2Result
           } else {
@@ -834,7 +836,7 @@ async function broadcastQuestion(
           .from('matches')
           .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
           .eq('id', matchId)
-          .single()
+          .single() as { data: any; error: any }
         
         if (matchResults) {
           const resultsEvent: ResultsReceivedEvent = {
