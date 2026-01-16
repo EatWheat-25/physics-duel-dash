@@ -68,14 +68,14 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
     setOpponentMarks(prev => prev + opponentMarksEarned);
 
     // Store step result
-    const stepResult: StepResult = {
+    const stepResult = {
       stepId: currentStep.id,
       playerAnswer: answerIndex,
       opponentAnswer,
       correct,
       marksEarned,
       explanation: currentStep.explanation
-    };
+    } as StepResult;
     setStepResults(prev => [...prev, stepResult]);
 
     // Auto advance after feedback

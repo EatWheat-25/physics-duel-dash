@@ -157,7 +157,7 @@ export default function LobbyNew() {
     let level = selectedGrade;
     
     // Normalize subject: 'maths' → 'math'
-    if ((subject as string) === 'maths') subject = 'math';
+    if ((subject as any) === 'maths') subject = 'math' as any;
     
     // Normalize level: ensure uppercase 'A1' or 'A2'
     if (level === 'Both') level = 'A2';
@@ -469,20 +469,20 @@ export default function LobbyNew() {
 
                   <motion.button
                     onClick={handleStartQueue}
-                    disabled={status === 'searching' || isButtonLoading}
+                    disabled={(status as any) === 'searching' || (status as any) === 'queuing' || isButtonLoading}
                     className="relative px-12 py-6 rounded-lg font-bold text-2xl uppercase tracking-wider transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-br from-blue-600 to-blue-500 text-white font-mono border-2 border-blue-400 overflow-hidden"
                     style={{
                       boxShadow: '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
                     }}
-                    whileHover={status !== 'searching' && !isButtonLoading ? { 
+                    whileHover={!((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading ? { 
                       scale: 1.05,
                       boxShadow: '0 0 60px rgba(59, 130, 246, 0.9), 0 0 100px rgba(59, 130, 246, 0.5), inset 0 0 20px rgba(0,0,0,0.2)',
                     } : {}}
-                    whileTap={status !== 'searching' && !isButtonLoading ? { 
+                    whileTap={!((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading ? { 
                       scale: 0.95,
                     } : {}}
                     animate={{
-                      boxShadow: status !== 'searching' && !isButtonLoading ? [
+                      boxShadow: !((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading ? [
                         '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
                         '0 0 60px rgba(59, 130, 246, 0.9), 0 0 100px rgba(59, 130, 246, 0.5), inset 0 0 20px rgba(0,0,0,0.2)',
                         '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
@@ -490,7 +490,7 @@ export default function LobbyNew() {
                     }}
                     transition={{
                       duration: 1.5,
-                      repeat: status !== 'searching' && !isButtonLoading ? Infinity : 0,
+                      repeat: !((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading ? Infinity : 0,
                       ease: 'easeInOut',
                     }}
                   >
@@ -509,7 +509,7 @@ export default function LobbyNew() {
                     
                     {/* Content */}
                     <span className="relative z-10 flex items-center justify-center">
-                      {isButtonLoading || status === 'searching' ? (
+                      {isButtonLoading || (status as any) === 'searching' || (status as any) === 'queuing' ? (
                         <>
                           <Loader2 className="w-6 h-6 inline mr-2 animate-spin" />
                           <motion.span
@@ -540,7 +540,7 @@ export default function LobbyNew() {
                     </span>
                     
                     {/* Pulse ring effect */}
-                    {!isButtonLoading && status !== 'searching' && (
+                    {!isButtonLoading && !((status as any) === 'searching' || (status as any) === 'queuing') && (
                       <motion.div
                         className="absolute inset-0 rounded-lg border-2 border-blue-300"
                         animate={{
