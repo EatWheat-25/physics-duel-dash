@@ -276,8 +276,8 @@ All colors MUST be HSL.
 @layer components {
   /* ===== Paper-style question UI (white cards, black text) ===== */
   .paper-card {
-    @apply bg-white text-black border border-slate-200 rounded-3xl p-8 md:p-12 shadow-xl;
-    font-family: Cambria, "Times New Roman", Times, serif;
+    @apply bg-white text-black border border-slate-300 rounded-md p-8 md:p-10 shadow-sm text-left;
+    font-family: "Times New Roman", Times, serif;
   }
 
   /* Override global heading rule (h1..h6 { color: white; }) inside paper cards */
@@ -288,14 +288,17 @@ All colors MUST be HSL.
   .paper-card h5,
   .paper-card h6 {
     color: inherit;
+    font-family: "Times New Roman", Times, serif;
+    font-weight: 400;
   }
 
   .paper-meta {
-    @apply text-xs font-mono uppercase tracking-wider text-slate-500;
+    @apply text-sm text-black;
   }
 
   .paper-option {
-    @apply relative w-full overflow-hidden p-6 rounded-2xl border border-slate-200 bg-white text-black text-left shadow-sm transition-all duration-200;
+    @apply relative w-full overflow-hidden p-6 rounded-md border border-slate-300 bg-white text-black text-left shadow-none transition-all duration-200;
+    font-family: "Times New Roman", Times, serif;
   }
 
   .paper-option:hover {
@@ -311,11 +314,7 @@ All colors MUST be HSL.
   }
 
   .paper-option-letter {
-    @apply w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm bg-slate-100 text-black;
-  }
-
-  .paper-option:hover .paper-option-letter {
-    @apply bg-slate-200;
+    @apply w-6 text-black font-normal text-base;
   }
 
   /* Next-Gen Holographic Panels */

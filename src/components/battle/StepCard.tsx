@@ -57,7 +57,7 @@ export function StepCard({
               : `Step ${stepIndex + 1} of ${totalSteps}`}
           </div>
 
-          <h3 className="text-xl md:text-2xl font-bold leading-relaxed">
+          <h3 className="text-xl md:text-2xl leading-relaxed">
             <ScienceText text={prompt} />
           </h3>
 
@@ -68,7 +68,7 @@ export function StepCard({
                 <img
                   src={diagramImageUrl}
                   alt="Diagram"
-                  className="rounded-lg max-w-full border border-slate-200"
+                  className="rounded-lg max-w-full border border-slate-300"
                   loading="lazy"
                 />
               )}
@@ -76,8 +76,8 @@ export function StepCard({
           )}
 
           {segment === 'sub' && (
-            <p className="text-xs text-slate-600 font-mono">
-              QUICK CHECK — must be correct to earn this step&apos;s marks
+            <p className="text-xs text-black">
+              Quick check — must be correct to earn this step&apos;s marks
             </p>
           )}
         </div>
@@ -96,7 +96,7 @@ export function StepCard({
                 <div className="paper-option-letter">
                   {String.fromCharCode(65 + idx)}
                 </div>
-                <ScienceText text={option} className="text-lg font-medium" smilesSize="sm" />
+                <ScienceText text={option} className="text-lg" smilesSize="sm" />
               </div>
             </button>
           ))}
@@ -106,9 +106,9 @@ export function StepCard({
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-6 text-center"
+            className="mt-6 text-left"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-full text-sm font-medium border border-slate-200">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md text-sm border border-slate-300">
               <Check className="w-4 h-4" />
               ANSWER SUBMITTED
             </div>

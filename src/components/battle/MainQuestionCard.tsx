@@ -39,7 +39,7 @@ export function MainQuestionCard({
 
         <div className="space-y-4">
           <div className="paper-meta">Main Question</div>
-          <h3 className="text-2xl md:text-3xl font-bold leading-relaxed">
+          <h3 className="text-2xl md:text-3xl leading-relaxed">
             <ScienceText text={stem} />
           </h3>
           {structureSmiles && (
@@ -51,11 +51,11 @@ export function MainQuestionCard({
             <img
               src={imageUrl}
               alt="Question"
-              className="mt-4 rounded-lg max-w-full border border-slate-200 mx-auto"
+              className="mt-4 rounded-lg max-w-full border border-slate-300"
               loading="lazy"
             />
           )}
-          <div className="pt-2 text-sm text-slate-600">
+          <div className="pt-2 text-sm text-black">
             {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
           </div>
         </div>
@@ -71,10 +71,10 @@ export function MainQuestionCard({
         <button
           onClick={() => onSubmitEarly?.()}
           disabled={!isWebSocketConnected || !onSubmitEarly}
-          className={`w-full py-6 px-8 rounded-xl font-bold text-xl transition-colors border ${
+          className={`w-full py-6 px-8 rounded-md text-xl transition-colors border ${
             isWebSocketConnected && onSubmitEarly
-              ? 'bg-yellow-500 hover:bg-yellow-400 text-black border-black/20 cursor-pointer'
-              : 'bg-[#2B0A0F] text-white/60 border-red-500/20 cursor-not-allowed opacity-70'
+              ? 'bg-white hover:bg-slate-50 text-black border-slate-300 cursor-pointer'
+              : 'bg-white text-black/50 border-slate-300 cursor-not-allowed opacity-70'
           }`}
         >
           {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
