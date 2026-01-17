@@ -180,11 +180,11 @@ async function fetchConnectionStatus(
   matchId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<ConnectionStatus | null> {
-  const { data: matchStatus, error: statusError } = await supabase
+  const { data: matchStatus, error: statusError } = await (supabase
     .from('matches')
     .select('player1_connected_at, player2_connected_at')
     .eq('id', matchId)
-    .single()
+    .single() as any)
 
   if (statusError || !matchStatus) {
     console.error(`[${matchId}] ❌ Failed to query connection status:`, statusError)
@@ -204,10 +204,10 @@ async function fetchConnectionStatus(
   }
 
   if (Object.keys(updates).length > 0) {
-    const { error: cleanupError } = await supabase
+    const { error: cleanupError } = await (supabase
       .from('matches')
-      .update(updates)
-      .eq('id', matchId)
+      .update(updates as any)
+      .eq('id', matchId) as any)
     if (cleanupError) {
       console.warn(`[${matchId}] ⚠️ Failed to clear stale connection timestamps:`, cleanupError)
     }
@@ -230,10 +230,10 @@ async function refreshConnectionHeartbeat(
   if (!role) return
 
   const connectionColumn = role === 'player1' ? 'player1_connected_at' : 'player2_connected_at'
-  const { error: updateError } = await supabase
+  const { error: updateError } = await (supabase
     .from('matches')
-    .update({ [connectionColumn]: new Date().toISOString() })
-    .eq('id', matchId)
+    .update({ [connectionColumn]: new Date().toISOString() } as any)
+    .eq('id', matchId) as any)
 
   if (updateError) {
     console.warn(`[${matchId}] ⚠️ Failed to refresh ${connectionColumn}:`, updateError)
@@ -633,11 +633,11 @@ async function broadcastQuestion(
   const isMultiStep = Array.isArray(steps) && steps.length >= 2
 
   // Get match players + target rounds for game state
-  const { data: matchData } = await supabase
+  const { data: matchData } = await (supabase
     .from('matches')
     .select('player1_id, player2_id, target_rounds_to_win')
     .eq('id', matchId)
-    .single()
+    .single() as any)
 
   if (isMultiStep) {
     // Multi-step question flow
@@ -959,11 +959,11 @@ async function selectAndBroadcastQuestion(
   
   try {
     // Get match with current_round_id for clearing old results
-    const { data: match, error: matchError } = await supabase
+    const { data: match, error: matchError } = await (supabase
       .from('matches')
       .select('subject, mode, status, winner_id, question_id, question_sent_at, current_round_id, current_round_number, target_rounds_to_win')
       .eq('id', matchId)
-      .single()
+      .single() as any)
 
     if (matchError) {
       console.error(`[${matchId}] ❌ Error fetching match:`, matchError)
@@ -982,10 +982,10 @@ async function selectAndBroadcastQuestion(
     const previousRoundId = match.current_round_id
     if (previousRoundId) {
       console.log(`[${matchId}] 🧹 Clearing old results for round ${previousRoundId}`)
-      const { data: clearResult, error: clearError } = await supabase.rpc('clear_round_results', {
+      const { data: clearResult, error: clearError } = await (supabase.rpc('clear_round_results', {
         p_match_id: matchId,
         p_expected_round_id: previousRoundId
-      })
+      } as any) as any)
       
       if (clearError) {
         console.error(`[${matchId}] ❌ Error clearing round results:`, clearError)
@@ -1132,20 +1132,20 @@ async function selectAndBroadcastQuestion(
       // Bias toward newer questions: pick randomly from the newest N (still randomized, but boosts recency).
       const RECENT_POOL_MAX = 50
       const recentPool = selectionPool.slice(0, Math.min(RECENT_POOL_MAX, selectionPool.length))
-      const selectedQuestion = recentPool[Math.floor(Math.random() * recentPool.length)]
+      const selectedQuestion: any = recentPool[Math.floor(Math.random() * recentPool.length)]
       console.log(`[${matchId}] 🎯 Selected question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
 
       // Atomic claim: UPDATE only if question_id IS NULL
-      const { data: lock, error: lockError } = await supabase
+      const { data: lock, error: lockError } = await (supabase
         .from('matches')
         .update({
           question_sent_at: new Date().toISOString(),
-          question_id: selectedQuestion.id,
-        })
+          question_id: (selectedQuestion as any).id,
+        } as any)
         .eq('id', matchId)
         .is('question_id', null)
         .select('id, question_id')
-        .maybeSingle()
+        .maybeSingle() as any)
 
       if (lockError) {
         console.error(`[${matchId}] ❌ Lock error:`, lockError)
@@ -1156,21 +1156,21 @@ async function selectAndBroadcastQuestion(
         // Lost race condition
         console.log(`[${matchId}] ⚠️ Lost atomic lock, re-reading question_id...`)
         
-        const { data: matchAfterRace } = await supabase
+        const { data: matchAfterRace } = await (supabase
           .from('matches')
           .select('question_id, question_sent_at')
           .eq('id', matchId)
-          .single()
+          .single() as any)
 
         if (!matchAfterRace?.question_id) {
           throw new Error('Failed to claim question and no question found after race')
         }
 
-        const { data: qAfterRace } = await supabase
+        const { data: qAfterRace } = await (supabase
           .from('questions_v2')
           .select('*')
           .eq('id', matchAfterRace.question_id)
-          .single()
+          .single() as any)
 
         if (!qAfterRace) {
           throw new Error(`Failed to fetch question ${matchAfterRace.question_id} after race`)
@@ -1188,12 +1188,12 @@ async function selectAndBroadcastQuestion(
     let newRound: any = null
 
     // IDEMPOTENCY: another instance may have already created an active round (status main/steps)
-    const { data: existingRound, error: existingRoundError } = await supabase
+    const { data: existingRound, error: existingRoundError } = await (supabase
       .from('match_rounds')
       .select('id, question_id, round_number, status')
       .eq('match_id', matchId)
       .in('status', ['main', 'steps'])
-      .maybeSingle()
+      .maybeSingle() as any)
 
     if (existingRoundError) {
       // This shouldn't normally happen; log and continue with insert path
@@ -1226,16 +1226,16 @@ async function selectAndBroadcastQuestion(
       }
     } else {
       // ===== Create new match_rounds row with question_id (single source of truth) =====
-      const { data: insertedRound, error: roundError } = await supabase
+      const { data: insertedRound, error: roundError } = await (supabase
         .from('match_rounds')
         .insert({
           match_id: matchId,
           question_id: questionDb.id, // Single source of truth for question
           round_number: newRoundNumber,
           status: 'main' // For simple questions, will transition to 'results' when computed
-        })
+        } as any)
         .select('id')
-        .single()
+        .single() as any)
 
       if (roundError || !insertedRound) {
         // Handle unique constraint violation gracefully (another instance created the round)
@@ -1248,12 +1248,12 @@ async function selectAndBroadcastQuestion(
             `[${matchId}] ⚠️ Round insert hit unique constraint; another instance created it. Fetching existing...`
           )
 
-          const { data: fetchedRound, error: fetchedRoundError } = await supabase
+          const { data: fetchedRound, error: fetchedRoundError } = await (supabase
             .from('match_rounds')
             .select('id, question_id, round_number, status')
             .eq('match_id', matchId)
             .in('status', ['main', 'steps'])
-            .maybeSingle()
+            .maybeSingle() as any)
 
           if (fetchedRoundError) {
             console.error(`[${matchId}] ❌ Error fetching existing round after constraint violation:`, fetchedRoundError)
@@ -1273,11 +1273,11 @@ async function selectAndBroadcastQuestion(
 
           // Align questionDb with the fetched round if needed
           if (fetchedRound.question_id && fetchedRound.question_id !== questionDb.id) {
-            const { data: fetchedQuestion, error: fetchedQuestionError } = await supabase
+            const { data: fetchedQuestion, error: fetchedQuestionError } = await (supabase
               .from('questions_v2')
               .select('*')
               .eq('id', fetchedRound.question_id)
-              .single()
+              .single() as any)
 
             if (fetchedQuestionError || !fetchedQuestion) {
               console.error(`[${matchId}] ❌ Failed to fetch question for existing round:`, fetchedQuestionError)
@@ -1300,15 +1300,15 @@ async function selectAndBroadcastQuestion(
     }
 
     // ===== Update matches with current_round_id and current_round_number =====
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase
       .from('matches')
       .update({
         current_round_id: newRound.id,
         current_round_number: roundNumberForUpdate,
         // Keep question_id for backwards compatibility, but we read from match_rounds.question_id
         question_id: questionDb.id
-      })
-      .eq('id', matchId)
+      } as any)
+      .eq('id', matchId) as any)
 
     if (updateError) {
       console.error(`[${matchId}] ❌ Failed to update matches with round info:`, updateError)
@@ -1324,11 +1324,11 @@ async function selectAndBroadcastQuestion(
       existingGameState.roundNumber = roundNumberForUpdate
     } else {
       // Get match players for game state initialization
-      const { data: matchData } = await supabase
+      const { data: matchData } = await (supabase
         .from('matches')
         .select('player1_id, player2_id')
         .eq('id', matchId)
-        .single()
+        .single() as any)
       
       const newGameState: GameState = {
         currentPhase: 'question',
@@ -1597,36 +1597,36 @@ async function transitionToSteps(
   // Prefer DB-driven per-player async step progression if available.
   // This is what enables "answer → advance immediately" without waiting for the opponent/timer.
   try {
-    const { data: matchRow, error: matchError } = await supabase
+    const { data: matchRow, error: matchError } = await (supabase
       .from('matches')
       .select('current_round_id, player1_id, player2_id')
       .eq('id', matchId)
-      .single()
+      .single() as any)
 
     if (!matchError && matchRow?.current_round_id) {
       const roundId = matchRow.current_round_id as string
 
-      const { error: initError } = await supabase.rpc('init_round_progress_v1', {
+      const { error: initError } = await (supabase.rpc('init_round_progress_v1', {
         p_match_id: matchId,
         p_round_id: roundId
-      })
+      } as any) as any)
 
       if (!initError) {
         // If init placed players in main-question sentinel (-1), advance them into step 0 now.
         const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
         if (playerIds.length > 0) {
-          const { error: progressUpdateError } = await supabase
+          const { error: progressUpdateError } = await (supabase
             .from('match_round_player_progress_v1')
             .update({
               current_step_index: 0,
               current_segment: 'main',
               segment_ends_at: stepEndsAt,
               updated_at: new Date().toISOString()
-            })
+            } as any)
             .eq('match_id', matchId)
             .eq('round_id', roundId)
             .in('player_id', playerIds)
-            .lt('current_step_index', 0)
+            .lt('current_step_index', 0) as any)
 
           if (progressUpdateError) {
             console.warn(`[${matchId}] ⚠️ Failed to advance progress from main-question sentinel:`, progressUpdateError)
@@ -1765,7 +1765,7 @@ async function checkStepTimeout(
 
     // Persist (best-effort) for cross-instance visibility
     try {
-      supabase
+      (supabase
         .from('match_step_answers_v2')
         .upsert({
           match_id: matchId,
@@ -1778,10 +1778,10 @@ async function checkStepTimeout(
           selected_option: null,
           is_correct: false,
           response_time_ms: 0
-        }, {
+        } as any, {
           onConflict: 'match_id,round_index,player_id,question_id,step_index,segment,sub_step_index'
-        })
-        .then(({ error }) => {
+        }) as any)
+        .then(({ error }: any) => {
           if (error) {
             console.error(`[${matchId}] ❌ [TIMEOUT] DB upsert error for step ${stepIndex} ${segment}${segment === 'sub' ? `#${subStepIndex}` : ''}:`, error)
           }
@@ -2009,11 +2009,11 @@ async function calculateStepResults(
   })
 
   // Get current round_id from database
-  const { data: matchData, error: matchError } = await supabase
+  const { data: matchData, error: matchError } = await (supabase
     .from('matches')
     .select('current_round_id')
     .eq('id', matchId)
-    .single()
+    .single() as any)
 
   if (matchError || !matchData?.current_round_id) {
     console.error(`[${matchId}] ❌ Failed to get current_round_id:`, matchError)
@@ -2028,11 +2028,11 @@ async function calculateStepResults(
 
   // Call database RPC to compute results and write to database
   console.log(`[${matchId}] 📊 Calling compute_multi_step_results_v2 RPC with ${stepResultsArray.length} steps`)
-  const { data: rpcResult, error: rpcError } = await supabase.rpc('compute_multi_step_results_v2', {
+  const { data: rpcResult, error: rpcError } = await (supabase.rpc('compute_multi_step_results_v2', {
     p_match_id: matchId,
     p_round_id: matchData.current_round_id,
     p_step_results: stepResultsArray as any
-  })
+  } as any) as any)
 
   if (rpcError) {
     console.error(`[${matchId}] ❌ Error calling compute_multi_step_results_v2:`, rpcError)
@@ -2162,11 +2162,11 @@ async function handleStepAnswer(
   // This avoids "wait for opponent/timer" between parts.
   if (state.progressMode === 'async') {
     // Resolve current round id + players
-    const { data: matchRow, error: matchError } = await supabase
+    const { data: matchRow, error: matchError } = await (supabase
       .from('matches')
       .select('current_round_id, player1_id, player2_id')
       .eq('id', matchId)
-      .single()
+      .single() as any)
 
     if (matchError || !matchRow?.current_round_id) {
       socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Match round not available' } as GameErrorEvent))
@@ -2176,10 +2176,10 @@ async function handleStepAnswer(
     const roundId = matchRow.current_round_id as string
 
     // Ensure progress rows exist (idempotent)
-    const { error: initError } = await supabase.rpc('init_round_progress_v1', {
+    const { error: initError } = await (supabase.rpc('init_round_progress_v1', {
       p_match_id: matchId,
       p_round_id: roundId
-    })
+    } as any) as any)
     if (initError) {
       console.error(`[${matchId}] ❌ init_round_progress_v1 failed:`, initError)
       socket.send(JSON.stringify({ type: 'GAME_ERROR', message: 'Progress system unavailable' } as GameErrorEvent))
@@ -2187,13 +2187,13 @@ async function handleStepAnswer(
     }
 
     // Load canonical progress for this player
-    const { data: progress, error: progressError } = await supabase
+    const { data: progress, error: progressError } = await (supabase
       .from('match_round_player_progress_v1')
       .select('*')
       .eq('match_id', matchId)
       .eq('round_id', roundId)
       .eq('player_id', playerId)
-      .maybeSingle()
+      .maybeSingle() as any)
 
     if (progressError || !progress) {
       console.error(`[${matchId}] ❌ Failed to load player progress:`, progressError)
@@ -2204,12 +2204,12 @@ async function handleStepAnswer(
     // If player already finished, just re-emit waiting state (with correct p1/p2 flags)
     if (progress.completed_at) {
       const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
-      const { data: rows } = await supabase
+      const { data: rows } = await (supabase
         .from('match_round_player_progress_v1')
         .select('player_id, completed_at')
         .eq('match_id', matchId)
         .eq('round_id', roundId)
-        .in('player_id', playerIds)
+        .in('player_id', playerIds) as any)
 
       const byPlayer = new Map<string, any>()
       ;(rows || []).forEach((row: any) => byPlayer.set(row.player_id, row))
@@ -2293,7 +2293,7 @@ async function handleStepAnswer(
     const isCorrect = answerIndex === correctAnswer
 
     // Atomic: record answer + advance THIS player's progress
-    const { data: submitResult, error: submitError } = await supabase.rpc('submit_segment_v1', {
+    const { data: submitResult, error: submitError } = await (supabase.rpc('submit_segment_v1', {
       p_match_id: matchId,
       p_round_id: roundId,
       p_player_id: playerId,
@@ -2301,7 +2301,7 @@ async function handleStepAnswer(
       p_segment: canonicalSegment,
       p_answer_index: answerIndex,
       p_is_correct: isCorrect
-    })
+    } as any) as any)
 
     if (submitError) {
       console.error(`[${matchId}] ❌ submit_segment_v1 failed:`, submitError)
@@ -2351,12 +2351,12 @@ async function handleStepAnswer(
     if (r?.completed === true || r?.already_completed === true) {
       // Determine completion status for both players (for end-of-steps waiting UI)
       const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
-      const { data: rows } = await supabase
+      const { data: rows } = await (supabase
         .from('match_round_player_progress_v1')
         .select('player_id, completed_at')
         .eq('match_id', matchId)
         .eq('round_id', roundId)
-        .in('player_id', playerIds)
+        .in('player_id', playerIds) as any)
 
       const byPlayer = new Map<string, any>()
       ;(rows || []).forEach((row: any) => byPlayer.set(row.player_id, row))
@@ -2490,7 +2490,7 @@ async function handleStepAnswer(
 
   // Persist (best-effort) for cross-instance visibility
   try {
-    supabase
+    (supabase
       .from('match_step_answers_v2')
       .upsert({
         match_id: matchId,
@@ -2503,10 +2503,10 @@ async function handleStepAnswer(
         selected_option: answerIndex,
         is_correct: isCorrect,
         response_time_ms: 0
-      }, {
+      } as any, {
         onConflict: 'match_id,round_index,player_id,question_id,step_index,segment,sub_step_index'
-      })
-      .then(({ error }) => {
+      }) as any)
+      .then(({ error }: any) => {
         if (error) {
           console.error(`[${matchId}] ❌ [STEP] DB upsert error for step ${stepIndex} ${segment}${segment === 'sub' ? `#${subStepIndex}` : ''}:`, error)
         }
@@ -2576,11 +2576,11 @@ async function handleSubmitAnswer(
   }
 
   // Get match to determine player role
-  const { data: match, error: matchError } = await supabase
+  const { data: match, error: matchError } = await (supabase
     .from('matches')
     .select('player1_id, player2_id')
     .eq('id', matchId)
-    .single()
+    .single() as any)
 
   if (matchError || !match) {
     console.error(`[${matchId}] ❌ Match not found:`, matchError)
@@ -2594,11 +2594,11 @@ async function handleSubmitAnswer(
   const isP1 = match.player1_id === playerId
 
   // Call atomic RPC
-  const { data: result, error } = await supabase.rpc('submit_answer_stage2', {
+  const { data: result, error } = await (supabase.rpc('submit_answer_stage2', {
     p_match_id: matchId,
     p_player_id: playerId,
     p_answer: answer
-  })
+  } as any) as any)
 
   if (error) {
     // Check if RPC function doesn't exist (migration not applied)
@@ -2643,11 +2643,11 @@ async function handleSubmitAnswer(
       console.log(`[${matchId}] ✅ Cleared timeout - both players answered early`)
     }
 
-    const { data: matchResults } = await supabase
+    const { data: matchResults } = await (supabase
       .from('matches')
       .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
       .eq('id', matchId)
-      .single()
+      .single() as any)
 
     if (matchResults) {
       // Get match state (should already be initialized in selectAndBroadcastQuestion)
@@ -2655,11 +2655,11 @@ async function handleSubmitAnswer(
       if (!matchState) {
         console.error(`[${matchId}] ⚠️ Match state not found for single-step question`)
         // Fallback - create it now
-        const { data: matchData } = await supabase
+        const { data: matchData } = await (supabase
           .from('matches')
           .select('player1_id, player2_id')
           .eq('id', matchId)
-          .single()
+          .single() as any)
         const fallbackState: MatchState = {
           roundNumber: 1,
           targetRoundsToWin: matchData?.target_rounds_to_win || 3,
@@ -2772,11 +2772,11 @@ async function handleSubmitAnswerV2(
   }
 
   // Call v2 RPC (single source of truth)
-  const { data, error } = await supabase.rpc('submit_round_answer_v2', {
+  const { data, error } = await (supabase.rpc('submit_round_answer_v2', {
     p_match_id: matchId,
     p_player_id: playerId,
     p_answer: answer
-  })
+  } as any) as any)
 
   if (error) {
     console.error(`[${matchId}] ❌ [V2] Error submitting answer:`, error)
@@ -2837,11 +2837,11 @@ async function handleSubmitAnswerV2(
     console.log(`[${matchId}] ⏳ [V2] Waiting for both players to acknowledge results before starting next round`)
   } else {
     // Only one answered - get match to determine player role for broadcast
-    const { data: matchData } = await supabase
+    const { data: matchData } = await (supabase
       .from('matches')
       .select('player1_id, player2_id')
       .eq('id', matchId)
-      .single()
+      .single() as any)
     
     if (matchData) {
       const answerReceivedEvent: AnswerReceivedEvent = {
@@ -2890,11 +2890,11 @@ async function handleRoundTransition(
   matchState.roundTransitionInProgress = true
   
   // Fetch fresh match state from database (don't use cached state)
-  const { data: dbMatchState, error: stateError } = await supabase
+  const { data: dbMatchState, error: stateError } = await (supabase
     .from('matches')
     .select('winner_id, status')
     .eq('id', matchId)
-    .single()
+    .single() as any)
   
   if (stateError || !dbMatchState) {
     console.error(`[${matchId}] ❌ Failed to fetch match state:`, stateError)
@@ -2930,9 +2930,9 @@ async function handleRoundTransition(
   }
   
   // Call start_next_round_stage3 to clear answer fields
-  const { data: resetResult, error: resetError } = await supabase.rpc('start_next_round_stage3', {
+  const { data: resetResult, error: resetError } = await (supabase.rpc('start_next_round_stage3', {
     p_match_id: matchId
-  })
+  } as any) as any)
   
   if (resetError) {
     // Check if RPC function doesn't exist (migration not applied)
@@ -2991,11 +2991,11 @@ async function handleReadyForNextRound(
 
   // DB-driven: do not rely on in-memory ack state (Edge instances are not shared).
   // Treat this as a "request to advance / ensure current round question is broadcast to this instance".
-  const { data: matchRow, error: matchError } = await supabase
+  const { data: matchRow, error: matchError } = await (supabase
     .from('matches')
     .select('id, player1_id, player2_id, status, winner_id, results_computed_at, current_round_id, current_round_number, question_id')
     .eq('id', matchId)
-    .single()
+    .single() as any)
 
   if (matchError || !matchRow) {
     console.error(`[${matchId}] ❌ READY_FOR_NEXT_ROUND: match not found`, matchError)
@@ -3034,9 +3034,9 @@ async function handleReadyForNextRound(
   // If results are currently computed, clear round fields to allow selecting the next round question.
   // If another instance already transitioned, results_computed_at may already be NULL; that's fine.
   if (matchRow.results_computed_at) {
-    const { data: resetResult, error: resetError } = await supabase.rpc('start_next_round_stage3', {
+    const { data: resetResult, error: resetError } = await (supabase.rpc('start_next_round_stage3', {
       p_match_id: matchId
-    })
+    } as any) as any)
 
     if (resetError) {
       // If RPC is missing (migration not applied), fall back to a direct update (server has service role).
@@ -3046,15 +3046,15 @@ async function handleReadyForNextRound(
         resetError.message?.includes('function')
       ) {
         console.warn(`[${matchId}] ⚠️ start_next_round_stage3 not available; using direct DB fallback`, resetError)
-        await supabase
+        await (supabase
           .from('matches')
           .update({
             question_id: null,
             question_sent_at: null
-          })
+          } as any)
           .eq('id', matchId)
           .eq('status', 'in_progress')
-          .is('winner_id', null)
+          .is('winner_id', null) as any)
       } else {
         console.warn(`[${matchId}] ⚠️ start_next_round_stage3 failed; continuing with idempotent selection`, resetError)
       }
@@ -3090,11 +3090,11 @@ async function handleJoinMatch(
   console.log(`[${matchId}] JOIN_MATCH from player ${playerId}`)
 
   // 1. Validate match exists and player is part of it
-  const { data: match, error: matchError } = await supabase
+  const { data: match, error: matchError } = await (supabase
     .from('matches')
     .select('*')
     .eq('id', matchId)
-    .single()
+    .single() as any)
 
   if (matchError || !match) {
     console.error(`[${matchId}] ❌ Match not found:`, matchError)
@@ -3120,12 +3120,12 @@ async function handleJoinMatch(
   const connectionColumn = isPlayer1 ? 'player1_connected_at' : 'player2_connected_at'
 
   // 3. Update database to mark this player as connected (works across instances!)
-  const { error: updateError } = await supabase
+  const { error: updateError } = await (supabase
     .from('matches')
     .update({
       [connectionColumn]: new Date().toISOString()
-    })
-    .eq('id', matchId)
+    } as any)
+    .eq('id', matchId) as any)
 
   if (updateError) {
     console.error(`[${matchId}] ❌ Failed to update connection status:`, updateError)
@@ -3189,11 +3189,11 @@ async function handleJoinMatch(
         // Start the game round after both players are connected
         // First, ensure match status is 'in_progress' (it may still be 'pending')
         console.log(`[${matchId}] 🎮 [WS] BOTH_CONNECTED handler - updating match status to in_progress...`)
-        const { error: statusUpdateError } = await supabase
+        const { error: statusUpdateError } = await (supabase
           .from('matches')
-          .update({ status: 'in_progress' })
+          .update({ status: 'in_progress' } as any)
           .eq('id', matchId)
-          .neq('status', 'in_progress')
+          .neq('status', 'in_progress') as any)
         
         if (statusUpdateError) {
           console.error(`[${matchId}] ❌ [WS] Failed to update match status:`, statusUpdateError)
