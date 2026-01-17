@@ -3,6 +3,8 @@ import { supabase, SUPABASE_URL } from '@/integrations/supabase/client'
 import type { MatchRow } from '@/types/schema'
 import { mapRawToQuestion } from '@/utils/questionMapper'
 
+const NEXT_ROUND_DELAY_MS = 10_000
+
 interface ConnectionState {
   status: 'connecting' | 'connected' | 'both_connected' | 'playing' | 'results' | 'error' | 'match_finished'
   playerRole: 'player1' | 'player2' | null
@@ -60,6 +62,8 @@ interface ConnectionState {
   // Timer state
   timerEndAt: string | null
   timeRemaining: number | null // seconds remaining
+  nextRoundEndsAt: string | null
+  nextRoundTimeLeft: number | null
   // Step-based question state
   phase: 'question' | 'main_question' | 'steps' | 'result'
   currentStepIndex: number
@@ -130,6 +134,8 @@ export function useGame(match: MatchRow | null) {
     // Timer state
     timerEndAt: null,
     timeRemaining: null,
+    nextRoundEndsAt: null,
+    nextRoundTimeLeft: null,
     // Step-based question state
     phase: 'question',
     currentStepIndex: 0,
@@ -206,6 +212,13 @@ export function useGame(match: MatchRow | null) {
       round_id: roundId // Store round_id in results for reference
     }
 
+    const matchOver =
+      payload.match_over ??
+      payload.matchOver ??
+      Boolean(payload.match_winner_id ?? payload.matchWinnerId)
+    const nextRoundEndsAt = matchOver ? null : new Date(Date.now() + NEXT_ROUND_DELAY_MS).toISOString()
+    const nextRoundTimeLeft = matchOver ? null : Math.round(NEXT_ROUND_DELAY_MS / 1000)
+
     setState(prev => {
       // Don't update if already showing results with same or newer version
       if (prev.status === 'results' && payload.round_number && payload.round_number < prev.currentRoundNumber) {
@@ -247,8 +260,10 @@ export function useGame(match: MatchRow | null) {
           payload.targetRoundsToWin ??
           prev.targetRoundsToWin,
         playerRoundWins: mergedRoundWins,
-        matchOver: payload.match_over ?? false,
-        matchWinnerId: payload.match_winner_id ?? null
+        matchOver,
+        matchWinnerId: payload.match_winner_id ?? null,
+        nextRoundEndsAt,
+        nextRoundTimeLeft
       }
     })
 
@@ -281,7 +296,9 @@ export function useGame(match: MatchRow | null) {
           player2_correct: detail.player2_correct,
           round_winner: detail.round_winner
         },
-        waitingForOpponent: false
+        waitingForOpponent: false,
+        nextRoundEndsAt: new Date(Date.now() + NEXT_ROUND_DELAY_MS).toISOString(),
+        nextRoundTimeLeft: Math.round(NEXT_ROUND_DELAY_MS / 1000)
       }))
     }
 
@@ -432,6 +449,25 @@ export function useGame(match: MatchRow | null) {
     return () => clearInterval(interval)
   }, [state.stepEndsAt, state.phase, state.currentSegment])
 
+  // Next round countdown (results -> auto-advance)
+  useEffect(() => {
+    if (!state.nextRoundEndsAt || state.status !== 'results' || state.matchOver) {
+      setState(prev => ({ ...prev, nextRoundTimeLeft: null }))
+      return
+    }
+
+    const updateTimer = () => {
+      const now = Date.now()
+      const endTime = new Date(state.nextRoundEndsAt!).getTime()
+      const remaining = Math.max(0, Math.round((endTime - now) / 1000))
+      setState(prev => ({ ...prev, nextRoundTimeLeft: remaining }))
+    }
+
+    updateTimer()
+    const interval = setInterval(updateTimer, 1000)
+    return () => clearInterval(interval)
+  }, [state.nextRoundEndsAt, state.status, state.matchOver])
+
   useEffect(() => {
     if (!match) {
         setState(prev => ({
@@ -580,7 +616,9 @@ export function useGame(match: MatchRow | null) {
                   timerEndAt: timerEndAt,
                   answerSubmitted: false,
                   waitingForOpponent: false,
-                  results: null
+                  results: null,
+                  nextRoundEndsAt: null,
+                  nextRoundTimeLeft: null
                 }))
               } catch (error) {
                 console.error('[useGame] Error mapping question:', error)
@@ -622,6 +660,8 @@ export function useGame(match: MatchRow | null) {
                   allStepsComplete: false,
                   waitingForOpponentToCompleteSteps: false,
                   results: null, // Clear results when new round starts
+                  nextRoundEndsAt: null,
+                  nextRoundTimeLeft: null,
                   errorMessage: null
                 }))
               } else {
@@ -641,6 +681,8 @@ export function useGame(match: MatchRow | null) {
                   allStepsComplete: false,
                   waitingForOpponentToCompleteSteps: false,
                   results: null, // Clear results when new round starts
+                  nextRoundEndsAt: null,
+                  nextRoundTimeLeft: null,
                   errorMessage: null
                 }))
               }
@@ -792,6 +834,8 @@ export function useGame(match: MatchRow | null) {
                 allStepsComplete: false,
                 waitingForOpponentToCompleteSteps: false,
                 results: null, // Clear results when new round starts
+                nextRoundEndsAt: null,
+                nextRoundTimeLeft: null,
                 roundNumber: message.round_number || 0,
                 lastRoundWinner: message.last_round_winner,
                 consecutiveWinsCount: message.consecutive_wins_count || 0,
@@ -824,7 +868,9 @@ export function useGame(match: MatchRow | null) {
                 waitingForOpponent: false,
                 resultsAcknowledged: false,
                 waitingForOpponentToAcknowledge: false,
-                results: null // Clear results when match ends
+                results: null, // Clear results when match ends
+                nextRoundEndsAt: null,
+                nextRoundTimeLeft: null
               }))
             } else if (message.type === 'GAME_ERROR') {
               console.error('[useGame] GAME_ERROR:', message.message)
@@ -1535,6 +1581,14 @@ export function useGame(match: MatchRow | null) {
     })
   }, [])
 
+  // Auto-acknowledge results when countdown ends
+  useEffect(() => {
+    if (state.status !== 'results' || state.matchOver) return
+    if (state.nextRoundTimeLeft === null || state.nextRoundTimeLeft > 0) return
+    if (state.resultsAcknowledged) return
+    readyForNextRound()
+  }, [state.status, state.matchOver, state.nextRoundTimeLeft, state.resultsAcknowledged, readyForNextRound])
+
   return {
     status: state.status,
     playerRole: state.playerRole,
@@ -1556,6 +1610,8 @@ export function useGame(match: MatchRow | null) {
     totalRounds: state.totalRounds,
     timerEndAt: state.timerEndAt,
     timeRemaining: state.timeRemaining,
+    nextRoundEndsAt: state.nextRoundEndsAt,
+    nextRoundTimeLeft: state.nextRoundTimeLeft,
     submitAnswer,
     // Step-based question state
     phase: state.phase,

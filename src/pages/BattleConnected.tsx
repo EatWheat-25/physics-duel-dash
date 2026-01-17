@@ -15,6 +15,7 @@ export default function BattleConnected() {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const hasNavigatedToResults = useRef(false);
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
@@ -109,13 +110,13 @@ export default function BattleConnected() {
   const { 
     status, playerRole, errorMessage, question, answerSubmitted, 
     results, roundNumber, lastRoundWinner, consecutiveWinsCount, 
-    matchFinished, matchWinner, timeRemaining, submitAnswer,
+    matchFinished, matchWinner, timeRemaining, nextRoundTimeLeft, submitAnswer,
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, subStepTimeLeft, currentStep, currentSegment, currentSubStepIndex,
     submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
-    isWebSocketConnected, waitingForOpponent, resultsAcknowledged, waitingForOpponentToAcknowledge,
-    allStepsComplete, waitingForOpponentToCompleteSteps, readyForNextRound
+    isWebSocketConnected, waitingForOpponent, waitingForOpponentToAcknowledge,
+    allStepsComplete, waitingForOpponentToCompleteSteps
   } = useGame(match);
 
   // Track round wins for animation
@@ -139,6 +140,12 @@ export default function BattleConnected() {
     }
     prevOppWinsRef.current = oppWins;
   }, [playerRoundWins, currentUser, match]);
+
+  useEffect(() => {
+    if (!matchId || !matchOver || hasNavigatedToResults.current) return;
+    hasNavigatedToResults.current = true;
+    navigate(`/match-results/${matchId}`);
+  }, [matchId, matchOver, navigate]);
 
   // Round Intro Effect
   useEffect(() => {
@@ -896,18 +903,11 @@ export default function BattleConnected() {
 
                 {!matchOver && (
                   <div className="mt-6">
-                    {!resultsAcknowledged ? (
-                      <button
-                        onClick={readyForNextRound}
-                        disabled={!isWebSocketConnected}
-                        className={`w-full py-4 px-8 rounded-xl font-bold text-lg transition-all shadow-lg ${
-                          isWebSocketConnected
-                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
-                            : 'bg-gray-600/50 cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        {isWebSocketConnected ? 'NEXT ROUND' : 'CONNECTING...'}
-                      </button>
+                    {nextRoundTimeLeft !== null && nextRoundTimeLeft > 0 ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="text-sm font-mono text-white/60">NEXT ROUND STARTS IN</div>
+                        <div className="text-3xl font-bold">{nextRoundTimeLeft}s</div>
+                      </div>
                     ) : waitingForOpponentToAcknowledge ? (
                       <div className="flex flex-col items-center gap-3">
                         <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
@@ -917,7 +917,7 @@ export default function BattleConnected() {
                       </div>
                     ) : (
                       <div className="text-sm font-mono text-white/60 text-center">
-                        BOTH PLAYERS READY - STARTING NEXT ROUND...
+                        STARTING NEXT ROUND...
                       </div>
                     )}
                   </div>

@@ -41,7 +41,7 @@ export default function MatchResults() {
     const fetchOnce = async (): Promise<boolean> => {
       const { data, error } = await (supabase as any)
         .from('matches')
-        .select('player1_id, player2_id, player1_score, player2_score, winner_id, results_payload')
+        .select('player1_id, player2_id, player1_score, player2_score, winner_id, ranked_payload')
         .eq('id', matchId)
         .single()
 
@@ -59,8 +59,8 @@ export default function MatchResults() {
         winner_id: data.winner_id,
       })
 
-      if (data.results_payload) {
-        setRankedPayload(data.results_payload as any)
+      if (data.ranked_payload) {
+        setRankedPayload(data.ranked_payload as any)
         setLoading(false)
         return true
       }
@@ -124,12 +124,13 @@ export default function MatchResults() {
     opponentScore: matchMeta?.player1_id === user.id ? (matchMeta?.player2_score ?? 0) : (matchMeta?.player1_score ?? 0),
     pointsEarned: mySide.delta,
     won: mySide.outcome === 'win',
+    outcome: mySide.outcome,
   }
 
   const userData = {
     username: profile?.username ?? user.email?.split('@')[0] ?? 'Player',
     currentPoints: myPoints,
-    currentRank: { tier: myRank.tier, subRank: 1 as const },
+    currentRank: { tier: myRank.tier, subRank: myRank.subRank },
     winStreak: 0,
     totalMatches: 0,
     wins: 0,

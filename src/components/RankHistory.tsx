@@ -33,7 +33,11 @@ const RankHistory: React.FC<RankHistoryProps> = ({ history }) => {
           >
             <div className="flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full ${
-                match.outcome === 'win' ? 'bg-battle-success' : 'bg-battle-danger'
+                match.outcome === 'win'
+                  ? 'bg-battle-success'
+                  : match.outcome === 'draw'
+                  ? 'bg-battle-warning'
+                  : 'bg-battle-danger'
               }`} />
               
               <div className="text-xs">
@@ -45,12 +49,18 @@ const RankHistory: React.FC<RankHistoryProps> = ({ history }) => {
             
             <div className="flex items-center gap-2">
               <div className={`flex items-center gap-1 text-xs font-semibold ${
-                match.pointsChange > 0 ? 'text-battle-success' : 'text-battle-danger'
+                match.pointsChange > 0
+                  ? 'text-battle-success'
+                  : match.pointsChange < 0
+                  ? 'text-battle-danger'
+                  : 'text-battle-warning'
               }`}>
                 {match.pointsChange > 0 ? (
                   <TrendingUp className="w-3 h-3" />
-                ) : (
+                ) : match.pointsChange < 0 ? (
                   <TrendingDown className="w-3 h-3" />
+                ) : (
+                  <span className="w-3 h-3 inline-flex items-center justify-center">•</span>
                 )}
                 {formatPointsChange(match.pointsChange)}
               </div>

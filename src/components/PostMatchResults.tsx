@@ -13,6 +13,7 @@ interface MatchStats {
   opponentScore: number;
   pointsEarned: number;
   won: boolean;
+  outcome?: 'win' | 'loss' | 'draw';
 }
 
 interface StepMatchStats {
@@ -57,7 +58,17 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
   const progressInCurrentRank = ((userData.currentPoints - currentRank.minPoints) / (currentRank.maxPoints - currentRank.minPoints)) * 100;
   const previousProgressInRank = Math.max(0, ((previousPoints - currentRank.minPoints) / (currentRank.maxPoints - currentRank.minPoints)) * 100);
 
+  const outcome = matchStats.outcome ?? (matchStats.won ? 'win' : 'loss');
+  const bannerColor = outcome === 'draw'
+    ? 'text-battle-warning'
+    : matchStats.won
+    ? 'text-battle-success'
+    : 'text-battle-danger';
+
   const getGameHighlight = () => {
+    if (outcome === 'draw') {
+      return { text: "DRAW", color: "text-battle-warning", icon: Users };
+    }
     if (matchStats.wrongAnswers === 0 && matchStats.won) return { text: "FLAWLESS VICTORY!", color: "text-battle-success", icon: Star };
     if (Math.abs(matchStats.playerScore - matchStats.opponentScore) === 1) return { text: "CLOSE BATTLE", color: "text-battle-warning", icon: Zap };
     if (matchStats.pointsEarned >= 40) return { text: "DOMINANT WIN!", color: "text-battle-success", icon: Trophy };
@@ -147,13 +158,16 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
               animate={showBanner ? { rotate: [0, 5, -5, 0] } : {}}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              {matchStats.won ? 
-                <Trophy className="text-battle-success" size={32} /> : 
+              {outcome === 'draw' ? (
+                <Users className="text-battle-warning" size={32} />
+              ) : matchStats.won ? (
+                <Trophy className="text-battle-success" size={32} />
+              ) : (
                 <Target className="text-battle-danger" size={32} />
-              }
+              )}
             </motion.div>
             <motion.div 
-              className={`text-4xl md:text-5xl font-light tracking-wide ${matchStats.won ? 'text-battle-success' : 'text-battle-danger'}`}
+              className={`text-4xl md:text-5xl font-light tracking-wide ${bannerColor}`}
               animate={showBanner ? {
                 filter: [
                   'drop-shadow(0 0 8px currentColor)',
@@ -163,7 +177,7 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
               } : {}}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
             >
-              {matchStats.won ? "VICTORY" : "DEFEAT"}
+              {outcome === 'draw' ? "DRAW" : matchStats.won ? "VICTORY" : "DEFEAT"}
             </motion.div>
           </div>
           
@@ -189,7 +203,7 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
             >
               {pointsCounter > 0 ? '+' : ''}{pointsCounter}
             </div>
-            <div className="text-sm text-muted-foreground font-medium">XP Points</div>
+            <div className="text-sm text-muted-foreground font-medium">Rank Points</div>
           </div>
         </motion.div>
 

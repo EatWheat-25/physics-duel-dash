@@ -155,6 +155,10 @@ const sockets = new Map<string, Set<WebSocket>>() // matchId -> Set<WebSocket>
 // Track timeouts per match (for cleanup)
 const matchTimeouts = new Map<string, number>() // matchId -> timeoutId
 
+// Auto-advance to next round after results
+const AUTO_NEXT_ROUND_DELAY_MS = 10_000
+const autoNextRoundTimeouts = new Map<string, number>() // matchId -> timeoutId
+
 // Track async per-player progress sweeps (DB-driven timeouts) per match (per Edge instance)
 const asyncProgressSweepIntervals = new Map<string, number>() // matchId -> intervalId
 const lastAsyncProgressKeys = new Map<string, Map<string, string>>() // matchId -> (playerId -> key)
@@ -308,6 +312,95 @@ function broadcastToMatch(matchId: string, event: any): void {
   })
 
   console.log(`[${matchId}] 📊 Broadcast ${event.type} to ${sentCount}/${matchSockets.size} sockets`)
+}
+
+function clearAutoNextRoundTimeout(matchId: string): void {
+  const timeoutId = autoNextRoundTimeouts.get(matchId)
+  if (timeoutId) {
+    clearTimeout(timeoutId)
+    autoNextRoundTimeouts.delete(matchId)
+  }
+}
+
+function scheduleAutoNextRound(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>,
+  reason: string,
+  expectedRoundId?: string | null
+): void {
+  clearAutoNextRoundTimeout(matchId)
+
+  const timeoutId = setTimeout(async () => {
+    autoNextRoundTimeouts.delete(matchId)
+
+    try {
+      const { data: matchRow, error: matchError } = await supabase
+        .from('matches')
+        .select('id, status, winner_id, results_computed_at, current_round_id')
+        .eq('id', matchId)
+        .single()
+
+      if (matchError || !matchRow) {
+        console.error(`[${matchId}] ❌ Auto-advance aborted - match not found`, matchError)
+        return
+      }
+
+      if (matchRow.winner_id) {
+        console.log(`[${matchId}] 🏁 Auto-advance skipped - match already finished`)
+        return
+      }
+
+      if (matchRow.status !== 'in_progress') {
+        console.log(`[${matchId}] ⏳ Auto-advance skipped - match not in progress (status=${matchRow.status})`)
+        return
+      }
+
+      if (expectedRoundId && matchRow.current_round_id && matchRow.current_round_id !== expectedRoundId) {
+        console.log(`[${matchId}] ⏭️ Auto-advance skipped - round already advanced`)
+        return
+      }
+
+      if (!matchRow.results_computed_at) {
+        console.log(`[${matchId}] ⏭️ Auto-advance skipped - results already cleared`)
+        return
+      }
+
+      const { data: resetResult, error: resetError } = await supabase.rpc('start_next_round_stage3', {
+        p_match_id: matchId
+      })
+
+      if (resetError) {
+        if (
+          resetError.code === '42883' ||
+          resetError.message?.includes('does not exist') ||
+          resetError.message?.includes('function')
+        ) {
+          console.warn(`[${matchId}] ⚠️ start_next_round_stage3 not available; using direct DB fallback`, resetError)
+          await supabase
+            .from('matches')
+            .update({
+              question_id: null,
+              question_sent_at: null
+            })
+            .eq('id', matchId)
+            .eq('status', 'in_progress')
+            .is('winner_id', null)
+        } else {
+          console.warn(`[${matchId}] ⚠️ start_next_round_stage3 failed; continuing with idempotent selection`, resetError)
+        }
+      } else if (resetResult && resetResult.success === false) {
+        console.warn(`[${matchId}] ⚠️ start_next_round_stage3 returned not-ready; continuing with idempotent selection`, resetResult)
+      }
+
+      console.log(`[${matchId}] ⏭️ Auto-advancing to next round (${reason})`)
+      await selectAndBroadcastQuestion(matchId, supabase)
+    } catch (err) {
+      console.error(`[${matchId}] ❌ Auto-advance failed:`, err)
+    }
+  }, AUTO_NEXT_ROUND_DELAY_MS) as unknown as number
+
+  autoNextRoundTimeouts.set(matchId, timeoutId)
+  console.log(`[${matchId}] ⏳ Scheduling auto-advance in ${AUTO_NEXT_ROUND_DELAY_MS / 1000}s (${reason})`)
 }
 
 function progressKeyFromRow(row: any): string {
@@ -2107,6 +2200,7 @@ async function calculateStepResults(
     if (matchOver) {
       // Match finished - cleanup and don't start next round
       console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
+      clearAutoNextRoundTimeout(matchId)
       matchStates.delete(matchId)
       setTimeout(() => {
         cleanupGameState(matchId)
@@ -2114,6 +2208,7 @@ async function calculateStepResults(
     } else {
       // Don't auto-transition - wait for both players to acknowledge results
       console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
+      scheduleAutoNextRound(matchId, supabase, 'multi-step-results-legacy', payload.round_id || matchData.current_round_id)
     }
   } else {
     console.error(`[${matchId}] ❌ RPC did not return results_payload`)
@@ -2906,6 +3001,7 @@ async function handleRoundTransition(
   // If match finished, broadcast MATCH_FINISHED
   if (dbMatchState.winner_id !== null) {
     console.log(`[${matchId}] 🏆 Match finished - winner: ${dbMatchState.winner_id}`)
+    clearAutoNextRoundTimeout(matchId)
     
     const totalRounds = matchState.roundNumber || 0
     

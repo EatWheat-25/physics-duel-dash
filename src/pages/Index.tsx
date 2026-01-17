@@ -27,6 +27,7 @@ interface MatchStats {
   opponentScore: number;
   pointsEarned: number;
   won: boolean;
+  outcome?: "win" | "loss" | "draw";
 }
 
 interface StepMatchStats {
@@ -112,6 +113,7 @@ const Index = () => {
     const finalStats: MatchStats = {
       ...stats,
       pointsEarned: pointsGained,
+      outcome,
     };
 
     setMatchStats(finalStats);
@@ -331,6 +333,7 @@ const Index = () => {
               opponentScore: stepMatchStats?.opponentMarks || 0,
               pointsEarned: stepMatchStats?.won ? getPointsForWin() : getPointsForLoss(),
               won: stepMatchStats?.won || false,
+              outcome: stepMatchStats?.won ? "win" : "loss",
             }
           }
           userData={userData}

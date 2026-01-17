@@ -139,9 +139,9 @@ export function PlayerCard() {
       'Bronze': '🥉',
       'Silver': '🥈',
       'Gold': '🥇',
+      'Platinum': '🟪',
       'Diamond': '💎',
-      'Unbeatable': '🔥',
-      'Pocket Calculator': '🧮',
+      'Ruby': '♦️',
     };
     return emojiMap[tier] || '🥉';
   };

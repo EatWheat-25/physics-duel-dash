@@ -9,7 +9,7 @@ interface HomePageProps {
   progress: number;
 }
 
-const ranks = ["Bronze", "Silver", "Gold", "Diamond", "Unbeatable", "Pocket Calculator"];
+const ranks = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ruby"];
 
 const gameModes = [
   {
@@ -52,9 +52,9 @@ const HomePage: React.FC<HomePageProps> = ({ startGame, rank, progress }) => {
       case "Bronze": return "🥉";
       case "Silver": return "🥈";
       case "Gold": return "🥇";
+      case "Platinum": return "🟪";
       case "Diamond": return "💎";
-      case "Unbeatable": return "🔮";
-      case "Pocket Calculator": return "🏆";
+      case "Ruby": return "♦️";
       default: return "🏆";
     }
   };

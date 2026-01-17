@@ -29,7 +29,7 @@ const GameModeSelector: React.FC<GameModeSelectorProps> = ({ onSelectMode, onBac
       description: 'Pure AS Level Mathematics progression',
       syllabus: 'AS Level (A1)',
       difficulty: 'Foundation → Advanced A1',
-      progression: 'Bronze → Pocket Calculator',
+      progression: 'Bronze → Ruby III',
       color: 'hsl(210 100% 60%)',
       gradient: 'linear-gradient(135deg, hsl(210 100% 60%), hsl(210 100% 70%))',
       icon: '📐',
@@ -47,7 +47,7 @@ const GameModeSelector: React.FC<GameModeSelectorProps> = ({ onSelectMode, onBac
       description: 'Advanced A Level content exclusively',
       syllabus: 'A2 Level Only',
       difficulty: 'A2 Foundation → A★ Mastery',
-      progression: 'Bronze → Pocket Calculator',
+      progression: 'Bronze → Ruby III',
       color: 'hsl(280 100% 65%)',
       gradient: 'linear-gradient(135deg, hsl(280 100% 65%), hsl(320 100% 75%))',
       icon: '🧮',
@@ -192,12 +192,12 @@ const GameModeSelector: React.FC<GameModeSelectorProps> = ({ onSelectMode, onBac
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             {[
-              { tier: 'Bronze', emoji: '🥉', color: 'hsl(30 50% 50%)', description: '0-299 pts' },
-              { tier: 'Silver', emoji: '🥈', color: 'hsl(0 0% 70%)', description: '300-599 pts' },
-              { tier: 'Gold', emoji: '🥇', color: 'hsl(45 100% 60%)', description: '600-899 pts' },
-              { tier: 'Diamond', emoji: '💎', color: 'hsl(180 100% 70%)', description: '900-1199 pts' },
-              { tier: 'Unbeatable', emoji: '🔥', color: 'hsl(0 100% 65%)', description: '1200-1499 pts' },
-              { tier: 'Pocket Calculator', emoji: '🧮', color: 'hsl(280 100% 80%)', description: 'Top 1,000 Elite' },
+              { tier: 'Bronze', emoji: '🥉', color: 'hsl(30 50% 50%)', description: '0-100 pts' },
+              { tier: 'Silver', emoji: '🥈', color: 'hsl(0 0% 70%)', description: '101-249 pts' },
+              { tier: 'Gold', emoji: '🥇', color: 'hsl(45 100% 60%)', description: '250-450 pts' },
+              { tier: 'Platinum', emoji: '🟪', color: 'hsl(270 90% 70%)', description: '451-800 pts' },
+              { tier: 'Diamond', emoji: '💎', color: 'hsl(180 100% 70%)', description: '801-1250 pts' },
+              { tier: 'Ruby', emoji: '♦️', color: 'hsl(350 85% 60%)', description: '1251-2000 pts' },
             ].map((rank) => (
               <div key={rank.tier} className="text-center p-3 rounded-lg bg-background/50">
                 <div className="text-3xl mb-2">{rank.emoji}</div>
@@ -213,10 +213,10 @@ const GameModeSelector: React.FC<GameModeSelectorProps> = ({ onSelectMode, onBac
 
           <div className="mt-6 text-center space-y-2 text-sm text-muted-foreground">
             <p>
-              <strong className="text-primary">🎯 Promotion Rule:</strong> Achieve ≥80% accuracy to advance to the next rank
+              <strong className="text-primary">🎯 Points Rule:</strong> Accuracy drives rank points on win/loss/draw
             </p>
             <p>
-              <strong className="text-primary">🏆 Pocket Calculator:</strong> Elite rank limited to top 1,000 players per mode
+              <strong className="text-primary">🤝 Draws:</strong> Both players gain +5 rank points
             </p>
             <p>
               <strong className="text-primary">📚 Questions:</strong> 200+ unique questions per rank, sourced from CAIE past papers
