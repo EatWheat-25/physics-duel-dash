@@ -108,6 +108,7 @@ const Index = () => {
   const handleBattleEnd = (won: boolean, stats: MatchStats) => {
     const previousRank = userData.currentRank;
     const pointsGained = won ? getPointsForWin() : getPointsForLoss();
+    const outcome: "win" | "loss" = won ? "win" : "loss";
 
     // Create final match stats with points
     const finalStats: MatchStats = {

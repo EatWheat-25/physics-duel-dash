@@ -20,9 +20,9 @@ export function RankMenu({ open, onOpenChange, currentMMR = 0 }: RankMenuProps) 
     'Bronze': [],
     'Silver': [],
     'Gold': [],
+    'Platinum': [],
     'Diamond': [],
-    'Unbeatable': [],
-    'Pocket Calculator': [],
+    'Ruby': [],
   };
 
   RANKS.forEach(rank => {
@@ -33,9 +33,9 @@ export function RankMenu({ open, onOpenChange, currentMMR = 0 }: RankMenuProps) 
     'Bronze',
     'Silver',
     'Gold',
+    'Platinum',
     'Diamond',
-    'Unbeatable',
-    'Pocket Calculator',
+    'Ruby',
   ];
 
   const getCurrentRankIndex = () => {
@@ -114,15 +114,9 @@ export function RankMenu({ open, onOpenChange, currentMMR = 0 }: RankMenuProps) 
                         <span className="ml-2 text-sm text-primary">(Current Tier)</span>
                       )}
                     </h3>
-                    {tier === 'Pocket Calculator' ? (
-                      <p className="text-sm text-muted-foreground">
-                        Elite rank for top 1,000 players
-                      </p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        {tierRanks.length} sub-ranks available
-                      </p>
-                    )}
+                    <p className="text-sm text-muted-foreground">
+                      {tierRanks.length} sub-rank{tierRanks.length === 1 ? '' : 's'} available
+                    </p>
                   </div>
                 </div>
 
@@ -184,13 +178,8 @@ export function RankMenu({ open, onOpenChange, currentMMR = 0 }: RankMenuProps) 
                           <div>
                             {rank.minPoints === 0
                               ? 'Starting rank'
-                              : `${rank.minPoints} - ${rank.maxPoints} MMR`}
+                              : `${rank.minPoints} - ${rank.maxPoints} points`}
                           </div>
-                          {tier === 'Pocket Calculator' && (
-                            <div className="text-primary font-semibold">
-                              Top 1,000 Elite
-                            </div>
-                          )}
                         </div>
                       </motion.div>
                     );
@@ -204,10 +193,10 @@ export function RankMenu({ open, onOpenChange, currentMMR = 0 }: RankMenuProps) 
         <div className="mt-6 p-4 rounded-lg bg-primary/10 border border-primary/20">
           <h4 className="font-bold text-sm mb-2 text-primary">How Ranking Works</h4>
           <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-            <li>Win matches to gain MMR (Match Making Rating)</li>
-            <li>Each win grants +25 MMR, each loss deducts -20 MMR</li>
-            <li>Rank up by reaching the required MMR threshold</li>
-            <li>Pocket Calculator is reserved for the top 1,000 players globally</li>
+            <li>Rank points are based on win/loss/draw accuracy</li>
+            <li>Accuracy is rounded down to the nearest even percent</li>
+            <li>Draws always award +5 points</li>
+            <li>Rank up by reaching the required point threshold</li>
           </ul>
         </div>
       </DialogContent>
