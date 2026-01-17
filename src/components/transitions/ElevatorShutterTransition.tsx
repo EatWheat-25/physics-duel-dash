@@ -219,6 +219,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               points={leftPlayer.rankPoints}
               username={leftPlayer.displayName}
               initial={leftPlayer.initial}
+              showPoints={false}
               isInteractive={false}
               isPlaceholder={leftPlayer.isPlaceholder}
             />
@@ -260,6 +261,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
               points={rightPlayer.rankPoints}
               username={rightPlayer.displayName}
               initial={rightPlayer.initial}
+              showPoints={false}
               isInteractive={false}
               isPlaceholder={rightPlayer.isPlaceholder}
             />

@@ -8,6 +8,8 @@ import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MatchPatternBackground } from '@/components/battle/MatchPatternBackground';
 import { QuestionGraph } from '@/components/math/QuestionGraph';
+import RankBadge from '@/components/RankBadge';
+import { getRankByPoints } from '@/types/ranking';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -20,6 +22,7 @@ export default function BattleConnected() {
   const [shouldAnimateOppWins, setShouldAnimateOppWins] = useState<boolean>(false);
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
+  const [playerRanks, setPlayerRanks] = useState<Record<string, { display_name: string; rank_points: number }>>({});
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -74,6 +77,35 @@ export default function BattleConnected() {
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    if (!match?.player1_id || !match?.player2_id) return;
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await (supabase as any).rpc('get_players_rank_public_v1', {
+        p_ids: [match.player1_id, match.player2_id],
+      });
+
+      if (cancelled) return;
+      if (error || !Array.isArray(data)) return;
+
+      const map: Record<string, { display_name: string; rank_points: number }> = {};
+      for (const row of data as any[]) {
+        if (row?.id) {
+          map[String(row.id)] = {
+            display_name: String(row.display_name ?? 'Player'),
+            rank_points: Number(row.rank_points ?? 0),
+          };
+        }
+      }
+      setPlayerRanks(map);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [match?.player1_id, match?.player2_id]);
+
   const { 
     status, playerRole, errorMessage, question, answerSubmitted, 
     results, roundNumber, lastRoundWinner, consecutiveWinsCount, 
@@ -124,6 +156,14 @@ export default function BattleConnected() {
 
   const isPlayer1 = match?.player1_id === currentUser;
   const opponentId = isPlayer1 ? match?.player2_id : match?.player1_id;
+  const myMeta = currentUser ? playerRanks[currentUser] : undefined;
+  const oppMeta = opponentId ? playerRanks[opponentId] : undefined;
+  const myName = myMeta?.display_name || 'YOU';
+  const oppName = oppMeta?.display_name || 'OPPONENT';
+  const myInitial = (myName?.[0] || 'Y').toUpperCase();
+  const oppInitial = (oppName?.[0] || 'O').toUpperCase();
+  const myRank = getRankByPoints(myMeta?.rank_points ?? 0);
+  const oppRank = getRankByPoints(oppMeta?.rank_points ?? 0);
 
   if (!match || !currentUser) {
     return (
@@ -254,11 +294,12 @@ export default function BattleConnected() {
             </div>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-blue-400/30">
-                <span className="font-bold text-lg">Y</span>
+                <span className="font-bold text-lg">{myInitial}</span>
               </div>
               <div>
                 <div className="text-xs text-blue-200/50 font-mono mb-0.5">OPERATOR</div>
-                <div className="font-bold text-shadow-glow text-lg">YOU</div>
+                <div className="font-bold text-shadow-glow text-lg">{myName}</div>
+                <RankBadge rank={{ tier: myRank.tier, subRank: myRank.subRank }} size="sm" className="mt-1" />
               </div>
             </div>
           </div>
@@ -315,11 +356,12 @@ export default function BattleConnected() {
                   ? 'bg-gradient-to-br from-red-600 to-red-800 shadow-red-500/20 ring-red-400/30' 
                   : 'bg-white/5 ring-white/10'
               }`}>
-                <span className="font-bold text-lg">{status.includes('connect') ? '?' : 'O'}</span>
+                <span className="font-bold text-lg">{status.includes('connect') ? '?' : oppInitial}</span>
               </div>
               <div>
                 <div className="text-xs text-red-200/50 font-mono mb-0.5">TARGET</div>
-                <div className="font-bold text-shadow-glow text-lg">OPPONENT</div>
+                <div className="font-bold text-shadow-glow text-lg">{oppName}</div>
+                <RankBadge rank={{ tier: oppRank.tier, subRank: oppRank.subRank }} size="sm" className="mt-1" />
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { MatchRow } from '@/types/schema';
 import { useElevatorShutter } from '@/components/transitions/ElevatorShutterTransition';
+import type { MatchDoorPlayers } from '@/components/transitions/ElevatorShutterTransition';
 
 interface MatchmakingState {
   status: 'idle' | 'searching' | 'matched';
@@ -20,7 +21,7 @@ export function useMatchmaking(): {
   queueStartTime: number | null;
 } {
   const navigate = useNavigate();
-  const { startMatch } = useElevatorShutter();
+  const { startMatch, setMatchPlayers } = useElevatorShutter();
   const [state, setState] = useState<MatchmakingState>({
     status: 'idle',
     match: null,
@@ -32,23 +33,105 @@ export function useMatchmaking(): {
   const queueStartTimeRef = useRef<number | null>(null);
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
+  const currentUserIdRef = useRef<string | null>(null);
+
+  const buildPlaceholderPlayers = useCallback((): MatchDoorPlayers => {
+    return {
+      left: {
+        displayName: 'YOU',
+        rankPoints: null,
+        level: 1,
+        initial: 'Y',
+        isPlaceholder: true,
+      },
+      right: {
+        displayName: 'OPPONENT',
+        rankPoints: null,
+        level: 1,
+        initial: 'O',
+        isPlaceholder: true,
+      },
+    };
+  }, []);
+
+  const hydrateMatchPlayers = useCallback(
+    async (match: MatchRow) => {
+      try {
+        if (!currentUserIdRef.current) {
+          const { data: { user } } = await supabase.auth.getUser();
+          currentUserIdRef.current = user?.id ?? null;
+        }
+
+        const currentUserId = currentUserIdRef.current;
+        if (!currentUserId) return;
+
+        const isPlayer1 = match.player1_id === currentUserId;
+        const opponentId = isPlayer1 ? match.player2_id : match.player1_id;
+
+        const { data, error } = await (supabase as any).rpc('get_players_rank_public_v1', {
+          p_ids: [currentUserId, opponentId],
+        });
+
+        if (error || !Array.isArray(data)) return;
+
+        const map: Record<string, { display_name: string; rank_points: number }> = {};
+        for (const row of data as any[]) {
+          if (row?.id) {
+            map[String(row.id)] = {
+              display_name: String(row.display_name ?? 'Player'),
+              rank_points: Number(row.rank_points ?? 0),
+            };
+          }
+        }
+
+        const myRow = map[currentUserId];
+        const oppRow = map[opponentId];
+
+        const leftDisplay = myRow?.display_name ?? 'YOU';
+        const rightDisplay = oppRow?.display_name ?? 'OPPONENT';
+
+        setMatchPlayers({
+          left: {
+            displayName: leftDisplay,
+            rankPoints: myRow?.rank_points ?? null,
+            level: 1,
+            initial: (leftDisplay?.[0] || 'Y').toUpperCase(),
+            isPlaceholder: !myRow,
+          },
+          right: {
+            displayName: rightDisplay,
+            rankPoints: oppRow?.rank_points ?? null,
+            level: 1,
+            initial: (rightDisplay?.[0] || 'O').toUpperCase(),
+            isPlaceholder: !oppRow,
+          },
+        });
+      } catch (error) {
+        console.error('[MATCHMAKING] Failed to hydrate match players:', error);
+      }
+    },
+    [setMatchPlayers]
+  );
 
   const runMatchFoundTransition = useCallback(
     (match: MatchRow) => {
+      const placeholderPlayers = buildPlaceholderPlayers();
       // Purple elevator shutter: close doors, navigate behind, then open once BattleConnected signals question is rendered.
       void startMatch({
         message: 'MATCH FOUND',
         // Timeout fallback so we never hang forever if the battle page fails to signal readiness.
         loadingMs: 15000,
         waitForReady: true,
+        players: placeholderPlayers,
         onClosed: () => {
           navigate(`/online-battle-new/${match.id}`, {
             state: { match },
           });
         },
       });
+      void hydrateMatchPlayers(match);
     },
-    [navigate, startMatch]
+    [navigate, startMatch, buildPlaceholderPlayers, hydrateMatchPlayers]
   );
 
   // Poll for matches when in searching state
@@ -165,6 +248,7 @@ export function useMatchmaking(): {
         throw new Error('No authenticated user');
       }
 
+      currentUserIdRef.current = user.id;
       console.log(`[MATCHMAKING] Starting matchmaking for user ${user.id} (subject: ${subject}, level: ${level})`);
 
       // Call matchmaker edge function with subject and level

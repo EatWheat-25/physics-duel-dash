@@ -13,6 +13,7 @@ interface LobbyPlayerCardProps {
   className?: string;
   isInteractive?: boolean;
   isPlaceholder?: boolean;
+  showPoints?: boolean;
   onCustomize?: () => void;
   onProgression?: () => void;
 }
@@ -26,6 +27,7 @@ export function LobbyPlayerCard({
   className,
   isInteractive = true,
   isPlaceholder = false,
+  showPoints = true,
   onCustomize,
   onProgression,
 }: LobbyPlayerCardProps) {
@@ -165,17 +167,19 @@ export function LobbyPlayerCard({
             />
 
             <div className="relative p-6 h-full flex flex-col">
-              <div className="flex items-start justify-between">
+              <div className={`flex items-start ${showPoints ? 'justify-between' : 'justify-start'}`}>
                 <div className="min-w-0">
                   <div className="text-xs font-semibold text-white/80 truncate">
                     {rank.displayName}
                   </div>
                   <div className="mt-1 text-xs text-white/55">Level {level}</div>
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-white tabular-nums">{displayPoints}</div>
-                  <div className="text-xs text-white/55">Points</div>
-                </div>
+                {showPoints && (
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-white tabular-nums">{displayPoints}</div>
+                    <div className="text-xs text-white/55">Points</div>
+                  </div>
+                )}
               </div>
 
               <div className="mt-8 flex items-center justify-center">
