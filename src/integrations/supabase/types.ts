@@ -512,6 +512,8 @@ export type Database = {
           question_id: string | null
           question_sent_at: string | null
           questions: Json | null
+          ranked_applied_at: string | null
+          ranked_payload: Json | null
           results_computed_at: string | null
           results_payload: Json | null
           results_round_id: string | null
@@ -556,6 +558,8 @@ export type Database = {
           question_id?: string | null
           question_sent_at?: string | null
           questions?: Json | null
+          ranked_applied_at?: string | null
+          ranked_payload?: Json | null
           results_computed_at?: string | null
           results_payload?: Json | null
           results_round_id?: string | null
@@ -600,6 +604,8 @@ export type Database = {
           question_id?: string | null
           question_sent_at?: string | null
           questions?: Json | null
+          ranked_applied_at?: string | null
+          ranked_payload?: Json | null
           results_computed_at?: string | null
           results_payload?: Json | null
           results_round_id?: string | null
@@ -772,11 +778,79 @@ export type Database = {
           },
         ]
       }
+      player_rank_points_history: {
+        Row: {
+          accuracy_pct: number
+          correct_parts: number
+          created_at: string
+          delta: number
+          id: number
+          match_id: string
+          new_points: number
+          old_points: number
+          opponent_id: string
+          outcome: string
+          player_id: string
+          total_parts: number
+        }
+        Insert: {
+          accuracy_pct: number
+          correct_parts: number
+          created_at?: string
+          delta: number
+          id?: number
+          match_id: string
+          new_points: number
+          old_points: number
+          opponent_id: string
+          outcome: string
+          player_id: string
+          total_parts: number
+        }
+        Update: {
+          accuracy_pct?: number
+          correct_parts?: number
+          created_at?: string
+          delta?: number
+          id?: number
+          match_id?: string
+          new_points?: number
+          old_points?: number
+          opponent_id?: string
+          outcome?: string
+          player_id?: string
+          total_parts?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_rank_points_history_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_rank_points_history_opponent_id_fkey"
+            columns: ["opponent_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_rank_points_history_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       players: {
         Row: {
           display_name: string
           id: string
           mmr: number
+          rank_points: number
           region: string | null
           updated_at: string | null
         }
@@ -784,6 +858,7 @@ export type Database = {
           display_name: string
           id: string
           mmr?: number
+          rank_points?: number
           region?: string | null
           updated_at?: string | null
         }
@@ -791,6 +866,7 @@ export type Database = {
           display_name?: string
           id?: string
           mmr?: number
+          rank_points?: number
           region?: string | null
           updated_at?: string | null
         }
@@ -1094,6 +1170,10 @@ export type Database = {
       }
     }
     Functions: {
+      _clamp_int: {
+        Args: { p_max: number; p_min: number; p_val: number }
+        Returns: number
+      }
       _coalesce_int: {
         Args: { p_default: number; p_text: string }
         Returns: number
@@ -1115,6 +1195,7 @@ export type Database = {
         }
         Returns: Json
       }
+      compute_match_accuracy_v1: { Args: { p_match_id: string }; Returns: Json }
       compute_multi_step_results_v2: {
         Args: { p_match_id: string; p_round_id: string; p_step_results: Json }
         Returns: Json
@@ -1127,11 +1208,23 @@ export type Database = {
         Args: { p_question_id: string }
         Returns: Json
       }
+      ensure_players_for_match_v1: {
+        Args: { p_match_id: string }
+        Returns: undefined
+      }
       finish_match: { Args: { p_match_id: string }; Returns: Json }
       force_timeout_stage2: { Args: { p_match_id: string }; Returns: Json }
       force_timeout_stage3: { Args: { p_match_id: string }; Returns: Json }
       get_active_player_count: { Args: never; Returns: number }
       get_match_round_state_v2: { Args: { p_match_id: string }; Returns: Json }
+      get_players_rank_public_v1: {
+        Args: { p_ids: string[] }
+        Returns: {
+          display_name: string
+          id: string
+          rank_points: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1168,6 +1261,10 @@ export type Database = {
           question: Json
           question_id: string
         }[]
+      }
+      points_from_outcome_accuracy_v1: {
+        Args: { p_accuracy: number; p_outcome: string }
+        Returns: number
       }
       start_match: {
         Args: { p_match_id: string; p_player_id: string }
