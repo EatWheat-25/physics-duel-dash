@@ -276,7 +276,7 @@ All colors MUST be HSL.
 @layer components {
   /* ===== Paper-style question UI (white cards, black text) ===== */
   .paper-card {
-    @apply bg-white text-black border border-slate-300 rounded-sm p-10 md:p-12 shadow-sm text-left;
+    @apply bg-white text-black border border-slate-300 rounded-sm p-12 md:p-14 shadow-sm text-left;
     font-family: "Times New Roman", Times, serif;
   }
 
@@ -297,7 +297,7 @@ All colors MUST be HSL.
   }
 
   .paper-option {
-    @apply relative w-full overflow-hidden p-8 rounded-sm border border-slate-300 bg-white text-black text-left shadow-none transition-all duration-200;
+    @apply relative w-full overflow-hidden p-10 md:p-12 rounded-sm border border-slate-300 bg-white text-black text-left shadow-none transition-all duration-200;
     font-family: "Times New Roman", Times, serif;
   }
 
@@ -314,7 +314,7 @@ All colors MUST be HSL.
   }
 
   .paper-option-letter {
-    @apply w-8 h-8 border border-slate-300 rounded-sm flex items-center justify-center text-black font-normal text-base;
+    @apply w-10 h-10 border border-slate-300 rounded-sm flex items-center justify-center text-black font-normal text-lg;
   }
 
   /* Next-Gen Holographic Panels */

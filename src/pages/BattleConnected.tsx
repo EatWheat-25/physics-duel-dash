@@ -421,7 +421,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-[calc(100%-3rem)] max-w-[95vw] mx-auto"
+                className="w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
               >
                 <div className="paper-card mb-8">
                   <div className="paper-meta mb-4">
@@ -432,7 +432,7 @@ export default function BattleConnected() {
                       <QuestionGraph graph={(question as any).graph} />
                     </div>
                   )}
-                  <h3 className="text-3xl md:text-4xl leading-relaxed">
+                  <h3 className="text-4xl md:text-5xl leading-relaxed">
                     {question.stem || question.questionText || question.title}
                   </h3>
                   <div className="mt-6 text-sm text-black">
@@ -475,7 +475,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-[calc(100%-3rem)] max-w-[95vw] mx-auto"
+                className="w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
               >
                 <div className="paper-card mb-8">
                   <div className="space-y-4 mb-6">
@@ -484,7 +484,7 @@ export default function BattleConnected() {
                         ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
                         : `Step ${currentStepIndex + 1} of ${totalSteps}`}
                     </div>
-                    <h3 className="text-2xl md:text-3xl leading-relaxed">
+                    <h3 className="text-3xl md:text-4xl leading-relaxed">
                       {currentStep.prompt || currentStep.question}
                     </h3>
                     {currentSegment === 'sub' && (
@@ -494,7 +494,7 @@ export default function BattleConnected() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-12 mt-6">
                     {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
                       <button
                         key={idx}
@@ -506,7 +506,7 @@ export default function BattleConnected() {
                           <div className="paper-option-letter">
                             {String.fromCharCode(65 + idx)}
                           </div>
-                          <span className="text-xl md:text-2xl">{option}</span>
+                          <span className="text-2xl md:text-3xl">{option}</span>
                         </div>
                       </button>
                     ))}
@@ -570,17 +570,17 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-[calc(100%-3rem)] max-w-[95vw] mx-auto"
+                className="w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
               >
                 {/* Question Card */}
                 <div className="paper-card mb-8">
-                  <h3 className="text-3xl md:text-4xl leading-relaxed">
+                  <h3 className="text-4xl md:text-5xl leading-relaxed">
                     {question.stem || question.questionText}
                   </h3>
                 </div>
 
                 {/* Answers Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-12">
                   {question.steps?.[0]?.options?.filter(o => String(o).trim()).map((option, idx) => (
                     <button
                       key={idx}
@@ -592,7 +592,7 @@ export default function BattleConnected() {
                         <div className="paper-option-letter">
                           {String.fromCharCode(65 + idx)}
                         </div>
-                        <span className="text-xl md:text-2xl">{option}</span>
+                        <span className="text-2xl md:text-3xl">{option}</span>
                       </div>
                     </button>
                   ))}
