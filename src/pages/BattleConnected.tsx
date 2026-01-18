@@ -116,7 +116,7 @@ export default function BattleConnected() {
     submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
     isWebSocketConnected, waitingForOpponent, waitingForOpponentToAcknowledge,
-    allStepsComplete, waitingForOpponentToCompleteSteps
+    allStepsComplete, waitingForOpponentToCompleteSteps, manualRetry
   } = useGame(match);
 
   // Track round wins for animation
@@ -198,13 +198,23 @@ export default function BattleConnected() {
             <X className="w-8 h-8 text-red-500" />
           </div>
           <h2 className="text-xl font-bold text-white mb-2">CONNECTION LOST</h2>
-          <p className="text-red-200/60 mb-8 text-sm">{errorMessage || 'The neural link was severed.'}</p>
-          <button 
-            onClick={() => navigate('/matchmaking-new')}
-            className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-colors"
-          >
-            RETURN TO LOBBY
-          </button>
+          <p className="text-red-200/60 mb-6 text-sm">{errorMessage || 'The neural link was severed.'}</p>
+          <div className="flex flex-col gap-3">
+            {manualRetry && (
+              <button
+                onClick={manualRetry}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-colors"
+              >
+                RETRY CONNECTION
+              </button>
+            )}
+            <button 
+              onClick={() => navigate('/matchmaking-new')}
+              className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-colors"
+            >
+              RETURN TO LOBBY
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -422,7 +432,7 @@ export default function BattleConnected() {
                       <QuestionGraph graph={(question as any).graph} />
                     </div>
                   )}
-                  <h3 className="text-2xl md:text-3xl leading-relaxed">
+                  <h3 className="text-3xl md:text-4xl leading-relaxed">
                     {question.stem || question.questionText || question.title}
                   </h3>
                   <div className="mt-6 text-sm text-black">
@@ -474,7 +484,7 @@ export default function BattleConnected() {
                         ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
                         : `Step ${currentStepIndex + 1} of ${totalSteps}`}
                     </div>
-                    <h3 className="text-xl md:text-2xl leading-relaxed">
+                    <h3 className="text-2xl md:text-3xl leading-relaxed">
                       {currentStep.prompt || currentStep.question}
                     </h3>
                     {currentSegment === 'sub' && (
@@ -484,7 +494,7 @@ export default function BattleConnected() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
                     {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
                       <button
                         key={idx}
@@ -496,7 +506,7 @@ export default function BattleConnected() {
                           <div className="paper-option-letter">
                             {String.fromCharCode(65 + idx)}
                           </div>
-                          <span className="text-xl">{option}</span>
+                          <span className="text-xl md:text-2xl">{option}</span>
                         </div>
                       </button>
                     ))}
@@ -564,13 +574,13 @@ export default function BattleConnected() {
               >
                 {/* Question Card */}
                 <div className="paper-card mb-8">
-                  <h3 className="text-2xl md:text-3xl leading-relaxed">
+                  <h3 className="text-3xl md:text-4xl leading-relaxed">
                     {question.stem || question.questionText}
                   </h3>
                 </div>
 
                 {/* Answers Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {question.steps?.[0]?.options?.filter(o => String(o).trim()).map((option, idx) => (
                     <button
                       key={idx}
@@ -582,7 +592,7 @@ export default function BattleConnected() {
                         <div className="paper-option-letter">
                           {String.fromCharCode(65 + idx)}
                         </div>
-                        <span className="text-xl">{option}</span>
+                        <span className="text-xl md:text-2xl">{option}</span>
                       </div>
                     </button>
                   ))}
