@@ -116,7 +116,7 @@ export default function BattleConnected() {
     submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
     isWebSocketConnected, waitingForOpponent, waitingForOpponentToAcknowledge,
-    allStepsComplete, waitingForOpponentToCompleteSteps
+    allStepsComplete, waitingForOpponentToCompleteSteps, manualRetry
   } = useGame(match);
 
   // Track round wins for animation
@@ -200,13 +200,23 @@ export default function BattleConnected() {
             <X className="w-8 h-8 text-red-500" />
           </div>
           <h2 className="text-xl font-bold text-white mb-2">CONNECTION LOST</h2>
-          <p className="text-red-200/60 mb-8 text-sm">{errorMessage || 'The neural link was severed.'}</p>
-          <button 
-            onClick={() => navigate('/matchmaking-new')}
-            className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-colors"
-          >
-            RETURN TO LOBBY
-          </button>
+          <p className="text-red-200/60 mb-6 text-sm">{errorMessage || 'The neural link was severed.'}</p>
+          <div className="flex flex-col gap-3">
+            {manualRetry && (
+              <button 
+                onClick={manualRetry}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-colors"
+              >
+                RETRY CONNECTION
+              </button>
+            )}
+            <button 
+              onClick={() => navigate('/matchmaking-new')}
+              className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-colors"
+            >
+              RETURN TO LOBBY
+            </button>
+          </div>
         </div>
       </div>
     );

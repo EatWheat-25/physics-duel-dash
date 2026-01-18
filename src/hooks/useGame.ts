@@ -181,6 +181,12 @@ export function useGame(match: MatchRow | null) {
   const lastSnapshotRef = useRef<{ data: any; fetchedAt: number } | null>(null)
   const SNAPSHOT_THROTTLE_MS = 1500
   const SNAPSHOT_CACHE_TTL_MS = 3000
+  const retryCountRef = useRef<number>(0)
+  const retryTimeoutRef = useRef<number | null>(null)
+  const connectionTimeoutRef = useRef<number | null>(null)
+  const [reconnectTrigger, setReconnectTrigger] = useState<number>(0)
+  const MAX_RETRY_ATTEMPTS = 5
+  const CONNECTION_TIMEOUT_MS = 10_000
 
   const getResultsShownKey = useCallback((matchId: string) => `bn:match:${matchId}:resultsShown`, [])
 
@@ -602,6 +608,29 @@ export function useGame(match: MatchRow | null) {
     return () => clearInterval(interval)
   }, [state.nextRoundEndsAt, state.status, state.matchOver])
 
+  const manualRetry = useCallback(() => {
+    console.log('[useGame] Manual retry triggered')
+    // Reset retry count
+    retryCountRef.current = 0
+    // Clear any existing retry timeout
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+    // Close existing WebSocket if any
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+    // Trigger reconnection by updating trigger state
+    setReconnectTrigger(prev => prev + 1)
+    setState(prev => ({
+      ...prev,
+      status: 'connecting',
+      errorMessage: null
+    }))
+  }, [])
+
   useEffect(() => {
     if (!match) {
         setState(prev => ({
@@ -613,17 +642,67 @@ export function useGame(match: MatchRow | null) {
       return
     }
 
-    const connect = async () => {
+    // Clear any existing retry timeout
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current)
+      connectionTimeoutRef.current = null
+    }
+
+    const handleConnectionFailure = (reason: string, isRetryable: boolean = true) => {
+      // Clear connection timeout
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current)
+        connectionTimeoutRef.current = null
+      }
+
+      // Don't retry non-retryable errors (auth, validation)
+      if (!isRetryable) {
+        setState(prev => ({
+          ...prev,
+          status: 'error' as const,
+          errorMessage: reason
+        }))
+        return
+      }
+
+      // Check if we should retry
+      if (retryCountRef.current >= MAX_RETRY_ATTEMPTS) {
+        setState(prev => ({
+          ...prev,
+          status: 'error' as const,
+          errorMessage: 'Connection failed after multiple attempts. Edge function may not be deployed.'
+        }))
+        return
+      }
+
+      // Calculate exponential backoff delay: 1s, 2s, 4s, 8s, 16s
+      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 16000)
+      retryCountRef.current++
+
+      console.log(`[useGame] Connection failed (${reason}). Retrying in ${delay}ms (attempt ${retryCountRef.current}/${MAX_RETRY_ATTEMPTS})...`)
+      
+      setState(prev => ({
+        ...prev,
+        status: 'connecting' as const,
+        errorMessage: `Connection failed - retrying... (${retryCountRef.current}/${MAX_RETRY_ATTEMPTS})`
+      }))
+
+      retryTimeoutRef.current = setTimeout(() => {
+        retryTimeoutRef.current = null
+        attemptConnection(true)
+      }, delay) as unknown as number
+    }
+
+    const attemptConnection = async (isRetry: boolean = false) => {
       try {
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError || !user) {
-      setState(prev => ({
-        ...prev,
-        status: 'error' as const,
-        playerRole: null,
-        errorMessage: 'Not authenticated'
-      }))
+          handleConnectionFailure('Not authenticated', false)
           return
         }
 
@@ -632,48 +711,50 @@ export function useGame(match: MatchRow | null) {
 
         // Verify user is part of match
         if (match.player1_id !== user.id && match.player2_id !== user.id) {
-          setState(prev => ({
-            ...prev,
-            status: 'error',
-            playerRole: null,
-            errorMessage: 'You are not part of this match'
-          }))
+          handleConnectionFailure('You are not part of this match', false)
           return
         }
 
         // Get session token
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         if (sessionError || !session?.access_token) {
-          setState(prev => ({
-            ...prev,
-            status: 'error' as const,
-            playerRole: null,
-            errorMessage: 'No session token'
-          }))
+          handleConnectionFailure('Authentication error: No session token', false)
           return
         }
 
         // Build WebSocket URL
         if (!SUPABASE_URL) {
           console.error('[useGame] ❌ SUPABASE_URL is not defined')
-          setState(prev => ({
-            ...prev,
-            status: 'error' as const,
-            playerRole: null,
-            errorMessage: 'Missing SUPABASE_URL'
-          }))
+          handleConnectionFailure('Missing SUPABASE_URL', false)
           return
         }
 
         const wsUrl = `${SUPABASE_URL.replace('http', 'ws')}/functions/v1/game-ws?token=${session.access_token}&match_id=${match.id}`
-        console.log('[useGame] Connecting to:', wsUrl)
+        console.log(`[useGame] ${isRetry ? `Retry ${retryCountRef.current}/${MAX_RETRY_ATTEMPTS}: ` : ''}Connecting to:`, wsUrl)
 
         const ws = new WebSocket(wsUrl)
         wsRef.current = ws
 
+        // Set connection timeout
+        connectionTimeoutRef.current = setTimeout(() => {
+          if (ws.readyState !== WebSocket.OPEN && ws.readyState !== WebSocket.CLOSED) {
+            console.warn('[useGame] Connection timeout after 10s')
+            ws.close()
+            handleConnectionFailure('Connection timeout')
+          }
+        }, CONNECTION_TIMEOUT_MS) as unknown as number
+
         ws.onopen = () => {
+          // Clear connection timeout
+          if (connectionTimeoutRef.current) {
+            clearTimeout(connectionTimeoutRef.current)
+            connectionTimeoutRef.current = null
+          }
+          
           console.log('[useGame] WebSocket connected')
-          hasConnectedRef.current = false
+          // Reset retry count on successful connection
+          retryCountRef.current = 0
+          hasConnectedRef.current = true
           setIsWebSocketConnected(true)
           setState(prev => ({
             ...prev,
@@ -1001,14 +1082,17 @@ export function useGame(match: MatchRow | null) {
 
         ws.onerror = (error) => {
           console.error('[useGame] WebSocket error:', error)
-          setState(prev => ({
-            ...prev,
-            status: 'error',
-            errorMessage: 'WebSocket connection error'
-          }))
+          // Don't set error state here - let onclose handle it
+          // This prevents double error handling
         }
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
+          // Clear connection timeout if still set
+          if (connectionTimeoutRef.current) {
+            clearTimeout(connectionTimeoutRef.current)
+            connectionTimeoutRef.current = null
+          }
+
           // Clear polling on WebSocket close
           setIsWebSocketConnected(false)
           if (pollingTimeoutRef.current) {
@@ -1019,35 +1103,63 @@ export function useGame(match: MatchRow | null) {
             clearInterval(pollingIntervalRef.current)
             pollingIntervalRef.current = null
           }
-          console.log('[useGame] WebSocket closed')
+          console.log('[useGame] WebSocket closed', event.code, event.reason)
+          
           if (heartbeatRef.current) {
             clearInterval(heartbeatRef.current)
             heartbeatRef.current = null
           }
-          setState(prev => {
-            if (prev.status !== 'error') {
-              return {
-                ...prev,
-                status: 'connecting'
+
+          // Only retry if we haven't successfully connected yet
+          // If we had connected before, this is a normal disconnect
+          if (!hasConnectedRef.current && retryCountRef.current < MAX_RETRY_ATTEMPTS) {
+            const reason = event.code === 1006 ? 'Connection closed unexpectedly' : 'Connection closed'
+            handleConnectionFailure(reason, true)
+          } else if (!hasConnectedRef.current) {
+            // Max retries exhausted
+            setState(prev => ({
+              ...prev,
+              status: 'error',
+              errorMessage: 'Connection failed after multiple attempts. Edge function may not be deployed.'
+            }))
+          } else {
+            // Was connected, now disconnected - don't auto-retry
+            setState(prev => {
+              if (prev.status !== 'error') {
+                return {
+                  ...prev,
+                  status: 'connecting'
+                }
               }
-            }
-            return prev
-          })
+              return prev
+            })
+          }
         }
       } catch (error: any) {
         console.error('[useGame] Connection error:', error)
-        setState(prev => ({
-          ...prev,
-          status: 'error',
-          playerRole: null,
-          errorMessage: error.message || 'Failed to connect'
-        }))
+        const isRetryable = !error.message?.includes('authenticated') && 
+                           !error.message?.includes('session') &&
+                           !error.message?.includes('SUPABASE_URL')
+        handleConnectionFailure(error.message || 'Failed to connect', isRetryable)
       }
     }
 
-    connect()
+    attemptConnection()
 
     return () => {
+      // Clear retry timeout
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
+      }
+      // Clear connection timeout
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current)
+        connectionTimeoutRef.current = null
+      }
+      // Reset retry count on unmount
+      retryCountRef.current = 0
+      
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
@@ -1067,7 +1179,7 @@ export function useGame(match: MatchRow | null) {
         pollingIntervalRef.current = null
       }
     }
-  }, [match?.id])
+  }, [match?.id, reconnectTrigger])
 
   // On mount: Initial SELECT to check for existing results (handles reload/late join)
   useEffect(() => {
@@ -1666,6 +1778,8 @@ export function useGame(match: MatchRow | null) {
     matchOver: state.matchOver,
     matchWinnerId: state.matchWinnerId,
     // WebSocket connection status
-    isWebSocketConnected
+    isWebSocketConnected,
+    // Manual retry function
+    manualRetry
   }
 }
