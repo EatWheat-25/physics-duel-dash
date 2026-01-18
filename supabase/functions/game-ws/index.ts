@@ -113,6 +113,9 @@ interface AllStepsCompleteWaitingEvent {
 
 interface ResultsReceivedEvent {
   type: 'RESULTS_RECEIVED'
+  results_payload?: any | null
+  results_version?: number
+  results_round_id?: string | null
   player1_answer: number | null
   player2_answer: number | null
   correct_answer: number
@@ -134,6 +137,8 @@ interface ResultsReceivedEvent {
   playerRoundWins?: { [playerId: string]: number }
   matchOver?: boolean
   matchWinnerId?: string | null
+  match_over?: boolean
+  match_winner_id?: string | null
 }
 
 interface MatchFinishedEvent {
@@ -600,19 +605,32 @@ async function computeAndBroadcastMultiStepResultsV3(
       return
     }
 
-    const payload = rpcResult.results_payload
-    if (!payload) {
-      console.error(`[${matchId}] ❌ compute_multi_step_results_v3 did not return results_payload`)
+    const { data: matchRow, error: matchError } = await supabase
+      .from('matches')
+      .select('results_payload, results_version, results_round_id, winner_id, status, current_round_number')
+      .eq('id', matchId)
+      .single()
+
+    if (matchError || !matchRow) {
+      console.error(`[${matchId}] ❌ Failed to reselect match after results commit:`, matchError)
       return
     }
+
+    const payload = matchRow.results_payload ?? null
+    const matchOver = !!matchRow.winner_id || matchRow.status === 'completed'
+    const resultsRoundId = matchRow.results_round_id ?? (payload as any)?.round_id ?? roundId
+    const resultsVersion = matchRow.results_version ?? rpcResult.results_version ?? 0
 
     // FAST-PATH: broadcast via WebSocket (Realtime on matches delivers cross-instance)
     const resultsEvent = {
       type: 'RESULTS_RECEIVED',
       results_payload: payload,
-      results_version: rpcResult.results_version,
-      round_number: payload.round_number,
-      round_id: payload.round_id ?? roundId
+      results_version: resultsVersion,
+      results_round_id: resultsRoundId,
+      round_id: resultsRoundId,
+      round_number: (payload as any)?.round_number ?? matchRow.current_round_number,
+      match_over: matchOver,
+      match_winner_id: matchRow.winner_id ?? null
     }
     broadcastToMatch(matchId, resultsEvent)
 
@@ -622,9 +640,9 @@ async function computeAndBroadcastMultiStepResultsV3(
       matchState.p1ResultsAcknowledged = false
       matchState.p2ResultsAcknowledged = false
       matchState.roundTransitionInProgress = false
-      if (payload.player_round_wins && typeof payload.player_round_wins === 'object') {
+      if (payload && typeof payload === 'object' && (payload as any).player_round_wins && typeof (payload as any).player_round_wins === 'object') {
         const next = new Map<string, number>()
-        Object.entries(payload.player_round_wins).forEach(([pid, wins]) => {
+        Object.entries((payload as any).player_round_wins).forEach(([pid, wins]) => {
           next.set(pid, Number(wins) || 0)
         })
         matchState.playerRoundWins = next
@@ -639,17 +657,18 @@ async function computeAndBroadcastMultiStepResultsV3(
     // Stop async sweep during results
     clearAsyncProgressSweep(matchId)
 
-    const matchOver = !!payload.match_over
-    const matchWinnerId = payload.match_winner_id ?? null
+    const matchWinnerId = matchRow.winner_id ?? null
 
     if (matchOver) {
       console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
+      clearAutoNextRoundTimeout(matchId)
       matchStates.delete(matchId)
       setTimeout(() => {
         cleanupGameState(matchId)
       }, 5000)
     } else {
       console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
+      scheduleAutoNextRound(matchId, supabase, 'multi-step-results', resultsRoundId)
     }
   } finally {
     multiStepResultsComputeInProgress.delete(key)
@@ -1009,11 +1028,15 @@ async function broadcastQuestion(
         // Fetch and broadcast results after timeout
         const { data: matchResults } = await supabase
           .from('matches')
-          .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
+          .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_payload, results_version, results_round_id, winner_id, status, current_round_number')
           .eq('id', matchId)
           .single() as { data: any; error: any }
         
         if (matchResults) {
+          const matchOver = !!matchResults.winner_id || matchResults.status === 'completed'
+          const matchWinnerId = matchResults.winner_id ?? null
+          const resultsRoundId = matchResults.results_round_id ?? (matchResults.results_payload as any)?.round_id ?? null
+          const resultsVersion = matchResults.results_version ?? 0
           const resultsEvent: ResultsReceivedEvent = {
             type: 'RESULTS_RECEIVED',
             player1_answer: matchResults.player1_answer,
@@ -1021,7 +1044,14 @@ async function broadcastQuestion(
             correct_answer: matchResults.correct_answer,
             player1_correct: matchResults.player1_correct,
             player2_correct: matchResults.player2_correct,
-            round_winner: matchResults.round_winner
+            round_winner: matchResults.round_winner,
+            results_payload: matchResults.results_payload ?? null,
+            results_version: resultsVersion,
+            results_round_id: resultsRoundId,
+            round_id: resultsRoundId,
+            round_number: (matchResults.results_payload as any)?.round_number ?? matchResults.current_round_number,
+            match_over: matchOver,
+            match_winner_id: matchWinnerId
           }
           broadcastToMatch(matchId, resultsEvent)
         }
@@ -2143,13 +2173,27 @@ async function calculateStepResults(
 
   // RPC has written results_payload to database
   // Realtime subscription will deliver to both players simultaneously
-  // Update in-memory state from RPC result
-  const payload = rpcResult.results_payload
-  console.log(`[${matchId}] 🔍 DEBUG: RPC SUCCESS - PAYLOAD RECEIVED - hasPayload=${!!payload}, mode=${payload?.mode}, resultsVersion=${rpcResult.results_version}`)
+  const { data: matchRow, error: matchError } = await supabase
+    .from('matches')
+    .select('results_payload, results_version, results_round_id, winner_id, status, current_round_number')
+    .eq('id', matchId)
+    .single()
+
+  if (matchError || !matchRow) {
+    console.error(`[${matchId}] ❌ Failed to reselect match after results commit:`, matchError)
+    return
+  }
+
+  // Update in-memory state from DB snapshot
+  const payload = matchRow.results_payload ?? null
+  const matchOver = !!matchRow.winner_id || matchRow.status === 'completed'
+  const matchWinnerId = matchRow.winner_id ?? null
+  const resultsRoundId = matchRow.results_round_id ?? (payload as any)?.round_id ?? matchData.current_round_id
+  const resultsVersion = matchRow.results_version ?? rpcResult.results_version ?? 0
+
+  console.log(`[${matchId}] 🔍 DEBUG: RPC SUCCESS - DB SNAPSHOT - hasPayload=${!!payload}, resultsVersion=${resultsVersion}`)
   if (payload) {
-    const roundWinner = payload.round_winner
-    const matchOver = payload.match_over || false
-    const matchWinnerId = payload.match_winner_id || null
+    const roundWinner = (payload as any).round_winner
 
     // Update round wins in memory state
     if (roundWinner) {
@@ -2163,55 +2207,49 @@ async function calculateStepResults(
       
       console.log(`[${matchId}] 🏆 Round ${state.roundNumber} won by ${roundWinner} (now has ${currentWins + 1} wins)`)
     }
+  }
 
-    // Convert playerRoundWins from payload
-    const playerRoundWinsObj: { [playerId: string]: number } = {}
-    if (payload.p1?.total !== undefined && payload.p2?.total !== undefined) {
-      playerRoundWinsObj[state.p1Id || ''] = payload.p1.total
-      playerRoundWinsObj[state.p2Id || ''] = payload.p2.total
-    }
+  // RPC has written results_payload to database
+  // CANONICAL: Realtime UPDATE delivers to all clients on all instances
+  // FAST-PATH: Also broadcast via WebSocket for same-instance optimization
+  console.log(`[${matchId}] ✅ Results written to DB (results_version=${resultsVersion}) - Realtime delivers to all, WS fast-path for same-instance`)
 
-    // RPC has written results_payload to database
-    // CANONICAL: Realtime UPDATE delivers to all clients on all instances
-    // FAST-PATH: Also broadcast via WebSocket for same-instance optimization
-    console.log(`[${matchId}] ✅ Results written to DB (results_version=${rpcResult.results_version}) - Realtime delivers to all, WS fast-path for same-instance`)
+  // FAST-PATH: Broadcast via WebSocket (only reaches same-instance sockets)
+  // If both players are on this instance, they get instant results
+  // If players are on different instances, Realtime will deliver shortly after
+  const resultsEvent = {
+    type: 'RESULTS_RECEIVED',
+    results_payload: payload,
+    results_version: resultsVersion,
+    results_round_id: resultsRoundId,
+    round_id: resultsRoundId,
+    round_number: (payload as any)?.round_number || matchRow.current_round_number,
+    match_over: matchOver,
+    match_winner_id: matchWinnerId
+  }
+  console.log(`[${matchId}] ⚡ WS fast-path: Broadcasting to local sockets`)
+  broadcastToMatch(matchId, resultsEvent)
 
-    // FAST-PATH: Broadcast via WebSocket (only reaches same-instance sockets)
-    // If both players are on this instance, they get instant results
-    // If players are on different instances, Realtime will deliver shortly after
-    const resultsEvent = {
-      type: 'RESULTS_RECEIVED',
-      results_payload: payload,
-      results_version: rpcResult.results_version,
-      round_number: payload.round_number || state.roundNumber,
-      round_id: payload.round_id || matchData.current_round_id
-    }
-    console.log(`[${matchId}] ⚡ WS fast-path: Broadcasting to local sockets`)
-    broadcastToMatch(matchId, resultsEvent)
+  // Initialize readiness tracking for results acknowledgment
+  const matchState = matchStates.get(matchId)
+  if (matchState) {
+    matchState.p1ResultsAcknowledged = false
+    matchState.p2ResultsAcknowledged = false
+    matchState.roundTransitionInProgress = false
+  }
 
-    // Initialize readiness tracking for results acknowledgment
-    const matchState = matchStates.get(matchId)
-    if (matchState) {
-      matchState.p1ResultsAcknowledged = false
-      matchState.p2ResultsAcknowledged = false
-      matchState.roundTransitionInProgress = false
-    }
-
-    if (matchOver) {
-      // Match finished - cleanup and don't start next round
-      console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
-      clearAutoNextRoundTimeout(matchId)
-      matchStates.delete(matchId)
-      setTimeout(() => {
-        cleanupGameState(matchId)
-      }, 5000) // Give time for UI to show final results
-    } else {
-      // Don't auto-transition - wait for both players to acknowledge results
-      console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
-      scheduleAutoNextRound(matchId, supabase, 'multi-step-results-legacy', payload.round_id || matchData.current_round_id)
-    }
+  if (matchOver) {
+    // Match finished - cleanup and don't start next round
+    console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
+    clearAutoNextRoundTimeout(matchId)
+    matchStates.delete(matchId)
+    setTimeout(() => {
+      cleanupGameState(matchId)
+    }, 5000) // Give time for UI to show final results
   } else {
-    console.error(`[${matchId}] ❌ RPC did not return results_payload`)
+    // Don't auto-transition - wait for both players to acknowledge results
+    console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
+    scheduleAutoNextRound(matchId, supabase, 'multi-step-results-legacy', resultsRoundId)
   }
 }
 
@@ -2741,7 +2779,7 @@ async function handleSubmitAnswer(
 
     const { data: matchResults } = await (supabase
       .from('matches')
-      .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
+      .select('player1_id, player2_id, player1_round_wins, player2_round_wins, player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_payload, results_version, results_round_id, winner_id, status, current_round_number, target_rounds_to_win')
       .eq('id', matchId)
       .single() as any)
 
@@ -2782,18 +2820,18 @@ async function handleSubmitAnswer(
       // Increment round number for next round (if match continues)
       const currentRoundNum = matchState.roundNumber
 
-      // Check if match is over
-      const p1Wins = matchState.playerRoundWins.get(matchState.p1Id || '') || 0
-      const p2Wins = matchState.playerRoundWins.get(matchState.p2Id || '') || 0
-      const targetWins = matchState.targetRoundsToWin || 3
-      const matchOver = p1Wins >= targetWins || p2Wins >= targetWins
-      const matchWinnerId = matchOver ? (p1Wins >= targetWins ? matchState.p1Id : matchState.p2Id) : null
+      const matchOver = !!matchResults.winner_id || matchResults.status === 'completed'
+      const matchWinnerId = matchResults.winner_id ?? null
+      const targetWins = matchResults.target_rounds_to_win ?? matchState.targetRoundsToWin ?? 3
 
       // Convert playerRoundWins Map to object for JSON serialization
       const playerRoundWinsObj: { [playerId: string]: number } = {}
-      matchState.playerRoundWins.forEach((wins, playerId) => {
-        playerRoundWinsObj[playerId] = wins
-      })
+      if (matchResults.player1_id) {
+        playerRoundWinsObj[matchResults.player1_id] = matchResults.player1_round_wins ?? 0
+      }
+      if (matchResults.player2_id) {
+        playerRoundWinsObj[matchResults.player2_id] = matchResults.player2_round_wins ?? 0
+      }
 
       const resultsEvent: ResultsReceivedEvent = {
         type: 'RESULTS_RECEIVED',
@@ -2803,11 +2841,16 @@ async function handleSubmitAnswer(
         player1_correct: matchResults.player1_correct!,
         player2_correct: matchResults.player2_correct!,
         round_winner: matchResults.round_winner,
-        roundNumber: currentRoundNum,
+        roundNumber: matchResults.current_round_number ?? currentRoundNum,
         targetRoundsToWin: targetWins,
         playerRoundWins: playerRoundWinsObj,
         matchOver,
-        matchWinnerId
+        matchWinnerId,
+        results_payload: matchResults.results_payload ?? null,
+        results_version: matchResults.results_version ?? 0,
+        results_round_id: matchResults.results_round_id ?? null,
+        match_over: matchOver,
+        match_winner_id: matchWinnerId
       }
 
       broadcastToMatch(matchId, resultsEvent)
@@ -2820,12 +2863,14 @@ async function handleSubmitAnswer(
       if (matchOver) {
         // Match finished - cleanup and don't start next round
         console.log(`[${matchId}] 🏁 Match finished - Winner: ${matchWinnerId}`)
+        clearAutoNextRoundTimeout(matchId)
         matchStates.delete(matchId)
       } else {
         // Increment round number for next round
         matchState.roundNumber = currentRoundNum + 1
         // Don't auto-transition - wait for both players to acknowledge results
         console.log(`[${matchId}] ⏳ Waiting for both players to acknowledge results before starting next round`)
+        scheduleAutoNextRound(matchId, supabase, 'single-step-results', matchResults.results_round_id ?? null)
       }
     }
   } else {
@@ -2909,15 +2954,35 @@ async function handleSubmitAnswerV2(
       console.log(`[${matchId}] ✅ [V2] Cleared timeout - both players answered early`)
     }
 
+    const { data: matchRow, error: matchError } = await supabase
+      .from('matches')
+      .select('results_payload, results_version, results_round_id, winner_id, status, current_round_number')
+      .eq('id', matchId)
+      .single()
+
+    if (matchError || !matchRow) {
+      console.error(`[${matchId}] ❌ Failed to reselect match after results commit:`, matchError)
+      return
+    }
+
+    const matchOver = !!matchRow.winner_id || matchRow.status === 'completed'
+    const matchWinnerId = matchRow.winner_id ?? null
+    const resultsRoundId = matchRow.results_round_id ?? (matchRow.results_payload as any)?.round_id ?? null
+    const resultsVersion = matchRow.results_version ?? data.results_version ?? 0
+
     // PRIMARY: Realtime will deliver results (works across Edge instances)
     // FALLBACK: Also send WebSocket message in case Realtime is delayed/fails
     console.log(`[${matchId}] ✅ [V2] Results computed - sending via WebSocket (Realtime fallback)`)
     
     const resultsEvent = {
       type: 'RESULTS_RECEIVED',
-      results_payload: data.results_payload,
-      results_version: data.results_version || 0,
-      round_number: data.results_payload?.round_number || 0
+      results_payload: matchRow.results_payload ?? null,
+      results_version: resultsVersion,
+      results_round_id: resultsRoundId,
+      round_id: resultsRoundId,
+      round_number: (matchRow.results_payload as any)?.round_number ?? matchRow.current_round_number ?? 0,
+      match_over: matchOver,
+      match_winner_id: matchWinnerId
     }
     broadcastToMatch(matchId, resultsEvent)
 
@@ -2927,6 +2992,12 @@ async function handleSubmitAnswerV2(
       matchState.p1ResultsAcknowledged = false
       matchState.p2ResultsAcknowledged = false
       matchState.roundTransitionInProgress = false
+    }
+
+    if (matchOver) {
+      clearAutoNextRoundTimeout(matchId)
+    } else {
+      scheduleAutoNextRound(matchId, supabase, 'v2-results', resultsRoundId)
     }
 
     // Don't auto-transition - wait for both players to acknowledge results

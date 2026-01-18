@@ -25,6 +25,8 @@ interface ConnectionState {
     round_winner: string | null
     p1Score?: number
     p2Score?: number
+    results_version?: number
+    round_id?: string | null
     // V2 legacy: per-step results lived under payload.p1.steps
     // V3 (async segments): results live under payload.stepResults and include main/sub segments
     stepResults?: Array<{
@@ -171,21 +173,110 @@ export function useGame(match: MatchRow | null) {
   const matchRoundsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const currentRoundIdRef = useRef<string | null>(null)
   const localResultsVersionRef = useRef<number>(0)
-  const processedRoundIdsRef = useRef<Set<string>>(new Set())
+  const processedRoundVersionsRef = useRef<Map<string, number>>(new Map())
   const [isWebSocketConnected, setIsWebSocketConnected] = useState<boolean>(false)
+  const lastSnapshotFetchAtRef = useRef<number>(0)
+  const snapshotInFlightRef = useRef<Promise<any> | null>(null)
+  const lastSnapshotBurstAtRef = useRef<number>(0)
+  const lastSnapshotRef = useRef<{ data: any; fetchedAt: number } | null>(null)
+  const SNAPSHOT_THROTTLE_MS = 1500
+  const SNAPSHOT_CACHE_TTL_MS = 3000
+
+  const getResultsShownKey = useCallback((matchId: string) => `bn:match:${matchId}:resultsShown`, [])
+
+  const readResultsShown = useCallback((matchId: string) => {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = window.localStorage.getItem(getResultsShownKey(matchId))
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as { roundId?: string; resultsVersionShown?: number }
+      if (!parsed || typeof parsed.roundId !== 'string' || typeof parsed.resultsVersionShown !== 'number') return null
+      return parsed
+    } catch {
+      return null
+    }
+  }, [getResultsShownKey])
+
+  const writeResultsShown = useCallback((matchId: string, roundId: string, resultsVersion: number) => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(
+        getResultsShownKey(matchId),
+        JSON.stringify({ roundId, resultsVersionShown: resultsVersion })
+      )
+    } catch {
+      // Ignore storage errors (quota/private mode)
+    }
+  }, [getResultsShownKey])
+
+  const clearResultsShown = useCallback((matchId: string) => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.removeItem(getResultsShownKey(matchId))
+    } catch {
+      // Ignore storage errors
+    }
+  }, [getResultsShownKey])
+
+  const fetchMatchSnapshot = useCallback(async (matchId: string, force = false) => {
+    const now = Date.now()
+    const cached = lastSnapshotRef.current
+    if (!force && cached && now - cached.fetchedAt < SNAPSHOT_CACHE_TTL_MS) {
+      return cached.data
+    }
+
+    if (!force && now - lastSnapshotFetchAtRef.current < SNAPSHOT_THROTTLE_MS) {
+      return null
+    }
+
+    if (snapshotInFlightRef.current) {
+      return snapshotInFlightRef.current
+    }
+
+    lastSnapshotFetchAtRef.current = now
+
+    const request = supabase
+      .rpc('get_match_round_state_v2' as any, { p_match_id: matchId })
+      .then(({ data, error }) => {
+        snapshotInFlightRef.current = null
+        if (error || !data) {
+          return null
+        }
+        lastSnapshotRef.current = { data, fetchedAt: Date.now() }
+        return data
+      })
+
+    snapshotInFlightRef.current = request as unknown as Promise<any>
+    return snapshotInFlightRef.current
+  }, [])
 
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
   const applyResults = useCallback((payload: any) => {
     console.log('[useGame] applyResults called with payload:', payload)
     
     // Prevent duplicate processing using round_id
-    const roundId = payload.round_id || payload.roundId
-    if (roundId && processedRoundIdsRef.current.has(roundId)) {
-      console.log('[useGame] Ignoring duplicate results for round_id:', roundId)
-      return
+    const roundId = payload.round_id || payload.roundId || payload.results_round_id || payload.resultsRoundId
+    const resultsVersion = payload.results_version ?? payload.resultsVersion ?? null
+
+    const matchId = matchIdRef.current
+    if (matchId && roundId && resultsVersion !== null) {
+      const shown = readResultsShown(matchId)
+      if (shown && shown.roundId === roundId && resultsVersion <= shown.resultsVersionShown) {
+        console.log('[useGame] Ignoring already-shown results from storage:', roundId, resultsVersion)
+        return
+      }
     }
-    if (roundId) {
-      processedRoundIdsRef.current.add(roundId)
+
+    if (roundId && resultsVersion !== null) {
+      const prevVersion = processedRoundVersionsRef.current.get(roundId)
+      if (prevVersion !== undefined && prevVersion >= resultsVersion) {
+        console.log('[useGame] Ignoring duplicate results for round_id/version:', roundId, resultsVersion)
+        return
+      }
+      processedRoundVersionsRef.current.set(roundId, resultsVersion)
+      if (resultsVersion > localResultsVersionRef.current) {
+        localResultsVersionRef.current = resultsVersion
+      }
     }
     
     // Build results object from payload (handles both simple and multi-step modes)
@@ -209,7 +300,8 @@ export function useGame(match: MatchRow | null) {
       p2PartsCorrect: payload.p2_parts_correct ?? payload.p2PartsCorrect ?? undefined,
       totalParts: payload.total_parts ?? payload.totalParts ?? undefined,
       computedAt: payload.computed_at ?? payload.computedAt ?? undefined,
-      round_id: roundId // Store round_id in results for reference
+      round_id: roundId, // Store round_id in results for reference
+      results_version: resultsVersion ?? undefined
     }
 
     const matchOver =
@@ -224,6 +316,10 @@ export function useGame(match: MatchRow | null) {
       if (prev.status === 'results' && payload.round_number && payload.round_number < prev.currentRoundNumber) {
         console.log('[useGame] Ignoring older round results')
         return prev
+      }
+
+      if (matchId && roundId && resultsVersion !== null) {
+        writeResultsShown(matchId, roundId, resultsVersion)
       }
 
       const mergedRoundWins = payload.player_round_wins
@@ -278,7 +374,52 @@ export function useGame(match: MatchRow | null) {
     }
 
     console.log('[useGame] ✅ State updated with results from applyResults')
-  }, [])
+  }, [readResultsShown, writeResultsShown])
+
+  const applySnapshot = useCallback((snapshot: any) => {
+    if (!snapshot) return false
+
+    const snapshotRoundId = snapshot.current_round_id ?? null
+    const snapshotRoundNumber = snapshot.current_round_number ?? null
+
+    if (snapshotRoundId || snapshotRoundNumber) {
+      currentRoundIdRef.current = snapshotRoundId ?? currentRoundIdRef.current
+      setState(prev => ({
+        ...prev,
+        currentRoundId: snapshotRoundId ?? prev.currentRoundId,
+        currentRoundNumber: snapshotRoundNumber ?? prev.currentRoundNumber
+      }))
+    }
+
+    const resultsPayload = snapshot.results_payload ?? null
+    const resultsRoundId = snapshot.results_round_id ?? null
+    const resultsVersion = snapshot.results_version ?? null
+
+    if (snapshot.match_over || snapshot.match_winner_id) {
+      setState(prev => ({
+        ...prev,
+        matchOver: Boolean(snapshot.match_over ?? prev.matchOver),
+        matchWinnerId: snapshot.match_winner_id ?? prev.matchWinnerId
+      }))
+    }
+
+    if (resultsPayload && resultsRoundId && snapshotRoundId && resultsRoundId === snapshotRoundId) {
+      if (resultsVersion !== null && resultsVersion > localResultsVersionRef.current) {
+        localResultsVersionRef.current = resultsVersion
+      }
+      const enrichedPayload = {
+        ...(resultsPayload as any),
+        results_round_id: resultsRoundId,
+        results_version: resultsVersion ?? undefined,
+        match_over: snapshot.match_over ?? undefined,
+        match_winner_id: snapshot.match_winner_id ?? undefined
+      }
+      applyResults(enrichedPayload)
+      return true
+    }
+
+    return false
+  }, [applyResults])
 
   // Listen for polling-detected results (fallback if WS message missed)
   useEffect(() => {
@@ -335,22 +476,15 @@ export function useGame(match: MatchRow | null) {
     const poll = async () => {
       attempts++
       try {
-        const { data: matchRow, error } = await supabase
-          .from('matches')
-          .select('results_payload, results_version, results_round_id, current_round_id')
-          .eq('id', match.id)
-          .single() as { data: any; error: any }
+        const snapshot = await fetchMatchSnapshot(match.id, true)
+        const applied = snapshot ? applySnapshot(snapshot) : false
 
-        if (error || !matchRow) return
-
-        const hasPayload = matchRow.results_payload != null
-        const roundMatch = matchRow.results_round_id === matchRow.current_round_id
-        const version = matchRow.results_version ?? 0
-
-        if (hasPayload && roundMatch && version > localResultsVersionRef.current) {
-          console.log('[useGame] ✅ Multi-step polling fallback found results_payload; applying...')
-          localResultsVersionRef.current = version
-          applyResults(matchRow.results_payload)
+        if (applied) {
+          if (multiStepPollingIntervalRef.current) {
+            clearInterval(multiStepPollingIntervalRef.current)
+            multiStepPollingIntervalRef.current = null
+          }
+          return
         }
 
         if (attempts >= maxAttempts) {
@@ -374,7 +508,7 @@ export function useGame(match: MatchRow | null) {
         multiStepPollingIntervalRef.current = null
       }
     }
-  }, [match?.id, state.status, state.phase, state.allStepsComplete, state.results, applyResults])
+  }, [match?.id, state.status, state.phase, state.allStepsComplete, state.results, applySnapshot, fetchMatchSnapshot])
 
   // Timer countdown effect (for single-step questions)
   useEffect(() => {
@@ -631,7 +765,7 @@ export function useGame(match: MatchRow | null) {
             } else if (message.type === 'ROUND_START') {
               console.log('[useGame] ROUND_START message received - game starting!', message)
               // Clear processed round IDs and results when new round starts
-              processedRoundIdsRef.current.clear()
+              processedRoundVersionsRef.current.clear()
               const roundStartEvent = message as any as RoundStartEvent
               if (roundStartEvent.phase === 'main_question' || roundStartEvent.phase === 'steps') {
                 // Multi-step question (async segments may start directly in steps)
@@ -737,55 +871,28 @@ export function useGame(match: MatchRow | null) {
             } else if (message.type === 'RESULTS_RECEIVED') {
               console.log('[useGame] RESULTS_RECEIVED message received (WebSocket fast-path)', message)
               
-              // WebSocket fast-path - but check if we already have results from Realtime
-              // If results_version is provided, check against local version
+              // Treat WS results as a hint; snapshot remains authoritative
               const msg = message as any
-              
-              // Strict deduplication: Check version first
-              if (msg.results_version !== undefined && msg.results_version <= localResultsVersionRef.current) {
+              const incomingVersion = msg.results_version ?? msg.resultsVersion ?? null
+              if (incomingVersion !== null && incomingVersion <= localResultsVersionRef.current) {
                 console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already have same/newer version')
                 return
               }
 
-              // Also check round_id deduplication (handles same version from different sources)
-              const roundId = msg.results_payload?.round_id || msg.round_id
-              if (roundId && processedRoundIdsRef.current.has(roundId)) {
-                console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already processed this round_id:', roundId)
-                return
-              }
+              const matchId = matchIdRef.current
+              if (!matchId) return
 
-              // Accept: Update version tracker BEFORE applying (for strict version check)
-              // But let applyResults handle roundId deduplication internally
-              if (msg.results_payload) {
-                if (msg.results_version !== undefined) {
-                  localResultsVersionRef.current = msg.results_version
+              const now = Date.now()
+              if (now - lastSnapshotBurstAtRef.current < SNAPSHOT_THROTTLE_MS) return
+              lastSnapshotBurstAtRef.current = now
+
+              void fetchMatchSnapshot(matchId).then(snapshot => {
+                if (!snapshot) return
+                const applied = applySnapshot(snapshot)
+                if (!applied) {
+                  console.log('[useGame] Snapshot has no results; ignoring WS hint')
                 }
-                // Don't add roundId here - applyResults will handle it
-                applyResults(msg.results_payload)
-              } else {
-                // Legacy WS format - construct payload manually
-                const payload = {
-                  mode: 'simple',
-                  round_id: null,
-                  round_number: msg.roundNumber ?? state.currentRoundNumber,
-                  correct_answer: msg.correct_answer ?? 0,
-                  p1: {
-                    answer: msg.player1_answer ?? null,
-                    correct: msg.player1_correct ?? false,
-                    score_delta: 0,
-                    total: msg.playerRoundWins?.[Object.keys(msg.playerRoundWins || {})[0]] ?? 0
-                  },
-                  p2: {
-                    answer: msg.player2_answer ?? null,
-                    correct: msg.player2_correct ?? false,
-                    score_delta: 0,
-                    total: msg.playerRoundWins?.[Object.keys(msg.playerRoundWins || {})[1]] ?? 0
-                  },
-                  round_winner: msg.round_winner ?? null,
-                  computed_at: new Date().toISOString()
-                }
-                applyResults(payload)
-              }
+              })
             } else if (message.type === 'ALL_STEPS_COMPLETE_WAITING') {
               console.log('[useGame] ALL_STEPS_COMPLETE_WAITING message received', message)
               const msg = message as any
@@ -822,7 +929,7 @@ export function useGame(match: MatchRow | null) {
             } else if (message.type === 'ROUND_STARTED') {
               console.log('[useGame] ROUND_STARTED message received - new round starting')
               // Clear processed round IDs to allow new round results
-              processedRoundIdsRef.current.clear()
+              processedRoundVersionsRef.current.clear()
               setState(prev => ({
                 ...prev,
                 status: 'playing',
@@ -857,7 +964,7 @@ export function useGame(match: MatchRow | null) {
             } else if (message.type === 'MATCH_FINISHED') {
               console.log('[useGame] MATCH_FINISHED message received')
               // Clear processed round IDs and results when match ends
-              processedRoundIdsRef.current.clear()
+              processedRoundVersionsRef.current.clear()
               setState(prev => ({
                 ...prev,
                 status: 'match_finished',
@@ -1081,7 +1188,14 @@ export function useGame(match: MatchRow | null) {
             payload: newPayload.results_payload
           })
           localResultsVersionRef.current = newVersion
-          applyResults(newPayload.results_payload)
+          const enrichedPayload = {
+            ...(newPayload.results_payload ?? {}),
+            results_round_id: newPayload.results_round_id ?? null,
+            results_version: newVersion,
+            match_over: newPayload.winner_id != null || newPayload.status === 'completed',
+            match_winner_id: newPayload.winner_id ?? null
+          }
+          applyResults(enrichedPayload)
         } else {
           // Log detailed rejection reason
           console.warn('[useGame] ⚠️ Ignoring Realtime results:', {
@@ -1281,12 +1395,25 @@ export function useGame(match: MatchRow | null) {
       }
       console.log('[useGame] Visibility resync - re-sending JOIN_MATCH (status:', currentState, ')')
       ws.send(JSON.stringify(joinMessage))
+      void fetchMatchSnapshot(matchIdRef.current).then(snapshot => {
+        if (snapshot) {
+          applySnapshot(snapshot)
+        }
+      })
       lastVisibilityChangeRef.current = now
     }
 
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [state.status])
+
+  useEffect(() => {
+    const matchId = matchIdRef.current
+    if (!matchId) return
+    if (state.matchOver || state.status === 'match_finished') {
+      clearResultsShown(matchId)
+    }
+  }, [state.matchOver, state.status, clearResultsShown])
 
   const submitAnswer = useCallback((answerIndex: number) => {
     const ws = wsRef.current
@@ -1376,103 +1503,10 @@ export function useGame(match: MatchRow | null) {
     const poll = async () => {
       pollCount++
       try {
-        // Try RPC first (if available)
-        let pollData = null
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_match_round_state_v2' as any, {
-          p_match_id: matchId
-        })
-        
-        if (!rpcError && rpcData) {
-          pollData = rpcData
-        } else if (rpcError && (
-          rpcError.code === '42883' || 
-          rpcError.code === 'PGRST202' ||
-          rpcError.message?.includes('does not exist') ||
-          rpcError.message?.includes('Could not find the function')
-        )) {
-          // RPC doesn't exist - fall back to direct table query
-          console.log('[useGame] RPC not available (error:', rpcError.code, '), using direct table query fallback')
-          // Query only columns that are guaranteed to exist (basic match columns)
-          // Note: round_number and round_wins columns might not exist in production schema
-          // Also query timestamps to detect if answers were submitted
-          const { data: matchData, error: matchError } = await supabase
-            .from('matches')
-            .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner, results_computed_at, results_payload, results_version, results_round_id, current_round_id, player1_answered_at, player2_answered_at, winner_id, status, player1_id, player2_id')
-            .eq('id', matchId)
-            .single() as { data: any; error: any }
-          
-          if (matchError) {
-            console.error('[useGame] Direct query error:', matchError)
-            if (pollCount >= maxPolls) {
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current)
-                pollingIntervalRef.current = null
-              }
-            }
-            return
-          }
-          
-          // Simplified polling: just check if results_payload exists
-          const resultsReady = matchData && 
-                               matchData.results_computed_at !== null && 
-                               matchData.results_payload !== null
-          
-          if (resultsReady) {
-            // Use results_payload directly (same as Realtime handler)
-            pollData = {
-              both_answered: true,
-              results_payload: matchData.results_payload,
-              results_version: matchData.results_version ?? 0
-            }
-            
-            console.log('[useGame] ✅ Found results_payload via polling (fallback)')
-          } else {
-            // Results not ready yet
-            if (pollCount <= 5 || pollCount % 5 === 0) {
-              console.log('[useGame] Results not ready yet (poll', pollCount, ') - results_computed_at:', matchData?.results_computed_at)
-            }
-            if (pollCount >= maxPolls) {
-              console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls * 2, 'seconds')
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current)
-                pollingIntervalRef.current = null
-              }
-            }
-            return
-          }
-        } else if (rpcError) {
-          console.error('[useGame] Polling error:', rpcError)
-          if (pollCount >= maxPolls) {
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current)
-              pollingIntervalRef.current = null
-            }
-          }
-          return
-        }
-        
-        const data = pollData
-        
-        // Debug: log pollData state before processing
-        if (pollCount <= 3) {
-          console.log('[useGame] Poll attempt', pollCount, '- pollData:', pollData ? 'has data' : 'null', data ? {both_answered: data.both_answered, hasResult: !!data.result} : 'no data')
-        }
-        
-        if (data?.both_answered && data.results_payload) {
-          // Results ready - use results_payload directly (same as Realtime handler)
-          console.log('[useGame] ✅ Polling detected results via results_payload (fallback - Realtime should handle this)')
-          
-          // Check version to avoid duplicate processing
-          if (data.results_version && data.results_version <= localResultsVersionRef.current) {
-            console.log('[useGame] Ignoring polled results - already have newer version')
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current)
-              pollingIntervalRef.current = null
-            }
-            return
-          }
-          
-          // Clear polling
+        const snapshot = await fetchMatchSnapshot(matchId, true)
+        const applied = snapshot ? applySnapshot(snapshot) : false
+
+        if (applied) {
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current)
             pollingIntervalRef.current = null
@@ -1481,14 +1515,10 @@ export function useGame(match: MatchRow | null) {
             clearTimeout(pollingTimeoutRef.current)
             pollingTimeoutRef.current = null
           }
-          
-          // Update version and apply results
-          if (data.results_version) {
-            localResultsVersionRef.current = data.results_version
-          }
-          applyResults(data.results_payload)
-        } else if (pollCount >= maxPolls) {
-          // Stop polling after max attempts
+          return
+        }
+
+        if (pollCount >= maxPolls) {
           console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls, 'attempts')
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current)
@@ -1508,7 +1538,7 @@ export function useGame(match: MatchRow | null) {
     // Poll immediately, then every 2 seconds (simplified - just safety net)
     poll()
     pollingIntervalRef.current = window.setInterval(poll, 2000)
-  }, [applyResults])
+  }, [applySnapshot, fetchMatchSnapshot])
 
   const submitEarlyAnswer = useCallback(() => {
     const ws = wsRef.current

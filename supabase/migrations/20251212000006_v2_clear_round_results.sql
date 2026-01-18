@@ -41,6 +41,7 @@ begin
   set results_computed_at = null,
       results_payload = null,
       results_round_id = null,
+      results_version = coalesce(results_version, 0) + 1,
 
       -- clear per-round answer fields (simple question path)
       player1_answer = null,

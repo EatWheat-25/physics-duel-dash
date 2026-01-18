@@ -171,6 +171,8 @@ export default function BattleConnected() {
   const oppInitial = (oppName?.[0] || 'O').toUpperCase();
   const myRank = getRankByPoints(myMeta?.rank_points ?? 0);
   const oppRank = getRankByPoints(oppMeta?.rank_points ?? 0);
+  const resolvedWinnerId = matchWinnerId ?? matchWinner ?? null;
+  const shouldShowMatchFinished = status === 'match_finished' || (matchOver && (!results || status !== 'results'));
 
   if (!match || !currentUser) {
     return (
@@ -906,7 +908,7 @@ export default function BattleConnected() {
             )}
 
             {/* MATCH FINISHED */}
-            {status === 'match_finished' && (
+            {shouldShowMatchFinished && (
               <motion.div
                 key="finished"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -914,9 +916,9 @@ export default function BattleConnected() {
                 className="text-center relative z-50"
               >
                 <div className="mb-8">
-                  <Trophy className={`w-32 h-32 mx-auto mb-6 ${matchWinner === currentUser ? 'text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'text-gray-500'}`} />
+                  <Trophy className={`w-32 h-32 mx-auto mb-6 ${resolvedWinnerId === currentUser ? 'text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'text-gray-500'}`} />
                   <h1 className="text-6xl md:text-8xl font-black mb-6 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50">
-                    {matchWinner === currentUser ? 'VICTORY' : matchWinner === opponentId ? 'DEFEAT' : 'DRAW'}
+                    {resolvedWinnerId === currentUser ? 'VICTORY' : resolvedWinnerId === opponentId ? 'DEFEAT' : 'DRAW'}
                   </h1>
                 </div>
                 <button 
