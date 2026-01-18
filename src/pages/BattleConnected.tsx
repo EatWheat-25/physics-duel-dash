@@ -411,27 +411,22 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-3xl"
+                className="w-[calc(100%-3rem)] max-w-[95vw] mx-auto"
               >
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
-                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
-                  <div className="text-center">
-                    <div className="text-sm text-blue-400/60 font-mono mb-4 uppercase tracking-wider">
-                      Main Question
+                <div className="paper-card mb-8">
+                  <div className="paper-meta mb-4">
+                    Main Question
+                  </div>
+                  {(question as any)?.graph && (
+                    <div className="mb-6">
+                      <QuestionGraph graph={(question as any).graph} />
                     </div>
-                    {(question as any)?.graph && (
-                      <div className="mb-6">
-                        <QuestionGraph graph={(question as any).graph} />
-                      </div>
-                    )}
-                    <h3 className="text-2xl md:text-3xl font-bold leading-relaxed relative z-10">
-                      {question.stem || question.questionText || question.title}
-                    </h3>
-                    <div className="mt-6 text-sm text-white/40">
-                      {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
-                    </div>
+                  )}
+                  <h3 className="text-2xl md:text-3xl leading-relaxed">
+                    {question.stem || question.questionText || question.title}
+                  </h3>
+                  <div className="mt-6 text-sm text-black">
+                    {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
                   </div>
                 </div>
                 
@@ -440,7 +435,7 @@ export default function BattleConnected() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="w-full max-w-3xl mt-6"
+                  className="w-full mt-6"
                 >
                   <button
                     onClick={() => {
@@ -451,10 +446,10 @@ export default function BattleConnected() {
                       submitEarlyAnswer();
                     }}
                     disabled={!isWebSocketConnected}
-                    className={`w-full py-6 px-8 rounded-xl font-bold text-xl transition-all shadow-lg ${
+                    className={`w-full py-6 px-8 rounded-md text-xl transition-colors border ${
                       isWebSocketConnected
-                        ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-blue-500/20 cursor-pointer'
-                        : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                        ? 'bg-white hover:bg-slate-50 text-black border-slate-300 cursor-pointer'
+                        : 'bg-white text-black/50 border-slate-300 cursor-not-allowed opacity-70'
                     }`}
                   >
                     {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
@@ -470,50 +465,38 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-3xl"
+                className="w-[calc(100%-3rem)] max-w-[95vw] mx-auto"
               >
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50" />
-                  
-                  <div className="text-center mb-6">
-                    <div className="text-sm text-amber-400/60 font-mono mb-2 uppercase tracking-wider">
+                <div className="paper-card mb-8">
+                  <div className="space-y-4 mb-6">
+                    <div className="paper-meta">
                       {currentSegment === 'sub'
                         ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
                         : `Step ${currentStepIndex + 1} of ${totalSteps}`}
                     </div>
-                    <h3 className="text-xl md:text-2xl font-bold leading-relaxed relative z-10">
+                    <h3 className="text-xl md:text-2xl leading-relaxed">
                       {currentStep.prompt || currentStep.question}
                     </h3>
                     {currentSegment === 'sub' && (
-                      <p className="text-xs text-white/50 mt-3 font-mono">
-                        QUICK CHECK — must be correct to earn this step&apos;s marks
+                      <p className="text-xs text-black mt-3">
+                        Quick check — must be correct to earn this step&apos;s marks
                       </p>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                     {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
                       <button
                         key={idx}
                         onClick={() => !answerSubmitted && submitStepAnswer(currentStepIndex, idx)}
                         disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)}
-                        className={`
-                          relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
-                          ${answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)
-                            ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
-                            : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] active:scale-[0.98]'
-                          }
-                        `}
+                        className="paper-option"
                       >
-                        <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="flex items-center gap-4 relative z-10">
-                          <div className={`
-                            w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
-                            ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-amber-500 group-hover:text-white'}
-                          `}>
+                        <div className="flex items-center gap-4">
+                          <div className="paper-option-letter">
                             {String.fromCharCode(65 + idx)}
                           </div>
-                          <span className="text-lg font-medium">{option}</span>
+                          <span className="text-xl">{option}</span>
                         </div>
                       </button>
                     ))}
@@ -523,19 +506,19 @@ export default function BattleConnected() {
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }} 
                       animate={{ opacity: 1, y: 0 }}
-                      className="mt-6 text-center"
+                      className="mt-6 text-left"
                     >
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-400 rounded-full text-sm font-medium border border-amber-500/20 backdrop-blur-sm">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md text-sm border border-slate-300">
                         {/* During steps, always show "ANSWER SUBMITTED" - no waiting message */}
                         {(phase === 'steps' || !waitingForOpponent) ? (
                           <>
                             <Check className="w-4 h-4" />
-                            ANSWER SUBMITTED
+                            Answer submitted
                           </>
                         ) : (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            WAITING FOR OPPONENT...
+                            Waiting for opponent...
                           </>
                         )}
                       </div>
@@ -577,42 +560,29 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-3xl"
+                className="w-[calc(100%-3rem)] max-w-[95vw] mx-auto"
               >
                 {/* Question Card */}
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 mb-8 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
-                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
-                  <h3 className="text-2xl md:text-3xl font-bold leading-relaxed text-center relative z-10">
+                <div className="paper-card mb-8">
+                  <h3 className="text-2xl md:text-3xl leading-relaxed">
                     {question.stem || question.questionText}
                   </h3>
                 </div>
 
                 {/* Answers Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {question.steps?.[0]?.options?.filter(o => String(o).trim()).map((option, idx) => (
                     <button
                       key={idx}
                       onClick={() => !answerSubmitted && submitAnswer(idx)}
                       disabled={answerSubmitted}
-                      className={`
-                        relative group overflow-hidden p-6 rounded-2xl border transition-all duration-300 text-left
-                        ${answerSubmitted 
-                          ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed' 
-                          : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-blue-500/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] active:scale-[0.98]'
-                        }
-                      `}
+                      className="paper-option"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="flex items-center gap-4 relative z-10">
-                        <div className={`
-                          w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm transition-colors
-                          ${answerSubmitted ? 'bg-white/10 text-white/40' : 'bg-white/10 text-white/60 group-hover:bg-blue-500 group-hover:text-white'}
-                        `}>
+                      <div className="flex items-center gap-4">
+                        <div className="paper-option-letter">
                           {String.fromCharCode(65 + idx)}
                         </div>
-                        <span className="text-lg font-medium">{option}</span>
+                        <span className="text-xl">{option}</span>
                       </div>
                     </button>
                   ))}
@@ -622,11 +592,11 @@ export default function BattleConnected() {
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }} 
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-6 text-center"
+                    className="mt-6 text-left"
                   >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full text-sm font-medium border border-blue-500/20 backdrop-blur-sm">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md text-sm border border-slate-300">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      AWAITING RESULT CONFIRMATION
+                      Awaiting result confirmation
                     </div>
                   </motion.div>
                 )}
