@@ -606,6 +606,18 @@ async function computeAndBroadcastMultiStepResultsV3(
       return
     }
 
+    const { error: ackResetError } = await (supabase
+      .from('match_rounds')
+      .update({
+        p1_results_ack_at: null,
+        p2_results_ack_at: null
+      } as any)
+      .eq('id', roundId)
+      .eq('match_id', matchId) as any)
+    if (ackResetError) {
+      console.warn(`[${matchId}] ⚠️ Failed to reset results acks for round ${roundId}:`, ackResetError)
+    }
+
     // FAST-PATH: broadcast via WebSocket (Realtime on matches delivers cross-instance)
     const resultsEvent = {
       type: 'RESULTS_RECEIVED',
@@ -1278,6 +1290,37 @@ async function selectAndBroadcastQuestion(
       }
     }
 
+    const questionPayload = questionDb
+    let stepsForDeadline: any[] = []
+    try {
+      stepsForDeadline = Array.isArray(questionDb.steps) ? questionDb.steps : JSON.parse(questionDb.steps ?? '[]')
+    } catch {
+      stepsForDeadline = []
+    }
+    const isMultiStepQuestion = Array.isArray(stepsForDeadline) && stepsForDeadline.length >= 2
+    let roundDeadline: string | null = null
+    if (isMultiStepQuestion) {
+      const rawMainTimer = (questionDb as any)?.main_question_timer_seconds
+      let mainQuestionTimerSeconds =
+        typeof rawMainTimer === 'number' && Number.isFinite(rawMainTimer)
+          ? rawMainTimer
+          : Number.parseInt(String(rawMainTimer ?? 180), 10)
+
+      if (!Number.isFinite(mainQuestionTimerSeconds)) {
+        mainQuestionTimerSeconds = 180
+      }
+
+      mainQuestionTimerSeconds = Math.floor(mainQuestionTimerSeconds)
+
+      if (mainQuestionTimerSeconds < 5 || mainQuestionTimerSeconds > 600) {
+        mainQuestionTimerSeconds = Math.max(5, Math.min(600, mainQuestionTimerSeconds))
+      }
+      roundDeadline = new Date(Date.now() + mainQuestionTimerSeconds * 1000).toISOString()
+    } else {
+      const TIMEOUT_SECONDS = 60
+      roundDeadline = new Date(Date.now() + TIMEOUT_SECONDS * 1000).toISOString()
+    }
+
     // ===== Create or reuse match_rounds row with question_id (idempotent across Edge instances) =====
     let newRound: any = null
 
@@ -1326,7 +1369,9 @@ async function selectAndBroadcastQuestion(
           match_id: matchId,
           question_id: questionDb.id, // Single source of truth for question
           round_number: newRoundNumber,
-          status: 'main' // For simple questions, will transition to 'results' when computed
+          status: 'main', // For simple questions, will transition to 'results' when computed
+          question_payload: questionPayload,
+          round_deadline: roundDeadline
         } as any)
         .select('id')
         .single() as any)
@@ -1391,6 +1436,18 @@ async function selectAndBroadcastQuestion(
 
     if (!newRound?.id) {
       throw new Error('Failed to obtain round ID')
+    }
+
+    const { error: roundUpdateError } = await (supabase
+      .from('match_rounds')
+      .update({
+        question_payload: questionPayload,
+        round_deadline: roundDeadline
+      } as any)
+      .eq('id', newRound.id)
+      .eq('match_id', matchId) as any)
+    if (roundUpdateError) {
+      console.warn(`[${matchId}] ⚠️ Failed to persist question payload for round ${newRound.id}:`, roundUpdateError)
     }
 
     // ===== Update matches with current_round_id and current_round_number =====
@@ -2912,6 +2969,21 @@ async function handleSubmitAnswerV2(
     // PRIMARY: Realtime will deliver results (works across Edge instances)
     // FALLBACK: Also send WebSocket message in case Realtime is delayed/fails
     console.log(`[${matchId}] ✅ [V2] Results computed - sending via WebSocket (Realtime fallback)`)
+
+    const resultsRoundId = data.results_round_id ?? data.results_payload?.round_id ?? null
+    if (resultsRoundId) {
+      const { error: ackResetError } = await (supabase
+        .from('match_rounds')
+        .update({
+          p1_results_ack_at: null,
+          p2_results_ack_at: null
+        } as any)
+        .eq('id', resultsRoundId)
+        .eq('match_id', matchId) as any)
+      if (ackResetError) {
+        console.warn(`[${matchId}] ⚠️ Failed to reset results acks for round ${resultsRoundId}:`, ackResetError)
+      }
+    }
     
     const resultsEvent = {
       type: 'RESULTS_RECEIVED',
@@ -3128,6 +3200,42 @@ async function handleReadyForNextRound(
     return
   }
 
+  if (!matchRow.current_round_id) {
+    console.warn(`[${matchId}] ⚠️ READY_FOR_NEXT_ROUND: missing current_round_id`)
+    return
+  }
+
+  const ackField = matchRow.player1_id === playerId ? 'p1_results_ack_at' : 'p2_results_ack_at'
+  const ackPayload: Record<string, string> = { [ackField]: new Date().toISOString() }
+  const { error: ackError } = await (supabase
+    .from('match_rounds')
+    .update(ackPayload as any)
+    .eq('id', matchRow.current_round_id)
+    .eq('match_id', matchId) as any)
+  if (ackError) {
+    console.warn(`[${matchId}] ⚠️ READY_FOR_NEXT_ROUND: failed to set ack`, ackError)
+    return
+  }
+
+  const { data: ackRow, error: ackRowError } = await (supabase
+    .from('match_rounds')
+    .select('p1_results_ack_at, p2_results_ack_at')
+    .eq('id', matchRow.current_round_id)
+    .single() as any)
+  if (ackRowError || !ackRow) {
+    console.warn(`[${matchId}] ⚠️ READY_FOR_NEXT_ROUND: failed to read ack state`, ackRowError)
+    return
+  }
+
+  if (!ackRow.p1_results_ack_at || !ackRow.p2_results_ack_at) {
+    broadcastToMatch(matchId, {
+      type: 'READY_FOR_NEXT_ROUND',
+      playerId,
+      waitingForOpponent: true
+    })
+    return
+  }
+
   // If results are currently computed, clear round fields to allow selecting the next round question.
   // If another instance already transitioned, results_computed_at may already be NULL; that's fine.
   if (matchRow.results_computed_at) {
@@ -3164,11 +3272,11 @@ async function handleReadyForNextRound(
   await selectAndBroadcastQuestion(matchId, supabase)
 
   // Acknowledge request (client may ignore; kept for backwards compatibility)
-  socket.send(JSON.stringify({
+  broadcastToMatch(matchId, {
     type: 'READY_FOR_NEXT_ROUND',
     playerId,
     waitingForOpponent: false
-  }))
+  })
 }
 
 /**

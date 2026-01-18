@@ -1201,6 +1201,33 @@ export function useGame(match: MatchRow | null) {
       // Only apply match_rounds-driven phase if we are in (or expecting) multi-step flow.
       // Single-step rounds also use match_rounds.status='main', but the UI phase should remain 'question'.
       const isMultiStepContext = prev.totalSteps > 0 || prev.phase === 'main_question' || prev.phase === 'steps'
+      const questionPayload = roundRow.question_payload ?? roundRow.questionPayload
+      const roundDeadline = roundRow.round_deadline ?? roundRow.roundDeadline
+      if (!isMultiStepContext && questionPayload) {
+        try {
+          const mappedQuestion = mapRawToQuestion(questionPayload)
+          const nextTimerEndAt = roundDeadline ? String(roundDeadline) : prev.timerEndAt
+          if (prev.question?.id === mappedQuestion.id && nextTimerEndAt === prev.timerEndAt) {
+            return prev
+          }
+          return {
+            ...prev,
+            status: 'playing',
+            phase: 'question',
+            question: mappedQuestion,
+            timerEndAt: nextTimerEndAt,
+            answerSubmitted: false,
+            waitingForOpponent: false,
+            resultsAcknowledged: false,
+            waitingForOpponentToAcknowledge: false,
+            results: null,
+            nextRoundEndsAt: null,
+            nextRoundTimeLeft: null
+          }
+        } catch (error) {
+          console.error('[useGame] Error mapping question_payload from match_rounds:', error)
+        }
+      }
       if (!isMultiStepContext) return prev
 
       const status = roundRow.status
@@ -1288,7 +1315,7 @@ export function useGame(match: MatchRow | null) {
       try {
         const { data, error } = await supabase
           .from('match_rounds')
-          .select('id, status, current_step_index, step_ends_at, main_question_ends_at')
+          .select('id, status, current_step_index, step_ends_at, main_question_ends_at, question_payload, round_deadline, question_id')
           .eq('id', roundId)
           .single() as { data: any; error: any }
 
