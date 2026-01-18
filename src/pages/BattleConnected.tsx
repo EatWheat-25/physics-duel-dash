@@ -116,7 +116,7 @@ export default function BattleConnected() {
     submitEarlyAnswer, submitStepAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
     isWebSocketConnected, waitingForOpponent, waitingForOpponentToAcknowledge,
-    allStepsComplete, waitingForOpponentToCompleteSteps, manualRetry
+    allStepsComplete, waitingForOpponentToCompleteSteps
   } = useGame(match);
 
   // Track round wins for animation
@@ -171,8 +171,6 @@ export default function BattleConnected() {
   const oppInitial = (oppName?.[0] || 'O').toUpperCase();
   const myRank = getRankByPoints(myMeta?.rank_points ?? 0);
   const oppRank = getRankByPoints(oppMeta?.rank_points ?? 0);
-  const resolvedWinnerId = matchWinnerId ?? matchWinner ?? null;
-  const shouldShowMatchFinished = status === 'match_finished' || (matchOver && (!results || status !== 'results'));
 
   if (!match || !currentUser) {
     return (
@@ -200,23 +198,13 @@ export default function BattleConnected() {
             <X className="w-8 h-8 text-red-500" />
           </div>
           <h2 className="text-xl font-bold text-white mb-2">CONNECTION LOST</h2>
-          <p className="text-red-200/60 mb-6 text-sm">{errorMessage || 'The neural link was severed.'}</p>
-          <div className="flex flex-col gap-3">
-            {manualRetry && (
-              <button 
-                onClick={manualRetry}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-colors"
-              >
-                RETRY CONNECTION
-              </button>
-            )}
-            <button 
-              onClick={() => navigate('/matchmaking-new')}
-              className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-colors"
-            >
-              RETURN TO LOBBY
-            </button>
-          </div>
+          <p className="text-red-200/60 mb-8 text-sm">{errorMessage || 'The neural link was severed.'}</p>
+          <button 
+            onClick={() => navigate('/matchmaking-new')}
+            className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-colors"
+          >
+            RETURN TO LOBBY
+          </button>
         </div>
       </div>
     );
@@ -918,7 +906,7 @@ export default function BattleConnected() {
             )}
 
             {/* MATCH FINISHED */}
-            {shouldShowMatchFinished && (
+            {status === 'match_finished' && (
               <motion.div
                 key="finished"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -926,9 +914,9 @@ export default function BattleConnected() {
                 className="text-center relative z-50"
               >
                 <div className="mb-8">
-                  <Trophy className={`w-32 h-32 mx-auto mb-6 ${resolvedWinnerId === currentUser ? 'text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'text-gray-500'}`} />
+                  <Trophy className={`w-32 h-32 mx-auto mb-6 ${matchWinner === currentUser ? 'text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'text-gray-500'}`} />
                   <h1 className="text-6xl md:text-8xl font-black mb-6 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50">
-                    {resolvedWinnerId === currentUser ? 'VICTORY' : resolvedWinnerId === opponentId ? 'DEFEAT' : 'DRAW'}
+                    {matchWinner === currentUser ? 'VICTORY' : matchWinner === opponentId ? 'DEFEAT' : 'DRAW'}
                   </h1>
                 </div>
                 <button 

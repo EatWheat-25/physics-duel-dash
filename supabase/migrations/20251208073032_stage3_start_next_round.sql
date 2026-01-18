@@ -22,9 +22,6 @@ BEGIN
     player2_correct = NULL,
     round_winner = NULL,
     results_computed_at = NULL,
-    results_payload = NULL,
-    results_round_id = NULL,
-    results_version = COALESCE(results_version, 0) + 1,
     question_id = NULL,
     question_sent_at = NULL
   WHERE id = p_match_id
