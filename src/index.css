@@ -276,8 +276,12 @@ All colors MUST be HSL.
 @layer components {
   /* ===== Paper-style question UI (white cards, black text) ===== */
   .paper-card {
-    @apply bg-white text-black border border-slate-300 rounded-sm p-12 md:p-14 shadow-sm text-left;
+    @apply bg-white text-black border border-slate-300 shadow-sm text-left;
     font-family: "Times New Roman", Times, serif;
+    padding: 20px;
+    border-radius: 4px;
+    font-size: 16px;
+    line-height: 1.6;
   }
 
   /* Override global heading rule (h1..h6 { color: white; }) inside paper cards */
@@ -290,15 +294,24 @@ All colors MUST be HSL.
     color: inherit;
     font-family: "Times New Roman", Times, serif;
     font-weight: 400;
+    font-size: 16px;
+    line-height: 1.6;
   }
 
   .paper-meta {
-    @apply text-sm text-black;
+    @apply text-black;
+    font-size: 12px;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
   }
 
   .paper-option {
-    @apply relative w-full overflow-hidden p-10 md:p-12 rounded-sm border border-slate-300 bg-white text-black text-left shadow-none transition-all duration-200;
+    @apply relative w-full overflow-hidden border border-slate-300 bg-white text-black text-left shadow-none transition-all duration-200;
     font-family: "Times New Roman", Times, serif;
+    padding: 14px 16px;
+    border-radius: 4px;
+    font-size: 16px;
+    line-height: 1.6;
   }
 
   .paper-option:hover {
@@ -314,7 +327,24 @@ All colors MUST be HSL.
   }
 
   .paper-option-letter {
-    @apply w-10 h-10 border border-slate-300 rounded-sm flex items-center justify-center text-black font-normal text-lg;
+    @apply border border-slate-300 flex items-center justify-center text-black font-normal;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .paper-title {
+    font-size: 16px;
+    line-height: 1.6;
+    font-weight: 400;
+  }
+
+  .paper-option-text {
+    font-size: 16px;
+    line-height: 1.6;
+    font-weight: 400;
   }
 
   /* Next-Gen Holographic Panels */

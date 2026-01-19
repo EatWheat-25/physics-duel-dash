@@ -425,17 +425,17 @@ export default function BattleConnected() {
               >
                 <div className="paper-card mb-8">
                   <div className="paper-meta mb-4">
-                    Main Question
+                    This is main question
                   </div>
                   {(question as any)?.graph && (
                     <div className="mb-6">
                       <QuestionGraph graph={(question as any).graph} />
                     </div>
                   )}
-                  <h3 className="text-4xl md:text-5xl leading-relaxed">
+                  <h3 className="paper-title">
                     {question.stem || question.questionText || question.title}
                   </h3>
-                  <div className="mt-6 text-sm text-black">
+                  <div className="mt-4 paper-meta">
                     {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
                   </div>
                 </div>
@@ -481,10 +481,10 @@ export default function BattleConnected() {
                   <div className="space-y-4 mb-6">
                     <div className="paper-meta">
                       {currentSegment === 'sub'
-                        ? `Step ${currentStepIndex + 1} of ${totalSteps} • Sub-step ${currentSubStepIndex + 1}`
-                        : `Step ${currentStepIndex + 1} of ${totalSteps}`}
+                        ? `Step ${currentStepIndex + 1} • Sub-step ${currentSubStepIndex + 1}`
+                        : `Step ${currentStepIndex + 1}`}
                     </div>
-                    <h3 className="text-3xl md:text-4xl leading-relaxed">
+                    <h3 className="paper-title">
                       {currentStep.prompt || currentStep.question}
                     </h3>
                     {currentSegment === 'sub' && (
@@ -494,7 +494,7 @@ export default function BattleConnected() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-12 mt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
                     {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
                       <button
                         key={idx}
@@ -506,7 +506,7 @@ export default function BattleConnected() {
                           <div className="paper-option-letter">
                             {String.fromCharCode(65 + idx)}
                           </div>
-                          <span className="text-2xl md:text-3xl">{option}</span>
+                          <span className="paper-option-text">{option}</span>
                         </div>
                       </button>
                     ))}
@@ -574,13 +574,16 @@ export default function BattleConnected() {
               >
                 {/* Question Card */}
                 <div className="paper-card mb-8">
-                  <h3 className="text-4xl md:text-5xl leading-relaxed">
+                  <div className="paper-meta mb-4">
+                    This is main question
+                  </div>
+                  <h3 className="paper-title">
                     {question.stem || question.questionText}
                   </h3>
                 </div>
 
                 {/* Answers Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {question.steps?.[0]?.options?.filter(o => String(o).trim()).map((option, idx) => (
                     <button
                       key={idx}
@@ -592,7 +595,7 @@ export default function BattleConnected() {
                         <div className="paper-option-letter">
                           {String.fromCharCode(65 + idx)}
                         </div>
-                        <span className="text-2xl md:text-3xl">{option}</span>
+                        <span className="paper-option-text">{option}</span>
                       </div>
                     </button>
                   ))}
