@@ -1018,14 +1018,38 @@ async function broadcastQuestion(
           return
         }
         
-        // Fetch and broadcast results after timeout
+        // Fetch and broadcast results after timeout (prefer DB payload)
         const { data: matchResults } = await supabase
           .from('matches')
-          .select('player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
+          .select('results_payload, results_version, results_round_id, current_round_number, player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
           .eq('id', matchId)
           .single() as { data: any; error: any }
-        
-        if (matchResults) {
+
+        if (matchResults?.results_round_id) {
+          const { error: ackResetError } = await (supabase
+            .from('match_rounds')
+            .update({
+              p1_results_ack_at: null,
+              p2_results_ack_at: null
+            } as any)
+            .eq('id', matchResults.results_round_id)
+            .eq('match_id', matchId) as any)
+          if (ackResetError) {
+            console.warn(`[${matchId}] ⚠️ Failed to reset results acks for timeout round ${matchResults.results_round_id}:`, ackResetError)
+          }
+        }
+
+        if (matchResults?.results_payload) {
+          const payload = matchResults.results_payload
+          const resultsEvent = {
+            type: 'RESULTS_RECEIVED',
+            results_payload: payload,
+            results_version: matchResults.results_version ?? 0,
+            round_number: payload?.round_number ?? matchResults.current_round_number ?? 0
+          }
+          broadcastToMatch(matchId, resultsEvent)
+        } else if (matchResults) {
+          console.warn(`[${matchId}] ⚠️ Timeout results payload missing; falling back to legacy results event`)
           const resultsEvent: ResultsReceivedEvent = {
             type: 'RESULTS_RECEIVED',
             player1_answer: matchResults.player1_answer,
