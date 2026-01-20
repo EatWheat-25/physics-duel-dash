@@ -26,6 +26,7 @@ export default function MatchResults() {
   const { user, profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [rankedPayload, setRankedPayload] = useState<RankedPayload | null>(null)
+  const [resultsPayload, setResultsPayload] = useState<any | null>(null)
   const [matchMeta, setMatchMeta] = useState<{
     player1_id: string
     player2_id: string
@@ -41,7 +42,7 @@ export default function MatchResults() {
     const fetchOnce = async (): Promise<boolean> => {
       const { data, error } = await (supabase as any)
         .from('matches')
-        .select('player1_id, player2_id, player1_score, player2_score, winner_id, ranked_payload')
+        .select('player1_id, player2_id, player1_score, player2_score, winner_id, ranked_payload, results_payload')
         .eq('id', matchId)
         .single()
 
@@ -58,6 +59,7 @@ export default function MatchResults() {
         player2_score: data.player2_score,
         winner_id: data.winner_id,
       })
+      setResultsPayload(data.results_payload ?? null)
 
       if (data.ranked_payload) {
         setRankedPayload(data.ranked_payload as any)
@@ -105,11 +107,79 @@ export default function MatchResults() {
 
   if (!user) return null
 
-  if (loading || !rankedPayload || !mySide || !oppSide) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="text-white/70 font-mono text-sm">Loading match results…</div>
       </div>
+    )
+  }
+
+  const rankedReady = !!rankedPayload && !!mySide && !!oppSide
+  if (!rankedReady) {
+    if (!matchMeta) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <div className="text-white/70 font-mono text-sm">Loading match results…</div>
+        </div>
+      )
+    }
+
+    const isPlayer1 = matchMeta.player1_id === user.id
+    const totalPartsRaw = resultsPayload?.total_parts ?? resultsPayload?.totalParts ?? null
+    const p1CorrectRaw = resultsPayload?.p1_parts_correct ?? resultsPayload?.p1PartsCorrect ?? null
+    const p2CorrectRaw = resultsPayload?.p2_parts_correct ?? resultsPayload?.p2PartsCorrect ?? null
+    const correctRaw = isPlayer1 ? p1CorrectRaw : p2CorrectRaw
+    const simpleCorrectFlag = isPlayer1 ? resultsPayload?.p1?.correct : resultsPayload?.p2?.correct
+    const totalQuestions = typeof totalPartsRaw === 'number' && totalPartsRaw > 0
+      ? totalPartsRaw
+      : 1
+    const correctAnswers = typeof correctRaw === 'number'
+      ? Math.max(0, Math.min(correctRaw, totalQuestions))
+      : typeof simpleCorrectFlag === 'boolean'
+        ? (simpleCorrectFlag ? 1 : 0)
+        : 0
+    const wrongAnswers = Math.max(0, totalQuestions - correctAnswers)
+    const winnerId = matchMeta.winner_id
+    const outcome = winnerId == null ? 'draw' : winnerId === user.id ? 'win' : 'loss'
+
+    const matchStats = {
+      totalQuestions,
+      correctAnswers,
+      wrongAnswers,
+      playerScore: isPlayer1 ? (matchMeta.player1_score ?? 0) : (matchMeta.player2_score ?? 0),
+      opponentScore: isPlayer1 ? (matchMeta.player2_score ?? 0) : (matchMeta.player1_score ?? 0),
+      pointsEarned: 0,
+      won: outcome === 'win',
+      outcome,
+    }
+
+    const myPoints = 0
+    const myRank = getRankByPoints(myPoints)
+    const accuracyPct = totalQuestions > 0
+      ? Math.round((correctAnswers / totalQuestions) * 100)
+      : 0
+
+    const userData = {
+      username: profile?.username ?? user.email?.split('@')[0] ?? 'Player',
+      currentPoints: myPoints,
+      currentRank: { tier: myRank.tier, subRank: myRank.subRank },
+      winStreak: 0,
+      totalMatches: 0,
+      wins: 0,
+      losses: 0,
+      accuracy: accuracyPct,
+      history: [],
+      avatar: undefined,
+    }
+
+    return (
+      <PostMatchResults
+        matchStats={matchStats}
+        userData={userData as any}
+        onContinue={() => navigate('/matchmaking-new')}
+        onPlayAgain={() => navigate('/matchmaking-new')}
+      />
     )
   }
 
