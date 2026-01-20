@@ -161,7 +161,6 @@ export function useGame(match: MatchRow | null) {
   const wsRef = useRef<WebSocket | null>(null)
   const heartbeatRef = useRef<number | null>(null)
   const matchIdRef = useRef<string | null>(null)
-  const lastMatchIdRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
   const lastVisibilityChangeRef = useRef<number>(0)
   const hasConnectedRef = useRef<boolean>(false)
@@ -180,60 +179,6 @@ export function useGame(match: MatchRow | null) {
   const [reconnectTrigger, setReconnectTrigger] = useState<number>(0)
   const MAX_RETRY_ATTEMPTS = 5
   const CONNECTION_TIMEOUT_MS = 10_000
-
-  useEffect(() => {
-    if (!match?.id) return
-
-    if (lastMatchIdRef.current === match.id) return
-    lastMatchIdRef.current = match.id
-
-    localResultsVersionRef.current = 0
-    processedRoundIdsRef.current.clear()
-    currentRoundIdRef.current = null
-
-    setState(prev => ({
-      ...prev,
-      status: 'connecting',
-      playerRole: null,
-      errorMessage: null,
-      question: null,
-      answerSubmitted: false,
-      waitingForOpponent: false,
-      resultsAcknowledged: false,
-      waitingForOpponentToAcknowledge: false,
-      allStepsComplete: false,
-      waitingForOpponentToCompleteSteps: false,
-      results: null,
-      roundNumber: 0,
-      lastRoundWinner: null,
-      consecutiveWinsCount: 0,
-      matchFinished: false,
-      matchWinner: null,
-      totalRounds: 0,
-      timerEndAt: null,
-      timeRemaining: null,
-      nextRoundEndsAt: null,
-      nextRoundTimeLeft: null,
-      phase: 'question',
-      currentStepIndex: 0,
-      totalSteps: 0,
-      mainQuestionEndsAt: null,
-      stepEndsAt: null,
-      mainQuestionTimeLeft: null,
-      stepTimeLeft: null,
-      subStepTimeLeft: null,
-      currentStep: null,
-      currentSegment: 'main',
-      currentSubStepIndex: 0,
-      currentSubStep: null,
-      currentRoundId: null,
-      currentRoundNumber: 1,
-      targetRoundsToWin: 3,
-      playerRoundWins: {},
-      matchOver: false,
-      matchWinnerId: null
-    }))
-  }, [match?.id])
 
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
   const applyResults = useCallback((payload: any) => {
@@ -339,45 +284,6 @@ export function useGame(match: MatchRow | null) {
     }
 
     console.log('[useGame] ✅ State updated with results from applyResults')
-  }, [])
-
-  const applyResultsFromRoundRow = useCallback((roundRow: any, source: string) => {
-    const payload = roundRow?.results_payload
-    if (!payload) return false
-
-    const version = typeof roundRow?.results_version === 'number' ? roundRow.results_version : null
-    if (typeof version === 'number' && version > 0 && version <= localResultsVersionRef.current) {
-      console.log(`[useGame] Ignoring ${source} results from match_rounds - already have newer version`)
-      return false
-    }
-    if (typeof version === 'number' && version > 0) {
-      localResultsVersionRef.current = version
-    }
-
-    console.log(`[useGame] Applying results from match_rounds (${source})`, {
-      round_id: payload?.round_id ?? payload?.roundId ?? null,
-      results_version: version
-    })
-    applyResults(payload)
-    return true
-  }, [applyResults])
-
-  const fetchLatestRoundResults = useCallback(async (matchId: string, source: string) => {
-    const { data: roundRow, error: roundError } = await supabase
-      .from('match_rounds')
-      .select('id, round_number, results_payload, results_version, results_computed_at, created_at')
-      .eq('match_id', matchId)
-      .not('results_payload', 'is', null)
-      .order('round_number', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle() as { data: any; error: any }
-
-    if (roundError) {
-      console.warn(`[useGame] match_rounds fetch error (${source}):`, roundError)
-      return null
-    }
-    return roundRow?.results_payload ? roundRow : null
   }, [])
 
   // Listen for polling-detected results (fallback if WS message missed)
@@ -1160,28 +1066,17 @@ export function useGame(match: MatchRow | null) {
           currentRoundNumber: matchData.current_round_number ?? prev.currentRoundNumber
         }))
 
-        let applied = false
-
         // If results already computed, show them immediately
         if (matchData.results_computed_at && matchData.results_payload) {
-          const resultsPayload = matchData.results_payload
-          const payloadRoundId = resultsPayload?.round_id ?? resultsPayload?.roundId ?? null
-          const resultsRoundId = matchData.results_round_id ?? payloadRoundId ?? null
-          const hasRoundIdentity = resultsRoundId != null || payloadRoundId != null
-          const roundMatch = !hasRoundIdentity || payloadRoundId == null || resultsRoundId === payloadRoundId
-
-          if (roundMatch) {
-            console.log('[useGame] Found existing results on mount, applying...')
-            localResultsVersionRef.current = matchData.results_version || 0
-            applyResults(resultsPayload)
-            applied = true
-          }
-        }
-
-        if (!applied) {
-          const roundRow = await fetchLatestRoundResults(match.id, 'mount')
-          if (roundRow?.results_payload) {
-            applyResultsFromRoundRow(roundRow, 'mount')
+          console.log('[useGame] Found existing results on mount, applying...')
+          localResultsVersionRef.current = matchData.results_version || 0
+          
+          // Validate before applying
+          if (
+            matchData.results_payload &&
+            matchData.results_round_id === matchData.current_round_id
+          ) {
+            applyResults(matchData.results_payload)
           }
         }
       } catch (err) {
@@ -1190,7 +1085,7 @@ export function useGame(match: MatchRow | null) {
     }
 
     checkExistingResults()
-  }, [match?.id, applyResults, applyResultsFromRoundRow, fetchLatestRoundResults])
+  }, [match?.id, applyResults])
 
   // Realtime subscription for matches table (primary results delivery mechanism)
   useEffect(() => {
@@ -1245,23 +1140,14 @@ export function useGame(match: MatchRow | null) {
         }
         const oldVersion = payload.old?.results_version ?? 0
         const newVersion = newPayload.results_version ?? 0
-        const payloadRoundId = newPayload.results_payload?.round_id ?? newPayload.results_payload?.roundId ?? null
-        const resultsRoundId = newPayload.results_round_id ?? payloadRoundId ?? null
-        const hasRoundIdentity = resultsRoundId != null || payloadRoundId != null
 
         // Accept results UPDATE if:
         // 1. results_payload != null
         // 2. results_version > local version (strict > prevents duplicates)
-        // 3. results_round_id matches payload round_id (late updates allowed)
+        // 3. results_round_id === current_round_id OR current_round_id is null (allow first round)
         const hasPayload = newPayload.results_payload != null
         const versionCheck = newVersion > localResultsVersionRef.current
-        const roundMatch = !hasRoundIdentity
-          ? true
-          : payloadRoundId == null
-            ? true
-            : resultsRoundId === payloadRoundId ||
-              resultsRoundId === newPayload.current_round_id ||
-              newPayload.current_round_id === null
+        const roundMatch = newPayload.results_round_id === newPayload.current_round_id || newPayload.current_round_id === null
         if (
           hasPayload &&
           versionCheck &&
@@ -1280,13 +1166,12 @@ export function useGame(match: MatchRow | null) {
           // Log detailed rejection reason
           console.warn('[useGame] ⚠️ Ignoring Realtime results:', {
             hasPayload: newPayload.results_payload != null,
-            versionCheck: `${newVersion} > ${localResultsVersionRef.current}`,
-            roundMatch: `${payloadRoundId} == null || ${resultsRoundId} === ${payloadRoundId} || ${resultsRoundId} === ${newPayload.current_round_id} || ${newPayload.current_round_id} === null`,
+            versionCheck: `${newVersion} >= ${localResultsVersionRef.current}`,
+            roundMatch: `${newPayload.results_round_id} === ${newPayload.current_round_id} || ${newPayload.current_round_id} === null`,
             results_version: newVersion,
             local_version: localResultsVersionRef.current,
-            results_round_id: resultsRoundId,
+            results_round_id: newPayload.results_round_id,
             current_round_id: newPayload.current_round_id,
-            payload_round_id: payloadRoundId,
             payload: newPayload.results_payload
           })
         }
@@ -1404,9 +1289,6 @@ export function useGame(match: MatchRow | null) {
         table: 'match_rounds',
         filter: `match_id=eq.${match.id}`
       }, (payload: any) => {
-        if (payload?.new?.results_payload) {
-          applyResultsFromRoundRow(payload.new, 'realtime')
-        }
         applyRoundRow(payload.new)
       })
       .subscribe((status) => {
@@ -1421,7 +1303,7 @@ export function useGame(match: MatchRow | null) {
         matchRoundsChannelRef.current = null
       }
     }
-  }, [match?.id, applyRoundRow, applyResultsFromRoundRow])
+  }, [match?.id, applyRoundRow])
 
   // Fetch current round row on round changes (initial hydration; Realtime delivers subsequent updates)
   useEffect(() => {
@@ -1433,14 +1315,11 @@ export function useGame(match: MatchRow | null) {
       try {
         const { data, error } = await supabase
           .from('match_rounds')
-          .select('id, status, current_step_index, step_ends_at, main_question_ends_at, question_payload, round_deadline, question_id, results_payload, results_version, results_computed_at')
+          .select('id, status, current_step_index, step_ends_at, main_question_ends_at, question_payload, round_deadline, question_id')
           .eq('id', roundId)
           .single() as { data: any; error: any }
 
         if (error || !data) return
-        if (data.results_payload) {
-          applyResultsFromRoundRow(data, 'round_hydration')
-        }
         applyRoundRow(data)
       } catch (err) {
         console.error('[useGame] Error fetching match_rounds initial row:', err)
@@ -1448,7 +1327,7 @@ export function useGame(match: MatchRow | null) {
     }
 
     fetchInitialRoundRow()
-  }, [match?.id, state.currentRoundId, applyRoundRow, applyResultsFromRoundRow])
+  }, [match?.id, state.currentRoundId, applyRoundRow])
 
   // If we enter steps phase before the question payload is present, backfill currentStep once question arrives.
   useEffect(() => {
@@ -1600,7 +1479,7 @@ export function useGame(match: MatchRow | null) {
     
     let pollCount = 0
     const maxPolls = 10 // Poll for up to 20 seconds (10 attempts at 2s intervals) - simplified fallback
-
+    
     const poll = async () => {
       pollCount++
       try {
@@ -1612,17 +1491,6 @@ export function useGame(match: MatchRow | null) {
         
         if (!rpcError && rpcData) {
           pollData = rpcData
-          if (!pollData?.results_payload) {
-            const roundRow = await fetchLatestRoundResults(matchId, 'polling')
-            if (roundRow?.results_payload) {
-              pollData = {
-                both_answered: true,
-                results_payload: roundRow.results_payload,
-                results_version: roundRow.results_version ?? 0
-              }
-              console.log('[useGame] ✅ Found match_rounds results via polling (fallback)')
-            }
-          }
         } else if (rpcError && (
           rpcError.code === '42883' || 
           rpcError.code === 'PGRST202' ||
@@ -1666,28 +1534,18 @@ export function useGame(match: MatchRow | null) {
             
             console.log('[useGame] ✅ Found results_payload via polling (fallback)')
           } else {
-            const roundRow = await fetchLatestRoundResults(matchId, 'polling')
-            if (roundRow?.results_payload) {
-              pollData = {
-                both_answered: true,
-                results_payload: roundRow.results_payload,
-                results_version: roundRow.results_version ?? 0
-              }
-              console.log('[useGame] ✅ Found match_rounds results via polling (fallback)')
-            } else {
-              // Results not ready yet
-              if (pollCount <= 5 || pollCount % 5 === 0) {
-                console.log('[useGame] Results not ready yet (poll', pollCount, ') - results_computed_at:', matchData?.results_computed_at)
-              }
-              if (pollCount >= maxPolls) {
-                console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls * 2, 'seconds')
-                if (pollingIntervalRef.current) {
-                  clearInterval(pollingIntervalRef.current)
-                  pollingIntervalRef.current = null
-                }
-              }
-              return
+            // Results not ready yet
+            if (pollCount <= 5 || pollCount % 5 === 0) {
+              console.log('[useGame] Results not ready yet (poll', pollCount, ') - results_computed_at:', matchData?.results_computed_at)
             }
+            if (pollCount >= maxPolls) {
+              console.warn('[useGame] ⚠️ Polling timeout: Results not available after', maxPolls * 2, 'seconds')
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = null
+              }
+            }
+            return
           }
         } else if (rpcError) {
           console.error('[useGame] Polling error:', rpcError)
@@ -1757,35 +1615,7 @@ export function useGame(match: MatchRow | null) {
     // Poll immediately, then every 2 seconds (simplified - just safety net)
     poll()
     pollingIntervalRef.current = window.setInterval(poll, 2000)
-  }, [applyResults, fetchLatestRoundResults])
-
-  // If timer ends but results never arrived (missed Realtime/WS), pull from match_rounds.
-  useEffect(() => {
-    if (!match?.id) return
-    if (state.status !== 'playing') return
-
-    const timerEndAt = state.timerEndAt ?? state.mainQuestionEndsAt ?? state.stepEndsAt
-    if (!timerEndAt) return
-
-    const endMs = Date.parse(String(timerEndAt))
-    if (!Number.isFinite(endMs)) return
-
-    const runResync = async () => {
-      const roundRow = await fetchLatestRoundResults(match.id, 'timer_expired')
-      if (roundRow?.results_payload) {
-        applyResultsFromRoundRow(roundRow, 'timer_expired')
-      }
-    }
-
-    const delayMs = endMs - Date.now()
-    if (delayMs <= 0) {
-      runResync()
-      return
-    }
-
-    const timeoutId = window.setTimeout(runResync, delayMs + 500)
-    return () => clearTimeout(timeoutId)
-  }, [match?.id, state.status, state.timerEndAt, state.mainQuestionEndsAt, state.stepEndsAt, fetchLatestRoundResults, applyResultsFromRoundRow])
+  }, [applyResults])
 
   const submitEarlyAnswer = useCallback(() => {
     const ws = wsRef.current
