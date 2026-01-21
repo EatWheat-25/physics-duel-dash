@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import PostMatchResults from '@/components/PostMatchResults'
+import { Button } from '@/components/ui/button'
 import { getRankByPoints } from '@/types/ranking'
 
 type RankedPayload = {
@@ -25,6 +26,8 @@ export default function MatchResults() {
   const navigate = useNavigate()
   const { user, profile } = useAuth()
   const [loading, setLoading] = useState(true)
+  const [timedOut, setTimedOut] = useState(false)
+  const [retryCounter, setRetryCounter] = useState(0)
   const [rankedPayload, setRankedPayload] = useState<RankedPayload | null>(null)
   const [matchMeta, setMatchMeta] = useState<{
     player1_id: string
@@ -33,22 +36,34 @@ export default function MatchResults() {
     player2_score: number | null
     winner_id: string | null
   } | null>(null)
+  const finishRequestedRef = useRef(false)
+
+  const handleRetry = () => {
+    finishRequestedRef.current = false
+    setTimedOut(false)
+    setLoading(true)
+    setRetryCounter((prev) => prev + 1)
+  }
 
   useEffect(() => {
     if (!matchId || !user) return
     let cancelled = false
+    finishRequestedRef.current = false
+    setLoading(true)
+    setTimedOut(false)
 
-    const fetchOnce = async (): Promise<boolean> => {
+    const fetchOnce = async (): Promise<{ done: boolean; needsFinish: boolean }> => {
       const { data, error } = await (supabase as any)
         .from('matches')
-        .select('player1_id, player2_id, player1_score, player2_score, winner_id, ranked_payload')
+        .select('player1_id, player2_id, player1_score, player2_score, winner_id, ranked_payload, status, ranked_applied_at')
         .eq('id', matchId)
         .single()
 
-      if (cancelled) return
+      if (cancelled) return { done: true, needsFinish: false }
       if (error || !data) {
         setLoading(false)
-        return true
+        setTimedOut(true)
+        return { done: true, needsFinish: false }
       }
 
       setMatchMeta({
@@ -62,22 +77,38 @@ export default function MatchResults() {
       if (data.ranked_payload) {
         setRankedPayload(data.ranked_payload as any)
         setLoading(false)
-        return true
+        return { done: true, needsFinish: false }
       }
 
-      return false
+      const needsFinish = data.status === 'finished' && !data.ranked_applied_at
+      return { done: false, needsFinish }
     }
 
-    // Poll briefly until ranked_payload is present (finish_match runs server-side)
+    const requestFinishMatch = async () => {
+      if (finishRequestedRef.current || !matchId) return
+      finishRequestedRef.current = true
+      const { error } = await supabase.rpc('finish_match', { p_match_id: matchId })
+      if (error) {
+        console.warn('[MatchResults] finish_match RPC failed:', error)
+      }
+    }
+
+    const MAX_ATTEMPTS = 120
+    const POLL_DELAY_MS = 250
+
+    // Poll until ranked_payload is present (finish_match runs server-side)
     const run = async () => {
-      for (let i = 0; i < 20; i++) {
-        const done = await fetchOnce()
+      for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        const { done, needsFinish } = await fetchOnce()
         if (cancelled) return
         if (done) return
-        // small delay
-        await new Promise((r) => setTimeout(r, 250))
+        if (needsFinish) {
+          await requestFinishMatch()
+        }
+        await new Promise((r) => setTimeout(r, POLL_DELAY_MS))
       }
       setLoading(false)
+      setTimedOut(true)
     }
 
     run()
@@ -86,7 +117,7 @@ export default function MatchResults() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, user?.id])
+  }, [matchId, user?.id, retryCounter])
 
   const mySide = useMemo(() => {
     if (!user || !matchMeta || !rankedPayload) return null
@@ -107,8 +138,16 @@ export default function MatchResults() {
 
   if (loading || !rankedPayload || !mySide || !oppSide) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 gap-4">
         <div className="text-white/70 font-mono text-sm">Loading match results…</div>
+        {timedOut && (
+          <>
+            <div className="text-white/50 text-xs">Rank data is taking longer than expected.</div>
+            <Button variant="secondary" size="sm" onClick={handleRetry}>
+              Retry
+            </Button>
+          </>
+        )}
       </div>
     )
   }
