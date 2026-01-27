@@ -345,7 +345,9 @@ export type Database = {
           main_question_ends_at: string | null
           match_id: string
           p1_eliminated_at: string | null
+          p1_results_ack_at: string | null
           p2_eliminated_at: string | null
+          p2_results_ack_at: string | null
           player1_answer_payload: Json | null
           player1_answered_at: string | null
           player1_round_score: number
@@ -367,7 +369,9 @@ export type Database = {
           main_question_ends_at?: string | null
           match_id: string
           p1_eliminated_at?: string | null
+          p1_results_ack_at?: string | null
           p2_eliminated_at?: string | null
+          p2_results_ack_at?: string | null
           player1_answer_payload?: Json | null
           player1_answered_at?: string | null
           player1_round_score?: number
@@ -389,7 +393,9 @@ export type Database = {
           main_question_ends_at?: string | null
           match_id?: string
           p1_eliminated_at?: string | null
+          p1_results_ack_at?: string | null
           p2_eliminated_at?: string | null
+          p2_results_ack_at?: string | null
           player1_answer_payload?: Json | null
           player1_answered_at?: string | null
           player1_round_score?: number
@@ -1216,6 +1222,19 @@ export type Database = {
       force_timeout_stage2: { Args: { p_match_id: string }; Returns: Json }
       force_timeout_stage3: { Args: { p_match_id: string }; Returns: Json }
       get_active_player_count: { Args: never; Returns: number }
+      get_match_question_report_v1: {
+        Args: { p_match_id: string }
+        Returns: {
+          p1_correct_parts: number
+          p1_total_parts: number
+          p2_correct_parts: number
+          p2_total_parts: number
+          question_id: string
+          round_index: number
+          stem: string
+          title: string
+        }[]
+      }
       get_match_round_state_v2: { Args: { p_match_id: string }; Returns: Json }
       get_players_rank_public_v1: {
         Args: { p_ids: string[] }

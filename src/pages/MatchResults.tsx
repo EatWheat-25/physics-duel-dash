@@ -137,7 +137,7 @@ export default function MatchResults() {
     let cancelled = false
     setReportLoading(true)
     ;(async () => {
-      const { data, error } = await supabase.rpc('get_match_question_report_v1', {
+      const { data, error } = await (supabase.rpc as any)('get_match_question_report_v1', {
         p_match_id: matchId,
       })
       if (cancelled) return
