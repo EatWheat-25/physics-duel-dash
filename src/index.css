@@ -347,6 +347,41 @@ All colors MUST be HSL.
     font-weight: 400;
   }
 
+  /* Match page paper sizing for A-level style readability */
+  .match-paper .paper-card {
+    padding: 28px;
+    font-size: 18px;
+    line-height: 1.7;
+  }
+
+  .match-paper .paper-meta {
+    font-size: 14px;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+  }
+
+  .match-paper .paper-title {
+    font-size: 22px;
+    line-height: 1.7;
+  }
+
+  .match-paper .paper-option {
+    padding: 16px 18px;
+    font-size: 18px;
+    line-height: 1.7;
+  }
+
+  .match-paper .paper-option-letter {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .match-paper .paper-option-text {
+    font-size: 18px;
+    line-height: 1.7;
+  }
+
   /* Next-Gen Holographic Panels */
   .cyber-panel {
     @apply rounded-3xl relative overflow-hidden backdrop-blur-xl;

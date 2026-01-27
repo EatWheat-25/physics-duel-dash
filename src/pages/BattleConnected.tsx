@@ -532,7 +532,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
+                className="match-paper w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
               >
                 <div className="paper-card mb-8">
                   <div className="paper-meta mb-4">
@@ -586,7 +586,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
+                className="match-paper w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
               >
                 <div className="paper-card mb-8">
                   <div className="space-y-4 mb-6">
@@ -599,7 +599,7 @@ export default function BattleConnected() {
                       {currentStep.prompt || currentStep.question}
                     </h3>
                     {currentSegment === 'sub' && (
-                      <p className="text-xs text-black mt-3">
+                      <p className="text-sm text-black mt-3">
                         Quick check — must be correct to earn this step&apos;s marks
                       </p>
                     )}
@@ -681,7 +681,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
+                className="match-paper w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
               >
                 {/* Question Card */}
                 <div className="paper-card mb-8">

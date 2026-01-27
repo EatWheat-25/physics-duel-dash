@@ -740,6 +740,25 @@ export default function AdminQuestions() {
     setForm({ ...form, steps: newSteps });
   }
 
+  const moveCorrectOption = (
+    options: string[],
+    correctIndex: number,
+    targetIndex: number
+  ) => {
+    if (!Array.isArray(options) || options.length === 0) {
+      return { options, correctIndex };
+    }
+    const clampedTarget = Math.max(0, Math.min(targetIndex, options.length - 1));
+    const clampedCorrect = Math.max(0, Math.min(correctIndex, options.length - 1));
+    if (clampedTarget === clampedCorrect) {
+      return { options, correctIndex: clampedCorrect };
+    }
+    const nextOptions = [...options];
+    const [correctOption] = nextOptions.splice(clampedCorrect, 1);
+    nextOptions.splice(clampedTarget, 0, correctOption);
+    return { options: nextOptions, correctIndex: clampedTarget };
+  };
+
   function updateStepField(index: number, field: keyof FormStep, value: any) {
     const newSteps = [...form.steps];
     const updatedStep = { ...newSteps[index], [field]: value };
@@ -774,6 +793,19 @@ export default function AdminQuestions() {
     const options = [...newSteps[stepIndex].options];
     options[optionIndex] = value;
     newSteps[stepIndex] = { ...newSteps[stepIndex], options };
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function handleMoveCorrectStepOption(stepIndex: number, targetIndex: number) {
+    const newSteps = [...form.steps];
+    const step = newSteps[stepIndex];
+    if (!step) return;
+    const { options, correctIndex } = moveCorrectOption(
+      step.options,
+      step.correctAnswer,
+      targetIndex
+    );
+    newSteps[stepIndex] = { ...step, options, correctAnswer: correctIndex };
     setForm({ ...form, steps: newSteps });
   }
 
@@ -921,6 +953,22 @@ export default function AdminQuestions() {
     const options = [...sub.options];
     options[optionIndex] = value;
     current[subStepIndex] = { ...sub, options };
+    newSteps[stepIndex] = { ...step, subSteps: current };
+    setForm({ ...form, steps: newSteps });
+  }
+
+  function handleMoveCorrectSubStepOption(stepIndex: number, subStepIndex: number, targetIndex: number) {
+    const newSteps = [...form.steps];
+    const step = newSteps[stepIndex];
+    const current = Array.isArray(step.subSteps) ? [...step.subSteps] : [];
+    const sub = current[subStepIndex];
+    if (!sub) return;
+    const { options, correctIndex } = moveCorrectOption(
+      sub.options,
+      sub.correctAnswer,
+      targetIndex
+    );
+    current[subStepIndex] = { ...sub, options, correctAnswer: correctIndex };
     newSteps[stepIndex] = { ...step, subSteps: current };
     setForm({ ...form, steps: newSteps });
   }
@@ -2342,6 +2390,27 @@ export default function AdminQuestions() {
                                 </Select>
                               </div>
                               <div>
+                                <label className={labelStyle}>Move correct to</label>
+                                <Select
+                                  value={step.correctAnswer.toString()}
+                                  onValueChange={(v) => handleMoveCorrectStepOption(index, parseInt(v))}
+                                >
+                                  <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                                  <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                    {(step.type === 'true_false'
+                                      ? [0, 1]
+                                      : Array.from({ length: step.options.length }, (_, i) => i)
+                                    ).map((optIdx) => (
+                                      <SelectItem key={optIdx} value={optIdx.toString()}>
+                                        Option {String.fromCharCode(65 + optIdx)}
+                                        {step.type === 'true_false' && optIdx === 0 ? ' (True)' : ''}
+                                        {step.type === 'true_false' && optIdx === 1 ? ' (False)' : ''}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
                                 <label className={labelStyle}>Marks</label>
                                 <Input type="number" value={step.marks} onChange={e => updateStepField(index, 'marks', parseInt(e.target.value) || 1)} className={glassInput} />
                               </div>
@@ -2552,6 +2621,27 @@ export default function AdminQuestions() {
                                             <Select
                                               value={sub.correctAnswer.toString()}
                                               onValueChange={(v) => updateSubStepField(index, subIdx, 'correctAnswer', parseInt(v))}
+                                            >
+                                              <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                                              <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                                {(sub.type === 'true_false'
+                                                  ? [0, 1]
+                                                  : Array.from({ length: sub.options.length }, (_, i) => i)
+                                                ).map((optIdx) => (
+                                                  <SelectItem key={optIdx} value={optIdx.toString()}>
+                                                    Option {String.fromCharCode(65 + optIdx)}
+                                                    {sub.type === 'true_false' && optIdx === 0 ? ' (True)' : ''}
+                                                    {sub.type === 'true_false' && optIdx === 1 ? ' (False)' : ''}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div>
+                                            <label className={labelStyle}>Move correct to</label>
+                                            <Select
+                                              value={sub.correctAnswer.toString()}
+                                              onValueChange={(v) => handleMoveCorrectSubStepOption(index, subIdx, parseInt(v))}
                                             >
                                               <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
                                               <SelectContent className="bg-gray-900 border-white/10 text-white">
