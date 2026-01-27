@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Shield, Save, X, Search, Filter, Eye, CheckCircle2, XCircle } from 'lucide-react';
+import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, Shield, Save, X, Search, Filter, Eye, CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import SpaceBackground from '@/components/SpaceBackground';
 import { useIsAdmin } from '@/hooks/useUserRole';
@@ -198,6 +198,9 @@ export default function AdminQuestions() {
   const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, isLoading: checkingAdmin } = useIsAdmin();
+  const createParam = searchParams.get('create');
+  const editParam = searchParams.get('edit');
+  const isEditorView = createParam !== null || !!editParam;
 
   // Question list state
   const [questions, setQuestions] = useState<StepBasedQuestion[]>([]);
@@ -548,9 +551,7 @@ export default function AdminQuestions() {
   }
 
   function handleNewQuestion() {
-    setMode('creating');
-    setSelectedQuestionId(null);
-    setForm(getEmptyForm());
+    navigate('/admin/questions?create=1');
   }
 
   function handleSelectQuestion(q: StepBasedQuestion) {
@@ -674,26 +675,30 @@ export default function AdminQuestions() {
   useEffect(() => {
     if (!isAdmin) return;
 
-    const createParam = searchParams.get('create');
-    const editParam = searchParams.get('edit');
-
     if (createParam !== null) {
-      // Trigger create mode immediately
-      setMode('creating');
-      setSelectedQuestionId(null);
-      setForm(getEmptyForm());
-      // Clean up URL
-      navigate('/admin/questions', { replace: true });
-    } else if (editParam && questions.length > 0) {
-      // Only handle edit if questions are loaded
+      if (mode !== 'creating') {
+        setMode('creating');
+        setSelectedQuestionId(null);
+        setForm(getEmptyForm());
+      }
+      return;
+    }
+
+    if (editParam && questions.length > 0) {
+      if (selectedQuestionId === editParam && mode === 'editing') return;
       const question = questions.find(q => q.id === editParam);
       if (question) {
         handleSelectQuestion(question);
       }
-      // Clean up URL
-      navigate('/admin/questions', { replace: true });
+      return;
     }
-  }, [isAdmin, questions, searchParams, navigate]);
+
+    if (mode !== 'idle') {
+      setMode('idle');
+      setSelectedQuestionId(null);
+      setForm(getEmptyForm());
+    }
+  }, [isAdmin, createParam, editParam, questions, mode, selectedQuestionId]);
 
   function handleAddStep() {
     setForm({
@@ -1435,7 +1440,7 @@ export default function AdminQuestions() {
     <div className="min-h-screen text-foreground relative overflow-hidden font-sans">
       <SpaceBackground />
 
-      <div className="relative z-10 max-w-[1600px] mx-auto p-6">
+      <div className="relative z-10 w-full max-w-[1900px] mx-auto p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -1453,11 +1458,10 @@ export default function AdminQuestions() {
           </Button>
         </div>
 
-        {/* Two-column layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8 h-[calc(100vh-140px)]">
-
-          {/* LEFT PANEL: Filters & List */}
-          <div className="flex flex-col gap-6 h-full overflow-hidden">
+        {/* Content */}
+        <div className="grid grid-cols-1 gap-8 h-[calc(100vh-140px)]">
+          {!isEditorView ? (
+            <div className="flex flex-col gap-6 h-full overflow-hidden">
 
             {/* Filters */}
             <div className={`p-5 ${glassPanel} space-y-4`}>
@@ -1627,7 +1631,7 @@ export default function AdminQuestions() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                 {loadingQuestions ? (
                   <div className="flex justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -1639,14 +1643,12 @@ export default function AdminQuestions() {
                 ) : (
                   filteredQuestions.map((q) => {
                     const isBulkSelected = selectedIds.has(q.id);
+                    const mainQuestionText = String(q.stem || q.steps?.[0]?.prompt || '').trim();
                     return (
                       <div
                         key={q.id}
-                        onClick={() => handleSelectQuestion(q)}
-                        className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border relative group ${selectedQuestionId === q.id
-                            ? 'bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)]'
-                            : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
-                          } ${isBulkSelected ? 'ring-2 ring-emerald-400/25 border-emerald-400/40' : ''} ${q.isEnabled === false ? 'opacity-60' : ''}`}
+                        onClick={() => navigate(`/admin/questions?edit=${q.id}`)}
+                        className={`p-5 md:p-6 rounded-xl cursor-pointer transition-all duration-200 border relative group bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10 ${isBulkSelected ? 'ring-2 ring-emerald-400/25 border-emerald-400/40' : ''} ${q.isEnabled === false ? 'opacity-60' : ''}`}
                       >
                         {/* Bulk select checkbox */}
                         <input
@@ -1669,12 +1671,18 @@ export default function AdminQuestions() {
                         <Trash2 className="w-4 h-4" />
                       </button>
 
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="font-bold text-white line-clamp-2 text-sm pr-2">{q.title}</div>
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="font-semibold text-white text-base leading-snug line-clamp-2 pr-2">{q.title}</div>
                         <span className="text-[10px] text-white/40 font-mono">#{q.id.slice(0, 6)}</span>
                       </div>
 
-                      <p className="text-xs text-white/60 mb-2 line-clamp-1">{q.chapter}</p>
+                      {mainQuestionText && (
+                        <p className="text-sm text-white/80 leading-relaxed line-clamp-3 mb-2">
+                          {mainQuestionText}
+                        </p>
+                      )}
+
+                      <p className="text-xs text-white/60 mb-3 line-clamp-1">{q.chapter}</p>
 
                       {q.isEnabled === false && (
                         <Badge
@@ -1686,7 +1694,7 @@ export default function AdminQuestions() {
                         </Badge>
                       )}
 
-                      <div className="grid grid-cols-4 gap-2 mb-2 text-[10px] font-semibold">
+                      <div className="grid grid-cols-4 gap-2 mb-3 text-xs font-semibold">
                         <Badge variant="outline" className={`uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
                             q.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
                           }`}>
@@ -1701,7 +1709,7 @@ export default function AdminQuestions() {
                         <Badge variant="outline" className="border-white/10 bg-white/5 text-white/70">{q.rankTier || 'No tier'}</Badge>
                       </div>
 
-                      <div className="text-[11px] text-white/60 font-medium flex justify-between">
+                      <div className="text-xs text-white/70 font-medium flex justify-between">
                         <span>{q.steps.length} step{q.steps.length === 1 ? '' : 's'}</span>
                         <span>{q.totalMarks} mark{q.totalMarks === 1 ? '' : 's'}</span>
                       </div>
@@ -1712,9 +1720,8 @@ export default function AdminQuestions() {
               </div>
             </div>
           </div>
-
-          {/* RIGHT PANEL: Editor */}
-          <div className={`${glassPanel} flex flex-col h-full overflow-hidden relative`}>
+          ) : (
+            <div className={`${glassPanel} flex flex-col h-full overflow-hidden relative`}>
             {mode === 'idle' ? (
               <div className="flex-1 flex flex-col items-center justify-center text-white/30">
                 <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
@@ -1726,14 +1733,24 @@ export default function AdminQuestions() {
             ) : (
               <>
                 {/* Editor Header */}
-                <div className="p-6 border-b border-white/10 bg-white/5 flex justify-between items-center sticky top-0 z-20 backdrop-blur-xl">
-                  <div>
-                    <h2 className="text-xl font-black text-white tracking-wide">
-                      {mode === 'creating' ? 'NEW QUESTION' : 'EDIT QUESTION'}
-                    </h2>
-                    <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-widest">
-                      {mode === 'creating' ? 'DRAFTING MODE' : `ID: ${selectedQuestionId?.slice(0, 8)}...`}
-                    </p>
+                <div className="p-6 border-b border-white/10 bg-white/5 flex flex-wrap gap-4 justify-between items-center sticky top-0 z-20 backdrop-blur-xl">
+                  <div className="flex items-start gap-4">
+                    <Button
+                      onClick={() => navigate('/admin/questions')}
+                      variant="ghost"
+                      className="text-white/70 hover:text-white hover:bg-white/10"
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back to list
+                    </Button>
+                    <div>
+                      <h2 className="text-xl font-black text-white tracking-wide">
+                        {mode === 'creating' ? 'NEW QUESTION' : 'EDIT QUESTION'}
+                      </h2>
+                      <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-widest">
+                        {mode === 'creating' ? 'DRAFTING MODE' : `ID: ${selectedQuestionId?.slice(0, 8)}...`}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex gap-3">
                     <Button
@@ -2861,6 +2878,7 @@ export default function AdminQuestions() {
               </>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>

@@ -184,6 +184,8 @@ export function useGame(match: MatchRow | null) {
   // Shared function to apply results from payload (used by both Realtime and WS handlers)
   const applyResults = useCallback((payload: any) => {
     console.log('[useGame] applyResults called with payload:', payload)
+    const rawStepResults =
+      payload?.stepResults ?? payload?.p1?.steps ?? payload?.p1?.stepResults
     
     // Prevent duplicate processing using round_id
     const roundId = payload.round_id || payload.roundId
@@ -197,10 +199,7 @@ export function useGame(match: MatchRow | null) {
     
     // Build results object from payload (handles both simple and multi-step modes)
     const mode = payload.mode || 'simple'
-    const stepResults =
-      mode === 'steps'
-        ? (payload.stepResults ?? payload.p1?.steps ?? payload.p1?.stepResults)
-        : undefined
+    const stepResults = mode === 'steps' ? rawStepResults : undefined
 
     const results = {
       player1_answer: mode === 'simple' ? payload.p1?.answer ?? null : null,
