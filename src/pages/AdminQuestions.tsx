@@ -1689,12 +1689,17 @@ export default function AdminQuestions() {
                   </div>
                   <div className="flex gap-3">
                     <Button
-                      onClick={() => setShowPreview(!showPreview)}
+                      onClick={() => {
+                        setShowPreview(false);
+                        navigate('/admin/preview/endgame', {
+                          state: { question: formToQuestion(form) },
+                        });
+                      }}
                       variant="outline"
                       className="bg-white/5 hover:bg-white/10 text-white border-white/10"
                     >
                       <Eye className="w-4 h-4 mr-2" />
-                      {showPreview ? 'Hide' : 'Show'} Preview
+                      Preview Endgame
                     </Button>
                     {mode === 'editing' && (
                       <Button

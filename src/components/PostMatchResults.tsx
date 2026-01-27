@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Target, Zap, ArrowRight, Award, TrendingUp, Users, Star, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RankBadge from '@/components/RankBadge';
+import { ScienceText } from '@/components/chem/ScienceText';
 import { UserRankData, getRankByPoints, getNextRank } from '@/types/ranking';
 
 interface MatchStats {
@@ -26,12 +27,26 @@ interface StepMatchStats {
   won: boolean;
 }
 
+interface QuestionReportRow {
+  round_index: number;
+  question_id: string;
+  title: string;
+  stem: string;
+  p1_correct_parts: number;
+  p1_total_parts: number;
+  p2_correct_parts: number;
+  p2_total_parts: number;
+}
+
 interface PostMatchResultsProps {
   matchStats: MatchStats;
   userData: UserRankData;
   onContinue: () => void;
   onPlayAgain?: () => void;
   stepStats?: StepMatchStats;
+  questionReport?: QuestionReportRow[];
+  reportLoading?: boolean;
+  isPlayer1?: boolean;
 }
 
 const PostMatchResults: React.FC<PostMatchResultsProps> = ({
@@ -39,7 +54,10 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
   userData,
   onContinue,
   onPlayAgain,
-  stepStats
+  stepStats,
+  questionReport = [],
+  reportLoading = false,
+  isPlayer1 = false
 }) => {
   const [showBanner, setShowBanner] = useState(false);
   const [showPoints, setShowPoints] = useState(false);
@@ -59,11 +77,11 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
   const previousProgressInRank = Math.max(0, ((previousPoints - currentRank.minPoints) / (currentRank.maxPoints - currentRank.minPoints)) * 100);
 
   const outcome = matchStats.outcome ?? (matchStats.won ? 'win' : 'loss');
-  const bannerColor = outcome === 'draw'
-    ? 'text-battle-warning'
+  const bannerTextStyle = outcome === 'draw'
+    ? { color: 'hsl(var(--space-gold))' }
     : matchStats.won
-    ? 'text-battle-success'
-    : 'text-battle-danger';
+    ? { color: 'hsl(var(--battle-primary))' }
+    : { color: 'hsl(var(--battle-danger))' };
 
   const getGameHighlight = () => {
     if (outcome === 'draw') {
@@ -153,29 +171,10 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
           transition={{ type: "spring", stiffness: 150, damping: 25 }}
           className="text-center space-y-4"
         >
-          <div className={`flex items-center justify-center gap-4`}>
-            <motion.div
-              animate={showBanner ? { rotate: [0, 5, -5, 0] } : {}}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              {outcome === 'draw' ? (
-                <Users className="text-battle-warning" size={32} />
-              ) : matchStats.won ? (
-                <Trophy className="text-battle-success" size={32} />
-              ) : (
-                <Target className="text-battle-danger" size={32} />
-              )}
-            </motion.div>
+          <div className="flex items-center justify-center">
             <motion.div 
-              className={`text-4xl md:text-5xl font-light tracking-wide ${bannerColor}`}
-              animate={showBanner ? {
-                filter: [
-                  'drop-shadow(0 0 8px currentColor)',
-                  'drop-shadow(0 0 16px currentColor)',
-                  'drop-shadow(0 0 8px currentColor)'
-                ]
-              } : {}}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              className="text-4xl md:text-6xl font-black tracking-wider"
+              style={bannerTextStyle}
             >
               {outcome === 'draw' ? "DRAW" : matchStats.won ? "VICTORY" : "DEFEAT"}
             </motion.div>
@@ -191,7 +190,7 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
           initial={{ opacity: 0, scale: 0.9 }}
           animate={showPoints ? { opacity: 1, scale: 1 } : {}}
           transition={{ type: "spring", stiffness: 200, damping: 20 }}
-          className="flex justify-center"
+          className="flex flex-col items-center gap-2"
         >
           <div 
             className={`inline-flex items-center gap-3 px-8 py-4 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm ${
@@ -205,6 +204,9 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
             </div>
             <div className="text-sm text-muted-foreground font-medium">Rank Points</div>
           </div>
+          <div className="text-xs text-muted-foreground">
+            Exact change: {matchStats.pointsEarned > 0 ? '+' : ''}{matchStats.pointsEarned} ({previousPoints} → {userData.currentPoints})
+          </div>
         </motion.div>
 
         {/* Rank Progress Section */}
@@ -214,10 +216,10 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
           transition={{ delay: 0.4 }}
           className="space-y-6"
         >
-          <div className="flex items-center justify-between px-4">
-            <div className="flex items-center gap-4">
+          <div className="flex items-start justify-between px-4">
+            <div className="flex items-start gap-4">
               <RankBadge rank={userData.currentRank} size="md" />
-              <div>
+              <div className="pt-1">
                 <div className="text-lg font-semibold">{currentRank.displayName}</div>
                 <div className="text-xs text-muted-foreground">
                   {userData.currentPoints} / {currentRank.maxPoints === 99999 ? '∞' : currentRank.maxPoints} XP
@@ -226,8 +228,8 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
             </div>
             
             {nextRank && (
-              <div className="flex items-center gap-4">
-                <div className="text-right">
+              <div className="flex items-start gap-4">
+                <div className="text-right pt-1">
                   <div className="text-lg font-semibold">{nextRank.displayName}</div>
                   <div className="text-xs text-muted-foreground">
                     {nextRank.minPoints} XP
@@ -241,12 +243,15 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
           {/* Progress Bar */}
           {nextRank && (
             <div className="relative px-4">
-              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+              <div className="mb-2 text-xl font-semibold text-white">
+                {userData.currentPoints} points
+              </div>
+              <div className="h-3 bg-white/5 rounded-md overflow-hidden relative">
                 <motion.div
-                  className="h-full rounded-full"
+                  className="h-full rounded-md"
                   style={{
-                    background: `linear-gradient(90deg, hsl(var(--battle-primary)), hsl(var(--battle-primary)/0.8))`,
-                    boxShadow: `0 0 10px hsl(var(--battle-primary)/0.4)`,
+                    background: 'linear-gradient(90deg, hsl(var(--battle-primary)), hsl(var(--battle-primary)))',
+                    boxShadow: '0 0 10px hsl(var(--battle-primary)/0.45)',
                   }}
                   initial={{ width: `${previousProgressInRank}%` }}
                   animate={animateProgress ? { width: `${progressInCurrentRank}%` } : {}}
@@ -404,6 +409,46 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
                   <span className="text-battle-warning font-semibold text-sm">Rank Up!</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-white/10">
+            <div className="text-sm font-semibold text-white/70 mb-4">Match Report</div>
+            {reportLoading && (
+              <div className="text-xs text-white/50">Loading report…</div>
+            )}
+            {!reportLoading && questionReport.length === 0 && (
+              <div className="text-xs text-white/50">No report data available.</div>
+            )}
+            <div className="space-y-3">
+              {questionReport.map((row) => {
+                const myCorrectParts = isPlayer1 ? row.p1_correct_parts : row.p2_correct_parts;
+                const myTotalParts = isPlayer1 ? row.p1_total_parts : row.p2_total_parts;
+                const oppCorrectParts = isPlayer1 ? row.p2_correct_parts : row.p1_correct_parts;
+                const oppTotalParts = isPlayer1 ? row.p2_total_parts : row.p1_total_parts;
+                const myCorrect = myTotalParts > 0 && myCorrectParts === myTotalParts;
+                const oppCorrect = oppTotalParts > 0 && oppCorrectParts === oppTotalParts;
+
+                return (
+                  <div
+                    key={`${row.question_id}-${row.round_index}`}
+                    className="flex flex-col gap-2 border-b border-white/10 pb-3 last:border-b-0"
+                  >
+                    <div>
+                      <ScienceText text={row.title} className="block text-sm font-semibold text-white/90" />
+                      <ScienceText text={row.stem} className="block text-xs text-white/60" />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 text-xs">
+                      <span className={myCorrect ? 'text-battle-success' : 'text-battle-danger'}>
+                        You: {myCorrect ? 'Correct' : 'Wrong'} ({myCorrectParts}/{myTotalParts})
+                      </span>
+                      <span className={oppCorrect ? 'text-battle-success' : 'text-battle-danger'}>
+                        Opponent: {oppCorrect ? 'Correct' : 'Wrong'} ({oppCorrectParts}/{oppTotalParts})
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </motion.div>

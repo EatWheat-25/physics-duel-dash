@@ -9,7 +9,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MatchPatternBackground } from '@/components/battle/MatchPatternBackground';
 import { QuestionGraph } from '@/components/math/QuestionGraph';
 import RankBadge from '@/components/RankBadge';
-import { getRankByPoints } from '@/types/ranking';
+import RankUpTransition from '@/components/RankUpTransition';
+import { RANKS, RankName, getRankByPoints } from '@/types/ranking';
+import { ScienceText } from '@/components/chem/ScienceText';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -24,6 +26,9 @@ export default function BattleConnected() {
   const prevMyWinsRef = useRef<number>(0);
   const prevOppWinsRef = useRef<number>(0);
   const [playerRanks, setPlayerRanks] = useState<Record<string, { display_name: string; rank_points: number }>>({});
+  const initialRankPointsRef = useRef<number | null>(null);
+  const hasRankUpRef = useRef(false);
+  const [rankUpState, setRankUpState] = useState<{ from: RankName; to: RankName } | null>(null);
 
   // --- Data Fetching (Keep existing logic) ---
   useEffect(() => {
@@ -107,6 +112,58 @@ export default function BattleConnected() {
     };
   }, [match?.player1_id, match?.player2_id]);
 
+  useEffect(() => {
+    initialRankPointsRef.current = null;
+    hasRankUpRef.current = false;
+    setRankUpState(null);
+  }, [match?.id]);
+
+  const rankUpStorageKey = matchId && currentUser ? `rankUp:${matchId}:${currentUser}` : null;
+
+  const readRankUpTransition = () => {
+    if (!rankUpStorageKey) return null;
+    try {
+      const raw = sessionStorage.getItem(rankUpStorageKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { from: RankName; to: RankName; ts: number };
+      if (!parsed?.from || !parsed?.to || !parsed?.ts) return null;
+      const ttlMs = 15 * 60 * 1000;
+      if (Date.now() - parsed.ts > ttlMs) {
+        sessionStorage.removeItem(rankUpStorageKey);
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeRankUpTransition = (from: RankName, to: RankName) => {
+    if (!rankUpStorageKey) return;
+    try {
+      sessionStorage.setItem(rankUpStorageKey, JSON.stringify({ from, to, ts: Date.now() }));
+    } catch {
+      // Ignore storage failures (private mode / storage full)
+    }
+  };
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const points = playerRanks[currentUser]?.rank_points;
+    if (points == null || Number.isNaN(points)) return;
+    if (initialRankPointsRef.current == null) {
+      initialRankPointsRef.current = points;
+    }
+  }, [playerRanks, currentUser]);
+
+  useEffect(() => {
+    if (!rankUpStorageKey || hasRankUpRef.current) return;
+    const stored = readRankUpTransition();
+    if (!stored) return;
+    hasRankUpRef.current = true;
+    setRankUpState({ from: stored.from, to: stored.to });
+  }, [rankUpStorageKey]);
+
   const { 
     status, playerRole, errorMessage, question, answerSubmitted, 
     results, roundNumber, lastRoundWinner, consecutiveWinsCount, 
@@ -118,6 +175,60 @@ export default function BattleConnected() {
     isWebSocketConnected, waitingForOpponent, waitingForOpponentToAcknowledge,
     allStepsComplete, waitingForOpponentToCompleteSteps, manualRetry
   } = useGame(match);
+
+  useEffect(() => {
+    if (!matchOver || !match?.player1_id || !match?.player2_id || !currentUser) return;
+    if (hasRankUpRef.current) return;
+    let cancelled = false;
+
+    const getRankIndex = (rank: RankName) =>
+      RANKS.findIndex(r => r.tier === rank.tier && r.subRank === rank.subRank);
+
+    (async () => {
+      const { data, error } = await (supabase as any).rpc('get_players_rank_public_v1', {
+        p_ids: [match.player1_id, match.player2_id],
+      });
+
+      if (cancelled || error || !Array.isArray(data)) return;
+
+      const map: Record<string, { display_name: string; rank_points: number }> = {};
+      for (const row of data as any[]) {
+        if (row?.id) {
+          map[String(row.id)] = {
+            display_name: String(row.display_name ?? 'Player'),
+            rank_points: Number(row.rank_points ?? 0),
+          };
+        }
+      }
+
+      setPlayerRanks(map);
+
+      const initialPoints = initialRankPointsRef.current;
+      const currentPoints = map[currentUser]?.rank_points;
+      if (initialPoints == null || currentPoints == null) return;
+
+      const fromRank = getRankByPoints(initialPoints);
+      const toRank = getRankByPoints(currentPoints);
+      const fromIndex = getRankIndex(fromRank);
+      const toIndex = getRankIndex(toRank);
+
+      if (toIndex > fromIndex) {
+        writeRankUpTransition(
+          { tier: fromRank.tier, subRank: fromRank.subRank },
+          { tier: toRank.tier, subRank: toRank.subRank }
+        );
+        hasRankUpRef.current = true;
+        setRankUpState({
+          from: { tier: fromRank.tier, subRank: fromRank.subRank },
+          to: { tier: toRank.tier, subRank: toRank.subRank },
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [matchOver, match?.player1_id, match?.player2_id, currentUser]);
 
   // Track round wins for animation
   useEffect(() => {
@@ -316,7 +427,7 @@ export default function BattleConnected() {
               <div>
                 <div className="text-xs text-blue-200/50 font-mono mb-0.5">OPERATOR</div>
                 <div className="font-bold text-shadow-glow text-lg">{myName}</div>
-                <RankBadge rank={{ tier: myRank.tier, subRank: myRank.subRank }} size="sm" className="mt-1" />
+                <RankBadge rank={{ tier: myRank.tier, subRank: myRank.subRank }} size="md" className="mt-2" />
               </div>
             </div>
           </div>
@@ -378,7 +489,7 @@ export default function BattleConnected() {
               <div>
                 <div className="text-xs text-red-200/50 font-mono mb-0.5">TARGET</div>
                 <div className="font-bold text-shadow-glow text-lg">{oppName}</div>
-                <RankBadge rank={{ tier: oppRank.tier, subRank: oppRank.subRank }} size="sm" className="mt-1" />
+                <RankBadge rank={{ tier: oppRank.tier, subRank: oppRank.subRank }} size="md" className="mt-2" />
               </div>
             </div>
           </div>
@@ -578,7 +689,7 @@ export default function BattleConnected() {
                     This is main question
                   </div>
                   <h3 className="paper-title">
-                    {question.stem || question.questionText}
+                    <ScienceText text={question.stem || question.questionText} />
                   </h3>
                 </div>
 
@@ -595,7 +706,11 @@ export default function BattleConnected() {
                         <div className="paper-option-letter">
                           {String.fromCharCode(65 + idx)}
                         </div>
-                        <span className="paper-option-text">{option}</span>
+                        <ScienceText
+                          text={String(option)}
+                          className="paper-option-text"
+                          smilesSize="sm"
+                        />
                       </div>
                     </button>
                   ))}
@@ -635,9 +750,13 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
               >
-                <div className="mb-8">
+                {rankUpState && (
+                  <RankUpTransition fromRank={rankUpState.from} toRank={rankUpState.to} active />
+                )}
+                <div className="relative z-10">
+                  <div className="mb-8">
                   {results.round_winner === currentUser ? (
                     <motion.div 
                       initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring" }}
@@ -688,79 +807,79 @@ export default function BattleConnected() {
                       </p>
                     </>
                   )}
-                </div>
+                  </div>
 
-                {/* Step-by-step results with "X out of 4" format */}
-                {results.stepResults && results.stepResults.length > 0 && (
-                  <div className="mb-8">
-                    {/* Calculate parts correct for each player */}
-                    {(() => {
-                      const myPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
-                        return myAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
-                      const oppPartsCorrect = results.stepResults.filter((stepResult) => {
-                        const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
-                        return oppAnswer === stepResult.correctAnswer;
-                      }).length;
-                      
-                      const totalSteps = results.stepResults.length;
-                      const iWon = myPartsCorrect > oppPartsCorrect;
-                      const isTie = myPartsCorrect === oppPartsCorrect;
-                      
-                      return (
-                        <>
-                          {/* Main "X out of 4" Display */}
-                          <div className="grid grid-cols-2 gap-6 mb-6">
-                            {/* Player Section */}
-                            <motion.div
-                              initial={{ x: -20, opacity: 0 }}
-                              animate={{ x: 0, opacity: 1 }}
-                              transition={{ delay: 0.1 }}
-                              className={`p-6 rounded-2xl border-2 ${
-                                iWon 
-                                  ? 'bg-green-500/20 border-green-500/40' 
-                                  : isTie
-                                  ? 'bg-blue-500/20 border-blue-500/40'
-                                  : 'bg-red-500/20 border-red-500/40'
-                              }`}
-                            >
-                              <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">YOU</div>
-                              <div className={`text-5xl md:text-6xl font-black mb-2 ${
-                                iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
-                              }`}>
-                                {myPartsCorrect} out of {totalSteps}
-                              </div>
-                              <div className="text-sm text-white/60 font-mono">
-                                {myPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - myPartsCorrect} incorrect`}
-                              </div>
-                            </motion.div>
-                            
-                            {/* Opponent Section */}
-                            <motion.div
-                              initial={{ x: 20, opacity: 0 }}
-                              animate={{ x: 0, opacity: 1 }}
-                              transition={{ delay: 0.2 }}
-                              className={`p-6 rounded-2xl border-2 ${
-                                !iWon && !isTie
-                                  ? 'bg-green-500/20 border-green-500/40' 
-                                  : isTie
-                                  ? 'bg-blue-500/20 border-blue-500/40'
-                                  : 'bg-red-500/20 border-red-500/40'
-                              }`}
-                            >
-                              <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">OPPONENT</div>
-                              <div className={`text-5xl md:text-6xl font-black mb-2 ${
-                                !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
-                              }`}>
-                                {oppPartsCorrect} out of {totalSteps}
-                              </div>
-                              <div className="text-sm text-white/60 font-mono">
-                                {oppPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - oppPartsCorrect} incorrect`}
-                              </div>
-                            </motion.div>
-                          </div>
+                  {/* Step-by-step results with "X out of 4" format */}
+                  {results.stepResults && results.stepResults.length > 0 && (
+                    <div className="mb-8">
+                      {/* Calculate parts correct for each player */}
+                      {(() => {
+                        const myPartsCorrect = results.stepResults.filter((stepResult) => {
+                          const myAnswer = isPlayer1 ? stepResult.p1AnswerIndex : stepResult.p2AnswerIndex;
+                          return myAnswer === stepResult.correctAnswer;
+                        }).length;
+                        
+                        const oppPartsCorrect = results.stepResults.filter((stepResult) => {
+                          const oppAnswer = isPlayer1 ? stepResult.p2AnswerIndex : stepResult.p1AnswerIndex;
+                          return oppAnswer === stepResult.correctAnswer;
+                        }).length;
+                        
+                        const totalSteps = results.stepResults.length;
+                        const iWon = myPartsCorrect > oppPartsCorrect;
+                        const isTie = myPartsCorrect === oppPartsCorrect;
+                        
+                        return (
+                          <>
+                            {/* Main "X out of 4" Display */}
+                            <div className="grid grid-cols-2 gap-6 mb-6">
+                              {/* Player Section */}
+                              <motion.div
+                                initial={{ x: -20, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.1 }}
+                                className={`p-6 rounded-2xl border-2 ${
+                                  iWon 
+                                    ? 'bg-green-500/20 border-green-500/40' 
+                                    : isTie
+                                    ? 'bg-blue-500/20 border-blue-500/40'
+                                    : 'bg-red-500/20 border-red-500/40'
+                                }`}
+                              >
+                                <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">YOU</div>
+                                <div className={`text-5xl md:text-6xl font-black mb-2 ${
+                                  iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
+                                }`}>
+                                  {myPartsCorrect} out of {totalSteps}
+                                </div>
+                                <div className="text-sm text-white/60 font-mono">
+                                  {myPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - myPartsCorrect} incorrect`}
+                                </div>
+                              </motion.div>
+                              
+                              {/* Opponent Section */}
+                              <motion.div
+                                initial={{ x: 20, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.2 }}
+                                className={`p-6 rounded-2xl border-2 ${
+                                  !iWon && !isTie
+                                    ? 'bg-green-500/20 border-green-500/40' 
+                                    : isTie
+                                    ? 'bg-blue-500/20 border-blue-500/40'
+                                    : 'bg-red-500/20 border-red-500/40'
+                                }`}
+                              >
+                                <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">OPPONENT</div>
+                                <div className={`text-5xl md:text-6xl font-black mb-2 ${
+                                  !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
+                                }`}>
+                                  {oppPartsCorrect} out of {totalSteps}
+                                </div>
+                                <div className="text-sm text-white/60 font-mono">
+                                  {oppPartsCorrect === totalSteps ? 'Perfect!' : `${totalSteps - oppPartsCorrect} incorrect`}
+                                </div>
+                              </motion.div>
+                            </div>
                           
                           {/* Divider */}
                           <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent mb-6" />
@@ -812,8 +931,9 @@ export default function BattleConnected() {
                         </>
                       );
                     })()}
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Single-step results */}
                 {(!results.stepResults || results.stepResults.length === 0) && results.player1_answer !== undefined && results.player2_answer !== undefined && (

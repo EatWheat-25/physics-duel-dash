@@ -388,7 +388,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartBattle, onStartMathBattle,
                   </div>
                 </div>
                 
-                <div className="mt-4 p-3 rounded-lg bg-white/10 border border-white/20 flex items-center justify-between">
+                <div className="mt-4 p-3 rounded-lg bg-white/10 border border-white/20 flex items-start justify-between gap-4">
                   <span className="text-white/70 text-sm font-medium">Current Rank</span>
                   <RankBadge rank={userData.currentRank} size="sm" />
                 </div>

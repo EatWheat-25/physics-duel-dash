@@ -53,7 +53,7 @@ export function PlayerHubCard() {
         <div className="relative z-10 h-full flex flex-col md:grid md:grid-cols-[300px_1fr_280px] gap-4 p-6 md:p-8">
           <div className="flex flex-col justify-between md:h-full">
             <div className="space-y-4">
-              <div className="flex items-center gap-4">
+              <div className="flex items-start gap-4">
                 <div
                   className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-bold"
                   style={{
@@ -64,8 +64,8 @@ export function PlayerHubCard() {
                   {username.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1">
-                  <div className="mb-2">
-                    <RankBadge rank={userData.currentRank} size="sm" />
+                  <div className="pt-1">
+                    <RankBadge rank={userData.currentRank} size="md" />
                   </div>
                 </div>
               </div>

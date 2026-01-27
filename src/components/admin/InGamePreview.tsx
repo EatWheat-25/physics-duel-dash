@@ -10,9 +10,11 @@ import { Starfield } from '@/components/Starfield';
 
 interface InGamePreviewProps {
   question: StepBasedQuestion;
+  variant?: 'panel' | 'embedded';
+  className?: string;
 }
 
-export function InGamePreview({ question }: InGamePreviewProps) {
+export function InGamePreview({ question, variant = 'panel', className = '' }: InGamePreviewProps) {
   const [simulatedPhase, setSimulatedPhase] = useState<RoundPhase>('thinking');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -158,14 +160,19 @@ export function InGamePreview({ question }: InGamePreviewProps) {
 
   const correctAnswer = simulatedPhase === 'result' ? currentStep.correctAnswer : null;
   const showResult = simulatedPhase === 'result';
+  const isEmbedded = variant === 'embedded';
 
   return (
-    <div className="relative min-h-[600px] rounded-lg overflow-hidden border border-white/10">
+    <div
+      className={`relative min-h-[600px] overflow-hidden ${!isEmbedded ? 'rounded-lg border border-white/10' : ''} ${className}`}
+    >
       {/* Game-like background */}
-      <div className="absolute inset-0 bg-[#050505]">
-        <Starfield />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505] pointer-events-none" />
-      </div>
+      {!isEmbedded && (
+        <div className="absolute inset-0 bg-[#050505]">
+          <Starfield />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505] pointer-events-none" />
+        </div>
+      )}
 
       {/* Controls Panel */}
       <div className="relative z-10 bg-black/40 backdrop-blur-xl border-b border-white/10 p-4">

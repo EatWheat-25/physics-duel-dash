@@ -150,8 +150,8 @@ const ChapterSelector: React.FC<ChapterSelectorProps> = ({
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">
+                        <div className="flex items-start gap-3">
+                          <span className="text-sm text-muted-foreground pt-1">
                             Unlocks at:
                           </span>
                           <RankBadge rank={requiredRank} size="sm" />

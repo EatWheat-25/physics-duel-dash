@@ -314,6 +314,70 @@ function broadcastToMatch(matchId: string, event: any): void {
   console.log(`[${matchId}] 📊 Broadcast ${event.type} to ${sentCount}/${matchSockets.size} sockets`)
 }
 
+async function backfillResultsRoundId(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>,
+  context?: { resultsRoundId?: string | null; resultsPayload?: any }
+): Promise<void> {
+  const payloadRoundId = context?.resultsPayload?.round_id ?? context?.resultsPayload?.roundId ?? null
+  const candidate =
+    (typeof context?.resultsRoundId === 'string' && context.resultsRoundId.length > 0)
+      ? context.resultsRoundId
+      : (typeof payloadRoundId === 'string' && payloadRoundId.length > 0 ? payloadRoundId : null)
+
+  if (candidate) {
+    const { data: updated, error } = await (supabase
+      .from('matches')
+      .update({ results_round_id: candidate } as any)
+      .eq('id', matchId)
+      .is('results_round_id', null)
+      .select('results_round_id')
+      .maybeSingle() as any)
+
+    if (error) {
+      console.warn(`[${matchId}] ⚠️ Failed to backfill results_round_id:`, error)
+      return
+    }
+
+    if (updated?.results_round_id) {
+      console.log(`[${matchId}] ✅ Backfilled results_round_id -> ${updated.results_round_id}`)
+    }
+    return
+  }
+
+  const { data: matchRow, error: matchError } = await (supabase
+    .from('matches')
+    .select('results_round_id, current_round_id')
+    .eq('id', matchId)
+    .single() as any)
+
+  if (matchError || !matchRow) {
+    console.warn(`[${matchId}] ⚠️ Failed to load match for results_round_id backfill`, matchError)
+    return
+  }
+
+  if (matchRow.results_round_id || !matchRow.current_round_id) {
+    return
+  }
+
+  const { data: updated, error } = await (supabase
+    .from('matches')
+    .update({ results_round_id: matchRow.current_round_id } as any)
+    .eq('id', matchId)
+    .is('results_round_id', null)
+    .select('results_round_id')
+    .maybeSingle() as any)
+
+  if (error) {
+    console.warn(`[${matchId}] ⚠️ Failed to backfill results_round_id from current_round_id:`, error)
+    return
+  }
+
+  if (updated?.results_round_id) {
+    console.log(`[${matchId}] ✅ Backfilled results_round_id -> ${updated.results_round_id}`)
+  }
+}
+
 function clearAutoNextRoundTimeout(matchId: string): void {
   const timeoutId = autoNextRoundTimeouts.get(matchId)
   if (timeoutId) {
@@ -1024,6 +1088,11 @@ async function broadcastQuestion(
           .select('results_payload, results_version, results_round_id, current_round_number, player1_answer, player2_answer, correct_answer, player1_correct, player2_correct, round_winner')
           .eq('id', matchId)
           .single() as { data: any; error: any }
+
+        await backfillResultsRoundId(matchId, supabase, {
+          resultsRoundId: matchResults?.results_round_id,
+          resultsPayload: matchResults?.results_payload
+        })
 
         if (matchResults?.results_round_id) {
           const { error: ackResetError } = await (supabase
@@ -2989,6 +3058,11 @@ async function handleSubmitAnswerV2(
       matchTimeouts.delete(matchId)
       console.log(`[${matchId}] ✅ [V2] Cleared timeout - both players answered early`)
     }
+
+    await backfillResultsRoundId(matchId, supabase, {
+      resultsRoundId: data.results_round_id,
+      resultsPayload: data.results_payload
+    })
 
     // PRIMARY: Realtime will deliver results (works across Edge instances)
     // FALLBACK: Also send WebSocket message in case Realtime is delayed/fails

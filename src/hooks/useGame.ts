@@ -23,6 +23,7 @@ interface ConnectionState {
     player1_correct: boolean
     player2_correct: boolean
     round_winner: string | null
+    round_id?: string | null
     p1Score?: number
     p2Score?: number
     // V2 legacy: per-step results lived under payload.p1.steps
@@ -689,19 +690,30 @@ export function useGame(match: MatchRow | null) {
               try {
                 const mappedQuestion = mapRawToQuestion(message.question)
                 const timerEndAt = (message as any).timer_end_at || null
-                setState(prev => ({
-                  ...prev,
-                  status: 'playing',
-                  phase: 'question', // Ensure phase is set so question displays
-                  question: mappedQuestion,
-                  errorMessage: null,
-                  timerEndAt: timerEndAt,
-                  answerSubmitted: false,
-                  waitingForOpponent: false,
-                  results: null,
-                  nextRoundEndsAt: null,
-                  nextRoundTimeLeft: null
-                }))
+                setState(prev => {
+                  const canonicalRoundId = prev.currentRoundId || currentRoundIdRef.current
+                  const resultsRoundId = prev.results?.round_id
+                  const shouldIgnore =
+                    prev.status === 'results' &&
+                    Boolean(resultsRoundId) &&
+                    canonicalRoundId === resultsRoundId
+                  if (shouldIgnore) {
+                    return prev
+                  }
+                  return {
+                    ...prev,
+                    status: 'playing',
+                    phase: 'question', // Ensure phase is set so question displays
+                    question: mappedQuestion,
+                    errorMessage: null,
+                    timerEndAt: timerEndAt,
+                    answerSubmitted: false,
+                    waitingForOpponent: false,
+                    results: null,
+                    nextRoundEndsAt: null,
+                    nextRoundTimeLeft: null
+                  }
+                })
               } catch (error) {
                 console.error('[useGame] Error mapping question:', error)
                 setState(prev => ({
@@ -822,6 +834,7 @@ export function useGame(match: MatchRow | null) {
               // WebSocket fast-path - but check if we already have results from Realtime
               // If results_version is provided, check against local version
               const msg = message as any
+              const roundId = msg.results_payload?.round_id || msg.round_id
               
               // Strict deduplication: Check version first
               if (msg.results_version !== undefined && msg.results_version <= localResultsVersionRef.current) {
@@ -830,7 +843,6 @@ export function useGame(match: MatchRow | null) {
               }
 
               // Also check round_id deduplication (handles same version from different sources)
-              const roundId = msg.results_payload?.round_id || msg.round_id
               if (roundId && processedRoundIdsRef.current.has(roundId)) {
                 console.log('[useGame] Ignoring WS RESULTS_RECEIVED - already processed this round_id:', roundId)
                 return
@@ -1072,9 +1084,15 @@ export function useGame(match: MatchRow | null) {
           localResultsVersionRef.current = matchData.results_version || 0
           
           // Validate before applying
+          const payloadRoundId =
+            matchData.results_payload?.round_id ?? matchData.results_payload?.roundId ?? null
+          const roundMatch =
+            matchData.results_round_id === matchData.current_round_id ||
+            matchData.current_round_id === null ||
+            (payloadRoundId && payloadRoundId === matchData.current_round_id)
           if (
             matchData.results_payload &&
-            matchData.results_round_id === matchData.current_round_id
+            roundMatch
           ) {
             applyResults(matchData.results_payload)
           }
@@ -1147,7 +1165,11 @@ export function useGame(match: MatchRow | null) {
         // 3. results_round_id === current_round_id OR current_round_id is null (allow first round)
         const hasPayload = newPayload.results_payload != null
         const versionCheck = newVersion > localResultsVersionRef.current
-        const roundMatch = newPayload.results_round_id === newPayload.current_round_id || newPayload.current_round_id === null
+        const payloadRoundId = newPayload?.results_payload?.round_id ?? newPayload?.results_payload?.roundId ?? null
+        const roundMatch =
+          newPayload.results_round_id === newPayload.current_round_id ||
+          newPayload.current_round_id === null ||
+          (payloadRoundId && payloadRoundId === newPayload.current_round_id)
         if (
           hasPayload &&
           versionCheck &&
@@ -1157,6 +1179,7 @@ export function useGame(match: MatchRow | null) {
             version: newVersion,
             local_version: localResultsVersionRef.current,
             round_id: newPayload.results_round_id,
+            payload_round_id: payloadRoundId,
             current_round_id: newPayload.current_round_id,
             payload: newPayload.results_payload
           })
@@ -1167,10 +1190,11 @@ export function useGame(match: MatchRow | null) {
           console.warn('[useGame] ⚠️ Ignoring Realtime results:', {
             hasPayload: newPayload.results_payload != null,
             versionCheck: `${newVersion} >= ${localResultsVersionRef.current}`,
-            roundMatch: `${newPayload.results_round_id} === ${newPayload.current_round_id} || ${newPayload.current_round_id} === null`,
+            roundMatch: `${newPayload.results_round_id} === ${newPayload.current_round_id} || ${payloadRoundId ?? 'null'} === ${newPayload.current_round_id} || ${newPayload.current_round_id} === null`,
             results_version: newVersion,
             local_version: localResultsVersionRef.current,
             results_round_id: newPayload.results_round_id,
+            payload_round_id: payloadRoundId,
             current_round_id: newPayload.current_round_id,
             payload: newPayload.results_payload
           })
@@ -1208,6 +1232,14 @@ export function useGame(match: MatchRow | null) {
           const mappedQuestion = mapRawToQuestion(questionPayload)
           const nextTimerEndAt = roundDeadline ? String(roundDeadline) : prev.timerEndAt
           if (prev.question?.id === mappedQuestion.id && nextTimerEndAt === prev.timerEndAt) {
+            return prev
+          }
+          const resultsRoundId = prev.results?.round_id
+          const shouldIgnore =
+            prev.status === 'results' &&
+            Boolean(resultsRoundId) &&
+            canonicalRoundId === resultsRoundId
+          if (shouldIgnore) {
             return prev
           }
           return {

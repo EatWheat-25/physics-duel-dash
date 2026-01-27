@@ -32,6 +32,7 @@ import Onboarding from "./pages/Onboarding";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminQuestions from "./pages/AdminQuestions";
 import AdminLogin from "./pages/AdminLogin";
+import AdminEndgamePreview from "./pages/AdminEndgamePreview";
 import OnlineBattlePage from "./pages/OnlineBattlePage";
 import BattleConnected from "./pages/BattleConnected";
 import MatchResults from "./pages/MatchResults";
@@ -93,6 +94,14 @@ const App = () => {
                         }
                       />
                       <Route path="/admin/questions" element={<AdminQuestions />} />
+                      <Route
+                        path="/admin/preview/endgame"
+                        element={
+                          <ProtectedAdminRoute>
+                            <AdminEndgamePreview />
+                          </ProtectedAdminRoute>
+                        }
+                      />
                       <Route path="/debug/questions" element={<DebugQuestions />} />
                       <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
                       <Route path="/dev/contract-test" element={<DevContractTest />} />

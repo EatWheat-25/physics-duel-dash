@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Rank } from '@/types/ranking';
+import RankBadge from '@/components/RankBadge';
 
 export const LOBBY_PLAYER_CARD_SIZE =
   'w-[clamp(280px,40vh,360px)] max-w-[90vw] aspect-[5/7]';
@@ -166,13 +167,15 @@ export function LobbyPlayerCard({
               }}
             />
 
-            <div className="relative p-6 h-full flex flex-col">
+            <div className="relative p-6 pt-36 h-full flex flex-col">
+              <RankBadge
+                rank={rank}
+                size="lg"
+                className="absolute top-6 left-1/2 -translate-x-1/2"
+              />
               <div className={`flex items-start ${showPoints ? 'justify-between' : 'justify-start'}`}>
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white/80 truncate">
-                    {rank.displayName}
-                  </div>
-                  <div className="mt-1 text-xs text-white/55">Level {level}</div>
+                  <div className="text-xs text-white/55">Level {level}</div>
                 </div>
                 {showPoints && (
                   <div className="text-right">
@@ -198,7 +201,6 @@ export function LobbyPlayerCard({
 
               <div className="mt-6 text-center">
                 <div className="text-2xl font-bold text-white">{displayName}</div>
-                <div className="text-sm text-white/55">{rank.displayName}</div>
               </div>
 
               <div className="mt-auto pt-8 flex items-center justify-between">

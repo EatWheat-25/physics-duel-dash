@@ -3,10 +3,9 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import RankBadge from '@/components/RankBadge';
 import { Button } from '@/components/ui/button';
-import { rankColor, RankTier } from '@/lib/rankColors';
 import { getRankByPoints } from '@/types/ranking';
+import RankBadge from '@/components/RankBadge';
 
 interface PlayerStats {
   accuracy: number | null;
@@ -131,20 +130,7 @@ export function PlayerCard() {
     );
   }
 
-  const colors = rankColor(stats.rank_tier as RankTier);
   const rank = getRankByPoints(stats.mmr || 1000);
-
-  const getRankEmoji = (tier: string) => {
-    const emojiMap: Record<string, string> = {
-      'Bronze': '🥉',
-      'Silver': '🥈',
-      'Gold': '🥇',
-      'Platinum': '🟪',
-      'Diamond': '💎',
-      'Ruby': '♦️',
-    };
-    return emojiMap[tier] || '🥉';
-  };
 
   return (
     <motion.div
@@ -187,23 +173,11 @@ export function PlayerCard() {
         <div className="absolute inset-[1px] rounded-[calc(1.5rem-1px)] border border-white/5 pointer-events-none" />
 
         {/* Top Stats Row */}
-        <div className="relative p-4 flex items-center justify-between border-b border-white/5">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="text-xl">{getRankEmoji(rank.tier)}</div>
-            <div className="min-w-0">
-              <div 
-                className="text-lg font-bold text-white uppercase truncate"
-                style={{ 
-                  fontFamily: 'Orbitron, Inter, system-ui, sans-serif',
-                  letterSpacing: '0.05em'
-                }}
-              >
-                {rank.tier} {rank.subRank}
-              </div>
-            </div>
+        <div className="relative p-4 border-b border-white/5">
+          <div className="flex justify-center">
+            <RankBadge rank={rank} size="lg" />
           </div>
-          
-          <div className="flex items-center gap-4">
+          <div className="mt-4 flex items-center justify-end gap-4">
             <div className="flex flex-col items-end">
               <span 
                 className="text-sm font-bold text-white/90"
@@ -273,9 +247,6 @@ export function PlayerCard() {
             }}
           >
             {profile?.username || 'Player'}
-          </div>
-          <div className="text-sm text-white/70 uppercase tracking-wider">
-            {rank.tier} {rank.subRank}
           </div>
         </div>
 

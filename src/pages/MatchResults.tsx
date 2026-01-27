@@ -21,6 +21,17 @@ type RankedPayload = {
   p2: RankedPayload['p1']
 }
 
+type QuestionReportRow = {
+  round_index: number
+  question_id: string
+  title: string
+  stem: string
+  p1_correct_parts: number
+  p1_total_parts: number
+  p2_correct_parts: number
+  p2_total_parts: number
+}
+
 export default function MatchResults() {
   const { matchId } = useParams()
   const navigate = useNavigate()
@@ -29,6 +40,8 @@ export default function MatchResults() {
   const [timedOut, setTimedOut] = useState(false)
   const [retryCounter, setRetryCounter] = useState(0)
   const [rankedPayload, setRankedPayload] = useState<RankedPayload | null>(null)
+  const [questionReport, setQuestionReport] = useState<QuestionReportRow[]>([])
+  const [reportLoading, setReportLoading] = useState(false)
   const [matchMeta, setMatchMeta] = useState<{
     player1_id: string
     player2_id: string
@@ -119,6 +132,28 @@ export default function MatchResults() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, user?.id, retryCounter])
 
+  useEffect(() => {
+    if (!matchId || !user || !rankedPayload) return
+    let cancelled = false
+    setReportLoading(true)
+    ;(async () => {
+      const { data, error } = await supabase.rpc('get_match_question_report_v1', {
+        p_match_id: matchId,
+      })
+      if (cancelled) return
+      if (error) {
+        console.warn('[MatchResults] question report RPC failed:', error)
+        setQuestionReport([])
+      } else {
+        setQuestionReport((data as QuestionReportRow[]) || [])
+      }
+      setReportLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [matchId, user?.id, rankedPayload])
+
   const mySide = useMemo(() => {
     if (!user || !matchMeta || !rankedPayload) return null
     if (rankedPayload.p1.player_id === user.id) return rankedPayload.p1
@@ -179,12 +214,17 @@ export default function MatchResults() {
     avatar: undefined,
   }
 
+  const isPlayer1 = matchMeta?.player1_id === user.id
+
   return (
     <PostMatchResults
       matchStats={matchStats}
       userData={userData as any}
       onContinue={() => navigate('/matchmaking-new')}
       onPlayAgain={() => navigate('/matchmaking-new')}
+      questionReport={questionReport}
+      reportLoading={reportLoading}
+      isPlayer1={isPlayer1 ?? false}
     />
   )
 }
