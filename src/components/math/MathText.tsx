@@ -69,6 +69,18 @@ function normalizePlainText(input: string): string {
   )
 }
 
+/**
+ * Normalize math content just before KaTeX.
+ * Fixes common authoring mistakes like "\Q" or "\t" used for variables.
+ */
+function normalizeMath(input: string): string {
+  return input
+    // Drop backslash for single-letter "commands" like \Q, \I, \t (not \theta, \text, etc).
+    .replace(/\\([A-Za-z])(?![A-Za-z])/g, '$1')
+    // Remove a trailing backslash from malformed math (e.g. "\Q = It\").
+    .replace(/\\$/g, '')
+}
+
 // ---------------------------------------------------------------------------
 // Markdown-lite renderer (bold/italic) for legacy content like **bold** or _italics_
 // ---------------------------------------------------------------------------
@@ -332,7 +344,7 @@ export function MathText({
           return <span key={idx}>{renderMarkdownLite(cleanText)}</span>
         }
 
-        const html = renderKatex(t.content, t.type === 'blockMath')
+        const html = renderKatex(normalizeMath(t.content), t.type === 'blockMath')
         return (
           <span
             key={idx}
