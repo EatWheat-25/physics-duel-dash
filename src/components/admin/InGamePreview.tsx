@@ -8,13 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Clock, RotateCcw } from 'lucide-react';
 import { Starfield } from '@/components/Starfield';
 
-interface InGamePreviewProps {
+export type InGamePreviewProps = {
   question: StepBasedQuestion;
   variant?: 'panel' | 'embedded';
   className?: string;
-}
+  theme?: 'dark' | 'light';
+};
 
-export function InGamePreview({ question, variant = 'panel', className = '' }: InGamePreviewProps) {
+export function InGamePreview({ question, variant = 'panel', className = '', theme = 'dark' }: InGamePreviewProps) {
   const [simulatedPhase, setSimulatedPhase] = useState<RoundPhase>('thinking');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -161,30 +162,54 @@ export function InGamePreview({ question, variant = 'panel', className = '' }: I
   const correctAnswer = simulatedPhase === 'result' ? currentStep.correctAnswer : null;
   const showResult = simulatedPhase === 'result';
   const isEmbedded = variant === 'embedded';
+  const isLight = theme === 'light' || className.includes('preview-light');
+  const containerBorder = !isEmbedded
+    ? (isLight ? 'rounded-lg border border-slate-200' : 'rounded-lg border border-white/10')
+    : '';
+  const panelBase = isLight
+    ? 'bg-white/90 border-slate-200 text-slate-900'
+    : 'bg-black/40 border-white/10 text-white';
+  const panelMuted = isLight ? 'text-slate-500' : 'text-white/60';
+  const panelInput = isLight ? 'bg-slate-100 border-slate-200 text-slate-900' : 'bg-white/5 border-white/10 text-white';
+  const panelButton = isLight
+    ? 'bg-slate-100 border border-slate-200 text-slate-900 hover:bg-slate-200'
+    : 'bg-white/5 border border-white/10 text-white hover:bg-white/10';
+  const timerBadgeClass = isLight
+    ? 'text-lg px-3 py-1 bg-slate-100 border-slate-200 text-slate-900'
+    : 'text-lg px-3 py-1 bg-white/10 border-white/20';
+  const phaseBadgeClass = simulatedPhase === 'thinking'
+    ? (isLight ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-blue-500/20 text-blue-300 border-blue-500/50')
+    : simulatedPhase === 'choosing'
+      ? (isLight ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-amber-500/20 text-amber-300 border-amber-500/50')
+      : (isLight ? 'bg-green-100 text-green-700 border-green-200' : 'bg-green-500/20 text-green-300 border-green-500/50');
 
   return (
     <div
-      className={`relative min-h-[600px] overflow-hidden ${!isEmbedded ? 'rounded-lg border border-white/10' : ''} ${className}`}
+      className={`relative min-h-[600px] overflow-hidden ${containerBorder} ${className}`}
     >
       {/* Game-like background */}
       {!isEmbedded && (
-        <div className="absolute inset-0 bg-[#050505]">
-          <Starfield />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505] pointer-events-none" />
+        <div className={`absolute inset-0 ${isLight ? 'bg-white' : 'bg-[#050505]'}`}>
+          {!isLight && (
+            <>
+              <Starfield />
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#050505] to-[#050505] pointer-events-none" />
+            </>
+          )}
         </div>
       )}
 
       {/* Controls Panel */}
-      <div className="relative z-10 bg-black/40 backdrop-blur-xl border-b border-white/10 p-4">
+      <div className={`relative z-10 border-b p-4 backdrop-blur-xl ${panelBase}`}>
         <div className="flex flex-wrap items-center gap-3">
           {/* Phase Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-white/60 font-mono">Phase:</span>
+            <span className={`text-xs font-mono ${panelMuted}`}>Phase:</span>
             <Select
               value={simulatedPhase}
               onValueChange={(v) => handlePhaseChange(v as RoundPhase)}
             >
-              <SelectTrigger className="h-9 w-[140px] bg-white/5 border-white/10 text-white">
+              <SelectTrigger className={`h-9 w-[140px] ${panelInput}`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -198,12 +223,12 @@ export function InGamePreview({ question, variant = 'panel', className = '' }: I
           {/* Step Selector (for multi-step questions) */}
           {totalSteps > 1 && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-white/60 font-mono">Step:</span>
+              <span className={`text-xs font-mono ${panelMuted}`}>Step:</span>
               <Select
                 value={String(currentStepIndex)}
                 onValueChange={(v) => handleStepChange(parseInt(v))}
               >
-                <SelectTrigger className="h-9 w-[100px] bg-white/5 border-white/10 text-white">
+                <SelectTrigger className={`h-9 w-[100px] ${panelInput}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -225,7 +250,7 @@ export function InGamePreview({ question, variant = 'panel', className = '' }: I
                 variant="ghost"
                 size="sm"
                 onClick={handleToggleTimer}
-                className="h-9 bg-white/5 border border-white/10 text-white hover:bg-white/10"
+                className={`h-9 ${panelButton}`}
               >
                 <Clock className="w-4 h-4 mr-2" />
                 {showTimer ? 'Timer ON' : 'Timer OFF'}
@@ -237,7 +262,7 @@ export function InGamePreview({ question, variant = 'panel', className = '' }: I
           {showTimer && timeLeft !== null && simulatedPhase === 'choosing' && (
             <Badge
               variant={timeLeft < 5 ? 'destructive' : 'secondary'}
-              className="text-lg px-3 py-1 bg-white/10 border-white/20"
+              className={timerBadgeClass}
             >
               <Clock className="w-4 h-4 mr-2" />
               {timeLeft}s
@@ -251,7 +276,7 @@ export function InGamePreview({ question, variant = 'panel', className = '' }: I
               variant="ghost"
               size="sm"
               onClick={handleReset}
-              className="h-9 bg-white/5 border border-white/10 text-white hover:bg-white/10"
+              className={`h-9 ${panelButton}`}
             >
               <RotateCcw className="w-4 h-4 mr-2" />
               Reset
@@ -262,20 +287,14 @@ export function InGamePreview({ question, variant = 'panel', className = '' }: I
         {/* Phase Badge */}
         <div className="mt-3">
           <Badge
-            className={`${
-              simulatedPhase === 'thinking'
-                ? 'bg-blue-500/20 text-blue-300 border-blue-500/50'
-                : simulatedPhase === 'choosing'
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                  : 'bg-green-500/20 text-green-300 border-green-500/50'
-            } border`}
+            className={`${phaseBadgeClass} border`}
           >
             {simulatedPhase === 'thinking' && '⏳ Thinking Phase'}
             {simulatedPhase === 'choosing' && '✏️ Choosing Phase'}
             {simulatedPhase === 'result' && '✅ Result Phase'}
           </Badge>
           {totalSteps > 1 && (
-            <span className="ml-3 text-sm text-white/60">
+            <span className={`ml-3 text-sm ${panelMuted}`}>
               Step {currentStepIndex + 1} of {totalSteps}: {currentStep.title}
             </span>
           )}

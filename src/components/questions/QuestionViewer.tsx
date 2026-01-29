@@ -211,51 +211,57 @@ export function QuestionViewer({
             {currentQuestion.stem && totalSteps > 1 && (
               <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                 <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-1">Main Question:</p>
-                <p className="text-gray-800 font-medium">
+                {((currentQuestion as any).graph || currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                  <div className="mt-3 flex flex-col items-center gap-3">
+                    {(currentQuestion as any).graph && (
+                      <QuestionGraph graph={(currentQuestion as any).graph} />
+                    )}
+                    {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                      <img
+                        src={currentQuestion.imageUrl || (currentQuestion as any).image_url}
+                        alt="Question"
+                        className="rounded-lg max-w-full border border-black/10"
+                        loading="lazy"
+                      />
+                    )}
+                  </div>
+                )}
+                <p className="mt-3 text-gray-800 font-medium">
                   <ScienceText text={currentQuestion.stem} />
                 </p>
                 {currentQuestion.structureSmiles && (
-                  <div className="mt-4">
+                  <div className="mt-4 flex justify-center">
                     <SmilesDiagram smiles={currentQuestion.structureSmiles} size="lg" />
                   </div>
-                )}
-                {(currentQuestion as any).graph && (
-                  <div className="mt-4">
-                    <QuestionGraph graph={(currentQuestion as any).graph} />
-                  </div>
-                )}
-                {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
-                  <img
-                    src={currentQuestion.imageUrl || (currentQuestion as any).image_url}
-                    alt="Question"
-                    className="mt-4 rounded-lg max-w-full border border-black/10"
-                    loading="lazy"
-                  />
                 )}
               </div>
             )}
             {/* Single‑step stem fallback */}
             {currentQuestion.stem && totalSteps === 1 && (
               <div className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground">
-                <span className="font-semibold mr-2">Question:</span>
-                <ScienceText text={currentQuestion.stem} />
+                {((currentQuestion as any).graph || currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                  <div className="flex flex-col items-center gap-3">
+                    {(currentQuestion as any).graph && (
+                      <QuestionGraph graph={(currentQuestion as any).graph} />
+                    )}
+                    {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                      <img
+                        src={currentQuestion.imageUrl || (currentQuestion as any).image_url}
+                        alt="Question"
+                        className="rounded-lg max-w-full border border-border/50"
+                        loading="lazy"
+                      />
+                    )}
+                  </div>
+                )}
+                <div className="mt-3">
+                  <span className="font-semibold mr-2">Question:</span>
+                  <ScienceText text={currentQuestion.stem} />
+                </div>
                 {currentQuestion.structureSmiles && (
-                  <div className="mt-4">
+                  <div className="mt-4 flex justify-center">
                     <SmilesDiagram smiles={currentQuestion.structureSmiles} size="lg" />
                   </div>
-                )}
-                {(currentQuestion as any).graph && (
-                  <div className="mt-4">
-                    <QuestionGraph graph={(currentQuestion as any).graph} />
-                  </div>
-                )}
-                {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
-                  <img
-                    src={currentQuestion.imageUrl || (currentQuestion as any).image_url}
-                    alt="Question"
-                    className="mt-3 rounded-lg max-w-full border border-border/50"
-                    loading="lazy"
-                  />
                 )}
               </div>
             )}
@@ -276,11 +282,8 @@ export function QuestionViewer({
                     </Badge>
                   )}
                 </div>
-                <p className="text-lg font-semibold text-gray-900">
-                  <ScienceText text={(displayStep as any).prompt} />
-                </p>
                 {((displayStep as any).diagramSmiles || (displayStep as any).diagramImageUrl) && (
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-3 flex flex-col items-center gap-3">
                     {(displayStep as any).diagramSmiles && (
                       <SmilesDiagram smiles={(displayStep as any).diagramSmiles} size="md" />
                     )}
@@ -294,17 +297,17 @@ export function QuestionViewer({
                     )}
                   </div>
                 )}
+                <p className="mt-3 text-lg font-semibold text-gray-900">
+                  <ScienceText text={(displayStep as any).prompt} />
+                </p>
               </div>
             )}
             {/* Single‑step prompt fallback */}
             {totalSteps === 1 && (
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2">
-                  <p className="text-xl font-medium text-foreground leading-relaxed">
-                    <ScienceText text={(displayStep as any).prompt} />
-                  </p>
                   {((displayStep as any).diagramSmiles || (displayStep as any).diagramImageUrl) && (
-                    <div className="mt-4 space-y-3">
+                    <div className="flex flex-col items-center gap-3">
                       {(displayStep as any).diagramSmiles && (
                         <SmilesDiagram smiles={(displayStep as any).diagramSmiles} size="md" />
                       )}
@@ -318,6 +321,9 @@ export function QuestionViewer({
                       )}
                     </div>
                   )}
+                  <p className="text-xl font-medium text-foreground leading-relaxed">
+                    <ScienceText text={(displayStep as any).prompt} />
+                  </p>
                 </div>
                 {isOnlineMode && activeTimer !== null && (
                   <Badge variant={activeTimer < 5 ? 'destructive' : 'secondary'} className="text-lg px-3 py-1 shrink-0">

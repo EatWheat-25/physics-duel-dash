@@ -2788,54 +2788,56 @@ export default function AdminQuestions() {
 
                   {/* Preview Panel */}
                   {showPreview && (
-                    <div className="w-1/2 border-l border-white/10 bg-white/5 overflow-y-auto p-6 custom-scrollbar">
-                      <div className="sticky top-0 bg-white/5 backdrop-blur-xl pb-4 mb-4 border-b border-white/10">
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <div className="w-1/2 border-l border-slate-200 bg-white text-slate-900 overflow-y-auto p-6 custom-scrollbar">
+                      <div className="sticky top-0 bg-white pb-4 mb-4 border-b border-slate-200">
+                        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                           <Eye className="w-5 h-5 text-primary" />
                           Question Preview
                         </h3>
-                        <p className="text-xs text-white/50 mt-1">How this question will appear to students</p>
+                        <p className="text-xs text-slate-500 mt-1">How this question will appear to students</p>
                       </div>
 
                       <Tabs defaultValue="quick" className="space-y-4">
-                        <TabsList className="bg-white/5 border border-white/10">
+                        <TabsList className="bg-slate-100 border border-slate-200">
                           <TabsTrigger value="quick">Quick Preview</TabsTrigger>
                           <TabsTrigger value="game">In-game Preview</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="quick" className="space-y-6">
                           {/* Question Header */}
-                          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                             <div className="flex items-center gap-2 mb-2">
-                              <Badge className={`${form.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
-                                  form.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
+                              <Badge className={`${form.subject === 'math' ? 'bg-blue-100 text-blue-700' :
+                                  form.subject === 'physics' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
                                 } border-0`}>
                                 {form.subject}
                               </Badge>
-                              <Badge className="bg-white/10 text-white/70 border-0">{form.level}</Badge>
-                              <Badge className={`border-0 ${form.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
-                                  form.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
+                              <Badge className="bg-slate-100 text-slate-700 border-0">{form.level}</Badge>
+                              <Badge className={`border-0 ${form.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+                                  form.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
                                 }`}>
                                 {form.difficulty}
                               </Badge>
                             </div>
-                            <h2 className="text-xl font-bold text-white mb-2">{form.title || 'Untitled Question'}</h2>
-                            <p className="text-sm text-white/70">{form.chapter}</p>
+                            <h2 className="text-xl font-bold text-slate-900 mb-2">{form.title || 'Untitled Question'}</h2>
+                            <p className="text-sm text-slate-500">{form.chapter}</p>
                           </div>
 
                           {/* Stem */}
                           {form.stem && (
-                            <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                              <p className="text-white/90">
+                            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                              {form.imageUrl && (
+                                <div className="mb-4 flex justify-center">
+                                  <img src={form.imageUrl} alt="Question" className="rounded-lg max-w-full border border-slate-200" />
+                                </div>
+                              )}
+                              <p className="text-slate-800">
                                 <ScienceText text={form.stem} />
                               </p>
                               {form.structureSmiles && (
-                                <div className="mt-4 max-w-xl">
+                                <div className="mt-4 flex justify-center max-w-xl">
                                   <SmilesDiagram smiles={form.structureSmiles} size="lg" />
                                 </div>
-                              )}
-                              {form.imageUrl && (
-                                <img src={form.imageUrl} alt="Question" className="mt-4 rounded-lg max-w-full" />
                               )}
                             </div>
                           )}
@@ -2843,26 +2845,21 @@ export default function AdminQuestions() {
                           {/* Steps Preview */}
                           <div className="space-y-4">
                             {form.steps.map((step, idx) => (
-                              <div key={idx} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                              <div key={idx} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                                 <div className="flex items-center gap-2 mb-3">
-                                  <Badge className="bg-primary/20 text-primary border-0">Step {idx + 1}</Badge>
+                                  <Badge className="bg-primary/10 text-primary border-0">Step {idx + 1}</Badge>
                                   <Badge className={step.type === 'true_false' 
-                                    ? 'bg-green-500/20 text-green-400 border-green-500/50' 
-                                    : 'bg-blue-500/20 text-blue-400 border-blue-500/50'}>
+                                    ? 'bg-green-100 text-green-700 border-green-200' 
+                                    : 'bg-blue-100 text-blue-700 border-blue-200'}>
                                     {step.type === 'true_false' ? 'True/False' : 'MCQ'}
                                   </Badge>
                                   {step.marks > 0 && (
-                                    <Badge className="bg-amber-500/20 text-amber-300 border-0">{step.marks} mark{step.marks !== 1 ? 's' : ''}</Badge>
+                                    <Badge className="bg-amber-100 text-amber-700 border-0">{step.marks} mark{step.marks !== 1 ? 's' : ''}</Badge>
                                   )}
                                 </div>
-                                
-                                <h3 className="text-white font-semibold mb-2">{step.title || `Step ${idx + 1}`}</h3>
-                                <p className="text-white/80 mb-4">
-                                  <ScienceText text={step.prompt || 'No prompt provided'} />
-                                </p>
 
                                 {(step.diagramSmiles || step.diagramImageUrl) && (
-                                  <div className="mb-4 space-y-3">
+                                  <div className="mb-4 flex flex-col items-center gap-3">
                                     {step.diagramSmiles && (
                                       <SmilesDiagram smiles={step.diagramSmiles} size="md" />
                                     )}
@@ -2870,12 +2867,17 @@ export default function AdminQuestions() {
                                       <img
                                         src={step.diagramImageUrl}
                                         alt="Diagram"
-                                        className="rounded-lg max-w-full border border-white/10"
+                                        className="rounded-lg max-w-full border border-slate-200"
                                         loading="lazy"
                                       />
                                     )}
                                   </div>
                                 )}
+
+                                <h3 className="text-slate-900 font-semibold mb-2">{step.title || `Step ${idx + 1}`}</h3>
+                                <p className="text-slate-700 mb-4">
+                                  <ScienceText text={step.prompt || 'No prompt provided'} />
+                                </p>
                                 
                                 <div className="space-y-2">
                                   {(step.type === 'true_false'
@@ -2888,21 +2890,21 @@ export default function AdminQuestions() {
                                       key={optIdx}
                                       className={`p-3 rounded-lg border-2 transition-all ${
                                         step.correctAnswer === optIdx
-                                          ? 'bg-green-500/20 border-green-500/50'
-                                          : 'bg-white/5 border-white/10'
+                                          ? 'bg-green-100 border-green-200'
+                                          : 'bg-slate-50 border-slate-200'
                                       }`}
                                     >
                                       <div className="flex items-center gap-3">
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                                           step.correctAnswer === optIdx
-                                            ? 'bg-green-500 text-black'
-                                            : 'bg-white/10 text-white/70'
+                                            ? 'bg-green-600 text-white'
+                                            : 'bg-slate-100 text-slate-600'
                                         }`}>
                                           {String.fromCharCode(65 + optIdx)}
                                         </div>
-                                        <ScienceText text={step.options[optIdx] || 'Empty option'} className="text-white flex-1" smilesSize="sm" />
+                                        <ScienceText text={step.options[optIdx] || 'Empty option'} className="text-slate-800 flex-1" smilesSize="sm" />
                                         {step.correctAnswer === optIdx && (
-                                          <CheckCircle2 className="w-5 h-5 text-green-400" />
+                                          <CheckCircle2 className="w-5 h-5 text-green-600" />
                                         )}
                                       </div>
                                     </div>
@@ -2910,16 +2912,16 @@ export default function AdminQuestions() {
                                 </div>
 
                                 {step.explanation && (
-                                  <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                                    <p className="text-xs text-blue-300 font-semibold mb-1">Explanation:</p>
-                                    <p className="text-sm text-white/80">
+                                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-xs text-blue-700 font-semibold mb-1">Explanation:</p>
+                                    <p className="text-sm text-slate-700">
                                       <ScienceText text={step.explanation} />
                                     </p>
                                   </div>
                                 )}
 
                                 {step.timeLimitSeconds && (
-                                  <div className="mt-2 text-xs text-white/50">
+                                  <div className="mt-2 text-xs text-slate-500">
                                     ⏱️ Time limit: {step.timeLimitSeconds}s
                                   </div>
                                 )}
@@ -2928,15 +2930,15 @@ export default function AdminQuestions() {
                           </div>
 
                           {/* Summary */}
-                          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                             <div className="grid grid-cols-2 gap-4 text-sm">
                               <div>
-                                <span className="text-white/50">Total Steps:</span>
-                                <span className="text-white ml-2 font-semibold">{form.steps.length}</span>
+                                <span className="text-slate-500">Total Steps:</span>
+                                <span className="text-slate-900 ml-2 font-semibold">{form.steps.length}</span>
                               </div>
                               <div>
-                                <span className="text-white/50">Total Marks:</span>
-                                <span className="text-white ml-2 font-semibold">{form.totalMarks}</span>
+                                <span className="text-slate-500">Total Marks:</span>
+                                <span className="text-slate-900 ml-2 font-semibold">{form.totalMarks}</span>
                               </div>
                             </div>
                           </div>
@@ -2945,6 +2947,7 @@ export default function AdminQuestions() {
                         <TabsContent value="game" className="pt-2">
                           <InGamePreview 
                             question={formToQuestion(form)}
+                            className="preview-light"
                             key={JSON.stringify(form)} // Force re-render on form change
                           />
                         </TabsContent>

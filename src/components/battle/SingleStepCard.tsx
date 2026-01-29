@@ -40,6 +40,16 @@ export function SingleStepCard({
             <QuestionGraph graph={paperGraph} />
           </div>
         )}
+        {imageUrl && (
+          <div className="mb-6 flex justify-center">
+            <img
+              src={imageUrl}
+              alt="Question"
+              className="rounded-lg max-w-full border border-slate-300"
+              loading="lazy"
+            />
+          </div>
+        )}
 
         <h3 className="text-2xl md:text-3xl leading-relaxed">
           <ScienceText text={questionText} />
@@ -49,15 +59,6 @@ export function SingleStepCard({
           <div className="pt-2">
             <SmilesDiagram smiles={structureSmiles} size="lg" />
           </div>
-        )}
-
-        {imageUrl && (
-          <img
-            src={imageUrl}
-            alt="Question"
-            className="mt-4 rounded-lg max-w-full border border-slate-300"
-            loading="lazy"
-          />
         )}
       </div>
 

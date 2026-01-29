@@ -49,6 +49,19 @@ export function StepCard({
             <QuestionGraph graph={paperGraph} />
           </div>
         )}
+        {(diagramSmiles || diagramImageUrl) && (
+          <div className="mb-6 flex flex-col items-center gap-4">
+            {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
+            {diagramImageUrl && (
+              <img
+                src={diagramImageUrl}
+                alt="Diagram"
+                className="rounded-lg max-w-full border border-slate-300"
+                loading="lazy"
+              />
+            )}
+          </div>
+        )}
 
         <div className="space-y-4">
           <div className="paper-meta">
@@ -60,20 +73,6 @@ export function StepCard({
           <h3 className="text-xl md:text-2xl leading-relaxed">
             <ScienceText text={prompt} />
           </h3>
-
-          {(diagramSmiles || diagramImageUrl) && (
-            <div className="space-y-4 pt-2">
-              {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
-              {diagramImageUrl && (
-                <img
-                  src={diagramImageUrl}
-                  alt="Diagram"
-                  className="rounded-lg max-w-full border border-slate-300"
-                  loading="lazy"
-                />
-              )}
-            </div>
-          )}
 
           {segment === 'sub' && (
             <p className="text-xs text-black">

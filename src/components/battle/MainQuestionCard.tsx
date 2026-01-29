@@ -36,6 +36,16 @@ export function MainQuestionCard({
             <QuestionGraph graph={paperGraph} />
           </div>
         )}
+        {imageUrl && (
+          <div className="mb-6 flex justify-center">
+            <img
+              src={imageUrl}
+              alt="Question"
+              className="rounded-lg max-w-full border border-slate-300"
+              loading="lazy"
+            />
+          </div>
+        )}
 
         <div className="space-y-4">
           <div className="paper-meta">Main Question</div>
@@ -46,14 +56,6 @@ export function MainQuestionCard({
             <div className="pt-2">
               <SmilesDiagram smiles={structureSmiles} size="lg" />
             </div>
-          )}
-          {imageUrl && (
-            <img
-              src={imageUrl}
-              alt="Question"
-              className="mt-4 rounded-lg max-w-full border border-slate-300"
-              loading="lazy"
-            />
           )}
           <div className="pt-2 text-sm text-black">
             {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
