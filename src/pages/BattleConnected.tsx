@@ -752,6 +752,8 @@ export default function BattleConnected() {
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
                 className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
               >
+                <div className="absolute inset-0 card-skin-shelf pointer-events-none" />
+                <div className="absolute inset-0 card-skin-shelf-overlay pointer-events-none" />
                 {rankUpState && (
                   <RankUpTransition fromRank={rankUpState.from} toRank={rankUpState.to} active />
                 )}

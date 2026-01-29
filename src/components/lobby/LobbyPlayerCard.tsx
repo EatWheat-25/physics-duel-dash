@@ -67,6 +67,8 @@ export function LobbyPlayerCard({
                 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -18px 30px rgba(0,0,0,0.35)',
             }}
           >
+            <div className="absolute inset-0 card-skin-shelf pointer-events-none" />
+            <div className="absolute inset-0 card-skin-shelf-overlay pointer-events-none" />
             {/* Soft toon-shading (robot vibe) */}
             <div
               className="absolute inset-0 pointer-events-none opacity-30"

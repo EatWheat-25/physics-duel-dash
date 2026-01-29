@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { GraphColor, GraphConfig, GraphPoint } from '@/types/question-contract';
 import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
 import { dbRowToQuestion } from '@/lib/question-contract';
+import { uploadQuestionImage } from '@/utils/questionImageUpload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -223,6 +224,8 @@ export default function AdminQuestions() {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [form, setForm] = useState<QuestionForm>(getEmptyForm());
   const [saving, setSaving] = useState(false);
+  const [uploadingMainImage, setUploadingMainImage] = useState(false);
+  const [uploadingStepImages, setUploadingStepImages] = useState<Record<number, boolean>>({});
   const [showPreview, setShowPreview] = useState(false);
 
   const hasAnySubStepsInForm = useMemo(() => {
@@ -791,6 +794,45 @@ export default function AdminQuestions() {
     const totalMarks = newSteps.reduce((sum, s) => sum + (s.marks || 0), 0);
     
     setForm({ ...form, steps: newSteps, totalMarks });
+  }
+
+  async function handleMainImageUpload(file: File | null) {
+    if (!file) return;
+    setUploadingMainImage(true);
+    try {
+      const { publicUrl } = await uploadQuestionImage(file, { prefix: 'questions' });
+      setForm((prev) => ({ ...prev, imageUrl: publicUrl }));
+      toast.success('Question image uploaded.');
+    } catch (error: any) {
+      console.error('[AdminQuestions] Main image upload error:', error);
+      toast.error(error?.message || 'Failed to upload image');
+    } finally {
+      setUploadingMainImage(false);
+    }
+  }
+
+  async function handleStepImageUpload(index: number, file: File | null) {
+    if (!file) return;
+    setUploadingStepImages((prev) => ({ ...prev, [index]: true }));
+    try {
+      const { publicUrl } = await uploadQuestionImage(file, { prefix: 'steps' });
+      setForm((prev) => {
+        if (!prev.steps[index]) return prev;
+        const steps = [...prev.steps];
+        steps[index] = { ...steps[index], diagramImageUrl: publicUrl };
+        return { ...prev, steps };
+      });
+      toast.success(`Step ${index + 1} image uploaded.`);
+    } catch (error: any) {
+      console.error('[AdminQuestions] Step image upload error:', error);
+      toast.error(error?.message || 'Failed to upload step image');
+    } finally {
+      setUploadingStepImages((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
+    }
   }
 
   function updateStepOption(stepIndex: number, optionIndex: number, value: string) {
@@ -1396,6 +1438,7 @@ export default function AdminQuestions() {
   // Common styles
   const glassPanel = "bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-xl";
   const glassInput = "bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-primary/50 focus:ring-primary/20";
+  const fileInput = `${glassInput} file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:text-white`;
   const labelStyle = "text-white/70 font-medium mb-1.5 block text-sm";
 
   // Loading state
@@ -2019,6 +2062,23 @@ export default function AdminQuestions() {
                           className={glassInput}
                           placeholder="https://..."
                         />
+                        <div className="mt-2 grid gap-2">
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            className={fileInput}
+                            disabled={uploadingMainImage}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] ?? null;
+                              e.currentTarget.value = '';
+                              void handleMainImageUpload(file);
+                            }}
+                          />
+                          <div className="text-xs text-white/40 flex items-center gap-2">
+                            {uploadingMainImage && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            <span>Uploads to storage (max 5 MB).</span>
+                          </div>
+                        </div>
                         {form.imageUrl && (
                           <img src={form.imageUrl} alt="Preview" className="mt-2 rounded-lg max-w-xs border border-white/10" onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
@@ -2306,6 +2366,23 @@ export default function AdminQuestions() {
                                   className={glassInput}
                                   placeholder="https://..."
                                 />
+                                <div className="mt-2 grid gap-2">
+                                  <Input
+                                    type="file"
+                                    accept="image/*"
+                                    className={fileInput}
+                                    disabled={!!uploadingStepImages[index]}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0] ?? null;
+                                      e.currentTarget.value = '';
+                                      void handleStepImageUpload(index, file);
+                                    }}
+                                  />
+                                  <div className="text-xs text-white/40 flex items-center gap-2">
+                                    {uploadingStepImages[index] && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                    <span>Uploads to storage (max 5 MB).</span>
+                                  </div>
+                                </div>
                                 {step.diagramImageUrl && (
                                   <img
                                     src={step.diagramImageUrl}

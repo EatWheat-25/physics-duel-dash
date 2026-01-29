@@ -435,6 +435,22 @@ All colors MUST be HSL.
     opacity: 0.3;
   }
 
+  .card-skin-shelf {
+    background-image: url('/skins/shelf.png');
+    background-size: cover;
+    background-position: center;
+    opacity: 0.95;
+  }
+
+  .card-skin-shelf-overlay {
+    background: radial-gradient(
+      120% 90% at 50% 8%,
+      rgba(0, 0, 0, 0) 0%,
+      rgba(5, 8, 20, 0.25) 60%,
+      rgba(5, 8, 20, 0.45) 100%
+    );
+  }
+
   /* Ultra-Tech Neon Buttons */
   .cyber-button {
     @apply px-8 py-4 rounded-3xl font-bold text-sm uppercase tracking-widest transition-all duration-500 relative overflow-hidden;
