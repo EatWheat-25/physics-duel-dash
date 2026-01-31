@@ -1846,13 +1846,22 @@ export default function AdminQuestions() {
                         placeholder="Leave blank to keep"
                         disabled={bulkEditDisabled}
                         list={
-                          bulkEdit.subject === 'physics' && bulkEdit.level === 'A1'
-                            ? 'bulk-physics-a1-chapters'
-                            : bulkEdit.subject === 'chemistry'
-                              ? 'bulk-chemistry-chapters'
-                              : undefined
+                          bulkEdit.subject === 'math'
+                            ? 'bulk-math-chapters'
+                            : bulkEdit.subject === 'physics' && bulkEdit.level === 'A1'
+                              ? 'bulk-physics-a1-chapters'
+                              : bulkEdit.subject === 'chemistry'
+                                ? 'bulk-chemistry-chapters'
+                                : undefined
                         }
                       />
+                      {bulkEdit.subject === 'math' && (
+                        <datalist id="bulk-math-chapters">
+                          {MATH_CHAPTER_TITLES.map((t) => (
+                            <option key={t} value={t} />
+                          ))}
+                        </datalist>
+                      )}
                       {bulkEdit.subject === 'physics' && bulkEdit.level === 'A1' && (
                         <datalist id="bulk-physics-a1-chapters">
                           {PHYSICS_A1_CHAPTER_TITLES.map((t) => (
@@ -2137,13 +2146,22 @@ export default function AdminQuestions() {
                           className={glassInput}
                           placeholder="e.g. Integration"
                           list={
-                            form.subject === 'physics' && form.level === 'A1'
-                              ? 'physics-a1-chapters'
-                              : form.subject === 'chemistry'
-                                ? 'chemistry-chapters'
-                                : undefined
+                            form.subject === 'math'
+                              ? 'math-chapters'
+                              : form.subject === 'physics' && form.level === 'A1'
+                                ? 'physics-a1-chapters'
+                                : form.subject === 'chemistry'
+                                  ? 'chemistry-chapters'
+                                  : undefined
                           }
                         />
+                        {form.subject === 'math' && (
+                          <datalist id="math-chapters">
+                            {MATH_CHAPTER_TITLES.map((t) => (
+                              <option key={t} value={t} />
+                            ))}
+                          </datalist>
+                        )}
                         {form.subject === 'physics' && form.level === 'A1' && (
                           <datalist id="physics-a1-chapters">
                             {PHYSICS_A1_CHAPTER_TITLES.map((t) => (
