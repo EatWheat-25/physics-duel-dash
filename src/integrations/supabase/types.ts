@@ -1029,6 +1029,7 @@ export type Database = {
           graph: Json | null
           id: string
           image_url: string | null
+          is_done: boolean
           is_enabled: boolean
           level: string
           main_question_timer_seconds: number
@@ -1049,6 +1050,7 @@ export type Database = {
           graph?: Json | null
           id?: string
           image_url?: string | null
+          is_done?: boolean
           is_enabled?: boolean
           level: string
           main_question_timer_seconds?: number
@@ -1069,6 +1071,7 @@ export type Database = {
           graph?: Json | null
           id?: string
           image_url?: string | null
+          is_done?: boolean
           is_enabled?: boolean
           level?: string
           main_question_timer_seconds?: number

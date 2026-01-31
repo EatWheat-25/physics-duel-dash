@@ -71,6 +71,7 @@ type QuestionFilter = {
   level: 'all' | 'A1' | 'A2';
   difficulty: 'all' | 'easy' | 'medium' | 'hard';
   rankTier: string;
+  done: 'all' | 'done' | 'pending';
 };
 
 type BulkEditState = {
@@ -229,7 +230,8 @@ export default function AdminQuestions() {
     subject: 'all',
     level: 'all',
     difficulty: 'all',
-    rankTier: ''
+    rankTier: '',
+    done: 'all'
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [mappingErrors, setMappingErrors] = useState<string[]>([]);
@@ -237,6 +239,7 @@ export default function AdminQuestions() {
   // Bulk selection + actions (list)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [doneToggleLoading, setDoneToggleLoading] = useState<Record<string, boolean>>({});
   const [bulkEdit, setBulkEdit] = useState<BulkEditState>(getEmptyBulkEdit());
 
   // Editor state
@@ -360,6 +363,7 @@ export default function AdminQuestions() {
       if (filters.level !== 'all') query = query.eq('level', filters.level);
       if (filters.difficulty !== 'all') query = query.eq('difficulty', filters.difficulty);
       if (filters.rankTier.trim()) query = query.eq('rank_tier', filters.rankTier.trim());
+      if (filters.done !== 'all') query = query.eq('is_done', filters.done === 'done');
 
       console.log('[AdminQuestions] Fetching questions with filters:', filters);
       const { data, error } = await query;
@@ -443,6 +447,27 @@ export default function AdminQuestions() {
       toast.error(error?.message || 'Failed to update selected questions');
     } finally {
       setBulkActionLoading(false);
+    }
+  }
+
+  async function handleToggleDone(questionId: string, nextDone: boolean) {
+    if (doneToggleLoading[questionId]) return;
+    setDoneToggleLoading((prev) => ({ ...prev, [questionId]: true }));
+    try {
+      const { error } = await supabase
+        .from('questions_v2')
+        .update({ is_done: nextDone } as any)
+        .eq('id', questionId);
+
+      if (error) throw error;
+
+      toast.success(`Marked question as ${nextDone ? 'done' : 'pending'}.`);
+      await fetchQuestions();
+    } catch (error: any) {
+      console.error('[AdminQuestions] Toggle done error:', error);
+      toast.error(error?.message || 'Failed to update question status');
+    } finally {
+      setDoneToggleLoading((prev) => ({ ...prev, [questionId]: false }));
     }
   }
 
@@ -1644,13 +1669,26 @@ export default function AdminQuestions() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div>
+                  <label className={labelStyle}>Done Status</label>
+                  <Select value={filters.done} onValueChange={(v: any) => setFilters({ ...filters, done: v })}>
+                    <SelectTrigger className={glassInput}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900 border-white/10 text-white">
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="done">Done</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="flex gap-3">
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setFilters({ subject: 'all', level: 'all', difficulty: 'all', rankTier: '' });
+                    setFilters({ subject: 'all', level: 'all', difficulty: 'all', rankTier: '', done: 'all' });
                     setSearchTerm('');
                   }}
                   className="flex-1 bg-white/5 border-white/15 text-white hover:bg-white/10"
@@ -1926,7 +1964,7 @@ export default function AdminQuestions() {
                       <div
                         key={q.id}
                         onClick={() => navigate(`/admin/questions?edit=${q.id}`)}
-                        className={`p-5 md:p-6 rounded-xl cursor-pointer transition-all duration-200 border relative group bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10 ${isBulkSelected ? 'ring-2 ring-emerald-400/25 border-emerald-400/40' : ''} ${q.isEnabled === false ? 'opacity-60' : ''}`}
+                        className={`p-5 md:p-6 rounded-xl cursor-pointer transition-all duration-200 border relative group bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10 ${isBulkSelected ? 'ring-2 ring-emerald-400/25 border-emerald-400/40' : ''} ${q.isEnabled === false ? 'opacity-60' : ''} ${q.isDone ? 'bg-emerald-500/5 border-emerald-400/30' : ''}`}
                       >
                         {/* Bulk select checkbox */}
                         <input
@@ -1939,6 +1977,25 @@ export default function AdminQuestions() {
                           aria-label={`Select question ${q.title}`}
                           title="Select for bulk actions"
                         />
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleDone(q.id, !q.isDone);
+                          }}
+                          disabled={!!doneToggleLoading[q.id]}
+                          className={`absolute top-2 right-10 p-1.5 rounded-lg border z-10 transition-colors ${
+                            q.isDone
+                              ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/30'
+                              : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
+                          }`}
+                          title={q.isDone ? 'Mark as pending' : 'Mark as done'}
+                          aria-label={q.isDone ? 'Mark as pending' : 'Mark as done'}
+                        >
+                          {doneToggleLoading[q.id]
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <CheckCircle2 className="w-4 h-4" />}
+                        </button>
 
                       {/* Delete button - appears on hover */}
                       <button
@@ -1961,6 +2018,16 @@ export default function AdminQuestions() {
                       )}
 
                       <p className="text-xs text-white/60 mb-3 line-clamp-1">{q.chapter}</p>
+
+                      {q.isDone && (
+                        <Badge
+                          variant="outline"
+                          className="mb-2 border-0 bg-emerald-500/20 text-emerald-200 text-[10px] uppercase tracking-wider inline-flex items-center gap-1"
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          Done
+                        </Badge>
+                      )}
 
                       {q.isEnabled === false && (
                         <Badge

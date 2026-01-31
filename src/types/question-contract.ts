@@ -192,6 +192,12 @@ export interface StepBasedQuestion {
      * Practice mode may still surface it (product choice).
      */
     isEnabled?: boolean;
+
+    /**
+     * Admin-controlled flag (stored in questions_v2.is_done).
+     * When true, this question is marked as done in admin views.
+     */
+    isDone?: boolean;
 }
 
 function isFiniteNumber(n: any): n is number {
