@@ -55,11 +55,30 @@ const CHEMISTRY_CHAPTER_TITLES: string[] = [
   'Analytical Techniques',
 ];
 
+const MATH_CHAPTER_TITLES: string[] = [
+  'Coordinate geometry',
+  'Circular measure',
+  'sequence',
+  'Binomial',
+  'quadratics',
+  'Trignometry',
+  'Differenciation',
+  'Integeration',
+];
+
 type QuestionFilter = {
   subject: 'all' | 'math' | 'physics' | 'chemistry';
   level: 'all' | 'A1' | 'A2';
   difficulty: 'all' | 'easy' | 'medium' | 'hard';
   rankTier: string;
+};
+
+type BulkEditState = {
+  subject: 'keep' | 'math' | 'physics' | 'chemistry';
+  chapter: string;
+  level: 'keep' | 'A1' | 'A2';
+  difficulty: 'keep' | 'easy' | 'medium' | 'hard';
+  mainQuestionTimerSeconds: string;
 };
 
 type EditorMode = 'idle' | 'creating' | 'editing';
@@ -218,6 +237,7 @@ export default function AdminQuestions() {
   // Bulk selection + actions (list)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [bulkEdit, setBulkEdit] = useState<BulkEditState>(getEmptyBulkEdit());
 
   // Editor state
   const [mode, setMode] = useState<EditorMode>('idle');
@@ -252,6 +272,20 @@ export default function AdminQuestions() {
     return filteredQuestions.every((q) => selectedIds.has(q.id));
   }, [filteredQuestions, selectedIds]);
 
+  const bulkEditHasChanges = useMemo(() => {
+    const hasChapter = bulkEdit.chapter.trim().length > 0;
+    const hasTimer = bulkEdit.mainQuestionTimerSeconds.trim().length > 0;
+    return (
+      bulkEdit.subject !== 'keep' ||
+      bulkEdit.level !== 'keep' ||
+      bulkEdit.difficulty !== 'keep' ||
+      hasChapter ||
+      hasTimer
+    );
+  }, [bulkEdit]);
+
+  const bulkEditDisabled = bulkActionLoading || selectedCount === 0;
+
   // Load questions on mount and filter changes
   useEffect(() => {
     if (isAdmin) {
@@ -263,6 +297,16 @@ export default function AdminQuestions() {
   useEffect(() => {
     setSelectedIds(new Set());
   }, [filters, searchTerm]);
+
+  function getEmptyBulkEdit(): BulkEditState {
+    return {
+      subject: 'keep',
+      chapter: '',
+      level: 'keep',
+      difficulty: 'keep',
+      mainQuestionTimerSeconds: ''
+    };
+  }
 
   function getEmptyForm(): QuestionForm {
     return {
@@ -396,6 +440,65 @@ export default function AdminQuestions() {
       await fetchQuestions();
     } catch (error: any) {
       console.error('[AdminQuestions] Bulk enable/disable error:', error);
+      toast.error(error?.message || 'Failed to update selected questions');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }
+
+  async function handleBulkApply() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!bulkEditHasChanges) return;
+
+    const payload: Record<string, any> = {};
+    if (bulkEdit.subject !== 'keep') payload.subject = bulkEdit.subject;
+    if (bulkEdit.level !== 'keep') payload.level = bulkEdit.level;
+    if (bulkEdit.difficulty !== 'keep') payload.difficulty = bulkEdit.difficulty;
+
+    const nextChapter = bulkEdit.chapter.trim();
+    if (nextChapter) payload.chapter = nextChapter;
+
+    const timerRaw = bulkEdit.mainQuestionTimerSeconds.trim();
+    if (timerRaw) {
+      const parsed = Number(timerRaw);
+      if (!Number.isFinite(parsed)) {
+        toast.error('Main timer must be a number of seconds.');
+        return;
+      }
+      const clamped = Math.max(5, Math.min(600, Math.floor(parsed)));
+      payload.main_question_timer_seconds = clamped;
+    }
+
+    if (Object.keys(payload).length === 0) return;
+
+    setBulkActionLoading(true);
+    try {
+      const { error } = await supabase
+        .from('questions_v2')
+        .update(payload as any)
+        .in('id', ids);
+
+      if (error) throw error;
+
+      if (selectedQuestionId && ids.includes(selectedQuestionId)) {
+        setForm((prev) => ({
+          ...prev,
+          subject: payload.subject ?? prev.subject,
+          chapter: payload.chapter ?? prev.chapter,
+          level: payload.level ?? prev.level,
+          difficulty: payload.difficulty ?? prev.difficulty,
+          mainQuestionTimerSeconds:
+            payload.main_question_timer_seconds ?? prev.mainQuestionTimerSeconds
+        }));
+      }
+
+      toast.success(`Updated ${ids.length} question${ids.length === 1 ? '' : 's'}`);
+      setSelectedIds(new Set());
+      setBulkEdit(getEmptyBulkEdit());
+      await fetchQuestions();
+    } catch (error: any) {
+      console.error('[AdminQuestions] Bulk update error:', error);
       toast.error(error?.message || 'Failed to update selected questions');
     } finally {
       setBulkActionLoading(false);
@@ -1598,79 +1701,202 @@ export default function AdminQuestions() {
               </div>
 
               {/* Bulk selection controls */}
-              <div className="px-4 py-3 border-b border-white/10 bg-white/[0.04] backdrop-blur-md flex flex-wrap gap-3 justify-between items-center">
-                <div className="text-xs text-white/60 font-medium">
-                  {selectedCount > 0 ? (
-                    <span>
-                      <span className="text-emerald-300 font-bold">{selectedCount}</span> selected
-                    </span>
-                  ) : (
-                    <span>Select questions to enable bulk actions</span>
-                  )}
+              <div className="px-4 py-3 border-b border-white/10 bg-white/[0.04] backdrop-blur-md">
+                <div className="flex flex-wrap gap-3 justify-between items-center">
+                  <div className="text-xs text-white/60 font-medium">
+                    {selectedCount > 0 ? (
+                      <span>
+                        <span className="text-emerald-300 font-bold">{selectedCount}</span> selected
+                      </span>
+                    ) : (
+                      <span>Select questions to enable bulk actions</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {selectedCount > 0 && (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleBulkSetEnabled(false)}
+                          disabled={bulkActionLoading}
+                          className="bg-red-500/10 border-red-500/20 text-red-200 hover:bg-red-500/20"
+                          title="Disable selected questions (exclude from online battles)"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Disable
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleBulkSetEnabled(true)}
+                          disabled={bulkActionLoading}
+                          className="bg-emerald-500/10 border-emerald-500/20 text-emerald-200 hover:bg-emerald-500/20"
+                          title="Enable selected questions (available in online battles)"
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Enable
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleBulkDeleteSelected}
+                          disabled={bulkActionLoading}
+                          className="bg-red-500/10 border-red-500/20 text-red-200 hover:bg-red-500/20"
+                          title="Delete selected questions (irreversible)"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSelectAllShown}
+                      disabled={bulkActionLoading || filteredQuestions.length === 0 || allShownSelected}
+                      className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+                      title="Select all questions currently shown by filters/search"
+                    >
+                      Select all shown
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleClearSelection}
+                      disabled={bulkActionLoading || selectedCount === 0}
+                      className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+                    >
+                      Clear selection
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {selectedCount > 0 && (
-                    <>
+                <div className="mt-3 w-full">
+                  <div className="text-xs text-white/60 font-semibold uppercase tracking-wider mb-2">Bulk edit</div>
+                  <div className="grid grid-cols-2 md:grid-cols-7 gap-3 items-end">
+                    <div>
+                      <label className="text-xs text-white/60 font-medium mb-1 block">Subject</label>
+                      <Select
+                        value={bulkEdit.subject}
+                        onValueChange={(v: any) => setBulkEdit({ ...bulkEdit, subject: v })}
+                        disabled={bulkEditDisabled}
+                      >
+                        <SelectTrigger className={`${glassInput} h-9 text-sm`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-white/10 text-white">
+                          <SelectItem value="keep">No change</SelectItem>
+                          <SelectItem value="math">Math</SelectItem>
+                          <SelectItem value="physics">Physics</SelectItem>
+                          <SelectItem value="chemistry">Chemistry</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-white/60 font-medium mb-1 block">Grade/Level</label>
+                      <Select
+                        value={bulkEdit.level}
+                        onValueChange={(v: any) => setBulkEdit({ ...bulkEdit, level: v })}
+                        disabled={bulkEditDisabled}
+                      >
+                        <SelectTrigger className={`${glassInput} h-9 text-sm`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-white/10 text-white">
+                          <SelectItem value="keep">No change</SelectItem>
+                          <SelectItem value="A1">A1</SelectItem>
+                          <SelectItem value="A2">A2</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-white/60 font-medium mb-1 block">Difficulty</label>
+                      <Select
+                        value={bulkEdit.difficulty}
+                        onValueChange={(v: any) => setBulkEdit({ ...bulkEdit, difficulty: v })}
+                        disabled={bulkEditDisabled}
+                      >
+                        <SelectTrigger className={`${glassInput} h-9 text-sm`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-white/10 text-white">
+                          <SelectItem value="keep">No change</SelectItem>
+                          <SelectItem value="easy">Easy</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="hard">Hard</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="text-xs text-white/60 font-medium mb-1 block">Chapter</label>
+                      <Input
+                        value={bulkEdit.chapter}
+                        onChange={(e) => setBulkEdit({ ...bulkEdit, chapter: e.target.value })}
+                        className={`${glassInput} h-9 text-sm`}
+                        placeholder="Leave blank to keep"
+                        disabled={bulkEditDisabled}
+                        list={
+                          bulkEdit.subject === 'physics' && bulkEdit.level === 'A1'
+                            ? 'bulk-physics-a1-chapters'
+                            : bulkEdit.subject === 'chemistry'
+                              ? 'bulk-chemistry-chapters'
+                              : undefined
+                        }
+                      />
+                      {bulkEdit.subject === 'physics' && bulkEdit.level === 'A1' && (
+                        <datalist id="bulk-physics-a1-chapters">
+                          {PHYSICS_A1_CHAPTER_TITLES.map((t) => (
+                            <option key={t} value={t} />
+                          ))}
+                        </datalist>
+                      )}
+                      {bulkEdit.subject === 'chemistry' && (
+                        <datalist id="bulk-chemistry-chapters">
+                          {CHEMISTRY_CHAPTER_TITLES.map((t) => (
+                            <option key={t} value={t} />
+                          ))}
+                        </datalist>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-white/60 font-medium mb-1 block">Main timer (sec)</label>
+                      <Input
+                        type="number"
+                        min={5}
+                        max={600}
+                        step={1}
+                        value={bulkEdit.mainQuestionTimerSeconds}
+                        onChange={(e) => setBulkEdit({ ...bulkEdit, mainQuestionTimerSeconds: e.target.value })}
+                        className={`${glassInput} h-9 text-sm`}
+                        placeholder="Leave blank to keep"
+                        disabled={bulkEditDisabled}
+                      />
+                    </div>
+
+                    <div className="flex items-end">
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => handleBulkSetEnabled(false)}
-                        disabled={bulkActionLoading}
-                        className="bg-red-500/10 border-red-500/20 text-red-200 hover:bg-red-500/20"
-                        title="Disable selected questions (exclude from online battles)"
+                        onClick={handleBulkApply}
+                        disabled={bulkEditDisabled || !bulkEditHasChanges}
+                        className="h-9 w-full bg-emerald-500/10 border-emerald-500/20 text-emerald-200 hover:bg-emerald-500/20"
                       >
-                        <XCircle className="w-4 h-4 mr-2" />
-                        Disable
+                        Apply
                       </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleBulkSetEnabled(true)}
-                        disabled={bulkActionLoading}
-                        className="bg-emerald-500/10 border-emerald-500/20 text-emerald-200 hover:bg-emerald-500/20"
-                        title="Enable selected questions (available in online battles)"
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                        Enable
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={handleBulkDeleteSelected}
-                        disabled={bulkActionLoading}
-                        className="bg-red-500/10 border-red-500/20 text-red-200 hover:bg-red-500/20"
-                        title="Delete selected questions (irreversible)"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </Button>
-                    </>
-                  )}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleSelectAllShown}
-                    disabled={bulkActionLoading || filteredQuestions.length === 0 || allShownSelected}
-                    className="bg-white/5 border-white/10 text-white hover:bg-white/10"
-                    title="Select all questions currently shown by filters/search"
-                  >
-                    Select all shown
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleClearSelection}
-                    disabled={bulkActionLoading || selectedCount === 0}
-                    className="bg-white/5 border-white/10 text-white hover:bg-white/10"
-                  >
-                    Clear selection
-                  </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1700,7 +1926,7 @@ export default function AdminQuestions() {
                           disabled={bulkActionLoading}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => toggleSelected(q.id, e.target.checked)}
-                          className="absolute top-2 left-2 h-4 w-4 accent-emerald-400"
+                          className="absolute top-2 left-2 h-5 w-5 accent-emerald-400 cursor-pointer"
                           aria-label={`Select question ${q.title}`}
                           title="Select for bulk actions"
                         />
