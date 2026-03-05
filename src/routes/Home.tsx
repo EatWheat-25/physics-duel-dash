@@ -20,7 +20,7 @@ export default function Home() {
   const { selectedCharacter } = useCharacter();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { subject: mmSubject, level: mmLevel } = useMatchmakingPrefs();
-  const { status: matchmakingStatus, startMatchmaking, leaveQueue } = useMatchmaking();
+  const { status: matchmakingStatus, startMatchmaking, startBotMatch, leaveQueue } = useMatchmaking();
   const [rankMenuOpen, setRankMenuOpen] = useState(false);
   const [currentMMR, setCurrentMMR] = useState<number>(0);
   const [queueTime, setQueueTime] = useState(0);
@@ -202,6 +202,21 @@ export default function Home() {
     if (level === 'Both') level = 'A2';
 
     startMatchmaking(subject, level);
+  };
+
+  const handleStartBotMatch = () => {
+    if (matchmakingStatus === 'searching') return;
+
+    if (!hasMatchmakingPrefs) {
+      navigate('/matchmaking-new');
+      return;
+    }
+
+    const subject = mmSubject as string;
+    let level = mmLevel as string;
+    if (level === 'Both') level = 'A2';
+
+    navigate('/solo-challenge', { state: { subject, level } });
   };
 
   const handleCancelMatchmaking = async () => {
@@ -442,8 +457,6 @@ export default function Home() {
                     'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -18px 30px rgba(0,0,0,0.35)',
                 }}
               >
-                <div className="absolute inset-0 card-skin-shelf pointer-events-none" />
-                <div className="absolute inset-0 card-skin-shelf-overlay pointer-events-none" />
                 {/* Soft toon-shading (robot vibe) */}
                 <div
                   className="absolute inset-0 pointer-events-none opacity-30"
@@ -641,6 +654,40 @@ export default function Home() {
 
           <motion.button
             type="button"
+            onClick={() => navigate('/offline')}
+            className="w-full text-left rounded-2xl p-4"
+            style={{
+              background: 'rgba(15, 23, 42, 0.58)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(18px)',
+              boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
+            }}
+            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            aria-label="Offline campaign"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs text-white/60">Offline</div>
+                <div className="mt-1 text-lg font-bold text-white">Solo Campaign</div>
+              </div>
+              <div
+                className="px-3 py-1 rounded-full text-[10px] font-semibold text-white"
+                style={{
+                  background: 'rgba(34, 197, 94, 0.2)',
+                  border: '1px solid rgba(34, 197, 94, 0.3)',
+                }}
+              >
+                NEW
+              </div>
+            </div>
+            <div className="mt-3 text-sm text-white/65">
+              4 hearts • 3 questions per level
+            </div>
+          </motion.button>
+
+          <motion.button
+            type="button"
             onClick={() => navigate('/challenges')}
             className="w-full text-left rounded-2xl p-4"
             style={{
@@ -695,22 +742,41 @@ export default function Home() {
 
         {/* Bottom-left actions (START + quick actions) */}
         <div className="absolute left-6 bottom-8 w-[560px] max-w-[calc(100vw-3rem)]">
-          <motion.button
-            type="button"
-            onClick={() => navigate('/modes')}
-            className="inline-flex items-center gap-2 rounded px-3 py-2 text-xs font-semibold"
-            style={{
-              background: '#facc15',
-              color: '#0b1220',
-              border: '1px solid rgba(0,0,0,0.35)',
-              boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
-            }}
-            whileHover={prefersReducedMotion ? undefined : { y: -1 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
-            aria-label="Standard mode"
-          >
-            STANDARD <span className="opacity-80">»</span>
-          </motion.button>
+          <div className="flex flex-wrap items-center gap-2">
+            <motion.button
+              type="button"
+              onClick={() => navigate('/modes')}
+              className="inline-flex items-center gap-2 rounded px-3 py-2 text-xs font-semibold"
+              style={{
+                background: '#facc15',
+                color: '#0b1220',
+                border: '1px solid rgba(0,0,0,0.35)',
+                boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
+              }}
+              whileHover={prefersReducedMotion ? undefined : { y: -1 }}
+              whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+              aria-label="Standard mode"
+            >
+              STANDARD <span className="opacity-80">»</span>
+            </motion.button>
+
+            <motion.button
+              type="button"
+              onClick={() => navigate('/offline')}
+              className="inline-flex items-center gap-2 rounded px-3 py-2 text-xs font-semibold"
+              style={{
+                background: 'rgba(34, 197, 94, 0.18)',
+                color: '#ecfdf3',
+                border: '1px solid rgba(34, 197, 94, 0.35)',
+                boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
+              }}
+              whileHover={prefersReducedMotion ? undefined : { y: -1 }}
+              whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+              aria-label="Offline campaign"
+            >
+              OFFLINE <span className="opacity-80">»</span>
+            </motion.button>
+          </div>
 
           {hasMatchmakingPrefs && (
             <div className="mt-3 flex items-stretch gap-3">
@@ -851,6 +917,26 @@ export default function Home() {
                 <span className="text-[10px] font-semibold text-white/60">Soon</span>
               </motion.button>
             )}
+          </div>
+
+          <div className="mt-3">
+            <motion.button
+              onClick={handleStartBotMatch}
+              disabled={matchmakingStatus === 'searching'}
+              className="w-full px-6 py-4 rounded-2xl text-base sm:text-lg font-semibold uppercase tracking-wider"
+              style={{
+                background: 'linear-gradient(135deg, rgba(71,85,105,0.9), rgba(51,65,85,0.9))',
+                color: '#e2e8f0',
+                border: '1px solid rgba(148, 163, 184, 0.35)',
+                boxShadow: '0 14px 44px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1)',
+                opacity: matchmakingStatus === 'searching' ? 0.7 : 1,
+              }}
+              whileHover={prefersReducedMotion || matchmakingStatus === 'searching' ? undefined : { scale: 1.01 }}
+              whileTap={prefersReducedMotion || matchmakingStatus === 'searching' ? undefined : { scale: 0.99 }}
+              aria-label="Start bot match"
+            >
+              BOT MATCH <span className="opacity-70">(Win &gt;70% accuracy)</span>
+            </motion.button>
           </div>
         </div>
 

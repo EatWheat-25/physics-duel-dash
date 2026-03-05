@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
       subject?: string
       level?: string
       forceNew?: boolean
+      bot_only?: boolean
     }
 
     let subject = body.subject ?? 'math'
@@ -67,7 +68,8 @@ Deno.serve(async (req) => {
       p_player_id: user.id,
       p_subject: subject,
       p_level: level,
-      p_force_new: Boolean(body.forceNew)
+      p_force_new: Boolean(body.forceNew),
+      p_bot_only: Boolean(body.bot_only)
     })
 
     if (rpcError) {

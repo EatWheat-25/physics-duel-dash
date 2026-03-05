@@ -38,7 +38,9 @@ import BattleConnected from "./pages/BattleConnected";
 import MatchResults from "./pages/MatchResults";
 import DebugQuestions from "./pages/DebugQuestions";
 import Practice from "./pages/Practice";
+import OfflineCampaign from "./pages/OfflineCampaign";
 import MatchSandbox from "./pages/MatchSandbox";
+import SoloChallenge from "./pages/SoloChallenge";
 import { DevContractTest } from "./pages/DevContractTest";
 import { DevDatabaseTest } from "./pages/DevDatabaseTest";
 import { DevMapperTest } from "./pages/DevMapperTest";
@@ -71,6 +73,7 @@ const App = () => {
                       <Route path="/daily-challenge" element={<DailyChallenge />} />
                       <Route path="/study" element={<Study />} />
                       <Route path="/practice" element={<Practice />} />
+                      <Route path="/offline" element={<OfflineCampaign />} />
                       <Route path="/battle/queue" element={<BattleQueue />} />
                       <Route path="/modules" element={<Modules />} />
                       <Route path="/challenges" element={<Challenges />} />
@@ -115,6 +118,7 @@ const App = () => {
                       {/* <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} /> */}
                       <Route path="/online-battle-new/:matchId" element={<BattleConnected />} />
                       <Route path="/battle/:matchId" element={<BattleConnected />} />
+                      <Route path="/solo-challenge" element={<SoloChallenge />} />
                       <Route path="/match-results/:matchId" element={<MatchResults />} />
                       <Route
                         path="/physics-battle"

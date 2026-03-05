@@ -167,6 +167,21 @@ const multiStepResultsComputeInProgress = new Set<string>() // `${matchId}:${rou
 // Connection freshness window for considering a player "connected"
 const CONNECTION_TTL_MS = 60_000
 
+// Bot config (keep UUID in sync with DB migration).
+const BOT_PLAYER_ID = Deno.env.get('BOT_PLAYER_ID') ?? '8f7f6c2a-1f4d-4f0b-9b7d-1a2b3c4d5e6f'
+const BOT_ANSWER_MIN_DELAY_MS = 800
+const BOT_ANSWER_MAX_DELAY_MS = 1600
+const BOT_RESULTS_ACK_DELAY_MS = 2500
+
+const botSingleAnswerTimeouts = new Map<string, number>()
+const botStepAnswerTimeouts = new Map<string, number>()
+const botResultsAckTimeouts = new Map<string, number>()
+
+const BOT_NOOP_SOCKET: WebSocket = {
+  readyState: WebSocket.OPEN,
+  send: () => {}
+} as WebSocket
+
 interface ConnectionStatus {
   player1At: string | null
   player2At: string | null
@@ -707,6 +722,8 @@ async function computeAndBroadcastMultiStepResultsV3(
       }
     }
 
+    await maybeScheduleBotResultsAck(matchId, supabase)
+
     const gameState = gameStates.get(matchId)
     if (gameState) {
       gameState.currentPhase = 'result'
@@ -805,7 +822,7 @@ async function broadcastQuestion(
   // Get match players + target rounds for game state
   const { data: matchData } = await (supabase
     .from('matches')
-    .select('player1_id, player2_id, target_rounds_to_win')
+    .select('player1_id, player2_id, target_rounds_to_win, bot_behavior')
     .eq('id', matchId)
     .single() as any)
 
@@ -1028,6 +1045,11 @@ async function broadcastQuestion(
       .eq('id', matchId)
       .neq('status', 'in_progress') as any)
 
+    // If this is a bot match, schedule a random bot answer.
+    if (matchData?.player1_id && matchData?.player2_id && !isIdleBotMatch(matchData)) {
+      scheduleBotSingleAnswer(matchId, matchData, questionDb, supabase)
+    }
+
     console.log(`[${matchId}] ✅ Question selection and broadcast completed!`)
 
     // Start timeout for answer submission (60 seconds / 1 minute)
@@ -1117,6 +1139,7 @@ async function broadcastQuestion(
             round_number: payload?.round_number ?? matchResults.current_round_number ?? 0
           }
           broadcastToMatch(matchId, resultsEvent)
+          await maybeScheduleBotResultsAck(matchId, supabase)
         } else if (matchResults) {
           console.warn(`[${matchId}] ⚠️ Timeout results payload missing; falling back to legacy results event`)
           const resultsEvent: ResultsReceivedEvent = {
@@ -1129,6 +1152,7 @@ async function broadcastQuestion(
             round_winner: matchResults.round_winner
           }
           broadcastToMatch(matchId, resultsEvent)
+          await maybeScheduleBotResultsAck(matchId, supabase)
         }
       }
       
@@ -1637,17 +1661,32 @@ async function checkAndBroadcastBothConnected(
   const connectionStatus = await fetchConnectionStatus(matchId, supabase)
   if (!connectionStatus) return false
 
-  const bothConnected = connectionStatus.player1Fresh && connectionStatus.player2Fresh
-  const player1Label = connectionStatus.player1Fresh
-    ? '✅ Connected'
-    : connectionStatus.player1At
-      ? '⚠️ Stale'
-      : '❌ Not connected'
-  const player2Label = connectionStatus.player2Fresh
-    ? '✅ Connected'
-    : connectionStatus.player2At
-      ? '⚠️ Stale'
-      : '❌ Not connected'
+  const botId = getBotPlayerId(match)
+  const botRole =
+    botId && match.player1_id === botId
+      ? 'player1'
+      : botId && match.player2_id === botId
+        ? 'player2'
+        : null
+
+  const player1Fresh = botRole === 'player1' ? true : connectionStatus.player1Fresh
+  const player2Fresh = botRole === 'player2' ? true : connectionStatus.player2Fresh
+  const bothConnected = player1Fresh && player2Fresh
+
+  const player1Label = botRole === 'player1'
+    ? '🤖 Bot (virtual)'
+    : connectionStatus.player1Fresh
+      ? '✅ Connected'
+      : connectionStatus.player1At
+        ? '⚠️ Stale'
+        : '❌ Not connected'
+  const player2Label = botRole === 'player2'
+    ? '🤖 Bot (virtual)'
+    : connectionStatus.player2Fresh
+      ? '✅ Connected'
+      : connectionStatus.player2At
+        ? '⚠️ Stale'
+        : '❌ Not connected'
 
   console.log(`[${matchId}] Checking both connected status (fresh <= ${CONNECTION_TTL_MS / 1000}s):`)
   console.log(`  - Player1 (${match.player1_id}): ${player1Label}`)
@@ -1656,7 +1695,7 @@ async function checkAndBroadcastBothConnected(
 
   // If not both connected, return false immediately (don't broadcast)
   if (!bothConnected) {
-    const connectedCount = (connectionStatus.player1Fresh ? 1 : 0) + (connectionStatus.player2Fresh ? 1 : 0)
+    const connectedCount = (player1Fresh ? 1 : 0) + (player2Fresh ? 1 : 0)
     console.log(`[${matchId}] ⏳ Waiting for both players - currently ${connectedCount}/2 connected`)
     return false
   }
@@ -1728,6 +1767,9 @@ function cleanupGameState(matchId: string): void {
     }
     gameStates.delete(matchId)
   }
+  clearBotTimeout(botSingleAnswerTimeouts, matchId)
+  clearBotTimeout(botStepAnswerTimeouts, matchId)
+  clearBotTimeout(botResultsAckTimeouts, matchId)
   // Also cleanup match state if match is over
   matchStates.delete(matchId)
 }
@@ -1794,6 +1836,339 @@ function coerceOptions(step: any): string[] {
   return opts.map((o: any) => (o ?? '').toString())
 }
 
+function isBotId(id: string | null | undefined): boolean {
+  return Boolean(id && id === BOT_PLAYER_ID)
+}
+
+function getBotPlayerId(matchRow: { player1_id?: string | null; player2_id?: string | null } | null | undefined): string | null {
+  if (!matchRow) return null
+  if (isBotId(matchRow.player1_id)) return matchRow.player1_id as string
+  if (isBotId(matchRow.player2_id)) return matchRow.player2_id as string
+  return null
+}
+
+function isIdleBotMatch(matchRow: { bot_behavior?: string | null } | null | undefined): boolean {
+  return matchRow?.bot_behavior === 'idle'
+}
+
+function randomBotDelayMs(): number {
+  const min = Math.max(0, BOT_ANSWER_MIN_DELAY_MS)
+  const max = Math.max(min, BOT_ANSWER_MAX_DELAY_MS)
+  return Math.floor(min + Math.random() * (max - min + 1))
+}
+
+function pickRandomAnswerIndex(options: any[]): number {
+  if (!Array.isArray(options) || options.length === 0) return 0
+  const maxIndex = Math.min(5, Math.max(0, options.length - 1))
+  return Math.floor(Math.random() * (maxIndex + 1))
+}
+
+function getSegmentStep(
+  questionDb: any,
+  stepIndex: number,
+  segment: 'main' | 'sub',
+  subStepIndex: number
+): any | null {
+  const steps = normalizeSteps(questionDb?.steps)
+  const mainStep = steps[stepIndex]
+  if (!mainStep) return null
+  if (segment === 'sub') {
+    const subSteps = normalizeSubSteps(mainStep)
+    return subSteps[subStepIndex] ?? null
+  }
+  return mainStep
+}
+
+function clearBotTimeout(map: Map<string, number>, key: string): void {
+  const existing = map.get(key)
+  if (existing) {
+    clearTimeout(existing)
+  }
+  map.delete(key)
+}
+
+function scheduleBotResultsAck(
+  matchId: string,
+  botId: string,
+  supabase: ReturnType<typeof createClient>
+): void {
+  clearBotTimeout(botResultsAckTimeouts, matchId)
+  const timeoutId = setTimeout(() => {
+    handleReadyForNextRound(matchId, botId, BOT_NOOP_SOCKET, supabase).catch((error) => {
+      console.warn(`[${matchId}] ⚠️ Bot READY_FOR_NEXT_ROUND failed:`, error)
+    })
+  }, BOT_RESULTS_ACK_DELAY_MS) as unknown as number
+  botResultsAckTimeouts.set(matchId, timeoutId)
+}
+
+async function maybeScheduleBotResultsAck(
+  matchId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const { data: matchRow } = await (supabase
+    .from('matches')
+    .select('player1_id, player2_id, winner_id')
+    .eq('id', matchId)
+    .single() as any)
+  const botId = getBotPlayerId(matchRow)
+  if (!botId || matchRow?.winner_id) return
+  scheduleBotResultsAck(matchId, botId, supabase)
+}
+
+async function submitBotSingleAnswer(
+  matchId: string,
+  botId: string,
+  questionDb: any,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const steps = normalizeSteps(questionDb?.steps)
+  const mainStep = steps[0] ?? {}
+  const options = coerceOptions(mainStep)
+  const answerIndex = pickRandomAnswerIndex(options)
+
+  const { data, error } = await (supabase.rpc('submit_round_answer_v2', {
+    p_match_id: matchId,
+    p_player_id: botId,
+    p_answer: answerIndex
+  } as any) as any)
+
+  if (error) {
+    console.error(`[${matchId}] ❌ Bot submit_round_answer_v2 failed:`, error)
+    return
+  }
+  if (!data?.success) {
+    console.error(`[${matchId}] ❌ Bot RPC returned error:`, data?.error || data?.reason)
+    return
+  }
+
+  if (data.both_answered && data.results_payload) {
+    const existingTimeout = matchTimeouts.get(matchId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+      matchTimeouts.delete(matchId)
+      console.log(`[${matchId}] ✅ [BOT] Cleared timeout - both players answered early`)
+    }
+
+    await backfillResultsRoundId(matchId, supabase, {
+      resultsRoundId: data.results_round_id,
+      resultsPayload: data.results_payload
+    })
+
+    const resultsRoundId = data.results_round_id ?? data.results_payload?.round_id ?? null
+    if (resultsRoundId) {
+      const { error: ackResetError } = await (supabase
+        .from('match_rounds')
+        .update({
+          p1_results_ack_at: null,
+          p2_results_ack_at: null
+        } as any)
+        .eq('id', resultsRoundId)
+        .eq('match_id', matchId) as any)
+      if (ackResetError) {
+        console.warn(`[${matchId}] ⚠️ Failed to reset results acks for round ${resultsRoundId}:`, ackResetError)
+      }
+    }
+
+    const resultsEvent = {
+      type: 'RESULTS_RECEIVED',
+      results_payload: data.results_payload,
+      results_version: data.results_version || 0,
+      round_number: data.results_payload?.round_number || 0
+    }
+    broadcastToMatch(matchId, resultsEvent)
+
+    const matchState = matchStates.get(matchId)
+    if (matchState) {
+      matchState.p1ResultsAcknowledged = false
+      matchState.p2ResultsAcknowledged = false
+      matchState.roundTransitionInProgress = false
+    }
+
+    scheduleBotResultsAck(matchId, botId, supabase)
+  } else {
+    const { data: matchData } = await (supabase
+      .from('matches')
+      .select('player1_id, player2_id')
+      .eq('id', matchId)
+      .single() as any)
+    if (matchData?.player1_id && matchData?.player2_id) {
+      const isP1 = matchData.player1_id === botId
+      const answerReceivedEvent: AnswerReceivedEvent = {
+        type: 'ANSWER_RECEIVED',
+        player: isP1 ? 'player1' : 'player2',
+        waiting_for_opponent: true
+      }
+      broadcastToMatch(matchId, answerReceivedEvent)
+    }
+  }
+}
+
+function scheduleBotSingleAnswer(
+  matchId: string,
+  matchRow: { player1_id?: string | null; player2_id?: string | null },
+  questionDb: any,
+  supabase: ReturnType<typeof createClient>
+): void {
+  const botId = getBotPlayerId(matchRow)
+  if (!botId) return
+  clearBotTimeout(botSingleAnswerTimeouts, matchId)
+  const timeoutId = setTimeout(() => {
+    submitBotSingleAnswer(matchId, botId, questionDb, supabase).catch((error) => {
+      console.warn(`[${matchId}] ⚠️ Bot submit answer failed:`, error)
+    })
+  }, randomBotDelayMs()) as unknown as number
+  botSingleAnswerTimeouts.set(matchId, timeoutId)
+}
+
+async function broadcastBotCompletionAndMaybeResults(
+  matchId: string,
+  matchRow: { player1_id?: string | null; player2_id?: string | null },
+  roundId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
+  if (playerIds.length === 0) return
+
+  const { data: rows } = await (supabase
+    .from('match_round_player_progress_v1')
+    .select('player_id, completed_at')
+    .eq('match_id', matchId)
+    .eq('round_id', roundId)
+    .in('player_id', playerIds) as any)
+
+  const byPlayer = new Map<string, any>()
+  ;(rows || []).forEach((row: any) => byPlayer.set(row.player_id, row))
+
+  const p1Complete = !!(matchRow.player1_id && byPlayer.get(matchRow.player1_id)?.completed_at)
+  const p2Complete = !!(matchRow.player2_id && byPlayer.get(matchRow.player2_id)?.completed_at)
+
+  const waitingEvent: AllStepsCompleteWaitingEvent = {
+    type: 'ALL_STEPS_COMPLETE_WAITING',
+    p1Complete,
+    p2Complete
+  }
+  if (matchRow.player1_id) sendToPlayer(matchId, matchRow.player1_id, waitingEvent)
+  if (matchRow.player2_id) sendToPlayer(matchId, matchRow.player2_id, waitingEvent)
+
+  if (p1Complete && p2Complete) {
+    await computeAndBroadcastMultiStepResultsV3(matchId, roundId, supabase)
+  }
+}
+
+async function runBotStepOnce(
+  matchId: string,
+  questionDb: any,
+  supabase: ReturnType<typeof createClient>,
+  attempt: number = 0
+): Promise<void> {
+  const { data: matchRow } = await (supabase
+    .from('matches')
+    .select('id, status, winner_id, current_round_id, player1_id, player2_id')
+    .eq('id', matchId)
+    .single() as any)
+
+  const botId = getBotPlayerId(matchRow)
+  if (!botId) return
+  if (!matchRow || matchRow.winner_id || matchRow.status !== 'in_progress') return
+  const roundId = matchRow.current_round_id as string | null
+  if (!roundId) return
+
+  const { error: initError } = await (supabase.rpc('init_round_progress_v1', {
+    p_match_id: matchId,
+    p_round_id: roundId
+  } as any) as any)
+  if (initError) {
+    console.warn(`[${matchId}] ⚠️ Bot init_round_progress_v1 failed:`, initError)
+  }
+
+  const { data: progress } = await (supabase
+    .from('match_round_player_progress_v1')
+    .select('*')
+    .eq('match_id', matchId)
+    .eq('round_id', roundId)
+    .eq('player_id', botId)
+    .maybeSingle() as any)
+
+  if (!progress) {
+    if (attempt < 3) {
+      scheduleBotStepLoop(matchId, questionDb, supabase, attempt + 1)
+    }
+    return
+  }
+
+  if (progress.completed_at) {
+    await broadcastBotCompletionAndMaybeResults(matchId, matchRow, roundId, supabase)
+    return
+  }
+
+  const stepIndex = Number(progress.current_step_index ?? 0)
+  const segment = progress.current_segment === 'sub' ? 'sub' : 'main'
+  const subStepIndex = segment === 'sub' ? Number(progress.current_sub_step_index ?? 0) : 0
+  const segmentStep = getSegmentStep(questionDb, stepIndex, segment, subStepIndex)
+  const options = coerceOptions(segmentStep)
+  const answerIndex = pickRandomAnswerIndex(options)
+  const correctAnswer = coerceCorrectAnswerIndex(segmentStep)
+  const isCorrect = answerIndex === correctAnswer
+
+  const { data: submitResult, error: submitError } = await (supabase.rpc('submit_segment_v1', {
+    p_match_id: matchId,
+    p_round_id: roundId,
+    p_player_id: botId,
+    p_step_index: stepIndex,
+    p_segment: segment,
+    p_answer_index: answerIndex,
+    p_is_correct: isCorrect
+  } as any) as any)
+
+  if (submitError || !submitResult?.success) {
+    console.warn(`[${matchId}] ⚠️ Bot submit_segment_v1 failed:`, submitError || submitResult)
+    if (attempt < 3) {
+      scheduleBotStepLoop(matchId, questionDb, supabase, attempt + 1)
+    }
+    return
+  }
+
+  if (submitResult?.out_of_sync && submitResult?.canonical) {
+    scheduleBotStepLoop(matchId, questionDb, supabase)
+    return
+  }
+
+  const completed = submitResult?.completed === true || submitResult?.already_completed === true
+  if (completed) {
+    await broadcastBotCompletionAndMaybeResults(matchId, matchRow, roundId, supabase)
+    return
+  }
+
+  scheduleBotStepLoop(matchId, questionDb, supabase)
+}
+
+function scheduleBotStepLoop(
+  matchId: string,
+  questionDb: any,
+  supabase: ReturnType<typeof createClient>,
+  attempt: number = 0
+): void {
+  clearBotTimeout(botStepAnswerTimeouts, matchId)
+  const timeoutId = setTimeout(() => {
+    runBotStepOnce(matchId, questionDb, supabase, attempt).catch((error) => {
+      console.warn(`[${matchId}] ⚠️ Bot step loop failed:`, error)
+    })
+  }, randomBotDelayMs()) as unknown as number
+  botStepAnswerTimeouts.set(matchId, timeoutId)
+}
+
+function startBotStepLoop(
+  matchId: string,
+  matchRow: { player1_id?: string | null; player2_id?: string | null; bot_behavior?: string | null },
+  questionDb: any,
+  supabase: ReturnType<typeof createClient>
+): void {
+  const botId = getBotPlayerId(matchRow)
+  if (isIdleBotMatch(matchRow)) return
+  if (!botId) return
+  scheduleBotStepLoop(matchId, questionDb, supabase)
+}
+
 /**
  * Transition from main question phase to steps phase
  */
@@ -1838,17 +2213,20 @@ async function transitionToSteps(
   const stepEndsAt = new Date(Date.now() + stepSeconds * 1000).toISOString()
   state.stepEndsAt = stepEndsAt
 
+  let matchRow: any | null = null
+
   // Prefer DB-driven per-player async step progression if available.
   // This is what enables "answer → advance immediately" without waiting for the opponent/timer.
   try {
-    const { data: matchRow, error: matchError } = await (supabase
+    const { data: matchRowData, error: matchError } = await (supabase
       .from('matches')
-      .select('current_round_id, player1_id, player2_id')
+      .select('current_round_id, player1_id, player2_id, bot_behavior')
       .eq('id', matchId)
       .single() as any)
 
-    if (!matchError && matchRow?.current_round_id) {
-      const roundId = matchRow.current_round_id as string
+    if (!matchError && matchRowData?.current_round_id) {
+      matchRow = matchRowData
+      const roundId = matchRowData.current_round_id as string
 
       const { error: initError } = await (supabase.rpc('init_round_progress_v1', {
         p_match_id: matchId,
@@ -1857,7 +2235,7 @@ async function transitionToSteps(
 
       if (!initError) {
         // If init placed players in main-question sentinel (-1), advance them into step 0 now.
-        const playerIds = [matchRow.player1_id, matchRow.player2_id].filter(Boolean) as string[]
+        const playerIds = [matchRowData.player1_id, matchRowData.player2_id].filter(Boolean) as string[]
         if (playerIds.length > 0) {
           const { error: progressUpdateError } = await (supabase
             .from('match_round_player_progress_v1')
@@ -1904,9 +2282,12 @@ async function transitionToSteps(
 
         // Prime dedupe keys (avoid immediate sweep re-sending step 0)
         const initialKey = `0|main|0|${new Date(stepEndsAt).toISOString()}|`
-        if (matchRow.player1_id) setLastAsyncProgressKey(matchId, matchRow.player1_id, initialKey)
-        if (matchRow.player2_id) setLastAsyncProgressKey(matchId, matchRow.player2_id, initialKey)
+        if (matchRowData.player1_id) setLastAsyncProgressKey(matchId, matchRowData.player1_id, initialKey)
+        if (matchRowData.player2_id) setLastAsyncProgressKey(matchId, matchRowData.player2_id, initialKey)
         setLastAsyncProgressKey(matchId, '__completion__', 'false|false')
+
+        // Kick off bot progression for step segments.
+        startBotStepLoop(matchId, matchRowData, state.currentQuestion, supabase)
         return
       } else {
         console.warn(`[${matchId}] ⚠️ init_round_progress_v1 not available; falling back to legacy shared step progression`, initError)
@@ -1937,6 +2318,19 @@ async function transitionToSteps(
   }
 
   broadcastToMatch(matchId, phaseChangeEvent)
+
+  if (!matchRow) {
+    const { data: matchRowData } = await (supabase
+      .from('matches')
+      .select('player1_id, player2_id, bot_behavior')
+      .eq('id', matchId)
+      .single() as any)
+    if (matchRowData) matchRow = matchRowData
+  }
+
+  if (matchRow) {
+    startBotStepLoop(matchId, matchRow, state.currentQuestion, supabase)
+  }
 
   // Start segment timer
   if (state.segmentTimer) {
@@ -3099,6 +3493,8 @@ async function handleSubmitAnswerV2(
       matchState.roundTransitionInProgress = false
     }
 
+    await maybeScheduleBotResultsAck(matchId, supabase)
+
     // Don't auto-transition - wait for both players to acknowledge results
     console.log(`[${matchId}] ⏳ [V2] Waiting for both players to acknowledge results before starting next round`)
   } else {
@@ -3470,7 +3866,15 @@ async function handleJoinMatch(
     const connectionStatus = await fetchConnectionStatus(matchId, supabase)
     if (!connectionStatus) return false
 
-    if (connectionStatus.player1Fresh && connectionStatus.player2Fresh) {
+    const botId = getBotPlayerId(match)
+    const botRole =
+      botId && match.player1_id === botId ? 'player1'
+      : botId && match.player2_id === botId ? 'player2'
+      : null
+    const p1Fresh = botRole === 'player1' ? true : connectionStatus.player1Fresh
+    const p2Fresh = botRole === 'player2' ? true : connectionStatus.player2Fresh
+
+    if (p1Fresh && p2Fresh) {
       // Both connected! Attempt to broadcast
       console.log(`[${matchId}] ✅ [WS] Both players connected detected in checkConnection`)
       // NOTE: checkAndBroadcastBothConnected will re-check the database

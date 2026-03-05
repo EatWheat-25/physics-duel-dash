@@ -24,6 +24,8 @@ import { QuestionGraph } from '@/components/math/QuestionGraph';
 interface QuestionViewerProps {
   questions: StepBasedQuestion[];
   onFinished?: () => void;
+  currentQuestionIndex?: number;
+  totalQuestions?: number;
   // Online mode props
   isOnlineMode?: boolean;
   onSubmitAnswer?: (questionId: string, stepId: string, answerIndex: number) => void;
@@ -50,6 +52,8 @@ interface QuestionViewerProps {
 export function QuestionViewer({
   questions,
   onFinished,
+  currentQuestionIndex,
+  totalQuestions,
   isOnlineMode = false,
   onSubmitAnswer,
   isSubmitting = false,
@@ -74,7 +78,11 @@ export function QuestionViewer({
   console.log('📖 QuestionViewer: Received questions:', questions?.length || 0);
   console.log('📖 QuestionViewer: Phase:', currentPhase, 'Options:', options?.length || 0);
 
-  const currentQuestion = questions?.[currentIndex];
+  const resolvedIndex =
+    typeof currentQuestionIndex === 'number' ? currentQuestionIndex : currentIndex;
+  const resolvedTotal =
+    typeof totalQuestions === 'number' ? totalQuestions : questions.length;
+  const currentQuestion = questions?.[resolvedIndex];
   const currentStep = isOnlineMode && currentQuestion
     ? currentQuestion.steps?.[currentStepIndex] ?? null
     : currentQuestion
@@ -121,15 +129,15 @@ export function QuestionViewer({
   }
 
   const handlePrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
+    if (resolvedIndex > 0) {
+      setCurrentIndex(resolvedIndex - 1);
       setSelectedOptionIndex(null);
     }
   };
 
   const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+    if (resolvedIndex < questions.length - 1) {
+      setCurrentIndex(resolvedIndex + 1);
       setSelectedOptionIndex(null);
     } else if (onFinished) {
       onFinished();
@@ -160,7 +168,7 @@ export function QuestionViewer({
       <div className="flex items-center justify-between text-sm text-gray-500">
         <div className="flex items-center gap-2">
           <BookOpen className="w-4 h-4" />
-          <span>Question {currentIndex + 1} of {questions.length}</span>
+          <span>Question {resolvedIndex + 1} of {resolvedTotal}</span>
         </div>
         {isOnlineMode && totalSteps > 1 && (
           <div className="font-bold text-primary">
@@ -171,10 +179,10 @@ export function QuestionViewer({
           </div>
         )}
         <div className="flex gap-1">
-          {questions.map((_, idx) => (
+          {Array.from({ length: resolvedTotal }).map((_, idx) => (
             <div
               key={idx}
-              className={`h-2 w-2 rounded-full transition-colors ${idx === currentIndex ? 'bg-blue-500' : idx < currentIndex ? 'bg-green-500' : 'bg-gray-300'}`}
+              className={`h-2 w-2 rounded-full transition-colors ${idx === resolvedIndex ? 'bg-blue-500' : idx < resolvedIndex ? 'bg-green-500' : 'bg-gray-300'}`}
             />
           ))}
         </div>

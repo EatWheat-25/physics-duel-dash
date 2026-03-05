@@ -533,6 +533,8 @@ export type Database = {
           target_points: number
           target_rounds_to_win: number
           winner_id: string | null
+          bot_behavior: string | null
+          bot_min_accuracy_pct: number | null
         }
         Insert: {
           both_answered_at?: string | null
@@ -579,6 +581,8 @@ export type Database = {
           target_points?: number
           target_rounds_to_win?: number
           winner_id?: string | null
+          bot_behavior?: string | null
+          bot_min_accuracy_pct?: number | null
         }
         Update: {
           both_answered_at?: string | null
@@ -625,6 +629,8 @@ export type Database = {
           target_points?: number
           target_rounds_to_win?: number
           winner_id?: string | null
+          bot_behavior?: string | null
+          bot_min_accuracy_pct?: number | null
         }
         Relationships: [
           {

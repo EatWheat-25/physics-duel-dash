@@ -17,6 +17,7 @@ export function useMatchmaking(): {
   match: MatchRow | null;
   error: string | null;
   startMatchmaking: (subject?: string, level?: string) => Promise<void>;
+  startBotMatch: (subject?: string, level?: string) => Promise<void>;
   leaveQueue: () => Promise<void>;
   queueStartTime: number | null;
 } {
@@ -29,11 +30,15 @@ export function useMatchmaking(): {
   });
 
   const isSearchingRef = useRef(false);
+  const isStartingBotRef = useRef(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const queueStartTimeRef = useRef<number | null>(null);
   const [queueStartTime, setQueueStartTime] = useState<number | null>(null);
   const requestIdRef = useRef(0);
+  const botRequestIdRef = useRef(0);
   const currentUserIdRef = useRef<string | null>(null);
+  const matchmakingParamsRef = useRef<{ subject: string; level: string } | null>(null);
+  const pollCountRef = useRef(0);
 
   const buildPlaceholderPlayers = useCallback((): MatchDoorPlayers => {
     return {
@@ -145,6 +150,18 @@ export function useMatchmaking(): {
       return;
     }
 
+    const handleMatchFound = (match: MatchRow) => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      setState({ status: 'matched', match, error: null });
+      setQueueStartTime(null);
+      queueStartTimeRef.current = null;
+      toast.success('Match found! Starting battle...');
+      runMatchFoundTransition(match);
+    };
+
     const checkForMatch = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -153,7 +170,31 @@ export function useMatchmaking(): {
           return;
         }
 
-        // Check if user has a match in matches table
+        pollCountRef.current += 1;
+
+        // Re-invoke the matchmaker RPC every 3rd tick (~9s) so the
+        // server-side bot fallback (>= 60s wait) can trigger. The RPC is
+        // idempotent: it checks for a human opponent first, preserves
+        // queue position, and reuses any existing match.
+        if (matchmakingParamsRef.current && pollCountRef.current % 3 === 0) {
+          const { subject, level } = matchmakingParamsRef.current;
+          console.log('[MATCHMAKING] Poll: Re-invoking matchmake-simple (tick', pollCountRef.current, ')');
+          try {
+            const { data: rpcData, error: rpcError } = await supabase.functions.invoke('matchmake-simple', {
+              body: { subject, level },
+            });
+            if (!rpcError && rpcData?.matched && rpcData?.match) {
+              const match = rpcData.match as MatchRow;
+              console.log('[MATCHMAKING] ✅ Re-invoke returned match:', match.id);
+              handleMatchFound(match);
+              return;
+            }
+          } catch (err) {
+            console.warn('[MATCHMAKING] Poll: Re-invoke matchmake-simple failed (non-fatal):', err);
+          }
+        }
+
+        // Normal poll: check the matches table
         const { data: matches, error } = await supabase
           .from('matches')
           .select('*')
@@ -184,23 +225,7 @@ export function useMatchmaking(): {
           }
           
           console.log(`[MATCHMAKING] ✅ Poll detected fresh match, navigating...`, match.id);
-          
-          // Clear polling
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-
-          setState({
-            status: 'matched',
-            match: match,
-            error: null,
-          });
-          setQueueStartTime(null);
-          queueStartTimeRef.current = null;
-
-          toast.success('Match found! Starting battle...');
-          runMatchFoundTransition(match);
+          handleMatchFound(match);
         } else {
           console.log('[MATCHMAKING] Poll: No match found yet, continuing to wait...');
         }
@@ -249,6 +274,8 @@ export function useMatchmaking(): {
       }
 
       currentUserIdRef.current = user.id;
+      matchmakingParamsRef.current = { subject, level };
+      pollCountRef.current = 0;
       console.log(`[MATCHMAKING] Starting matchmaking for user ${user.id} (subject: ${subject}, level: ${level})`);
 
       // Call matchmaker edge function with subject and level
@@ -344,6 +371,94 @@ export function useMatchmaking(): {
     }
   }, [state.status, runMatchFoundTransition]);
 
+  const startBotMatch = useCallback(async (subject: string, level: string) => {
+    if (isStartingBotRef.current) {
+      console.log('[MATCHMAKING] Bot match already starting, ignoring duplicate call');
+      return;
+    }
+
+    if (state.status === 'searching') {
+      console.log('[MATCHMAKING] Already in queue, cannot start bot match');
+      return;
+    }
+
+    isStartingBotRef.current = true;
+    const requestId = ++botRequestIdRef.current;
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('No authenticated user');
+      }
+
+      currentUserIdRef.current = user.id;
+      console.log(`[MATCHMAKING] Starting bot match for user ${user.id} (subject: ${subject}, level: ${level})`);
+
+      const { data, error } = await supabase.functions.invoke('matchmake-simple', {
+        body: { subject, level, bot_only: true },
+      });
+
+      if (requestId !== botRequestIdRef.current) {
+        console.log('[MATCHMAKING] Stale bot matchmaking response ignored.');
+        return;
+      }
+
+      if (error) {
+        const errorMessage = error.message || error.details || JSON.stringify(error);
+        const errorObj = new Error(errorMessage);
+        (errorObj as any).details = error.details;
+        (errorObj as any).hint = error.hint;
+        throw errorObj;
+      }
+
+      if (data && typeof data === 'object' && 'error' in data) {
+        const errorMessage = (data as any).error || 'Failed to start bot match';
+        const errorObj = new Error(errorMessage);
+        (errorObj as any).details = (data as any).details;
+        (errorObj as any).hint = (data as any).hint;
+        throw errorObj;
+      }
+
+      if (data?.matched && data?.match) {
+        const match = data.match as MatchRow;
+
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+
+        setState({
+          status: 'matched',
+          match,
+          error: null,
+        });
+        setQueueStartTime(null);
+        queueStartTimeRef.current = null;
+
+        toast.success('Bot match found! Starting battle...');
+        runMatchFoundTransition(match);
+        return;
+      }
+
+      throw new Error('Failed to start bot match');
+    } catch (error: any) {
+      if (requestId !== botRequestIdRef.current) {
+        console.log('[MATCHMAKING] Stale bot matchmaking error ignored.');
+        return;
+      }
+      console.error('[MATCHMAKING] Bot match failed:', error);
+      const errorMessage = error?.message || error?.details || 'Failed to start bot match';
+      const errorHint = error?.hint || '';
+      toast.error(`Failed to start bot match. ${errorHint ? errorHint : 'Please try again.'}`);
+      setState(prev => ({
+        ...prev,
+        error: errorMessage,
+      }));
+    } finally {
+      isStartingBotRef.current = false;
+    }
+  }, [state.status, runMatchFoundTransition]);
+
   const leaveQueue = useCallback(async () => {
     console.log('[MATCHMAKING] Leaving queue');
     // Invalidate any in-flight start request so late responses are ignored.
@@ -377,6 +492,8 @@ export function useMatchmaking(): {
     isSearchingRef.current = false;
     setQueueStartTime(null);
     queueStartTimeRef.current = null;
+    matchmakingParamsRef.current = null;
+    pollCountRef.current = 0;
   }, []);
 
   return {
@@ -384,6 +501,7 @@ export function useMatchmaking(): {
     match: state.match,
     error: state.error,
     startMatchmaking,
+    startBotMatch,
     leaveQueue,
     queueStartTime,
   };

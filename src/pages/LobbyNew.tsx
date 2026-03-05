@@ -33,9 +33,10 @@ export default function LobbyNew() {
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
   const [queueTime, setQueueTime] = useState(0);
   const [isButtonLoading, setIsButtonLoading] = useState(false);
+  const [isBotButtonLoading, setIsBotButtonLoading] = useState(false);
   const matchmaking = useMatchmaking() as any;
   const status = matchmaking.status;
-  const { startMatchmaking, leaveQueue, match } = matchmaking;
+  const { startMatchmaking, startBotMatch, leaveQueue, match } = matchmaking;
   const autostart = useMemo(() => searchParams.get('autostart') === '1', [searchParams]);
   const forcedStep = useMemo(() => {
     const s = searchParams.get('step');
@@ -106,8 +107,10 @@ export default function LobbyNew() {
   useEffect(() => {
     if (status === 'searching') {
       setIsButtonLoading(false); // Status hook will handle the searching state
+      setIsBotButtonLoading(false);
     } else if (status === 'idle' || status === 'matched') {
       setIsButtonLoading(false);
+      setIsBotButtonLoading(false);
     }
   }, [status]);
 
@@ -145,7 +148,7 @@ export default function LobbyNew() {
   };
 
   const handleStartQueue = async () => {
-    if (!selectedSubject || !selectedGrade || status === 'searching' || isButtonLoading) return;
+    if (!selectedSubject || !selectedGrade || status === 'searching' || isButtonLoading || isBotButtonLoading) return;
     
     playMatchStartSound();
 
@@ -169,6 +172,22 @@ export default function LobbyNew() {
       console.error('[LobbyNew] Matchmaking error:', error);
       setIsButtonLoading(false);
     });
+  };
+
+  const handleStartBotMatch = () => {
+    if (!selectedSubject || !selectedGrade || status === 'searching' || isButtonLoading || isBotButtonLoading) return;
+
+    playMatchStartSound();
+
+    let subject: string = selectedSubject;
+    let level: string = selectedGrade;
+
+    if (subject === 'maths') subject = 'math';
+    if (level === 'Both') level = 'A2';
+    if (level.toLowerCase() === 'a1') level = 'A1';
+    if (level.toLowerCase() === 'a2') level = 'A2';
+
+    navigate('/solo-challenge', { state: { subject, level } });
   };
 
   const handleLeaveQueue = async () => {
@@ -467,94 +486,128 @@ export default function LobbyNew() {
                     )}
                   </div>
 
-                  <motion.button
-                    onClick={handleStartQueue}
-                    disabled={(status as any) === 'searching' || (status as any) === 'queuing' || isButtonLoading}
-                    className="relative px-12 py-6 rounded-lg font-bold text-2xl uppercase tracking-wider transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-br from-blue-600 to-blue-500 text-white font-mono border-2 border-blue-400 overflow-hidden"
-                    style={{
-                      boxShadow: '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
-                    }}
-                    whileHover={!((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading ? { 
-                      scale: 1.05,
-                      boxShadow: '0 0 60px rgba(59, 130, 246, 0.9), 0 0 100px rgba(59, 130, 246, 0.5), inset 0 0 20px rgba(0,0,0,0.2)',
-                    } : {}}
-                    whileTap={!((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading ? { 
-                      scale: 0.95,
-                    } : {}}
-                    animate={{
-                      boxShadow: !((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading ? [
-                        '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
-                        '0 0 60px rgba(59, 130, 246, 0.9), 0 0 100px rgba(59, 130, 246, 0.5), inset 0 0 20px rgba(0,0,0,0.2)',
-                        '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
-                      ] : '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
-                    }}
-                    transition={{
-                      duration: 1.5,
-                      repeat: !((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading ? Infinity : 0,
-                      ease: 'easeInOut',
-                    }}
-                  >
-                    {/* Animated background gradient sweep */}
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <motion.button
+                      onClick={handleStartQueue}
+                      disabled={(status as any) === 'searching' || (status as any) === 'queuing' || isButtonLoading || isBotButtonLoading}
+                      className="relative px-12 py-6 rounded-lg font-bold text-2xl uppercase tracking-wider transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-br from-blue-600 to-blue-500 text-white font-mono border-2 border-blue-400 overflow-hidden"
+                      style={{
+                        boxShadow: '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
+                      }}
+                      whileHover={!((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading && !isBotButtonLoading ? { 
+                        scale: 1.05,
+                        boxShadow: '0 0 60px rgba(59, 130, 246, 0.9), 0 0 100px rgba(59, 130, 246, 0.5), inset 0 0 20px rgba(0,0,0,0.2)',
+                      } : {}}
+                      whileTap={!((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading && !isBotButtonLoading ? { 
+                        scale: 0.95,
+                      } : {}}
                       animate={{
-                        x: ['-100%', '100%'],
+                        boxShadow: !((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading && !isBotButtonLoading ? [
+                          '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
+                          '0 0 60px rgba(59, 130, 246, 0.9), 0 0 100px rgba(59, 130, 246, 0.5), inset 0 0 20px rgba(0,0,0,0.2)',
+                          '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
+                        ] : '0 0 40px rgba(59, 130, 246, 0.6), inset 0 0 20px rgba(0,0,0,0.2)',
                       }}
                       transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: 'linear',
+                        duration: 1.5,
+                        repeat: !((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading && !isBotButtonLoading ? Infinity : 0,
+                        ease: 'easeInOut',
                       }}
-                    />
-                    
-                    {/* Content */}
-                    <span className="relative z-10 flex items-center justify-center">
-                      {isButtonLoading || (status as any) === 'searching' || (status as any) === 'queuing' ? (
-                        <>
-                          <Loader2 className="w-6 h-6 inline mr-2 animate-spin" />
-                          <motion.span
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            STARTING...
-                          </motion.span>
-                        </>
-                      ) : (
-                        <>
-                          <motion.div
-                            animate={{
-                              rotate: [0, 15, -15, 0],
-                            }}
-                            transition={{
-                              duration: 0.6,
-                              repeat: Infinity,
-                              repeatDelay: 1,
-                            }}
-                          >
-                            <Zap className="w-6 h-6 inline mr-2 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
-                          </motion.div>
-                          <span className="drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">START BATTLE</span>
-                        </>
-                      )}
-                    </span>
-                    
-                    {/* Pulse ring effect */}
-                    {!isButtonLoading && !((status as any) === 'searching' || (status as any) === 'queuing') && (
+                    >
                       <motion.div
-                        className="absolute inset-0 rounded-lg border-2 border-blue-300"
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
                         animate={{
-                          scale: [1, 1.15, 1],
-                          opacity: [0.8, 0, 0.8],
+                          x: ['-100%', '100%'],
                         }}
                         transition={{
                           duration: 2,
                           repeat: Infinity,
-                          ease: 'easeInOut',
+                          ease: 'linear',
                         }}
                       />
-                    )}
-                  </motion.button>
+                      
+                      <span className="relative z-10 flex items-center justify-center">
+                        {isButtonLoading || (status as any) === 'searching' || (status as any) === 'queuing' ? (
+                          <>
+                            <Loader2 className="w-6 h-6 inline mr-2 animate-spin" />
+                            <motion.span
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              STARTING...
+                            </motion.span>
+                          </>
+                        ) : (
+                          <>
+                            <motion.div
+                              animate={{
+                                rotate: [0, 15, -15, 0],
+                              }}
+                              transition={{
+                                duration: 0.6,
+                                repeat: Infinity,
+                                repeatDelay: 1,
+                              }}
+                            >
+                              <Zap className="w-6 h-6 inline mr-2 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
+                            </motion.div>
+                            <span className="drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">START BATTLE</span>
+                          </>
+                        )}
+                      </span>
+                      
+                      {!isButtonLoading && !isBotButtonLoading && !((status as any) === 'searching' || (status as any) === 'queuing') && (
+                        <motion.div
+                          className="absolute inset-0 rounded-lg border-2 border-blue-300"
+                          animate={{
+                            scale: [1, 1.15, 1],
+                            opacity: [0.8, 0, 0.8],
+                          }}
+                          transition={{
+                            duration: 2,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                          }}
+                        />
+                      )}
+                    </motion.button>
+
+                    <motion.button
+                      onClick={handleStartBotMatch}
+                      disabled={(status as any) === 'searching' || (status as any) === 'queuing' || isButtonLoading || isBotButtonLoading}
+                      className="relative px-10 py-5 rounded-lg font-bold text-xl uppercase tracking-wider transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-br from-slate-700 to-slate-600 text-white font-mono border-2 border-slate-500"
+                      style={{
+                        boxShadow: '0 0 30px rgba(148, 163, 184, 0.4), inset 0 0 18px rgba(0,0,0,0.25)',
+                      }}
+                      whileHover={!((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading && !isBotButtonLoading ? { 
+                        scale: 1.03,
+                        boxShadow: '0 0 45px rgba(148, 163, 184, 0.6), 0 0 80px rgba(148, 163, 184, 0.3), inset 0 0 18px rgba(0,0,0,0.25)',
+                      } : {}}
+                      whileTap={!((status as any) === 'searching' || (status as any) === 'queuing') && !isButtonLoading && !isBotButtonLoading ? { 
+                        scale: 0.96,
+                      } : {}}
+                    >
+                      <span className="relative z-10 flex items-center justify-center">
+                        {isBotButtonLoading ? (
+                          <>
+                            <Loader2 className="w-5 h-5 inline mr-2 animate-spin" />
+                            <motion.span
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              BOT STARTING...
+                            </motion.span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">BOT MATCH</span>
+                          </>
+                        )}
+                      </span>
+                    </motion.button>
+                  </div>
 
                   <motion.p 
                     className="text-sm mt-6 text-slate-400 font-mono"
@@ -562,7 +615,7 @@ export default function LobbyNew() {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.6 }}
                   >
-                    Click to find an opponent and start your match!
+                    Start a battle or play a bot match. Win condition: &gt;70% accuracy.
                   </motion.p>
                 </div>
               </motion.div>

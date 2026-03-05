@@ -167,7 +167,7 @@ export default function BattleConnected() {
   const { 
     status, playerRole, errorMessage, question, answerSubmitted, 
     results, roundNumber, lastRoundWinner, consecutiveWinsCount, 
-    matchFinished, matchWinner, timeRemaining, nextRoundTimeLeft, submitAnswer,
+    matchFinished, matchWinner, timerEndAt, timeRemaining, nextRoundTimeLeft, submitAnswer,
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, subStepTimeLeft, currentStep, currentSegment, currentSubStepIndex,
     submitEarlyAnswer, submitStepAnswer,
@@ -267,6 +267,7 @@ export default function BattleConnected() {
     }
   }, [roundNumber, status]);
 
+
   // Polling fallback - removed as it uses columns that don't exist in schema
   // Results are handled via WebSocket messages from useGame hook
 
@@ -282,6 +283,19 @@ export default function BattleConnected() {
   const oppInitial = (oppName?.[0] || 'O').toUpperCase();
   const myRank = getRankByPoints(myMeta?.rank_points ?? 0);
   const oppRank = getRankByPoints(oppMeta?.rank_points ?? 0);
+  const questionKeyBase = question?.id ? String(question.id) : 'question';
+  const mainQuestionKey = `main-question-${questionKeyBase}`;
+  const stepsQuestionKey = `steps-${questionKeyBase}-${currentStepIndex}-${currentSubStepIndex}-${currentSegment}`;
+  const singleQuestionKey = `playing-${questionKeyBase}`;
+  const questionMotionInitial = { opacity: 0, y: 16, scale: 0.98 };
+  const questionMotionAnimate = { opacity: 1, y: 0, scale: 1 };
+  const questionMotionExit = {
+    opacity: 0,
+    y: -12,
+    scale: 0.98,
+    transition: { duration: 0.2, ease: 'easeIn' },
+  };
+  const questionMotionTransition = { duration: 0.4, ease: 'easeOut', delay: 1 };
 
   if (!match || !currentUser) {
     return (
@@ -528,10 +542,11 @@ export default function BattleConnected() {
             {/* MAIN QUESTION PHASE (Multi-step) */}
             {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
               <motion.div
-                key="main-question"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                key={mainQuestionKey}
+                initial={questionMotionInitial}
+                animate={questionMotionAnimate}
+                exit={questionMotionExit}
+                transition={questionMotionTransition}
                 className="match-paper w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
               >
                 <div className="paper-card mb-8">
@@ -582,10 +597,11 @@ export default function BattleConnected() {
             {/* STEPS PHASE (Multi-step) */}
             {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
               <motion.div
-                key="steps"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                key={stepsQuestionKey}
+                initial={questionMotionInitial}
+                animate={questionMotionAnimate}
+                exit={questionMotionExit}
+                transition={questionMotionTransition}
                 className="match-paper w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
               >
                 <div className="paper-card mb-8">
@@ -677,10 +693,11 @@ export default function BattleConnected() {
             {/* PLAYING STATE (Single-step) */}
             {status === 'playing' && question && phase === 'question' && !showRoundIntro && (
               <motion.div
-                key="playing"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                key={singleQuestionKey}
+                initial={questionMotionInitial}
+                animate={questionMotionAnimate}
+                exit={questionMotionExit}
+                transition={questionMotionTransition}
                 className="match-paper w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
               >
                 {/* Question Card */}
@@ -752,8 +769,6 @@ export default function BattleConnected() {
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
                 className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
               >
-                <div className="absolute inset-0 card-skin-shelf pointer-events-none" />
-                <div className="absolute inset-0 card-skin-shelf-overlay pointer-events-none" />
                 {rankUpState && (
                   <RankUpTransition fromRank={rankUpState.from} toRank={rankUpState.to} active />
                 )}
@@ -777,44 +792,43 @@ export default function BattleConnected() {
                   )}
                   
                   {matchOver && matchWinnerId ? (
-                    <>
-                      <h2 className="text-4xl font-bold mb-2 tracking-tight">
-                        {matchWinnerId === currentUser ? 'MATCH WON' : 'MATCH LOST'}
-                      </h2>
-                      <div className="text-lg font-bold mb-2">
-                        Final Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
-                      </div>
-                      <p className="text-white/40 font-mono text-sm">
-                        {matchWinnerId === currentUser ? 'VICTORY ACHIEVED!' : 'BETTER LUCK NEXT TIME.'}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="text-4xl font-bold mb-2 tracking-tight">
-                        {results.round_winner === currentUser ? 'ROUND SECURED' : results.round_winner === null ? 'STALEMATE' : 'ROUND LOST'}
-                      </h2>
-                      <div className="text-sm text-white/60 font-mono mb-2">
-                        Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
-                      </div>
-                      {results.p1Score !== undefined && results.p2Score !== undefined && (
+                      <>
+                        <h2 className="text-4xl font-bold mb-2 tracking-tight">
+                          {matchWinnerId === currentUser ? 'MATCH WON' : 'MATCH LOST'}
+                        </h2>
                         <div className="text-lg font-bold mb-2">
-                          Round Score: {isPlayer1 ? results.p1Score : results.p2Score} - {isPlayer1 ? results.p2Score : results.p1Score}
+                          Final Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
                         </div>
-                      )}
-                      <div className="text-sm font-bold mb-2">
-                        Match Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
-                      </div>
-                      <p className="text-white/40 font-mono text-sm">
-                        {results.round_winner === currentUser ? 'EXCELLENT WORK, OPERATOR.' : 'ADJUST STRATEGY.'}
-                      </p>
-                    </>
+                        <p className="text-white/40 font-mono text-sm">
+                          {matchWinnerId === currentUser ? 'VICTORY ACHIEVED!' : 'BETTER LUCK NEXT TIME.'}
+                        </p>
+                      </>
+                  ) : (
+                      <>
+                        <h2 className="text-4xl font-bold mb-2 tracking-tight">
+                          {results.round_winner === currentUser ? 'ROUND SECURED' : results.round_winner === null ? 'STALEMATE' : 'ROUND LOST'}
+                        </h2>
+                        <div className="text-sm text-white/60 font-mono mb-2">
+                          Round {currentRoundNumber || 1} of {targetRoundsToWin || 4} needed
+                        </div>
+                        {results.p1Score !== undefined && results.p2Score !== undefined && (
+                          <div className="text-lg font-bold mb-2">
+                            Round Score: {isPlayer1 ? results.p1Score : results.p2Score} - {isPlayer1 ? results.p2Score : results.p1Score}
+                          </div>
+                        )}
+                        <div className="text-sm font-bold mb-2">
+                          Match Score: {isPlayer1 ? (playerRoundWins?.[currentUser || ''] || 0) : (playerRoundWins?.[opponentId || ''] || 0)} - {isPlayer1 ? (playerRoundWins?.[opponentId || ''] || 0) : (playerRoundWins?.[currentUser || ''] || 0)}
+                        </div>
+                        <p className="text-white/40 font-mono text-sm">
+                          {results.round_winner === currentUser ? 'EXCELLENT WORK, OPERATOR.' : 'ADJUST STRATEGY.'}
+                        </p>
+                      </>
                   )}
                   </div>
 
                   {/* Step-by-step results with "X out of 4" format */}
                   {results.stepResults && results.stepResults.length > 0 && (
                     <div className="mb-8">
-                      {/* Calculate parts correct for each player */}
                       {(() => {
                         const getPartCorrect = (stepResult: any, forPlayer1: boolean) => {
                           const partCorrect = forPlayer1 ? stepResult.p1PartCorrect : stepResult.p2PartCorrect;
@@ -844,80 +858,77 @@ export default function BattleConnected() {
 
                         const iWon = myPartsCorrect > oppPartsCorrect;
                         const isTie = myPartsCorrect === oppPartsCorrect;
-                        
+
                         return (
                           <>
-                            {/* Main "X out of 4" Display */}
-                            <div className="grid grid-cols-2 gap-6 mb-6">
-                              {/* Player Section */}
-                              <motion.div
-                                initial={{ x: -20, opacity: 0 }}
-                                animate={{ x: 0, opacity: 1 }}
-                                transition={{ delay: 0.1 }}
-                                className={`p-6 rounded-2xl border-2 ${
-                                  iWon 
-                                    ? 'bg-green-500/20 border-green-500/40' 
-                                    : isTie
-                                    ? 'bg-blue-500/20 border-blue-500/40'
-                                    : 'bg-red-500/20 border-red-500/40'
-                                }`}
-                              >
-                                <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">YOU</div>
-                                <div className={`text-5xl md:text-6xl font-black mb-2 ${
-                                  iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
-                                }`}>
-                                  {myPartsCorrect} out of {totalParts}
+                                <div className="grid grid-cols-2 gap-6 mb-6">
+                                  <motion.div
+                                    initial={{ x: -20, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    transition={{ delay: 0.1 }}
+                                    className={`p-6 rounded-2xl border-2 ${
+                                      iWon 
+                                        ? 'bg-green-500/20 border-green-500/40' 
+                                        : isTie
+                                        ? 'bg-blue-500/20 border-blue-500/40'
+                                        : 'bg-red-500/20 border-red-500/40'
+                                    }`}
+                                  >
+                                    <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">YOU</div>
+                                    <div className={`text-5xl md:text-6xl font-black mb-2 ${
+                                      iWon ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
+                                    }`}>
+                                      {myPartsCorrect} out of {totalParts}
+                                    </div>
+                                    <div className="text-sm text-white/60 font-mono">
+                                      {myPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - myPartsCorrect} incorrect`}
+                                    </div>
+                                  </motion.div>
+                                  
+                                  <motion.div
+                                    initial={{ x: 20, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    transition={{ delay: 0.2 }}
+                                    className={`p-6 rounded-2xl border-2 ${
+                                      !iWon && !isTie
+                                        ? 'bg-green-500/20 border-green-500/40' 
+                                        : isTie
+                                        ? 'bg-blue-500/20 border-blue-500/40'
+                                        : 'bg-red-500/20 border-red-500/40'
+                                    }`}
+                                  >
+                                    <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">OPPONENT</div>
+                                    <div className={`text-5xl md:text-6xl font-black mb-2 ${
+                                      !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
+                                    }`}>
+                                      {oppPartsCorrect} out of {totalParts}
+                                    </div>
+                                    <div className="text-sm text-white/60 font-mono">
+                                      {oppPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - oppPartsCorrect} incorrect`}
+                                    </div>
+                                  </motion.div>
                                 </div>
-                                <div className="text-sm text-white/60 font-mono">
-                                  {myPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - myPartsCorrect} incorrect`}
-                                </div>
-                              </motion.div>
-                              
-                              {/* Opponent Section */}
-                              <motion.div
-                                initial={{ x: 20, opacity: 0 }}
-                                animate={{ x: 0, opacity: 1 }}
-                                transition={{ delay: 0.2 }}
-                                className={`p-6 rounded-2xl border-2 ${
-                                  !iWon && !isTie
-                                    ? 'bg-green-500/20 border-green-500/40' 
-                                    : isTie
-                                    ? 'bg-blue-500/20 border-blue-500/40'
-                                    : 'bg-red-500/20 border-red-500/40'
-                                }`}
-                              >
-                                <div className="text-xs font-mono text-white/60 mb-2 uppercase tracking-wider">OPPONENT</div>
-                                <div className={`text-5xl md:text-6xl font-black mb-2 ${
-                                  !iWon && !isTie ? 'text-green-400' : isTie ? 'text-blue-400' : 'text-red-400'
-                                }`}>
-                                  {oppPartsCorrect} out of {totalParts}
-                                </div>
-                                <div className="text-sm text-white/60 font-mono">
-                                  {oppPartsCorrect === totalParts ? 'Perfect!' : `${totalParts - oppPartsCorrect} incorrect`}
-                                </div>
-                              </motion.div>
-                            </div>
                           
                           {/* Divider */}
                           <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent mb-6" />
                           
                           {/* Winner Announcement */}
-                          <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ delay: 0.3 }}
-                            className="text-center mb-6"
-                          >
-                            {isTie ? (
-                              <div className="text-2xl font-bold text-blue-400">STALEMATE</div>
-                            ) : iWon ? (
-                              <div className="text-2xl font-bold text-green-400">YOU WON THIS ROUND</div>
-                            ) : (
-                              <div className="text-2xl font-bold text-red-400">OPPONENT WON THIS ROUND</div>
-                            )}
-                          </motion.div>
+                            <motion.div
+                              initial={{ scale: 0.9, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              transition={{ delay: 0.3 }}
+                              className="text-center mb-6"
+                            >
+                              {isTie ? (
+                                <div className="text-2xl font-bold text-blue-400">STALEMATE</div>
+                              ) : iWon ? (
+                                <div className="text-2xl font-bold text-green-400">YOU WON THIS ROUND</div>
+                              ) : (
+                                <div className="text-2xl font-bold text-red-400">OPPONENT WON THIS ROUND</div>
+                              )}
+                            </motion.div>
                           
-                          {/* Step-by-step breakdown (optional, smaller) */}
+                          {/* Step-by-step breakdown */}
                           <details className="mt-4">
                             <summary className="text-sm font-mono text-white/60 mb-3 uppercase tracking-wider cursor-pointer hover:text-white/80 transition-colors">
                               Step Breakdown
@@ -964,59 +975,59 @@ export default function BattleConnected() {
 
                 {/* Single-step results */}
                 {(!results.stepResults || results.stepResults.length === 0) && results.player1_answer !== undefined && results.player2_answer !== undefined && (
-                  <div className="grid grid-cols-2 gap-4 mb-8">
-                    <motion.div 
-                      initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.1 }}
-                      className={`p-4 rounded-2xl border ${
-                      (playerRole === 'player1' && results.player1_correct) || (playerRole === 'player2' && results.player2_correct)
-                        ? 'bg-green-500/10 border-green-500/20' 
-                        : 'bg-red-500/10 border-red-500/20'
-                    }`}>
-                      <div className="text-xs font-mono opacity-50 mb-1">YOU CHOSE</div>
-                      <div className="text-xl font-bold flex items-center justify-center gap-2">
-                        {(() => {
-                          const myAnswer = playerRole === 'player1' ? results.player1_answer : results.player2_answer
-                          const myCorrect = (playerRole === 'player1' && results.player1_correct) || (playerRole === 'player2' && results.player2_correct)
-                          // Handle both boolean (0/1) and multi-option (0-3) answers
-                          const answerDisplay = myAnswer !== null && myAnswer !== undefined 
-                            ? (myAnswer === 0 ? 'A' : myAnswer === 1 ? 'B' : myAnswer === 2 ? 'C' : myAnswer === 3 ? 'D' : String(myAnswer))
-                            : 'N/A'
-                          return (
-                            <>
-                              {answerDisplay}
-                              {myCorrect ? <Check className="w-5 h-5 text-green-500" /> : <X className="w-5 h-5 text-red-500" />}
-                            </>
-                          )
-                        })()}
-                      </div>
-                    </motion.div>
+                  <>
+                      <div className="grid grid-cols-2 gap-4 mb-8">
+                        <motion.div 
+                          initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.1 }}
+                          className={`p-4 rounded-2xl border ${
+                          (playerRole === 'player1' && results.player1_correct) || (playerRole === 'player2' && results.player2_correct)
+                            ? 'bg-green-500/10 border-green-500/20' 
+                            : 'bg-red-500/10 border-red-500/20'
+                        }`}>
+                          <div className="text-xs font-mono opacity-50 mb-1">YOU CHOSE</div>
+                          <div className="text-xl font-bold flex items-center justify-center gap-2">
+                            {(() => {
+                              const myAnswer = playerRole === 'player1' ? results.player1_answer : results.player2_answer
+                              const myCorrect = (playerRole === 'player1' && results.player1_correct) || (playerRole === 'player2' && results.player2_correct)
+                              const answerDisplay = myAnswer !== null && myAnswer !== undefined 
+                                ? (myAnswer === 0 ? 'A' : myAnswer === 1 ? 'B' : myAnswer === 2 ? 'C' : myAnswer === 3 ? 'D' : String(myAnswer))
+                                : 'N/A'
+                              return (
+                                <>
+                                  {answerDisplay}
+                                  {myCorrect ? <Check className="w-5 h-5 text-green-500" /> : <X className="w-5 h-5 text-red-500" />}
+                                </>
+                              )
+                            })()}
+                          </div>
+                        </motion.div>
 
-                    <motion.div 
-                      initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }}
-                      className={`p-4 rounded-2xl border ${
-                      (playerRole === 'player1' && results.player2_correct) || (playerRole === 'player2' && results.player1_correct)
-                        ? 'bg-green-500/10 border-green-500/20' 
-                        : 'bg-red-500/10 border-red-500/20'
-                    }`}>
-                      <div className="text-xs font-mono opacity-50 mb-1">OPPONENT CHOSE</div>
-                      <div className="text-xl font-bold flex items-center justify-center gap-2">
-                        {(() => {
-                          const oppAnswer = playerRole === 'player1' ? results.player2_answer : results.player1_answer
-                          const oppCorrect = (playerRole === 'player1' && results.player2_correct) || (playerRole === 'player2' && results.player1_correct)
-                          // Handle both boolean (0/1) and multi-option (0-3) answers
-                          const answerDisplay = oppAnswer !== null && oppAnswer !== undefined 
-                            ? (oppAnswer === 0 ? 'A' : oppAnswer === 1 ? 'B' : oppAnswer === 2 ? 'C' : oppAnswer === 3 ? 'D' : String(oppAnswer))
-                            : 'N/A'
-                          return (
-                            <>
-                              {answerDisplay}
-                              {oppCorrect ? <Check className="w-5 h-5 text-green-500" /> : <X className="w-5 h-5 text-red-500" />}
-                            </>
-                          )
-                        })()}
+                        <motion.div 
+                          initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }}
+                          className={`p-4 rounded-2xl border ${
+                          (playerRole === 'player1' && results.player2_correct) || (playerRole === 'player2' && results.player1_correct)
+                            ? 'bg-green-500/10 border-green-500/20' 
+                            : 'bg-red-500/10 border-red-500/20'
+                        }`}>
+                          <div className="text-xs font-mono opacity-50 mb-1">OPPONENT CHOSE</div>
+                          <div className="text-xl font-bold flex items-center justify-center gap-2">
+                            {(() => {
+                              const oppAnswer = playerRole === 'player1' ? results.player2_answer : results.player1_answer
+                              const oppCorrect = (playerRole === 'player1' && results.player2_correct) || (playerRole === 'player2' && results.player1_correct)
+                              const answerDisplay = oppAnswer !== null && oppAnswer !== undefined 
+                                ? (oppAnswer === 0 ? 'A' : oppAnswer === 1 ? 'B' : oppAnswer === 2 ? 'C' : oppAnswer === 3 ? 'D' : String(oppAnswer))
+                                : 'N/A'
+                              return (
+                                <>
+                                  {answerDisplay}
+                                  {oppCorrect ? <Check className="w-5 h-5 text-green-500" /> : <X className="w-5 h-5 text-red-500" />}
+                                </>
+                              )
+                            })()}
+                          </div>
+                        </motion.div>
                       </div>
-                    </motion.div>
-                  </div>
+                  </>
                 )}
                 
                 {/* Fallback: Show basic results if structure is different */}

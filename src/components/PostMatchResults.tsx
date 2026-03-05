@@ -47,6 +47,8 @@ interface PostMatchResultsProps {
   questionReport?: QuestionReportRow[];
   reportLoading?: boolean;
   isPlayer1?: boolean;
+  isBotMatch?: boolean;
+  botMinAccuracyPct?: number;
 }
 
 const PostMatchResults: React.FC<PostMatchResultsProps> = ({
@@ -57,7 +59,9 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
   stepStats,
   questionReport = [],
   reportLoading = false,
-  isPlayer1 = false
+  isPlayer1 = false,
+  isBotMatch = false,
+  botMinAccuracyPct = 70
 }) => {
   const [showBanner, setShowBanner] = useState(false);
   const [showPoints, setShowPoints] = useState(false);
@@ -176,13 +180,21 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
               className="text-4xl md:text-6xl font-black tracking-wider"
               style={bannerTextStyle}
             >
-              {outcome === 'draw' ? "DRAW" : matchStats.won ? "VICTORY" : "DEFEAT"}
+              {isBotMatch
+                ? (matchStats.won ? "CHALLENGE PASSED" : "CHALLENGE FAILED")
+                : (outcome === 'draw' ? "DRAW" : matchStats.won ? "VICTORY" : "DEFEAT")}
             </motion.div>
           </div>
           
-          <div className={`text-sm font-medium tracking-wider uppercase opacity-80 ${highlight.color}`}>
-            {highlight.text}
-          </div>
+          {isBotMatch ? (
+            <div className="text-sm font-medium tracking-wider uppercase opacity-80 text-white/70">
+              {accuracy}% accuracy ({matchStats.correctAnswers}/{matchStats.totalQuestions}) — needed &gt;{botMinAccuracyPct}%
+            </div>
+          ) : (
+            <div className={`text-sm font-medium tracking-wider uppercase opacity-80 ${highlight.color}`}>
+              {highlight.text}
+            </div>
+          )}
         </motion.div>
 
         {/* Points Earned */}
@@ -369,24 +381,45 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
                 <span className="font-semibold">{matchStats.totalQuestions}</span>
               </div>
               
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Your Score</span>
-                <span className="font-semibold text-battle-primary">{matchStats.playerScore}</span>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Opponent Score</span>
-                <span className="font-semibold text-battle-danger">{matchStats.opponentScore}</span>
-              </div>
+              {isBotMatch ? (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Correct Answers</span>
+                    <span className="font-semibold text-battle-success">{matchStats.correctAnswers}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Wrong Answers</span>
+                    <span className="font-semibold text-battle-danger">{matchStats.wrongAnswers}</span>
+                  </div>
+                  <div className="pt-2 border-t border-white/10">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Accuracy Threshold</span>
+                      <span className="font-semibold text-white/70">&gt;{botMinAccuracyPct}%</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Your Score</span>
+                    <span className="font-semibold text-battle-primary">{matchStats.playerScore}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Opponent Score</span>
+                    <span className="font-semibold text-battle-danger">{matchStats.opponentScore}</span>
+                  </div>
 
-              <div className="pt-2 border-t border-white/10">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Score Difference</span>
-                  <span className={`font-semibold ${matchStats.playerScore > matchStats.opponentScore ? 'text-battle-success' : 'text-battle-danger'}`}>
-                    {matchStats.playerScore > matchStats.opponentScore ? '+' : ''}{Math.abs(matchStats.playerScore - matchStats.opponentScore)}
-                  </span>
-                </div>
-              </div>
+                  <div className="pt-2 border-t border-white/10">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Score Difference</span>
+                      <span className={`font-semibold ${matchStats.playerScore > matchStats.opponentScore ? 'text-battle-success' : 'text-battle-danger'}`}>
+                        {matchStats.playerScore > matchStats.opponentScore ? '+' : ''}{Math.abs(matchStats.playerScore - matchStats.opponentScore)}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Game Highlights */}
@@ -442,9 +475,11 @@ const PostMatchResults: React.FC<PostMatchResultsProps> = ({
                       <span className={myCorrect ? 'text-battle-success' : 'text-battle-danger'}>
                         You: {myCorrect ? 'Correct' : 'Wrong'} ({myCorrectParts}/{myTotalParts})
                       </span>
-                      <span className={oppCorrect ? 'text-battle-success' : 'text-battle-danger'}>
-                        Opponent: {oppCorrect ? 'Correct' : 'Wrong'} ({oppCorrectParts}/{oppTotalParts})
-                      </span>
+                      {!isBotMatch && (
+                        <span className={oppCorrect ? 'text-battle-success' : 'text-battle-danger'}>
+                          Opponent: {oppCorrect ? 'Correct' : 'Wrong'} ({oppCorrectParts}/{oppTotalParts})
+                        </span>
+                      )}
                     </div>
                   </div>
                 );

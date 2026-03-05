@@ -350,6 +350,7 @@ All colors MUST be HSL.
   /* Match page paper sizing for A-level style readability */
   .match-paper .paper-card {
     padding: 28px;
+    border-radius: 16px;
     font-size: 18px;
     line-height: 1.7;
   }
@@ -361,7 +362,7 @@ All colors MUST be HSL.
   }
 
   .match-paper .paper-title {
-    font-size: 22px;
+    font-size: 24px;
     line-height: 1.7;
   }
 
@@ -433,22 +434,6 @@ All colors MUST be HSL.
 
   .cyber-panel:hover::after {
     opacity: 0.3;
-  }
-
-  .card-skin-shelf {
-    background-image: url('/skins/shelf.png');
-    background-size: cover;
-    background-position: center;
-    opacity: 0.95;
-  }
-
-  .card-skin-shelf-overlay {
-    background: radial-gradient(
-      120% 90% at 50% 8%,
-      rgba(0, 0, 0, 0) 0%,
-      rgba(5, 8, 20, 0.25) 60%,
-      rgba(5, 8, 20, 0.45) 100%
-    );
   }
 
   /* Ultra-Tech Neon Buttons */

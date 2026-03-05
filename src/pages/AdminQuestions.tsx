@@ -55,7 +55,7 @@ const CHEMISTRY_CHAPTER_TITLES: string[] = [
   'Analytical Techniques',
 ];
 
-const MATH_CHAPTER_TITLES: string[] = [
+const MATH_A1_CHAPTER_TITLES: string[] = [
   'Coordinate geometry',
   'Circular measure',
   'sequence',
@@ -64,6 +64,19 @@ const MATH_CHAPTER_TITLES: string[] = [
   'Trignometry',
   'Differenciation',
   'Integeration',
+];
+
+const MATH_A2_CHAPTER_TITLES: string[] = [
+  'Algebra',
+  'Binomial',
+  'Logarithmic and Exponential Functions',
+  'Trigonometry',
+  'Differentiation',
+  'Integration',
+  'Differential Equations',
+  'Numerical Solutions',
+  'Vectors',
+  'Complex Numbers',
 ];
 
 type QuestionFilter = {
@@ -1885,7 +1898,9 @@ export default function AdminQuestions() {
                         disabled={bulkEditDisabled}
                         list={
                           bulkEdit.subject === 'math'
-                            ? 'bulk-math-chapters'
+                            ? bulkEdit.level === 'A2'
+                              ? 'bulk-math-a2-chapters'
+                              : 'bulk-math-a1-chapters'
                             : bulkEdit.subject === 'physics' && bulkEdit.level === 'A1'
                               ? 'bulk-physics-a1-chapters'
                               : bulkEdit.subject === 'chemistry'
@@ -1893,9 +1908,16 @@ export default function AdminQuestions() {
                                 : undefined
                         }
                       />
-                      {bulkEdit.subject === 'math' && (
-                        <datalist id="bulk-math-chapters">
-                          {MATH_CHAPTER_TITLES.map((t) => (
+                      {bulkEdit.subject === 'math' && bulkEdit.level !== 'A2' && (
+                        <datalist id="bulk-math-a1-chapters">
+                          {MATH_A1_CHAPTER_TITLES.map((t) => (
+                            <option key={t} value={t} />
+                          ))}
+                        </datalist>
+                      )}
+                      {bulkEdit.subject === 'math' && bulkEdit.level === 'A2' && (
+                        <datalist id="bulk-math-a2-chapters">
+                          {MATH_A2_CHAPTER_TITLES.map((t) => (
                             <option key={t} value={t} />
                           ))}
                         </datalist>
@@ -2214,7 +2236,9 @@ export default function AdminQuestions() {
                           placeholder="e.g. Integration"
                           list={
                             form.subject === 'math'
-                              ? 'math-chapters'
+                              ? form.level === 'A2'
+                                ? 'math-a2-chapters'
+                                : 'math-a1-chapters'
                               : form.subject === 'physics' && form.level === 'A1'
                                 ? 'physics-a1-chapters'
                                 : form.subject === 'chemistry'
@@ -2222,9 +2246,16 @@ export default function AdminQuestions() {
                                   : undefined
                           }
                         />
-                        {form.subject === 'math' && (
-                          <datalist id="math-chapters">
-                            {MATH_CHAPTER_TITLES.map((t) => (
+                        {form.subject === 'math' && form.level !== 'A2' && (
+                          <datalist id="math-a1-chapters">
+                            {MATH_A1_CHAPTER_TITLES.map((t) => (
+                              <option key={t} value={t} />
+                            ))}
+                          </datalist>
+                        )}
+                        {form.subject === 'math' && form.level === 'A2' && (
+                          <datalist id="math-a2-chapters">
+                            {MATH_A2_CHAPTER_TITLES.map((t) => (
                               <option key={t} value={t} />
                             ))}
                           </datalist>

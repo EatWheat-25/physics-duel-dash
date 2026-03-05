@@ -222,8 +222,9 @@ export function useGame(match: MatchRow | null) {
       payload.match_over ??
       payload.matchOver ??
       Boolean(payload.match_winner_id ?? payload.matchWinnerId)
-    const nextRoundEndsAt = matchOver ? null : new Date(Date.now() + NEXT_ROUND_DELAY_MS).toISOString()
-    const nextRoundTimeLeft = matchOver ? null : Math.round(NEXT_ROUND_DELAY_MS / 1000)
+    const roundDelayMs = NEXT_ROUND_DELAY_MS
+    const nextRoundEndsAt = matchOver ? null : new Date(Date.now() + roundDelayMs).toISOString()
+    const nextRoundTimeLeft = matchOver ? null : Math.round(roundDelayMs / 1000)
 
     setState(prev => {
       // Don't update if already showing results with same or newer version
@@ -384,7 +385,17 @@ export function useGame(match: MatchRow | null) {
 
   // Timer countdown effect (for single-step questions)
   useEffect(() => {
-    if (!state.timerEndAt || state.status !== 'playing' || state.answerSubmitted || state.phase !== 'question') {
+    const skipReason = !state.timerEndAt
+      ? 'missing_timer_end'
+      : state.status !== 'playing'
+        ? `status_${state.status}`
+        : state.answerSubmitted
+          ? 'answer_submitted'
+          : state.phase !== 'question'
+            ? `phase_${state.phase}`
+            : null
+
+    if (skipReason) {
       setState(prev => ({ ...prev, timeRemaining: null }))
       return
     }
@@ -402,7 +413,6 @@ export function useGame(match: MatchRow | null) {
       }
     }
 
-    // Update immediately
     updateTimer()
 
     // Update every second
@@ -454,6 +464,8 @@ export function useGame(match: MatchRow | null) {
     const interval = setInterval(updateTimer, 1000)
     return () => clearInterval(interval)
   }, [state.stepEndsAt, state.phase, state.currentSegment])
+
+  // Log when timers hit zero (single-step or step-based)
 
   // Next round countdown (results -> auto-advance)
   useEffect(() => {
@@ -1722,8 +1734,9 @@ export function useGame(match: MatchRow | null) {
   // Auto-acknowledge results when countdown ends
   useEffect(() => {
     if (state.status !== 'results' || state.matchOver) return
-    if (state.nextRoundTimeLeft === null || state.nextRoundTimeLeft > 0) return
     if (state.resultsAcknowledged) return
+
+    if (state.nextRoundTimeLeft === null || state.nextRoundTimeLeft > 0) return
     readyForNextRound()
   }, [state.status, state.matchOver, state.nextRoundTimeLeft, state.resultsAcknowledged, readyForNextRound])
 

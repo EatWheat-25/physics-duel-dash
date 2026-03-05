@@ -45,6 +45,8 @@ export interface MatchRow {
   player1_score?: number
   player2_score?: number
   winner_id?: string | null
+  bot_behavior?: string | null
+  bot_min_accuracy_pct?: number | null
   started_at?: string
   completed_at?: string
   current_round_number?: number
