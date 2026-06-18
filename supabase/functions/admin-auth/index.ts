@@ -1,5 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { corsHeaders } from '../_shared/cors.ts'
+import { getPublishableKey, getSecretKey } from '../_shared/keys.ts'
+
+// Brute-force protection for ADMIN_CODE: max attempts per rolling window.
+const MAX_ATTEMPTS_PER_WINDOW = 5
+const WINDOW_MS = 15 * 60 * 1000
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,7 +22,7 @@ Deno.serve(async (req) => {
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      getPublishableKey(),
       { global: { headers: { Authorization: authHeader } } }
     )
 
@@ -39,6 +44,42 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Use elevated key for rate-limit bookkeeping and role assignment
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      getSecretKey()
+    )
+
+    // Rate limit: max MAX_ATTEMPTS_PER_WINDOW code attempts per WINDOW_MS per user
+    const now = Date.now()
+    const { data: attemptRow } = await supabaseAdmin
+      .from('admin_code_attempts')
+      .select('attempt_count, window_started_at')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    const windowStartedAt = attemptRow?.window_started_at ? new Date(attemptRow.window_started_at as string).getTime() : 0
+    const windowActive = now - windowStartedAt < WINDOW_MS
+    const attemptCount = windowActive ? Number(attemptRow?.attempt_count ?? 0) : 0
+
+    if (attemptCount >= MAX_ATTEMPTS_PER_WINDOW) {
+      return new Response(JSON.stringify({ error: 'Too many attempts. Try again later.' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    await supabaseAdmin
+      .from('admin_code_attempts')
+      .upsert({
+        user_id: user.id,
+        attempt_count: attemptCount + 1,
+        window_started_at: windowActive && attemptRow?.window_started_at
+          ? attemptRow.window_started_at
+          : new Date(now).toISOString(),
+        last_attempt_at: new Date(now).toISOString(),
+      })
+
     if (adminCode !== ADMIN_CODE) {
       return new Response(JSON.stringify({ error: 'Invalid admin code' }), {
         status: 403,
@@ -46,11 +87,11 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Use service role to insert admin role
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    // Correct code: clear the attempt counter
+    await supabaseAdmin
+      .from('admin_code_attempts')
+      .delete()
+      .eq('user_id', user.id)
 
     const { error: insertError } = await supabaseAdmin
       .from('user_roles')

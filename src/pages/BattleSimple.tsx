@@ -31,7 +31,8 @@ export default function BattleSimple() {
         }
 
         // Use the unified SUPABASE_URL constant
-        const wsUrl = `${SUPABASE_URL.replace('http', 'ws')}/functions/v1/game-ws-simple?token=${session.access_token}&match_id=${matchId}`
+        const wsBase = SUPABASE_URL.replace('https://', 'wss://').replace('http://', 'ws://')
+        const wsUrl = `${wsBase}/functions/v1/game-ws-simple?token=${encodeURIComponent(session.access_token)}&match_id=${encodeURIComponent(matchId)}`
 
         console.log('[BATTLE] Connecting to WebSocket:', wsUrl)
 

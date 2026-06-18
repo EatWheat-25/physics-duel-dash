@@ -1,8 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import type { GraphColor, GraphConfig, GraphPoint } from '@/types/question-contract';
+import { supabase, SUPABASE_URL } from '@/integrations/supabase/client';
+import type {
+  GraphAngleMarker,
+  GraphColor,
+  GraphConfig,
+  GraphDisplayMode,
+  GraphScaleMode,
+  GraphLabel,
+  GraphPoint,
+  GraphPolygon,
+  GraphSeries,
+} from '@/types/question-contract';
 import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
 import { dbRowToQuestion } from '@/lib/question-contract';
 import { uploadQuestionImage } from '@/utils/questionImageUpload';
@@ -22,7 +32,11 @@ import { ScienceText } from '@/components/chem/ScienceText';
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram';
 import { GameQuestionPreview } from '@/components/battle/GameQuestionPreview';
 import { InGamePreview } from '@/components/admin/InGamePreview';
+import { SmilesPresetSelect } from '@/components/admin/SmilesPresetSelect';
 import { QuestionGraph } from '@/components/math/QuestionGraph';
+import { smilesAuthoringWarnings } from '@/lib/smilesAuthoringHints';
+import { hasMathDelimiters, normalizeInlineMathOption, optionNeedsInlineMathWrapper } from '@/lib/optionMath';
+import { getArchetypeValue, setArchetypeTag, getSuggestedFamilies } from '@/lib/archetypes';
 
 const PHYSICS_A1_CHAPTER_TITLES: string[] = [
   'Chapter 1: Physical Quantities',
@@ -62,6 +76,7 @@ const MATH_A1_CHAPTER_TITLES: string[] = [
   'Binomial',
   'quadratics',
   'Trignometry',
+  'Functions',
   'Differenciation',
   'Integeration',
 ];
@@ -78,6 +93,9 @@ const MATH_A2_CHAPTER_TITLES: string[] = [
   'Vectors',
   'Complex Numbers',
 ];
+
+const QUESTIONS_PAGE_SIZE = 1000;
+const QUESTIONS_MAX_PAGES = 50;
 
 type QuestionFilter = {
   subject: 'all' | 'math' | 'physics' | 'chemistry';
@@ -121,6 +139,44 @@ type FormStep = {
   subSteps: FormSubStep[];
 };
 
+type FormGraphSeries = {
+  id: string;
+  type: 'function' | 'points';
+  equation: string;
+  pointsText: string;
+  xStart: string;
+  xEnd: string;
+  showEndpoints: boolean;
+  showEndpointLabels: boolean;
+};
+
+type FormGraphPolygon = {
+  id: string;
+  pointsText: string;
+  fill: boolean;
+  stroke: boolean;
+};
+
+type FormGraphLabel = {
+  id: string;
+  x: string;
+  y: string;
+  text: string;
+  offsetX: string;
+  offsetY: string;
+};
+
+type FormGraphAngleMarker = {
+  id: string;
+  type: 'right';
+  vertexX: string;
+  vertexY: string;
+  p1X: string;
+  p1Y: string;
+  p2X: string;
+  p2Y: string;
+};
+
 type QuestionForm = {
   title: string;
   subject: 'math' | 'physics' | 'chemistry';
@@ -133,10 +189,13 @@ type QuestionForm = {
   structureSmiles: string;
   // One graph per question (optional)
   graphEnabled: boolean;
-  graphType: 'function' | 'points';
   graphColor: GraphColor; // white|black
-  graphEquation: string; // for function graphs
-  graphPointsText: string; // for points graphs (CSV or JSON)
+  graphDisplayMode: GraphDisplayMode;
+  graphScaleMode: GraphScaleMode;
+  graphSeries: FormGraphSeries[];
+  graphPolygons: FormGraphPolygon[];
+  graphLabels: FormGraphLabel[];
+  graphAngleMarkers: FormGraphAngleMarker[];
   graphXMin: string;
   graphXMax: string;
   graphYMin: string;
@@ -148,9 +207,35 @@ type QuestionForm = {
   imageUrl: string;
 };
 
+type MappingIssue = {
+  idx: number;
+  message: string;
+  rowId?: string;
+  title?: string;
+};
+
+type FetchStats = {
+  rawCount: number;
+  mappedCount: number;
+  fetchedAtIso: string;
+  errorMessage?: string;
+};
+
+type ChemTestRow = {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
 function normalizeGraphColor(raw: any): GraphColor {
   const c = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
   return c === 'black' ? 'black' : 'white'
+}
+
+function normalizeGraphScaleMode(raw: any): GraphScaleMode {
+  const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  return mode === 'fill' ? 'fill' : 'equalUnits'
 }
 
 function parseNumberOrUndefined(raw: string): number | undefined {
@@ -199,32 +284,403 @@ function pointsToText(points: GraphPoint[]): string {
   return points.map((p) => `${p.x},${p.y}`).join('\n')
 }
 
+function createGraphFormItemId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`}`
+}
+
+function createFormGraphSeriesId(): string {
+  return createGraphFormItemId('graph-series')
+}
+
+function getEmptyGraphSeries(type: 'function' | 'points' = 'function'): FormGraphSeries {
+  return {
+    id: createFormGraphSeriesId(),
+    type,
+    equation: '',
+    pointsText: '',
+    xStart: '',
+    xEnd: '',
+    showEndpoints: false,
+    showEndpointLabels: false,
+  }
+}
+
+function getEmptyGraphPolygon(): FormGraphPolygon {
+  return {
+    id: createGraphFormItemId('graph-polygon'),
+    pointsText: '',
+    fill: false,
+    stroke: true,
+  }
+}
+
+function getEmptyGraphLabel(): FormGraphLabel {
+  return {
+    id: createGraphFormItemId('graph-label'),
+    x: '',
+    y: '',
+    text: '',
+    offsetX: '',
+    offsetY: '',
+  }
+}
+
+function getEmptyGraphAngleMarker(): FormGraphAngleMarker {
+  return {
+    id: createGraphFormItemId('graph-angle-marker'),
+    type: 'right',
+    vertexX: '',
+    vertexY: '',
+    p1X: '',
+    p1Y: '',
+    p2X: '',
+    p2Y: '',
+  }
+}
+
+function getGraphSeriesFromConfig(graph: GraphConfig | null | undefined): FormGraphSeries[] {
+  const rawSeries = Array.isArray((graph as any)?.series)
+    ? ((graph as any).series as any[])
+    : graph && typeof (graph as any).type === 'string'
+      ? [graph as any]
+      : []
+
+  const series = rawSeries
+    .map((raw): FormGraphSeries | null => {
+      const type = raw?.type === 'points' ? 'points' : raw?.type === 'function' ? 'function' : null
+      if (!type) return null
+
+      return {
+        id: createFormGraphSeriesId(),
+        type,
+        equation: type === 'function' ? String(raw?.equation ?? '') : '',
+        pointsText: type === 'points' ? pointsToText(Array.isArray(raw?.points) ? raw.points : []) : '',
+        xStart: type === 'function' && typeof raw?.xStart === 'number' ? String(raw.xStart) : '',
+        xEnd: type === 'function' && typeof raw?.xEnd === 'number' ? String(raw.xEnd) : '',
+        showEndpoints: raw?.showEndpoints === true,
+        showEndpointLabels: raw?.showEndpointLabels === true,
+      }
+    })
+    .filter(Boolean) as FormGraphSeries[]
+
+  return series.length > 0 ? series : [getEmptyGraphSeries('function')]
+}
+
+function getGraphPolygonsFromConfig(graph: GraphConfig | null | undefined): FormGraphPolygon[] {
+  const rawPolygons = Array.isArray((graph as any)?.polygons) ? ((graph as any).polygons as any[]) : []
+  return rawPolygons
+    .map((raw): FormGraphPolygon | null => {
+      const points = Array.isArray(raw?.points) ? raw.points : []
+      if (points.length < 3) return null
+      return {
+        id: createGraphFormItemId('graph-polygon'),
+        pointsText: pointsToText(points),
+        fill: raw?.fill === true,
+        stroke: raw?.stroke !== false,
+      }
+    })
+    .filter(Boolean) as FormGraphPolygon[]
+}
+
+function getGraphLabelsFromConfig(graph: GraphConfig | null | undefined): FormGraphLabel[] {
+  const rawLabels = Array.isArray((graph as any)?.labels) ? ((graph as any).labels as any[]) : []
+  return rawLabels
+    .map((raw): FormGraphLabel | null => {
+      if (typeof raw?.text !== 'string') return null
+      return {
+        id: createGraphFormItemId('graph-label'),
+        x: typeof raw?.x === 'number' ? String(raw.x) : '',
+        y: typeof raw?.y === 'number' ? String(raw.y) : '',
+        text: raw.text,
+        offsetX: typeof raw?.offsetX === 'number' ? String(raw.offsetX) : '',
+        offsetY: typeof raw?.offsetY === 'number' ? String(raw.offsetY) : '',
+      }
+    })
+    .filter(Boolean) as FormGraphLabel[]
+}
+
+function getGraphAngleMarkersFromConfig(graph: GraphConfig | null | undefined): FormGraphAngleMarker[] {
+  const rawMarkers = Array.isArray((graph as any)?.angleMarkers) ? ((graph as any).angleMarkers as any[]) : []
+  return rawMarkers
+    .map((raw): FormGraphAngleMarker | null => {
+      if (raw?.type !== 'right') return null
+      return {
+        id: createGraphFormItemId('graph-angle-marker'),
+        type: 'right',
+        vertexX: typeof raw?.vertex?.x === 'number' ? String(raw.vertex.x) : '',
+        vertexY: typeof raw?.vertex?.y === 'number' ? String(raw.vertex.y) : '',
+        p1X: typeof raw?.p1?.x === 'number' ? String(raw.p1.x) : '',
+        p1Y: typeof raw?.p1?.y === 'number' ? String(raw.p1.y) : '',
+        p2X: typeof raw?.p2?.x === 'number' ? String(raw.p2.x) : '',
+        p2Y: typeof raw?.p2?.y === 'number' ? String(raw.p2.y) : '',
+      }
+    })
+    .filter(Boolean) as FormGraphAngleMarker[]
+}
+
+function buildGraphSeriesFromForm(series: FormGraphSeries): GraphSeries | null {
+  if (series.type === 'function') {
+    const equation = String(series.equation ?? '').trim()
+    if (!equation) return null
+
+    return {
+      type: 'function',
+      equation,
+      xStart: parseNumberOrUndefined(series.xStart),
+      xEnd: parseNumberOrUndefined(series.xEnd),
+      showEndpoints: !!series.showEndpoints,
+      showEndpointLabels: !!series.showEndpointLabels,
+    }
+  }
+
+  const points = parseGraphPointsText(series.pointsText)
+  if (!points) return null
+
+  return {
+    type: 'points',
+    points,
+    showEndpoints: !!series.showEndpoints,
+    showEndpointLabels: !!series.showEndpointLabels,
+  }
+}
+
+function parseGraphPolygonPointsText(text: string): GraphPoint[] | null {
+  const points = parseGraphPointsText(text)
+  return points && points.length >= 3 ? points : null
+}
+
+function buildGraphPolygonFromForm(polygon: FormGraphPolygon): GraphPolygon | null {
+  const points = parseGraphPolygonPointsText(polygon.pointsText)
+  if (!points) return null
+  if (!polygon.fill && !polygon.stroke) return null
+
+  return {
+    points,
+    fill: !!polygon.fill,
+    stroke: !!polygon.stroke,
+  }
+}
+
+function buildGraphLabelFromForm(label: FormGraphLabel): GraphLabel | null {
+  const text = String(label.text ?? '').trim()
+  const x = parseNumberOrUndefined(label.x)
+  const y = parseNumberOrUndefined(label.y)
+  if (!text || x == null || y == null) return null
+
+  return {
+    x,
+    y,
+    text,
+    offsetX: parseNumberOrUndefined(label.offsetX),
+    offsetY: parseNumberOrUndefined(label.offsetY),
+  }
+}
+
+function buildGraphAngleMarkerFromForm(marker: FormGraphAngleMarker): GraphAngleMarker | null {
+  const vertexX = parseNumberOrUndefined(marker.vertexX)
+  const vertexY = parseNumberOrUndefined(marker.vertexY)
+  const p1X = parseNumberOrUndefined(marker.p1X)
+  const p1Y = parseNumberOrUndefined(marker.p1Y)
+  const p2X = parseNumberOrUndefined(marker.p2X)
+  const p2Y = parseNumberOrUndefined(marker.p2Y)
+
+  if (
+    vertexX == null ||
+    vertexY == null ||
+    p1X == null ||
+    p1Y == null ||
+    p2X == null ||
+    p2Y == null
+  ) {
+    return null
+  }
+
+  return {
+    type: 'right',
+    vertex: { x: vertexX, y: vertexY },
+    p1: { x: p1X, y: p1Y },
+    p2: { x: p2X, y: p2Y },
+  }
+}
+
+function isBlankGraphSeries(series: FormGraphSeries): boolean {
+  if (series.type === 'function') {
+    return (
+      !String(series.equation ?? '').trim() &&
+      !String(series.xStart ?? '').trim() &&
+      !String(series.xEnd ?? '').trim() &&
+      !series.showEndpoints &&
+      !series.showEndpointLabels
+    )
+  }
+
+  return (
+    !String(series.pointsText ?? '').trim() &&
+    !series.showEndpoints &&
+    !series.showEndpointLabels
+  )
+}
+
+function isBlankGraphPolygon(polygon: FormGraphPolygon): boolean {
+  return !String(polygon.pointsText ?? '').trim() && !polygon.fill && !!polygon.stroke
+}
+
+function isBlankGraphLabel(label: FormGraphLabel): boolean {
+  return (
+    !String(label.x ?? '').trim() &&
+    !String(label.y ?? '').trim() &&
+    !String(label.text ?? '').trim() &&
+    !String(label.offsetX ?? '').trim() &&
+    !String(label.offsetY ?? '').trim()
+  )
+}
+
+function isBlankGraphAngleMarker(marker: FormGraphAngleMarker): boolean {
+  return (
+    !String(marker.vertexX ?? '').trim() &&
+    !String(marker.vertexY ?? '').trim() &&
+    !String(marker.p1X ?? '').trim() &&
+    !String(marker.p1Y ?? '').trim() &&
+    !String(marker.p2X ?? '').trim() &&
+    !String(marker.p2Y ?? '').trim()
+  )
+}
+
+function validateGraphSeriesForm(series: FormGraphSeries, index: number): string | null {
+  if (isBlankGraphSeries(series)) return null
+
+  if (series.type === 'function') {
+    if (!String(series.equation ?? '').trim()) {
+      return `Graph series ${index + 1}: please provide a valid equation.`
+    }
+
+    const xStart = parseNumberOrUndefined(series.xStart)
+    const xEnd = parseNumberOrUndefined(series.xEnd)
+    if (xStart != null && xEnd != null && xStart >= xEnd) {
+      return `Graph series ${index + 1}: xStart must be less than xEnd.`
+    }
+
+    return null
+  }
+
+  const points = parseGraphPointsText(series.pointsText)
+  if (!points) {
+    return `Graph series ${index + 1}: please provide at least 2 valid points.`
+  }
+
+  return null
+}
+
+function validateGraphPolygonForm(polygon: FormGraphPolygon, index: number): string | null {
+  if (isBlankGraphPolygon(polygon)) return null
+  if (!polygon.fill && !polygon.stroke) {
+    return `Polygon ${index + 1}: enable stroke and/or fill.`
+  }
+
+  const points = parseGraphPolygonPointsText(polygon.pointsText)
+  if (!points) {
+    return `Polygon ${index + 1}: please provide at least 3 valid points.`
+  }
+
+  return null
+}
+
+function validateGraphLabelForm(label: FormGraphLabel, index: number): string | null {
+  if (isBlankGraphLabel(label)) return null
+  if (!String(label.text ?? '').trim()) {
+    return `Label ${index + 1}: please enter label text.`
+  }
+
+  const x = parseNumberOrUndefined(label.x)
+  const y = parseNumberOrUndefined(label.y)
+  if (x == null || y == null) {
+    return `Label ${index + 1}: x and y must be valid numbers.`
+  }
+
+  const offsetX = parseNumberOrUndefined(label.offsetX)
+  const offsetY = parseNumberOrUndefined(label.offsetY)
+  if (String(label.offsetX ?? '').trim() && offsetX == null) {
+    return `Label ${index + 1}: offsetX must be a valid number.`
+  }
+  if (String(label.offsetY ?? '').trim() && offsetY == null) {
+    return `Label ${index + 1}: offsetY must be a valid number.`
+  }
+
+  return null
+}
+
+function validateGraphAngleMarkerForm(marker: FormGraphAngleMarker, index: number): string | null {
+  if (isBlankGraphAngleMarker(marker)) return null
+  if (!buildGraphAngleMarkerFromForm(marker)) {
+    return `Angle marker ${index + 1}: vertex, p1, and p2 must all be valid coordinates.`
+  }
+  return null
+}
+
+function needsSciencePreview(text: string | null | undefined): boolean {
+  const s = String(text ?? '')
+  if (!s.trim()) return false
+  return (
+    s.includes('$') ||
+    s.includes('\\ce{') ||
+    s.includes('\\(') ||
+    s.includes('\\[') ||
+    s.includes('[[smiles:') ||
+    s.includes('[[img:')
+  )
+}
+
+function countUnescapedDollars(text: string): number {
+  let count = 0
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== '$') continue
+    const prev = i > 0 ? text[i - 1] : ''
+    if (prev === '\\') continue
+    count++
+  }
+  return count
+}
+
 function buildGraphConfigFromForm(form: QuestionForm): GraphConfig | null {
   if (!form.graphEnabled) return null
 
+  const displayMode = form.graphDisplayMode === 'aLevelSketch' ? 'aLevelSketch' : 'standard'
+  const scaleMode = form.graphScaleMode === 'fill' ? 'fill' : 'equalUnits'
   const color = normalizeGraphColor(form.graphColor)
   const xMin = parseNumberOrUndefined(form.graphXMin)
   const xMax = parseNumberOrUndefined(form.graphXMax)
   const yMin = parseNumberOrUndefined(form.graphYMin)
   const yMax = parseNumberOrUndefined(form.graphYMax)
+  const series = (Array.isArray(form.graphSeries) ? form.graphSeries : [])
+    .map(buildGraphSeriesFromForm)
+    .filter(Boolean) as GraphSeries[]
+  const polygons = (Array.isArray(form.graphPolygons) ? form.graphPolygons : [])
+    .map(buildGraphPolygonFromForm)
+    .filter(Boolean) as GraphPolygon[]
+  const labels = (Array.isArray(form.graphLabels) ? form.graphLabels : [])
+    .map(buildGraphLabelFromForm)
+    .filter(Boolean) as GraphLabel[]
+  const angleMarkers = (Array.isArray(form.graphAngleMarkers) ? form.graphAngleMarkers : [])
+    .map(buildGraphAngleMarkerFromForm)
+    .filter(Boolean) as GraphAngleMarker[]
 
-  const common = {
+  if (series.length === 0 && polygons.length === 0 && labels.length === 0 && angleMarkers.length === 0) {
+    return null
+  }
+
+  return {
+    displayMode,
+    scaleMode,
     color,
     xMin,
     xMax,
     yMin,
     yMax,
+    ...(series.length > 0 ? { series } : {}),
+    ...(polygons.length > 0 ? { polygons } : {}),
+    ...(labels.length > 0 ? { labels } : {}),
+    ...(angleMarkers.length > 0 ? { angleMarkers } : {}),
   }
-
-  if (form.graphType === 'function') {
-    const equation = String(form.graphEquation ?? '').trim()
-    if (!equation) return null
-    return { type: 'function', equation, ...common }
-  }
-
-  const points = parseGraphPointsText(form.graphPointsText)
-  if (!points) return null
-  return { type: 'points', points, ...common }
 }
 
 export default function AdminQuestions() {
@@ -248,6 +704,16 @@ export default function AdminQuestions() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [mappingErrors, setMappingErrors] = useState<string[]>([]);
+  const [mappingIssueDetails, setMappingIssueDetails] = useState<MappingIssue[]>([]);
+  const [lastFetchStats, setLastFetchStats] = useState<FetchStats | null>(null);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [chemTestQuery, setChemTestQuery] = useState('Chem Test');
+  const [chemTestLookup, setChemTestLookup] = useState<{
+    loading: boolean;
+    rows: ChemTestRow[];
+    error: string | null;
+    checkedAtIso: string | null;
+  }>({ loading: false, rows: [], error: null, checkedAtIso: null });
 
   // Bulk selection + actions (list)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -263,12 +729,224 @@ export default function AdminQuestions() {
   const [uploadingMainImage, setUploadingMainImage] = useState(false);
   const [uploadingStepImages, setUploadingStepImages] = useState<Record<number, boolean>>({});
   const [showPreview, setShowPreview] = useState(false);
+  const [structurePresetNonce, setStructurePresetNonce] = useState(0);
+  const [stepDiagramPresetNonce, setStepDiagramPresetNonce] = useState<Record<number, number>>({});
 
   const hasAnySubStepsInForm = useMemo(() => {
     return form.steps.some((s) => Array.isArray(s.subSteps) && s.subSteps.length > 0);
   }, [form.steps]);
 
   const subStepsRequireTwoSteps = hasAnySubStepsInForm && form.steps.length < 2;
+
+  const updateGraphSeries = useCallback(
+    (index: number, updater: (series: FormGraphSeries) => FormGraphSeries) => {
+      setForm((prev) => ({
+        ...prev,
+        graphSeries: prev.graphSeries.map((series, seriesIndex) =>
+          seriesIndex === index ? updater(series) : series
+        ),
+      }))
+    },
+    []
+  )
+
+  const addGraphSeries = useCallback((type: 'function' | 'points' = 'function') => {
+    setForm((prev) => ({
+      ...prev,
+      graphSeries: [...(Array.isArray(prev.graphSeries) ? prev.graphSeries : []), getEmptyGraphSeries(type)],
+    }))
+  }, [])
+
+  const removeGraphSeries = useCallback((index: number) => {
+    setForm((prev) => {
+      const next = (Array.isArray(prev.graphSeries) ? prev.graphSeries : []).filter(
+        (_, seriesIndex) => seriesIndex !== index
+      )
+
+      return {
+        ...prev,
+        graphSeries: next.length > 0 ? next : [getEmptyGraphSeries('function')],
+      }
+    })
+  }, [])
+
+  const moveGraphSeries = useCallback((index: number, direction: -1 | 1) => {
+    setForm((prev) => {
+      const next = [...(Array.isArray(prev.graphSeries) ? prev.graphSeries : [])]
+      const targetIndex = index + direction
+      if (targetIndex < 0 || targetIndex >= next.length) return prev
+
+      ;[next[index], next[targetIndex]] = [next[targetIndex], next[index]]
+      return {
+        ...prev,
+        graphSeries: next,
+      }
+    })
+  }, [])
+
+  const updateGraphPolygon = useCallback(
+    (index: number, updater: (polygon: FormGraphPolygon) => FormGraphPolygon) => {
+      setForm((prev) => ({
+        ...prev,
+        graphPolygons: (Array.isArray(prev.graphPolygons) ? prev.graphPolygons : []).map((polygon, polygonIndex) =>
+          polygonIndex === index ? updater(polygon) : polygon
+        ),
+      }))
+    },
+    []
+  )
+
+  const addGraphPolygon = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      graphPolygons: [...(Array.isArray(prev.graphPolygons) ? prev.graphPolygons : []), getEmptyGraphPolygon()],
+    }))
+  }, [])
+
+  const removeGraphPolygon = useCallback((index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      graphPolygons: (Array.isArray(prev.graphPolygons) ? prev.graphPolygons : []).filter(
+        (_, polygonIndex) => polygonIndex !== index
+      ),
+    }))
+  }, [])
+
+  const updateGraphLabel = useCallback(
+    (index: number, updater: (label: FormGraphLabel) => FormGraphLabel) => {
+      setForm((prev) => ({
+        ...prev,
+        graphLabels: (Array.isArray(prev.graphLabels) ? prev.graphLabels : []).map((label, labelIndex) =>
+          labelIndex === index ? updater(label) : label
+        ),
+      }))
+    },
+    []
+  )
+
+  const addGraphLabel = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      graphLabels: [...(Array.isArray(prev.graphLabels) ? prev.graphLabels : []), getEmptyGraphLabel()],
+    }))
+  }, [])
+
+  const removeGraphLabel = useCallback((index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      graphLabels: (Array.isArray(prev.graphLabels) ? prev.graphLabels : []).filter(
+        (_, labelIndex) => labelIndex !== index
+      ),
+    }))
+  }, [])
+
+  const updateGraphAngleMarker = useCallback(
+    (index: number, updater: (marker: FormGraphAngleMarker) => FormGraphAngleMarker) => {
+      setForm((prev) => ({
+        ...prev,
+        graphAngleMarkers: (Array.isArray(prev.graphAngleMarkers) ? prev.graphAngleMarkers : []).map(
+          (marker, markerIndex) => (markerIndex === index ? updater(marker) : marker)
+        ),
+      }))
+    },
+    []
+  )
+
+  const addGraphAngleMarker = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      graphAngleMarkers: [
+        ...(Array.isArray(prev.graphAngleMarkers) ? prev.graphAngleMarkers : []),
+        getEmptyGraphAngleMarker(),
+      ],
+    }))
+  }, [])
+
+  const removeGraphAngleMarker = useCallback((index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      graphAngleMarkers: (Array.isArray(prev.graphAngleMarkers) ? prev.graphAngleMarkers : []).filter(
+        (_, markerIndex) => markerIndex !== index
+      ),
+    }))
+  }, [])
+
+  const chemistryWarnings = useMemo(() => {
+    const warnings: string[] = []
+
+    const check = (label: string, value: any) => {
+      const s = String(value ?? '')
+      if (!s.trim()) return
+
+      if (s.includes('\\ce{')) {
+        const hasMathDelim = hasMathDelimiters(s)
+        if (!hasMathDelim) {
+          warnings.push(
+            `${label}: found \\ce{...} but no math delimiters. Wrap like \\(\\ce{...}\\).`
+          )
+        }
+      }
+
+      const dollars = countUnescapedDollars(s)
+      if (dollars % 2 === 1) {
+        warnings.push(`${label}: unbalanced $ delimiters (odd count).`)
+      }
+    }
+
+    const checkOptionMath = (label: string, value: any) => {
+      const s = String(value ?? '').trim()
+      if (!s || s.includes('\\ce{')) return
+      if (optionNeedsInlineMathWrapper(s)) {
+        warnings.push(
+          `${label}: looks like inline math but has no delimiters. It will be auto-wrapped on save.`
+        )
+      }
+    }
+
+    check('Stem', form.stem)
+
+    form.steps.forEach((step, stepIdx) => {
+      check(`Step ${stepIdx + 1} prompt`, step.prompt)
+      step.options.forEach((opt, optIdx) => {
+        checkOptionMath(
+          `Step ${stepIdx + 1} option ${String.fromCharCode(65 + optIdx)}`,
+          opt
+        )
+        check(
+          `Step ${stepIdx + 1} option ${String.fromCharCode(65 + optIdx)}`,
+          opt
+        )
+      })
+      check(`Step ${stepIdx + 1} explanation`, step.explanation)
+
+      ;(step.subSteps ?? []).forEach((sub, subIdx) => {
+        check(`Step ${stepIdx + 1} sub-step ${subIdx + 1} prompt`, sub.prompt)
+        ;(sub.options ?? []).forEach((opt, optIdx) => {
+          checkOptionMath(
+            `Step ${stepIdx + 1} sub-step ${subIdx + 1} option ${String.fromCharCode(65 + optIdx)}`,
+            opt
+          )
+          check(
+            `Step ${stepIdx + 1} sub-step ${subIdx + 1} option ${String.fromCharCode(65 + optIdx)}`,
+            opt
+          )
+        })
+        check(`Step ${stepIdx + 1} sub-step ${subIdx + 1} explanation`, sub.explanation)
+      })
+    })
+
+    smilesAuthoringWarnings('Main structure SMILES', form.structureSmiles).forEach((msg) =>
+      warnings.push(msg)
+    )
+    form.steps.forEach((step, stepIdx) => {
+      smilesAuthoringWarnings(
+        `Step ${stepIdx + 1} diagram SMILES`,
+        step.diagramSmiles
+      ).forEach((msg) => warnings.push(msg))
+    })
+
+    return warnings
+  }, [form.subject, form.stem, form.steps, form.structureSmiles])
 
   const filteredQuestions = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -336,10 +1014,13 @@ export default function AdminQuestions() {
       stem: '',
       structureSmiles: '',
       graphEnabled: false,
-      graphType: 'function',
       graphColor: 'white',
-      graphEquation: '',
-      graphPointsText: '',
+      graphDisplayMode: 'standard',
+      graphScaleMode: 'equalUnits',
+      graphSeries: [getEmptyGraphSeries('function')],
+      graphPolygons: [],
+      graphLabels: [],
+      graphAngleMarkers: [],
       graphXMin: '',
       graphXMax: '',
       graphYMin: '',
@@ -367,48 +1048,127 @@ export default function AdminQuestions() {
   async function fetchQuestions() {
     setLoadingQuestions(true);
     try {
-      let query = supabase
-        .from('questions_v2')
-        .select('*')
-        .order('updated_at', { ascending: false });
-
-      if (filters.subject !== 'all') query = query.eq('subject', filters.subject);
-      if (filters.level !== 'all') query = query.eq('level', filters.level);
-      if (filters.difficulty !== 'all') query = query.eq('difficulty', filters.difficulty);
-      if (filters.rankTier.trim()) query = query.eq('rank_tier', filters.rankTier.trim());
-      if (filters.done !== 'all') query = query.eq('is_done', filters.done === 'done');
-
       console.log('[AdminQuestions] Fetching questions with filters:', filters);
-      const { data, error } = await query;
-      console.log('[AdminQuestions] Raw result count:', data?.length || 0, 'error:', error);
+      const allRows: any[] = [];
+      let pageCount = 0;
 
-      if (error) throw error;
+      while (pageCount < QUESTIONS_MAX_PAGES) {
+        const from = pageCount * QUESTIONS_PAGE_SIZE;
+        const to = from + QUESTIONS_PAGE_SIZE - 1;
+
+        let query = supabase
+          .from('questions_v2')
+          .select('*')
+          .order('updated_at', { ascending: false })
+          .range(from, to);
+
+        if (filters.subject !== 'all') query = query.eq('subject', filters.subject);
+        if (filters.level !== 'all') query = query.eq('level', filters.level);
+        if (filters.difficulty !== 'all') query = query.eq('difficulty', filters.difficulty);
+        if (filters.rankTier.trim()) query = query.eq('rank_tier', filters.rankTier.trim());
+        if (filters.done !== 'all') query = query.eq('is_done', filters.done === 'done');
+
+        const { data, error } = await query;
+        console.log('[AdminQuestions] Raw result page:', pageCount + 1, 'count:', data?.length || 0, 'error:', error);
+
+        if (error) throw error;
+
+        const pageRows = data || [];
+        allRows.push(...pageRows);
+        pageCount += 1;
+
+        if (pageRows.length < QUESTIONS_PAGE_SIZE) break;
+      }
+
+      console.log('[AdminQuestions] Raw result count:', allRows.length);
 
       const mapped: StepBasedQuestion[] = [];
       const rowErrors: string[] = [];
+      const issues: MappingIssue[] = [];
 
-      (data || []).forEach((row, idx) => {
+      allRows.forEach((row, idx) => {
         try {
           mapped.push(dbRowToQuestion(row));
         } catch (err: any) {
           console.error('[AdminQuestions] Mapping error for row', idx, err, row);
-          rowErrors.push(err?.message || 'Mapping error');
+          const message = err?.message || 'Mapping error';
+          rowErrors.push(message);
+          issues.push({
+            idx,
+            message,
+            rowId: typeof (row as any)?.id === 'string' ? (row as any).id : undefined,
+            title: typeof (row as any)?.title === 'string' ? (row as any).title : undefined,
+          });
         }
       });
 
       if (rowErrors.length > 0) {
         setMappingErrors(rowErrors);
+        setMappingIssueDetails(issues);
         toast.warning(`Some questions could not be parsed (${rowErrors.length}). Check console logs for details.`);
       } else {
         setMappingErrors([]);
+        setMappingIssueDetails([]);
       }
 
       setQuestions(mapped);
+      setLastFetchStats({
+        rawCount: allRows.length,
+        mappedCount: mapped.length,
+        fetchedAtIso: new Date().toISOString(),
+      });
     } catch (error: any) {
       console.error('[AdminQuestions] Error fetching:', error);
       toast.error(error.message || 'Failed to load questions');
+      setLastFetchStats({
+        rawCount: 0,
+        mappedCount: 0,
+        fetchedAtIso: new Date().toISOString(),
+        errorMessage: error?.message || String(error),
+      });
     } finally {
       setLoadingQuestions(false);
+    }
+  }
+
+  async function runTitleDiagnosticsLookup() {
+    const term = String(chemTestQuery ?? '').trim()
+    if (!term) return
+
+    setChemTestLookup((prev) => ({ ...prev, loading: true, error: null }))
+    try {
+      const { data, error } = await supabase
+        .from('questions_v2')
+        .select('id,title,created_at,updated_at')
+        .ilike('title', `%${term}%`)
+        .order('created_at', { ascending: false })
+        .limit(25)
+
+      if (error) throw error
+
+      setChemTestLookup({
+        loading: false,
+        rows: (data ?? []) as any,
+        error: null,
+        checkedAtIso: new Date().toISOString(),
+      })
+    } catch (err: any) {
+      setChemTestLookup((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.message || String(err),
+        checkedAtIso: new Date().toISOString(),
+      }))
+    }
+  }
+
+  async function copyToClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('Copied to clipboard')
+    } catch (err: any) {
+      console.error('[AdminQuestions] Clipboard copy failed:', err)
+      toast.error('Failed to copy')
     }
   }
 
@@ -713,10 +1473,13 @@ export default function AdminQuestions() {
       stem: q.stem,
       structureSmiles: q.structureSmiles || '',
       graphEnabled: !!g,
-      graphType: g?.type === 'points' ? 'points' : 'function',
       graphColor: normalizeGraphColor((g as any)?.color),
-      graphEquation: g && g.type === 'function' ? (g.equation || '') : '',
-      graphPointsText: g && g.type === 'points' ? pointsToText((g.points || []) as any) : '',
+      graphDisplayMode: (g as any)?.displayMode === 'aLevelSketch' ? 'aLevelSketch' : 'standard',
+      graphScaleMode: normalizeGraphScaleMode((g as any)?.scaleMode ?? (g as any)?.scale_mode),
+      graphSeries: getGraphSeriesFromConfig(g),
+      graphPolygons: getGraphPolygonsFromConfig(g),
+      graphLabels: getGraphLabelsFromConfig(g),
+      graphAngleMarkers: getGraphAngleMarkersFromConfig(g),
       graphXMin: g && typeof (g as any).xMin === 'number' ? String((g as any).xMin) : '',
       graphXMax: g && typeof (g as any).xMax === 'number' ? String((g as any).xMax) : '',
       graphYMin: g && typeof (g as any).yMin === 'number' ? String((g as any).yMin) : '',
@@ -1303,10 +2066,12 @@ export default function AdminQuestions() {
 
     setSaving(true);
     try {
-      const topicTagsArray = form.topicTags
+      const rawTopicTags = form.topicTags
         .split(',')
         .map(t => t.trim())
         .filter(t => t.length > 0);
+      // Collapse any duplicate/manual archetype entries to a single canonical tag.
+      const topicTagsArray = setArchetypeTag(rawTopicTags, getArchetypeValue(rawTopicTags));
 
       const stepsPayload: QuestionStep[] = form.steps.map((s, i) => {
         const raw = Array.isArray(s.options) ? s.options : []
@@ -1328,7 +2093,7 @@ export default function AdminQuestions() {
           if (correct < 0 || correct > 1) {
             throw new Error(`Step ${i + 1}: True/False correct answer must be 0 or 1`)
           }
-          optionsToSave = [o0, o1]
+          optionsToSave = [o0, o1].map(normalizeInlineMathOption)
         } else {
           if (!trimmed[0] || !trimmed[1]) {
             throw new Error(`Step ${i + 1}: MCQ questions must have at least 2 options (A and B)`)
@@ -1356,7 +2121,7 @@ export default function AdminQuestions() {
           if (correct < 0 || correct > maxIndex) {
             throw new Error(`Step ${i + 1}: correctAnswer out of range (must be 0-${maxIndex})`)
           }
-          optionsToSave = effective
+          optionsToSave = effective.map(normalizeInlineMathOption)
         }
 
         const subStepsPayload = (Array.isArray(s.subSteps) ? s.subSteps : [])
@@ -1381,7 +2146,7 @@ export default function AdminQuestions() {
               if (subCorrect < 0 || subCorrect > 1) {
                 throw new Error(`Step ${i + 1} Sub-step ${j + 1}: True/False correct answer must be 0 or 1`)
               }
-              subOptionsToSave = [o0, o1]
+              subOptionsToSave = [o0, o1].map(normalizeInlineMathOption)
             } else {
               if (!subTrimmed[0] || !subTrimmed[1]) {
                 throw new Error(`Step ${i + 1} Sub-step ${j + 1}: MCQ must have at least 2 options (A and B)`)
@@ -1410,7 +2175,7 @@ export default function AdminQuestions() {
                 throw new Error(`Step ${i + 1} Sub-step ${j + 1}: correctAnswer out of range (must be 0-${maxIndex})`)
               }
 
-              subOptionsToSave = effective
+              subOptionsToSave = effective.map(normalizeInlineMathOption)
             }
 
             return {
@@ -1446,15 +2211,50 @@ export default function AdminQuestions() {
         return;
       }
 
+      if (form.graphEnabled) {
+        const graphSeriesError = (Array.isArray(form.graphSeries) ? form.graphSeries : [])
+          .map((series, index) => validateGraphSeriesForm(series, index))
+          .find(Boolean)
+
+        if (graphSeriesError) {
+          toast.error(graphSeriesError)
+          return
+        }
+
+        const graphPolygonError = (Array.isArray(form.graphPolygons) ? form.graphPolygons : [])
+          .map((polygon, index) => validateGraphPolygonForm(polygon, index))
+          .find(Boolean)
+
+        if (graphPolygonError) {
+          toast.error(graphPolygonError)
+          return
+        }
+
+        const graphLabelError = (Array.isArray(form.graphLabels) ? form.graphLabels : [])
+          .map((label, index) => validateGraphLabelForm(label, index))
+          .find(Boolean)
+
+        if (graphLabelError) {
+          toast.error(graphLabelError)
+          return
+        }
+
+        const graphAngleMarkerError = (Array.isArray(form.graphAngleMarkers) ? form.graphAngleMarkers : [])
+          .map((marker, index) => validateGraphAngleMarkerForm(marker, index))
+          .find(Boolean)
+
+        if (graphAngleMarkerError) {
+          toast.error(graphAngleMarkerError)
+          return
+        }
+      }
+
       const graphConfig = buildGraphConfigFromForm(form)
       if (form.graphEnabled && !graphConfig) {
-        toast.error(
-          form.graphType === 'function'
-            ? 'Graph enabled: please provide a valid equation.'
-            : 'Graph enabled: please provide at least 2 valid points.'
-        )
+        toast.error('Graph enabled: please add at least one valid graph series or geometry overlay.')
         return
       }
+
       // Validate explicit domains (if provided)
       const xMin = parseNumberOrUndefined(form.graphXMin)
       const xMax = parseNumberOrUndefined(form.graphXMax)
@@ -1578,7 +2378,10 @@ export default function AdminQuestions() {
 
   // Common styles
   const glassPanel = "bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-xl";
+  const fullscreenListPanel = "bg-white/[0.06] backdrop-blur-xl overflow-hidden";
   const glassInput = "bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-primary/50 focus:ring-primary/20";
+  const compactInput = `${glassInput} h-9 text-sm`;
+  const compactLabelStyle = "mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55";
   const fileInput = `${glassInput} file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:text-white`;
   const labelStyle = "text-white/70 font-medium mb-1.5 block text-sm";
 
@@ -1624,14 +2427,14 @@ export default function AdminQuestions() {
     <div className="min-h-screen text-foreground relative overflow-hidden font-sans">
       <SpaceBackground />
 
-      <div className="relative z-10 w-full max-w-[1900px] mx-auto p-6">
+      <div className="relative z-10 flex h-screen w-full flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-black/10 px-4 py-2.5 backdrop-blur-md sm:px-5 lg:px-6">
           <div>
-            <h1 className="text-4xl font-black text-white mb-2 tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>
+            <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl" style={{ fontFamily: 'Roboto, sans-serif' }}>
               ADMIN <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">DASHBOARD</span>
             </h1>
-            <p className="text-white/60 font-medium">Manage battle questions and content</p>
+            <p className="text-[11px] font-medium text-white/55 sm:text-xs">Manage battle questions and content</p>
           </div>
           <Button
             onClick={() => navigate('/')}
@@ -1643,118 +2446,247 @@ export default function AdminQuestions() {
         </div>
 
         {/* Content */}
-        <div className="grid grid-cols-1 gap-8 h-[calc(100vh-140px)]">
+        <div className={`flex-1 min-h-0 ${isEditorView ? 'px-4 py-4 sm:px-5 lg:px-6' : ''}`}>
           {!isEditorView ? (
-            <div className="flex flex-col gap-6 h-full overflow-hidden">
-
-            {/* Filters */}
-            <div className={`p-5 ${glassPanel} space-y-4`}>
-              <div className="flex items-center gap-2 text-white/90 font-bold uppercase tracking-wider text-sm mb-2">
-                <Filter className="w-4 h-4 text-primary" />
-                Filters
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelStyle}>Subject</label>
-                  <Select value={filters.subject} onValueChange={(v: any) => setFilters({ ...filters, subject: v })}>
-                    <SelectTrigger className={glassInput}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-900 border-white/10 text-white">
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="math">Math</SelectItem>
-                      <SelectItem value="physics">Physics</SelectItem>
-                      <SelectItem value="chemistry">Chemistry</SelectItem>
-                    </SelectContent>
-                  </Select>
+            <div className={`${fullscreenListPanel} flex h-full min-h-0 flex-col overflow-hidden lg:flex-row`}>
+              {/* Filters */}
+              <aside className="border-b border-white/10 bg-white/[0.035] p-3 sm:p-4 lg:w-[250px] lg:shrink-0 lg:border-b-0 lg:border-r xl:w-[270px] 2xl:w-[285px]">
+                <div className="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] text-white/85">
+                  <Filter className="h-4 w-4 text-primary" />
+                  Filters
                 </div>
-                <div>
-                  <label className={labelStyle}>Level</label>
-                  <Select value={filters.level} onValueChange={(v: any) => setFilters({ ...filters, level: v })}>
-                    <SelectTrigger className={glassInput}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-900 border-white/10 text-white">
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="A1">A1</SelectItem>
-                      <SelectItem value="A2">A2</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
+                  <div>
+                    <label className={compactLabelStyle}>Subject</label>
+                    <Select value={filters.subject} onValueChange={(v: any) => setFilters({ ...filters, subject: v })}>
+                      <SelectTrigger className={compactInput}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-900 border-white/10 text-white">
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="math">Math</SelectItem>
+                        <SelectItem value="physics">Physics</SelectItem>
+                        <SelectItem value="chemistry">Chemistry</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className={compactLabelStyle}>Level</label>
+                    <Select value={filters.level} onValueChange={(v: any) => setFilters({ ...filters, level: v })}>
+                      <SelectTrigger className={compactInput}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-900 border-white/10 text-white">
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="A1">A1</SelectItem>
+                        <SelectItem value="A2">A2</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-1">
+                    <label className={compactLabelStyle}>Done Status</label>
+                    <Select value={filters.done} onValueChange={(v: any) => setFilters({ ...filters, done: v })}>
+                      <SelectTrigger className={compactInput}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-900 border-white/10 text-white">
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="done">Done</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-1">
+                    <label className={compactLabelStyle}>Quick Search</label>
+                    <Input
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search title, chapter, subject..."
+                      className={compactInput}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className={labelStyle}>Done Status</label>
-                  <Select value={filters.done} onValueChange={(v: any) => setFilters({ ...filters, done: v })}>
-                    <SelectTrigger className={glassInput}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-900 border-white/10 text-white">
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="done">Done</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setFilters({ subject: 'all', level: 'all', difficulty: 'all', rankTier: '', done: 'all' });
+                      setSearchTerm('');
+                    }}
+                    className="h-9 bg-white/5 border-white/10 text-white/80 hover:bg-white/10"
+                  >
+                    Reset Filters
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleNewQuestion}
+                    className="h-9 bg-gradient-to-r from-amber-400 to-orange-500 text-sm font-semibold text-gray-900 shadow-lg shadow-orange-500/20 hover:from-amber-500 hover:to-orange-600"
+                  >
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    Create New Question
+                  </Button>
                 </div>
-              </div>
+              </aside>
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setFilters({ subject: 'all', level: 'all', difficulty: 'all', rankTier: '', done: 'all' });
-                    setSearchTerm('');
-                  }}
-                  className="flex-1 bg-white/5 border-white/15 text-white hover:bg-white/10"
-                >
-                  Reset Filters
-                </Button>
-                <Button
-                  onClick={handleNewQuestion}
-                  className="flex-1 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900 font-bold h-10 shadow-lg shadow-orange-500/20"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create New Question
-                </Button>
-              </div>
+              {/* Question List */}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <div className="border-b border-white/10 bg-white/[0.045] px-3 py-2.5 backdrop-blur-md sm:px-4">
+                  <div className="flex flex-col gap-1.5 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                      <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-white sm:text-xs">
+                        <Search className="h-4 w-4 text-primary" />
+                        Questions
+                      </h3>
+                      <span className="text-[11px] font-medium text-white/65 sm:text-xs">
+                        {filteredQuestions.length} shown / {questions.length} total
+                      </span>
+                      {mappingErrors.length > 0 && (
+                        <Badge variant="outline" className="border-amber-300/40 bg-amber-500/10 text-[11px] text-amber-300">
+                          {mappingErrors.length} parsing issues
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 text-[10px] text-white/50 sm:text-[11px]">
+                      <span className="max-w-full truncate">{searchTerm ? `Searching "${searchTerm}"` : 'Use filters or search to refine'}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDiagnosticsOpen((v) => !v)}
+                        className="bg-white/5 border-white/15 text-white/70 hover:bg-white/10"
+                        title="Show diagnostics to debug missing SQL-inserted questions"
+                      >
+                        Diagnostics
+                      </Button>
+                    </div>
+                  </div>
+                </div>
 
-              <div>
-                <label className={labelStyle}>Quick Search</label>
-                <Input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search title, chapter, subject..."
-                  className={glassInput}
-                />
-              </div>
+              {diagnosticsOpen && (
+                <div className="space-y-2.5 border-b border-white/10 bg-white/[0.035] px-3 py-2.5 backdrop-blur-md sm:px-4">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="text-xs text-white/60">
+                      <span className="font-semibold text-white/80">Supabase:</span>{' '}
+                      <span className="font-mono">{SUPABASE_URL}</span>
+                    </div>
+                    <div className="text-xs text-white/60">
+                      {lastFetchStats ? (
+                        <>
+                          <span className="font-semibold text-white/80">Last fetch:</span>{' '}
+                          <span className="font-mono">
+                            raw={lastFetchStats.rawCount} mapped={lastFetchStats.mappedCount}
+                          </span>
+                          {lastFetchStats.errorMessage ? (
+                            <span className="ml-2 text-red-200/80">
+                              error: {lastFetchStats.errorMessage}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="font-mono">No fetch stats yet</span>
+                      )}
+                    </div>
+                  </div>
 
-            </div>
+                  <div className="grid grid-cols-1 items-end gap-2.5 lg:grid-cols-[minmax(0,1fr)_auto]">
+                    <div>
+                      <Label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Find rows by title (diagnostic)</Label>
+                      <div className="mt-1 flex gap-2">
+                        <Input
+                          value={chemTestQuery}
+                          onChange={(e) => setChemTestQuery(e.target.value)}
+                          className={compactInput}
+                          placeholder='e.g. "Chem Test"'
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => void runTitleDiagnosticsLookup()}
+                          disabled={chemTestLookup.loading}
+                          className="h-9 border border-white/10 bg-white/10 text-white hover:bg-white/15"
+                        >
+                          {chemTestLookup.loading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Checking…
+                            </>
+                          ) : (
+                            'Check'
+                          )}
+                        </Button>
+                      </div>
+                      <div className="mt-1 text-[11px] text-white/45">
+                        This runs a direct DB query. If this returns 0 rows, your SQL likely didn’t insert into this project.
+                      </div>
+                    </div>
 
-            {/* Question List */}
-            <div className={`flex-1 ${glassPanel} flex flex-col min-h-0`}>
-              <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-md flex flex-wrap gap-3 justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <h3 className="font-bold text-white flex items-center gap-2">
-                    <Search className="w-4 h-4 text-primary" />
-                    Questions
-                  </h3>
-                  <span className="text-white/70 text-sm font-medium">
-                    {filteredQuestions.length} shown / {questions.length} total
-                  </span>
-                  {mappingErrors.length > 0 && (
-                    <Badge variant="outline" className="text-amber-300 border-amber-300/40 bg-amber-500/10 text-xs">
-                      {mappingErrors.length} parsing issues
-                    </Badge>
+                    <div className="text-[11px] text-white/50">
+                      {chemTestLookup.checkedAtIso ? (
+                        <span className="font-mono">checked {new Date(chemTestLookup.checkedAtIso).toLocaleString()}</span>
+                      ) : (
+                        <span className="font-mono">not checked yet</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {chemTestLookup.error && (
+                    <div className="text-xs text-red-200/80">
+                      Lookup error: <span className="font-mono">{chemTestLookup.error}</span>
+                    </div>
+                  )}
+
+                  {chemTestLookup.rows.length > 0 && (
+                    <div className="rounded-xl border border-white/10 bg-black/20 overflow-hidden">
+                      <div className="px-3 py-2 text-xs text-white/70 border-b border-white/10 flex items-center justify-between">
+                        <span>
+                          Found <span className="font-semibold text-white/90">{chemTestLookup.rows.length}</span> row(s)
+                        </span>
+                        <span className="font-mono text-white/50">title ILIKE %{chemTestQuery}%</span>
+                      </div>
+                      <div className="max-h-48 overflow-auto">
+                        {chemTestLookup.rows.map((r) => (
+                          <div key={r.id} className="px-3 py-2 text-xs border-b border-white/5">
+                            <div className="text-white/90 font-semibold">{r.title}</div>
+                            <div className="font-mono text-white/45">
+                              id={r.id} created={r.created_at} updated={r.updated_at}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {mappingIssueDetails.length > 0 && (
+                    <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
+                      <div className="text-xs font-semibold text-amber-200 mb-2">
+                        Mapping issues ({mappingIssueDetails.length})
+                      </div>
+                      <div className="space-y-2 max-h-40 overflow-auto">
+                        {mappingIssueDetails.slice(0, 20).map((m) => (
+                          <div key={`${m.idx}-${m.rowId || ''}`} className="text-[11px] text-amber-100/80">
+                            <span className="font-mono text-amber-100/60">row[{m.idx}]</span>{' '}
+                            {m.title ? <span className="font-semibold">{m.title}</span> : null}{' '}
+                            {m.rowId ? <span className="font-mono text-amber-100/50">({m.rowId})</span> : null}
+                            <div className="font-mono text-amber-100/70">{m.message}</div>
+                          </div>
+                        ))}
+                        {mappingIssueDetails.length > 20 && (
+                          <div className="text-[11px] text-amber-100/60">
+                            Showing first 20 issues.
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
-                <div className="text-xs text-white/50 flex items-center gap-2">
-                  {searchTerm ? `Searching "${searchTerm}"` : 'Use filters or search to refine'}
-                </div>
-              </div>
+              )}
 
               {/* Bulk selection controls */}
-              <div className="px-4 py-3 border-b border-white/10 bg-white/[0.04] backdrop-blur-md">
-                <div className="flex flex-wrap gap-3 justify-between items-center">
-                  <div className="text-xs text-white/60 font-medium">
+              <div className="border-b border-white/10 bg-white/[0.04] px-3 py-2.5 backdrop-blur-md sm:px-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div className="text-[11px] font-medium text-white/60 sm:text-xs">
                     {selectedCount > 0 ? (
                       <span>
                         <span className="text-emerald-300 font-bold">{selectedCount}</span> selected
@@ -1764,7 +2696,7 @@ export default function AdminQuestions() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {selectedCount > 0 && (
                       <>
                         <Button
@@ -1829,17 +2761,17 @@ export default function AdminQuestions() {
                   </div>
                 </div>
 
-                <div className="mt-3 w-full">
-                  <div className="text-xs text-white/60 font-semibold uppercase tracking-wider mb-2">Bulk edit</div>
-                  <div className="grid grid-cols-2 md:grid-cols-7 gap-3 items-end">
+                <div className="mt-2.5 w-full">
+                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Bulk edit</div>
+                  <div className="grid grid-cols-1 items-end gap-2.5 sm:grid-cols-2 xl:grid-cols-5 2xl:grid-cols-6">
                     <div>
-                      <label className="text-xs text-white/60 font-medium mb-1 block">Subject</label>
+                      <label className="mb-1 block text-[11px] font-medium text-white/60">Subject</label>
                       <Select
                         value={bulkEdit.subject}
                         onValueChange={(v: any) => setBulkEdit({ ...bulkEdit, subject: v })}
                         disabled={bulkEditDisabled}
                       >
-                        <SelectTrigger className={`${glassInput} h-9 text-sm`}>
+                        <SelectTrigger className={compactInput}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-gray-900 border-white/10 text-white">
@@ -1852,13 +2784,13 @@ export default function AdminQuestions() {
                     </div>
 
                     <div>
-                      <label className="text-xs text-white/60 font-medium mb-1 block">Grade/Level</label>
+                      <label className="mb-1 block text-[11px] font-medium text-white/60">Grade/Level</label>
                       <Select
                         value={bulkEdit.level}
                         onValueChange={(v: any) => setBulkEdit({ ...bulkEdit, level: v })}
                         disabled={bulkEditDisabled}
                       >
-                        <SelectTrigger className={`${glassInput} h-9 text-sm`}>
+                        <SelectTrigger className={compactInput}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-gray-900 border-white/10 text-white">
@@ -1870,13 +2802,13 @@ export default function AdminQuestions() {
                     </div>
 
                     <div>
-                      <label className="text-xs text-white/60 font-medium mb-1 block">Difficulty</label>
+                      <label className="mb-1 block text-[11px] font-medium text-white/60">Difficulty</label>
                       <Select
                         value={bulkEdit.difficulty}
                         onValueChange={(v: any) => setBulkEdit({ ...bulkEdit, difficulty: v })}
                         disabled={bulkEditDisabled}
                       >
-                        <SelectTrigger className={`${glassInput} h-9 text-sm`}>
+                        <SelectTrigger className={compactInput}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-gray-900 border-white/10 text-white">
@@ -1888,12 +2820,12 @@ export default function AdminQuestions() {
                       </Select>
                     </div>
 
-                    <div className="md:col-span-2">
-                      <label className="text-xs text-white/60 font-medium mb-1 block">Chapter</label>
+                    <div className="xl:col-span-2">
+                      <label className="mb-1 block text-[11px] font-medium text-white/60">Chapter</label>
                       <Input
                         value={bulkEdit.chapter}
                         onChange={(e) => setBulkEdit({ ...bulkEdit, chapter: e.target.value })}
-                        className={`${glassInput} h-9 text-sm`}
+                        className={compactInput}
                         placeholder="Leave blank to keep"
                         disabled={bulkEditDisabled}
                         list={
@@ -1939,7 +2871,7 @@ export default function AdminQuestions() {
                     </div>
 
                     <div>
-                      <label className="text-xs text-white/60 font-medium mb-1 block">Main timer (sec)</label>
+                      <label className="mb-1 block text-[11px] font-medium text-white/60">Main timer (sec)</label>
                       <Input
                         type="number"
                         min={5}
@@ -1947,13 +2879,13 @@ export default function AdminQuestions() {
                         step={1}
                         value={bulkEdit.mainQuestionTimerSeconds}
                         onChange={(e) => setBulkEdit({ ...bulkEdit, mainQuestionTimerSeconds: e.target.value })}
-                        className={`${glassInput} h-9 text-sm`}
+                        className={compactInput}
                         placeholder="Leave blank to keep"
                         disabled={bulkEditDisabled}
                       />
                     </div>
 
-                    <div className="flex items-end">
+                    <div className="flex items-end sm:col-span-2 xl:col-span-1 2xl:col-span-1">
                       <Button
                         type="button"
                         size="sm"
@@ -1969,7 +2901,7 @@ export default function AdminQuestions() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+              <div className="custom-scrollbar flex-1 overflow-y-auto px-2 py-2.5 sm:px-3 lg:px-4">
                 {loadingQuestions ? (
                   <div className="flex justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -1979,15 +2911,16 @@ export default function AdminQuestions() {
                     <p>No questions match the current filters/search.</p>
                   </div>
                 ) : (
-                  filteredQuestions.map((q) => {
-                    const isBulkSelected = selectedIds.has(q.id);
-                    const mainQuestionText = String(q.stem || q.steps?.[0]?.prompt || '').trim();
-                    return (
-                      <div
-                        key={q.id}
-                        onClick={() => navigate(`/admin/questions?edit=${q.id}`)}
-                        className={`p-5 md:p-6 rounded-xl cursor-pointer transition-all duration-200 border relative group bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10 ${isBulkSelected ? 'ring-2 ring-emerald-400/25 border-emerald-400/40' : ''} ${q.isEnabled === false ? 'opacity-60' : ''} ${q.isDone ? 'bg-emerald-500/5 border-emerald-400/30' : ''}`}
-                      >
+                  <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
+                    {filteredQuestions.map((q) => {
+                      const isBulkSelected = selectedIds.has(q.id);
+                      const mainQuestionText = String(q.stem || q.steps?.[0]?.prompt || '').trim();
+                      return (
+                        <div
+                          key={q.id}
+                          onClick={() => navigate(`/admin/questions?edit=${q.id}`)}
+                          className={`relative group flex h-full cursor-pointer flex-col rounded-lg border border-transparent bg-white/5 px-3.5 pb-3.5 pl-9 pr-3.5 pt-3.5 transition-all duration-200 hover:bg-white/10 hover:border-white/10 sm:pl-10 xl:min-h-[158px] ${isBulkSelected ? 'ring-2 ring-emerald-400/25 border-emerald-400/40' : ''} ${q.isEnabled === false ? 'opacity-60' : ''} ${q.isDone ? 'bg-emerald-500/5 border-emerald-400/30' : ''}`}
+                        >
                         {/* Bulk select checkbox */}
                         <input
                           type="checkbox"
@@ -1995,7 +2928,7 @@ export default function AdminQuestions() {
                           disabled={bulkActionLoading}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => toggleSelected(q.id, e.target.checked)}
-                          className="absolute top-2 left-2 h-5 w-5 accent-emerald-400 cursor-pointer"
+                          className="absolute left-2.5 top-2.5 h-4 w-4 cursor-pointer accent-emerald-400"
                           aria-label={`Select question ${q.title}`}
                           title="Select for bulk actions"
                         />
@@ -2006,7 +2939,7 @@ export default function AdminQuestions() {
                             handleToggleDone(q.id, !q.isDone);
                           }}
                           disabled={!!doneToggleLoading[q.id]}
-                          className={`absolute top-2 right-10 p-1.5 rounded-lg border z-10 transition-colors ${
+                          className={`absolute right-9 top-2.5 rounded-md border p-1 transition-colors z-10 ${
                             q.isDone
                               ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/30'
                               : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
@@ -2022,29 +2955,29 @@ export default function AdminQuestions() {
                       {/* Delete button - appears on hover */}
                       <button
                         onClick={(e) => handleDeleteFromList(q.id, e)}
-                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity border border-red-500/20 z-10"
+                        className="absolute right-2.5 top-2.5 rounded-md border border-red-500/20 bg-red-500/10 p-1 text-red-400 opacity-0 transition-opacity group-hover:opacity-100 z-10 hover:bg-red-500/20"
                         title="Delete question"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
 
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="font-semibold text-white text-base leading-snug line-clamp-2 pr-2">{q.title}</div>
-                        <span className="text-[10px] text-white/40 font-mono">#{q.id.slice(0, 6)}</span>
+                      <div className="mb-1 flex items-start justify-between gap-2">
+                        <div className="line-clamp-2 pr-3 text-sm font-semibold leading-5 text-white sm:text-[15px]">{q.title}</div>
+                        <span className="shrink-0 font-mono text-[10px] text-white/35">#{q.id.slice(0, 6)}</span>
                       </div>
 
                       {mainQuestionText && (
-                        <p className="text-sm text-white/80 leading-relaxed line-clamp-3 mb-2">
+                        <p className="mb-1 line-clamp-2 text-[11px] leading-5 text-white/78 sm:text-xs">
                           {mainQuestionText}
                         </p>
                       )}
 
-                      <p className="text-xs text-white/60 mb-3 line-clamp-1">{q.chapter}</p>
+                      <p className="mb-1.5 line-clamp-1 text-[11px] text-white/60">{q.chapter}</p>
 
                       {q.isDone && (
                         <Badge
                           variant="outline"
-                          className="mb-2 border-0 bg-emerald-500/20 text-emerald-200 text-[10px] uppercase tracking-wider inline-flex items-center gap-1"
+                          className="mb-1 inline-flex items-center gap-1 border-0 bg-emerald-500/20 text-[10px] uppercase tracking-wider text-emerald-200"
                         >
                           <CheckCircle2 className="w-3 h-3" />
                           Done
@@ -2054,14 +2987,14 @@ export default function AdminQuestions() {
                       {q.isEnabled === false && (
                         <Badge
                           variant="outline"
-                          className="mb-2 border-0 bg-red-500/20 text-red-300 text-[10px] uppercase tracking-wider inline-flex items-center gap-1"
+                          className="mb-1 inline-flex items-center gap-1 border-0 bg-red-500/20 text-[10px] uppercase tracking-wider text-red-300"
                         >
                           <XCircle className="w-3 h-3" />
                           Disabled
                         </Badge>
                       )}
 
-                      <div className="grid grid-cols-4 gap-2 mb-3 text-xs font-semibold">
+                      <div className="mb-2 grid grid-cols-2 gap-1.5 text-[11px] font-semibold 2xl:grid-cols-4">
                         <Badge variant="outline" className={`uppercase tracking-wider border-0 ${q.subject === 'math' ? 'bg-blue-500/20 text-blue-300' :
                             q.subject === 'physics' ? 'bg-purple-500/20 text-purple-300' : 'bg-green-500/20 text-green-300'
                           }`}>
@@ -2076,13 +3009,14 @@ export default function AdminQuestions() {
                         <Badge variant="outline" className="border-white/10 bg-white/5 text-white/70">{q.rankTier || 'No tier'}</Badge>
                       </div>
 
-                      <div className="text-xs text-white/70 font-medium flex justify-between">
+                      <div className="mt-auto flex justify-between text-[11px] font-medium text-white/70">
                         <span>{q.steps.length} step{q.steps.length === 1 ? '' : 's'}</span>
                         <span>{q.totalMarks} mark{q.totalMarks === 1 ? '' : 's'}</span>
                       </div>
-                      </div>
-                    );
-                  })
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
@@ -2397,6 +3331,34 @@ export default function AdminQuestions() {
                       </div>
 
                       <div className="col-span-2">
+                        <label className={labelStyle}>Archetype (Anti-Clumping)</label>
+                        <select
+                          value={getArchetypeValue(form.topicTags.split(',').map(t => t.trim()).filter(Boolean))}
+                          onChange={e => {
+                            const tags = form.topicTags.split(',').map(t => t.trim()).filter(Boolean)
+                            const next = setArchetypeTag(tags, e.target.value)
+                            setForm({ ...form, topicTags: next.join(', ') })
+                          }}
+                          className={glassInput}
+                        >
+                          <option value="">— Unclassified —</option>
+                          {getSuggestedFamilies(form.chapter).map(family => (
+                            <optgroup key={family.label} label={family.label}>
+                              {family.archetypes.map(option => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                        <p className="text-xs text-white/40 mt-1">
+                          The specific operation this question asks for. Stored as an
+                          <code className="mx-1">archetype_*</code> tag and used to avoid back-to-back identical question types.
+                        </p>
+                      </div>
+
+                      <div className="col-span-2">
                         <label className={labelStyle}>Image URL (Optional)</label>
                         <Input
                           value={form.imageUrl}
@@ -2430,11 +3392,23 @@ export default function AdminQuestions() {
 
                       <div className="col-span-2">
                         <label className={labelStyle}>Structure SMILES (Optional)</label>
+                        {form.subject === 'chemistry' && (
+                          <div className="flex flex-wrap items-center gap-2 mt-1 mb-2">
+                            <span className="text-xs text-white/45">Insert preset:</span>
+                            <SmilesPresetSelect
+                              key={structurePresetNonce}
+                              onPick={(smiles) => {
+                                setForm((prev) => ({ ...prev, structureSmiles: smiles }));
+                                setStructurePresetNonce((n) => n + 1);
+                              }}
+                            />
+                          </div>
+                        )}
                         <Input
                           value={form.structureSmiles}
                           onChange={e => setForm({ ...form, structureSmiles: e.target.value })}
                           className={glassInput}
-                          placeholder="e.g. C1=CC=CC=C1"
+                          placeholder="e.g. c1ccccc1 (benzene) or CCO"
                         />
                         <p className="text-xs text-white/40 mt-1">
                           Renders a skeletal diagram under the main question in-game. You can also embed inline tokens like
@@ -2450,6 +3424,112 @@ export default function AdminQuestions() {
                         )}
                       </div>
 
+                      {form.subject === 'chemistry' && (
+                        <div className="col-span-2">
+                          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-5 space-y-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-black tracking-wider text-emerald-200 uppercase">
+                                  Chemistry helper
+                                </div>
+                                <div className="text-xs text-white/55 mt-1">
+                                  Use <span className="font-mono text-white/70">{'\\(\\ce{...}\\)'}</span> for equations and SMILES for skeletal structures.
+                                  (See <span className="font-mono text-white/60">docs/chemistry-authoring.md</span>)
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void copyToClipboard('\\(\\ce{...}\\)')}
+                                  className="bg-white/5 border-white/15 text-white/75 hover:bg-white/10"
+                                  title="Copy inline mhchem template"
+                                >
+                                  Copy inline template
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void copyToClipboard('$$\\ce{...}$$')}
+                                  className="bg-white/5 border-white/15 text-white/75 hover:bg-white/10"
+                                  title="Copy block mhchem template"
+                                >
+                                  Copy block template
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                                <div className="text-[10px] uppercase tracking-wider text-white/50 mb-2">
+                                  Inline example (best for options)
+                                </div>
+                                <div className="text-white/85 text-sm">
+                                  <ScienceText text={'\\(\\ce{N2(g) + 3H2(g) <=> 2NH3(g)}\\)'} />
+                                </div>
+                                <div className="mt-2 font-mono text-[11px] text-white/50">
+                                  {'\\(\\ce{N2(g) + 3H2(g) <=> 2NH3(g)}\\)'}
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                                <div className="text-[10px] uppercase tracking-wider text-white/50 mb-2">
+                                  Net ionic example
+                                </div>
+                                <div className="text-white/85 text-sm">
+                                  <ScienceText text={'\\(\\ce{Ba^2+(aq) + SO4^2-(aq) -> BaSO4(s)}\\)'} />
+                                </div>
+                                <div className="mt-2 font-mono text-[11px] text-white/50">
+                                  {'\\(\\ce{Ba^2+(aq) + SO4^2-(aq) -> BaSO4(s)}\\)'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 items-center">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={() =>
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    stem: `${prev.stem || ''}${prev.stem ? '\n\n' : ''}$$\\ce{ }$$`,
+                                  }))
+                                }
+                                className="bg-white/10 text-white border border-white/10 hover:bg-white/15"
+                                title="Appends a block equation placeholder to the stem"
+                              >
+                                Append equation block to stem
+                              </Button>
+                              <span className="text-[11px] text-white/45">
+                                Structures: use the preset dropdown above Structure SMILES or next to each step’s Diagram SMILES.
+                              </span>
+                            </div>
+
+                            {chemistryWarnings.length > 0 && (
+                              <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
+                                <div className="text-xs font-semibold text-amber-200 mb-2">
+                                  Authoring warnings ({chemistryWarnings.length})
+                                </div>
+                                <ul className="list-disc pl-5 space-y-1">
+                                  {chemistryWarnings.slice(0, 8).map((w, i) => (
+                                    <li key={i} className="text-[11px] text-amber-100/80">
+                                      {w}
+                                    </li>
+                                  ))}
+                                </ul>
+                                {chemistryWarnings.length > 8 && (
+                                  <div className="mt-2 text-[11px] text-amber-100/60">
+                                    Showing first 8 warnings.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Graph (one per question) */}
                       <div className="col-span-2">
                         <label className={labelStyle}>Graph (Optional)</label>
@@ -2461,13 +3541,16 @@ export default function AdminQuestions() {
                               checked={form.graphEnabled}
                               onChange={(e) => {
                                 const enabled = e.target.checked
-                                setForm({
-                                  ...form,
+                                setForm((prev) => ({
+                                  ...prev,
                                   graphEnabled: enabled,
-                                  // Defaults when enabling
-                                  graphType: enabled ? (form.graphType || 'function') : form.graphType,
-                                  graphColor: enabled ? (form.graphColor || 'white') : form.graphColor,
-                                })
+                                  graphColor: enabled ? (prev.graphColor || 'white') : prev.graphColor,
+                                  graphScaleMode: enabled ? (prev.graphScaleMode || 'equalUnits') : prev.graphScaleMode,
+                                  graphSeries:
+                                    enabled && (!Array.isArray(prev.graphSeries) || prev.graphSeries.length === 0)
+                                      ? [getEmptyGraphSeries('function')]
+                                      : prev.graphSeries,
+                                }))
                               }}
                               className="h-4 w-4 accent-yellow-400"
                             />
@@ -2476,24 +3559,7 @@ export default function AdminQuestions() {
 
                           {form.graphEnabled && (
                             <div className="space-y-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className={labelStyle}>Graph Type</label>
-                                  <Select
-                                    value={form.graphType}
-                                    onValueChange={(v: any) => setForm({ ...form, graphType: v })}
-                                  >
-                                    <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
-                                    <SelectContent className="bg-gray-900 border-white/10 text-white">
-                                      <SelectItem value="function">Function (y = f(x))</SelectItem>
-                                      <SelectItem value="points">Points / Line</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <p className="text-xs text-white/40 mt-1">
-                                    Function graphs plot an equation; Points graphs plot your supplied points.
-                                  </p>
-                                </div>
-
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                                 <div>
                                   <label className={labelStyle}>Graph Color</label>
                                   <div className="flex gap-2 flex-wrap mt-2">
@@ -2516,38 +3582,632 @@ export default function AdminQuestions() {
                                     ))}
                                   </div>
                                   <p className="text-xs text-white/40 mt-2">
-                                    Graph background is transparent; axes/line render in white or black.
+                                    Graph background is transparent; all plotted series use the shared graph color.
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <label className={labelStyle}>Display Mode</label>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {([
+                                      { value: 'standard', label: 'Standard' },
+                                      { value: 'aLevelSketch', label: 'A-Level Sketch' },
+                                    ] as Array<{ value: GraphDisplayMode; label: string }>).map((mode) => (
+                                      <button
+                                        key={mode.value}
+                                        type="button"
+                                        onClick={() => setForm({ ...form, graphDisplayMode: mode.value })}
+                                        className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                                          form.graphDisplayMode === mode.value
+                                            ? 'border-yellow-400 bg-yellow-400/10'
+                                            : 'border-white/20 hover:border-white/40'
+                                        }`}
+                                      >
+                                        <span className="text-sm">{mode.label}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <p className="text-xs text-white/40 mt-2">
+                                    A-Level Sketch hides the grid and border so polygons, labels, and right-angle markers stay clean.
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <label className={labelStyle}>Scale Mode</label>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {([
+                                      { value: 'equalUnits', label: 'Equal Units' },
+                                      { value: 'fill', label: 'Fill Box' },
+                                    ] as Array<{ value: GraphScaleMode; label: string }>).map((mode) => (
+                                      <button
+                                        key={mode.value}
+                                        type="button"
+                                        onClick={() => setForm({ ...form, graphScaleMode: mode.value })}
+                                        className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                                          form.graphScaleMode === mode.value
+                                            ? 'border-yellow-400 bg-yellow-400/10'
+                                            : 'border-white/20 hover:border-white/40'
+                                        }`}
+                                      >
+                                        <span className="text-sm">{mode.label}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <p className="text-xs text-white/40 mt-2">
+                                    Equal Units keeps circles, slopes, and geometry true to the equation. Fill Box stretches the plot to use the full card.
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-col justify-end">
+                                  <label className={labelStyle}>Graph Series</label>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                      onClick={() => addGraphSeries('function')}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add Function
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                      onClick={() => addGraphSeries('points')}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add Points Line
+                                    </Button>
+                                  </div>
+                                  <p className="mt-2 text-xs text-white/40">
+                                    Add multiple equations or line/segment series to the same graph.
                                   </p>
                                 </div>
                               </div>
 
-                              {form.graphType === 'function' ? (
-                                <div>
-                                  <label className={labelStyle}>Equation</label>
-                                  <Input
-                                    value={form.graphEquation}
-                                    onChange={(e) => setForm({ ...form, graphEquation: e.target.value })}
-                                    className={glassInput}
-                                    placeholder="e.g. x^2 - 4*x + 3, sin(x), 2*x + 5"
-                                  />
-                                  <p className="text-xs text-white/40 mt-1">
-                                    Use x as the variable. Supported: + - * / ^, sin/cos/tan, sqrt, log/ln, exp.
-                                  </p>
+                              <div className="space-y-4">
+                                {(Array.isArray(form.graphSeries) ? form.graphSeries : []).map((series, index) => (
+                                  <div
+                                    key={series.id}
+                                    className="rounded-xl border border-white/10 bg-black/10 p-4 space-y-4"
+                                  >
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                      <div>
+                                        <div className="text-sm font-semibold text-white/90">
+                                          Series {index + 1}
+                                        </div>
+                                        <p className="text-xs text-white/45">
+                                          {series.type === 'function'
+                                            ? 'Equation series. Use xStart/xEnd to cap the visible line segment.'
+                                            : 'Point series. Points are connected in the order listed.'}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="outline"
+                                          className="h-8 w-8 border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                          onClick={() => moveGraphSeries(index, -1)}
+                                          disabled={index === 0}
+                                        >
+                                          <ArrowUp className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="outline"
+                                          className="h-8 w-8 border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                          onClick={() => moveGraphSeries(index, 1)}
+                                          disabled={index === form.graphSeries.length - 1}
+                                        >
+                                          <ArrowDown className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="outline"
+                                          className="h-8 w-8 border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                                          onClick={() => removeGraphSeries(index)}
+                                          disabled={form.graphSeries.length <= 1}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                      <div>
+                                        <label className={labelStyle}>Series Type</label>
+                                        <Select
+                                          value={series.type}
+                                          onValueChange={(value: any) =>
+                                            updateGraphSeries(index, (current) => ({
+                                              ...current,
+                                              type: value === 'points' ? 'points' : 'function',
+                                            }))
+                                          }
+                                        >
+                                          <SelectTrigger className={glassInput}><SelectValue /></SelectTrigger>
+                                          <SelectContent className="bg-gray-900 border-white/10 text-white">
+                                            <SelectItem value="function">Function (y = f(x))</SelectItem>
+                                            <SelectItem value="points">Points / Line</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+
+                                      <label className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={series.showEndpoints}
+                                          onChange={(e) =>
+                                            updateGraphSeries(index, (current) => ({
+                                              ...current,
+                                              showEndpoints: e.target.checked,
+                                              showEndpointLabels: e.target.checked ? current.showEndpointLabels : false,
+                                            }))
+                                          }
+                                          className="h-4 w-4 accent-yellow-400"
+                                        />
+                                        Show endpoint markers
+                                      </label>
+
+                                      <label className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={series.showEndpointLabels}
+                                          onChange={(e) =>
+                                            updateGraphSeries(index, (current) => ({
+                                              ...current,
+                                              showEndpoints: e.target.checked ? true : current.showEndpoints,
+                                              showEndpointLabels: e.target.checked,
+                                            }))
+                                          }
+                                          className="h-4 w-4 accent-yellow-400"
+                                        />
+                                        Show endpoint coordinates
+                                      </label>
+                                    </div>
+
+                                    {series.type === 'function' ? (
+                                      <div className="space-y-4">
+                                        <div>
+                                          <label className={labelStyle}>Equation</label>
+                                          <Input
+                                            value={series.equation}
+                                            onChange={(e) =>
+                                              updateGraphSeries(index, (current) => ({
+                                                ...current,
+                                                equation: e.target.value,
+                                              }))
+                                            }
+                                            className={glassInput}
+                                            placeholder="e.g. x^2 - 4*x + 3, sin(x), 2*x + 5"
+                                          />
+                                          <p className="text-xs text-white/40 mt-1">
+                                            Use x as the variable. Supported: + - * / ^, sin/cos/tan, sqrt, log/ln, exp.
+                                          </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                          <div>
+                                            <label className={labelStyle}>xStart (opt)</label>
+                                            <Input
+                                              value={series.xStart}
+                                              onChange={(e) =>
+                                                updateGraphSeries(index, (current) => ({
+                                                  ...current,
+                                                  xStart: e.target.value,
+                                                }))
+                                              }
+                                              className={glassInput}
+                                              placeholder="-4"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className={labelStyle}>xEnd (opt)</label>
+                                            <Input
+                                              value={series.xEnd}
+                                              onChange={(e) =>
+                                                updateGraphSeries(index, (current) => ({
+                                                  ...current,
+                                                  xEnd: e.target.value,
+                                                }))
+                                              }
+                                              className={glassInput}
+                                              placeholder="4"
+                                            />
+                                          </div>
+                                        </div>
+                                        <p className="text-xs text-white/40">
+                                          Set xStart/xEnd to cap this function to a shorter visible segment. Endpoint
+                                          markers and labels only appear when the function has a capped range.
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <label className={labelStyle}>Points (CSV or JSON)</label>
+                                        <Textarea
+                                          value={series.pointsText}
+                                          onChange={(e) =>
+                                            updateGraphSeries(index, (current) => ({
+                                              ...current,
+                                              pointsText: e.target.value,
+                                            }))
+                                          }
+                                          className={`${glassInput} min-h-[120px] font-mono text-xs`}
+                                          placeholder={`CSV example:\n0,0\n5,10\n\nJSON example:\n[{\"x\":0,\"y\":0},{\"x\":5,\"y\":10}]`}
+                                        />
+                                        <p className="text-xs text-white/40 mt-1">
+                                          Provide at least 2 points. Two points make a capped straight line segment.
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="space-y-4">
+                                <div className="rounded-xl border border-white/10 bg-black/10 p-4 space-y-4">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                      <div className="text-sm font-semibold text-white/90">Polygons</div>
+                                      <p className="text-xs text-white/45">
+                                        Closed shapes for triangles or other coordinate-geometry outlines.
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                      onClick={addGraphPolygon}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add Polygon
+                                    </Button>
+                                  </div>
+
+                                  {(Array.isArray(form.graphPolygons) ? form.graphPolygons : []).length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+                                      No polygons yet.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {(Array.isArray(form.graphPolygons) ? form.graphPolygons : []).map((polygon, index) => (
+                                        <div
+                                          key={polygon.id}
+                                          className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3"
+                                        >
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="text-sm font-semibold text-white/85">
+                                              Polygon {index + 1}
+                                            </div>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="outline"
+                                              className="h-8 w-8 border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                                              onClick={() => removeGraphPolygon(index)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                          <div>
+                                            <label className={labelStyle}>Points (CSV or JSON)</label>
+                                            <Textarea
+                                              value={polygon.pointsText}
+                                              onChange={(e) =>
+                                                updateGraphPolygon(index, (current) => ({
+                                                  ...current,
+                                                  pointsText: e.target.value,
+                                                }))
+                                              }
+                                              className={`${glassInput} min-h-[110px] font-mono text-xs`}
+                                              placeholder={`Triangle example:\n1,3\n5,3\n5,0\n\nJSON example:\n[{\"x\":1,\"y\":3},{\"x\":5,\"y\":3},{\"x\":5,\"y\":0}]`}
+                                            />
+                                          </div>
+                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <label className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 select-none">
+                                              <input
+                                                type="checkbox"
+                                                checked={polygon.stroke}
+                                                onChange={(e) =>
+                                                  updateGraphPolygon(index, (current) => ({
+                                                    ...current,
+                                                    stroke: e.target.checked,
+                                                  }))
+                                                }
+                                                className="h-4 w-4 accent-yellow-400"
+                                              />
+                                              Stroke outline
+                                            </label>
+                                            <label className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 select-none">
+                                              <input
+                                                type="checkbox"
+                                                checked={polygon.fill}
+                                                onChange={(e) =>
+                                                  updateGraphPolygon(index, (current) => ({
+                                                    ...current,
+                                                    fill: e.target.checked,
+                                                  }))
+                                                }
+                                                className="h-4 w-4 accent-yellow-400"
+                                              />
+                                              Light fill
+                                            </label>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              ) : (
-                                <div>
-                                  <label className={labelStyle}>Points (CSV or JSON)</label>
-                                  <Textarea
-                                    value={form.graphPointsText}
-                                    onChange={(e) => setForm({ ...form, graphPointsText: e.target.value })}
-                                    className={`${glassInput} min-h-[120px] font-mono text-xs`}
-                                    placeholder={`CSV example:\n0,0\n5,10\n\nJSON example:\n[{\"x\":0,\"y\":0},{\"x\":5,\"y\":10}]`}
-                                  />
-                                  <p className="text-xs text-white/40 mt-1">
-                                    Provide at least 2 points. Points are connected in the order listed.
-                                  </p>
+
+                                <div className="rounded-xl border border-white/10 bg-black/10 p-4 space-y-4">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                      <div className="text-sm font-semibold text-white/90">Labels</div>
+                                      <p className="text-xs text-white/45">
+                                        Custom text such as A, B, C, or A(1, 3) anchored to graph coordinates.
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                      onClick={addGraphLabel}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add Label
+                                    </Button>
+                                  </div>
+
+                                  {(Array.isArray(form.graphLabels) ? form.graphLabels : []).length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+                                      No custom labels yet.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {(Array.isArray(form.graphLabels) ? form.graphLabels : []).map((label, index) => (
+                                        <div
+                                          key={label.id}
+                                          className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3"
+                                        >
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="text-sm font-semibold text-white/85">
+                                              Label {index + 1}
+                                            </div>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="outline"
+                                              className="h-8 w-8 border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                                              onClick={() => removeGraphLabel(index)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                                            <div>
+                                              <label className={labelStyle}>x</label>
+                                              <Input
+                                                value={label.x}
+                                                onChange={(e) =>
+                                                  updateGraphLabel(index, (current) => ({ ...current, x: e.target.value }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="1"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={labelStyle}>y</label>
+                                              <Input
+                                                value={label.y}
+                                                onChange={(e) =>
+                                                  updateGraphLabel(index, (current) => ({ ...current, y: e.target.value }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="3"
+                                              />
+                                            </div>
+                                            <div className="md:col-span-3">
+                                              <label className={labelStyle}>Text</label>
+                                              <Input
+                                                value={label.text}
+                                                onChange={(e) =>
+                                                  updateGraphLabel(index, (current) => ({
+                                                    ...current,
+                                                    text: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="A(1, 3)"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <div>
+                                              <label className={labelStyle}>offsetX (px)</label>
+                                              <Input
+                                                value={label.offsetX}
+                                                onChange={(e) =>
+                                                  updateGraphLabel(index, (current) => ({
+                                                    ...current,
+                                                    offsetX: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="8"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={labelStyle}>offsetY (px)</label>
+                                              <Input
+                                                value={label.offsetY}
+                                                onChange={(e) =>
+                                                  updateGraphLabel(index, (current) => ({
+                                                    ...current,
+                                                    offsetY: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="-8"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+
+                                <div className="rounded-xl border border-white/10 bg-black/10 p-4 space-y-4">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                      <div className="text-sm font-semibold text-white/90">Angle Markers</div>
+                                      <p className="text-xs text-white/45">
+                                        Right-angle markers defined by a vertex plus one point on each leg.
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                      onClick={addGraphAngleMarker}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add Right Angle
+                                    </Button>
+                                  </div>
+
+                                  {(Array.isArray(form.graphAngleMarkers) ? form.graphAngleMarkers : []).length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+                                      No angle markers yet.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {(Array.isArray(form.graphAngleMarkers) ? form.graphAngleMarkers : []).map((marker, index) => (
+                                        <div
+                                          key={marker.id}
+                                          className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3"
+                                        >
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                              <div className="text-sm font-semibold text-white/85">
+                                                Angle Marker {index + 1}
+                                              </div>
+                                              <div className="text-xs text-white/45">Type: right</div>
+                                            </div>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="outline"
+                                              className="h-8 w-8 border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                                              onClick={() => removeGraphAngleMarker(index)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                            <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
+                                              <div className="text-xs font-semibold uppercase tracking-wider text-white/55">
+                                                Vertex
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-3">
+                                                <Input
+                                                  value={marker.vertexX}
+                                                  onChange={(e) =>
+                                                    updateGraphAngleMarker(index, (current) => ({
+                                                      ...current,
+                                                      vertexX: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="x"
+                                                />
+                                                <Input
+                                                  value={marker.vertexY}
+                                                  onChange={(e) =>
+                                                    updateGraphAngleMarker(index, (current) => ({
+                                                      ...current,
+                                                      vertexY: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="y"
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
+                                              <div className="text-xs font-semibold uppercase tracking-wider text-white/55">
+                                                Point On Leg 1
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-3">
+                                                <Input
+                                                  value={marker.p1X}
+                                                  onChange={(e) =>
+                                                    updateGraphAngleMarker(index, (current) => ({
+                                                      ...current,
+                                                      p1X: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="x"
+                                                />
+                                                <Input
+                                                  value={marker.p1Y}
+                                                  onChange={(e) =>
+                                                    updateGraphAngleMarker(index, (current) => ({
+                                                      ...current,
+                                                      p1Y: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="y"
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
+                                              <div className="text-xs font-semibold uppercase tracking-wider text-white/55">
+                                                Point On Leg 2
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-3">
+                                                <Input
+                                                  value={marker.p2X}
+                                                  onChange={(e) =>
+                                                    updateGraphAngleMarker(index, (current) => ({
+                                                      ...current,
+                                                      p2X: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="x"
+                                                />
+                                                <Input
+                                                  value={marker.p2Y}
+                                                  onChange={(e) =>
+                                                    updateGraphAngleMarker(index, (current) => ({
+                                                      ...current,
+                                                      p2Y: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="y"
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
 
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <div>
@@ -2682,16 +4342,41 @@ export default function AdminQuestions() {
                                 onChange={e => updateStepField(index, 'prompt', e.target.value)}
                                 className={`${glassInput} min-h-[80px]`}
                               />
+                              {needsSciencePreview(step.prompt) && (
+                                <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                                  <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">
+                                    Preview
+                                  </div>
+                                  <div className="text-white/85 text-sm">
+                                    <ScienceText text={step.prompt} />
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
                                 <label className={labelStyle}>Diagram SMILES (Optional)</label>
+                                {form.subject === 'chemistry' && (
+                                  <div className="flex flex-wrap items-center gap-2 mt-1 mb-2">
+                                    <span className="text-xs text-white/45">Preset:</span>
+                                    <SmilesPresetSelect
+                                      key={`step-${index}-${stepDiagramPresetNonce[index] ?? 0}`}
+                                      onPick={(smiles) => {
+                                        updateStepField(index, 'diagramSmiles', smiles);
+                                        setStepDiagramPresetNonce((prev) => ({
+                                          ...prev,
+                                          [index]: (prev[index] ?? 0) + 1,
+                                        }));
+                                      }}
+                                    />
+                                  </div>
+                                )}
                                 <Input
                                   value={step.diagramSmiles}
                                   onChange={e => updateStepField(index, 'diagramSmiles', e.target.value)}
                                   className={glassInput}
-                                  placeholder="e.g. CCO"
+                                  placeholder="e.g. c1ccccc1 or CCO"
                                 />
                                 {step.diagramSmiles && (
                                   <div className="mt-3">
@@ -2772,6 +4457,16 @@ export default function AdminQuestions() {
                                       placeholder={step.type === 'true_false' && optIdx === 0 ? 'True' : step.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
                                     />
                                   </div>
+                                  {needsSciencePreview(step.options[optIdx] || '') && (
+                                    <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-2">
+                                      <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">
+                                        Preview
+                                      </div>
+                                      <div className="text-white/85 text-sm">
+                                        <ScienceText text={step.options[optIdx] || ''} smilesSize="sm" />
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -2864,6 +4559,16 @@ export default function AdminQuestions() {
                                 className={`${glassInput} h-20 text-sm`}
                                 placeholder="Explain why the answer is correct..."
                               />
+                              {needsSciencePreview(step.explanation) && (
+                                <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                                  <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">
+                                    Preview
+                                  </div>
+                                  <div className="text-white/85 text-sm">
+                                    <ScienceText text={step.explanation} />
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             {/* Sub-steps */}
@@ -2982,6 +4687,16 @@ export default function AdminQuestions() {
                                             className={`${glassInput} min-h-[70px]`}
                                             placeholder="Mini question prompt..."
                                           />
+                                          {needsSciencePreview(sub.prompt) && (
+                                            <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                                              <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">
+                                                Preview
+                                              </div>
+                                              <div className="text-white/85 text-sm">
+                                                <ScienceText text={sub.prompt} />
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
 
                                         <div className={`grid gap-4 bg-gradient-to-br from-black/30 to-black/10 p-4 rounded-xl border-2 ${sub.type === 'true_false' ? 'grid-cols-2 border-green-500/20' : 'grid-cols-2 border-blue-500/20'}`}>
@@ -3017,6 +4732,16 @@ export default function AdminQuestions() {
                                                   placeholder={sub.type === 'true_false' && optIdx === 0 ? 'True' : sub.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
                                                 />
                                               </div>
+                                              {needsSciencePreview(sub.options[optIdx] || '') && (
+                                                <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-2">
+                                                  <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">
+                                                    Preview
+                                                  </div>
+                                                  <div className="text-white/85 text-sm">
+                                                    <ScienceText text={sub.options[optIdx] || ''} smilesSize="sm" />
+                                                  </div>
+                                                </div>
+                                              )}
                                             </div>
                                           ))}
                                         </div>
@@ -3114,6 +4839,16 @@ export default function AdminQuestions() {
                                             className={`${glassInput} h-20 text-sm`}
                                             placeholder="Explain why the answer is correct..."
                                           />
+                                          {needsSciencePreview(sub.explanation) && (
+                                            <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                                              <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">
+                                                Preview
+                                              </div>
+                                              <div className="text-white/85 text-sm">
+                                                <ScienceText text={sub.explanation} />
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     </div>

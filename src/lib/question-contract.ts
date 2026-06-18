@@ -10,7 +10,21 @@
  * ═══════════════════════════════════════════════════════════════════════
  */
 
-import { StepBasedQuestion, QuestionStep, QuestionSubStep, GraphConfig, GraphColor, GraphPoint } from '@/types/question-contract';
+import {
+    StepBasedQuestion,
+    QuestionStep,
+    QuestionSubStep,
+    GraphAngleMarker,
+    GraphConfig,
+    GraphColor,
+    GraphDisplayMode,
+    GraphScaleMode,
+    GraphLabel,
+    GraphPoint,
+    GraphPolygon,
+    GraphSeries,
+} from '@/types/question-contract';
+import { normalizeInlineMathOption } from '@/lib/optionMath';
 
 /**
  * Maps WebSocket/Database payload to canonical StepBasedQuestion.
@@ -202,7 +216,11 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
     if (!Array.isArray(rawStep.options)) {
         warn('Options missing; defaulting to empty array');
     }
-    options = options.map(opt => (opt ?? '').toString()).map(o => o.trim()).filter(Boolean);
+    options = options
+        .map(opt => (opt ?? '').toString())
+        .map(o => o.trim())
+        .filter(Boolean)
+        .map(normalizeInlineMathOption);
 
     // Variable option count:
     // - true_false: exactly 2
@@ -301,7 +319,11 @@ function mapToQuestionStep(rawStep: any, fallbackIndex: number, questionId: stri
                     : '';
 
             let subOptions = Array.isArray(rawSub.options) ? rawSub.options : [];
-            subOptions = subOptions.map((opt: any) => (opt ?? '').toString()).map((o: string) => o.trim()).filter(Boolean);
+            subOptions = subOptions
+                .map((opt: any) => (opt ?? '').toString())
+                .map((o: string) => o.trim())
+                .filter(Boolean)
+                .map(normalizeInlineMathOption);
 
             if (subType === 'true_false') {
                 subOptions = subOptions.slice(0, 2);
@@ -358,6 +380,18 @@ function normalizeGraphColor(raw: any): GraphColor {
     return c === 'black' ? 'black' : 'white';
 }
 
+function normalizeGraphDisplayMode(raw: any): GraphDisplayMode {
+    const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+    return mode === 'alevelsketch' || mode === 'a_level_sketch' || mode === 'a-level-sketch'
+        ? 'aLevelSketch'
+        : 'standard';
+}
+
+function normalizeGraphScaleMode(raw: any): GraphScaleMode {
+    const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+    return mode === 'fill' ? 'fill' : 'equalUnits';
+}
+
 function isFiniteNumber(n: any): n is number {
     return typeof n === 'number' && Number.isFinite(n);
 }
@@ -371,16 +405,174 @@ function coerceNumber(n: any): number | undefined {
     return undefined;
 }
 
-function parseGraphPoints(raw: any): GraphPoint[] | null {
+function parseGraphPoint(raw: any): GraphPoint | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const x = coerceNumber((raw as any).x);
+    const y = coerceNumber((raw as any).y);
+    return isFiniteNumber(x) && isFiniteNumber(y) ? { x, y } : null;
+}
+
+function parseGraphPoints(raw: any, minCount = 2): GraphPoint[] | null {
     if (!Array.isArray(raw)) return null;
     const pts: GraphPoint[] = [];
     for (const p of raw) {
-        if (!p || typeof p !== 'object') continue;
-        const x = coerceNumber((p as any).x);
-        const y = coerceNumber((p as any).y);
-        if (isFiniteNumber(x) && isFiniteNumber(y)) pts.push({ x, y });
+        const point = parseGraphPoint(p);
+        if (point) pts.push(point);
     }
-    return pts.length >= 2 ? pts : null;
+    return pts.length >= minCount ? pts : null;
+}
+
+function parseGraphBoolean(raw: any): boolean | undefined {
+    return typeof raw === 'boolean' ? raw : undefined;
+}
+
+function parseGraphPolygon(raw: any): GraphPolygon | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const points = parseGraphPoints(raw.points, 3);
+    if (!points) return null;
+
+    const fill = parseGraphBoolean(raw.fill);
+    const stroke = parseGraphBoolean(raw.stroke);
+    if (fill === false && stroke === false) return null;
+
+    return {
+        points,
+        fill,
+        stroke,
+    };
+}
+
+function parseGraphLabel(raw: any): GraphLabel | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const x = coerceNumber(raw.x);
+    const y = coerceNumber(raw.y);
+    const text = typeof raw.text === 'string' ? raw.text.trim() : '';
+    if (!text || !isFiniteNumber(x) || !isFiniteNumber(y)) return null;
+
+    const offsetX = coerceNumber(raw.offsetX ?? raw.offset_x);
+    const offsetY = coerceNumber(raw.offsetY ?? raw.offset_y);
+
+    return {
+        x,
+        y,
+        text,
+        offsetX,
+        offsetY,
+    };
+}
+
+function parseGraphAngleMarker(raw: any): GraphAngleMarker | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const type = typeof raw.type === 'string' ? raw.type.trim().toLowerCase() : '';
+    if (type !== 'right') return null;
+
+    const vertex = parseGraphPoint(raw.vertex);
+    const p1 = parseGraphPoint(raw.p1);
+    const p2 = parseGraphPoint(raw.p2);
+    if (!vertex || !p1 || !p2) return null;
+
+    return {
+        vertex,
+        p1,
+        p2,
+        type: 'right',
+    };
+}
+
+function parseGraphSeries(raw: any): GraphSeries | null {
+    if (!raw || typeof raw !== 'object') return null;
+
+    const type = typeof raw.type === 'string' ? raw.type.trim().toLowerCase() : '';
+    const showEndpoints = parseGraphBoolean(raw.showEndpoints ?? raw.show_endpoints);
+    const showEndpointLabels = parseGraphBoolean(raw.showEndpointLabels ?? raw.show_endpoint_labels);
+
+    if (type === 'function') {
+        const equation = typeof raw.equation === 'string' ? raw.equation.trim() : '';
+        if (!equation) return null;
+
+        let xStart = coerceNumber(raw.xStart ?? raw.x_start);
+        let xEnd = coerceNumber(raw.xEnd ?? raw.x_end);
+        if (xStart != null && xEnd != null && xStart > xEnd) {
+            [xStart, xEnd] = [xEnd, xStart];
+        }
+        if (xStart != null && xEnd != null && xStart === xEnd) {
+            xStart = undefined;
+            xEnd = undefined;
+        }
+
+        return {
+            type: 'function',
+            equation,
+            xStart,
+            xEnd,
+            showEndpoints,
+            showEndpointLabels,
+        };
+    }
+
+    if (type === 'points') {
+        const points = parseGraphPoints(raw.points);
+        if (!points) return null;
+        return {
+            type: 'points',
+            points,
+            showEndpoints,
+            showEndpointLabels,
+        };
+    }
+
+    return null;
+}
+
+function buildGraphConfig(raw: any): GraphConfig | null {
+    if (!raw || typeof raw !== 'object') return null;
+
+    const displayMode = normalizeGraphDisplayMode(raw.displayMode ?? raw.display_mode);
+    const scaleMode = normalizeGraphScaleMode(raw.scaleMode ?? raw.scale_mode);
+    const color = normalizeGraphColor(raw.color);
+    const xMin = coerceNumber(raw.xMin ?? raw.x_min);
+    const xMax = coerceNumber(raw.xMax ?? raw.x_max);
+    const yMin = coerceNumber(raw.yMin ?? raw.y_min);
+    const yMax = coerceNumber(raw.yMax ?? raw.y_max);
+    const polygons = Array.isArray(raw.polygons)
+        ? raw.polygons.map(parseGraphPolygon).filter(Boolean) as GraphPolygon[]
+        : [];
+    const labels = Array.isArray(raw.labels)
+        ? raw.labels.map(parseGraphLabel).filter(Boolean) as GraphLabel[]
+        : [];
+    const angleMarkers = Array.isArray(raw.angleMarkers ?? raw.angle_markers)
+        ? (raw.angleMarkers ?? raw.angle_markers)
+            .map(parseGraphAngleMarker)
+            .filter(Boolean) as GraphAngleMarker[]
+        : [];
+    let series: GraphSeries[] = [];
+
+    if (Array.isArray(raw.series)) {
+        series = raw.series.map(parseGraphSeries).filter(Boolean) as GraphSeries[];
+    }
+
+    const legacySeries = parseGraphSeries(raw);
+    if (series.length === 0 && legacySeries) {
+        series = [legacySeries];
+    }
+
+    if (series.length === 0 && polygons.length === 0 && labels.length === 0 && angleMarkers.length === 0) {
+        return null;
+    }
+
+    return {
+        displayMode,
+        scaleMode,
+        color,
+        xMin,
+        xMax,
+        yMin,
+        yMax,
+        ...(series.length > 0 ? { series } : {}),
+        ...(polygons.length > 0 ? { polygons } : {}),
+        ...(labels.length > 0 ? { labels } : {}),
+        ...(angleMarkers.length > 0 ? { angleMarkers } : {}),
+    };
 }
 
 /**
@@ -397,27 +589,9 @@ function mapToGraphConfig(payload: any, steps: QuestionStep[]): GraphConfig | nu
         if (typeof g === 'string') {
             try { g = JSON.parse(g); } catch { g = null; }
         }
-        if (g && typeof g === 'object') {
-            const type = typeof g.type === 'string' ? g.type.trim().toLowerCase() : '';
-            const color = normalizeGraphColor(g.color);
-            const xMin = coerceNumber(g.xMin);
-            const xMax = coerceNumber(g.xMax);
-            const yMin = coerceNumber(g.yMin);
-            const yMax = coerceNumber(g.yMax);
-
-            if (type === 'function') {
-                const equation = typeof g.equation === 'string' ? g.equation.trim() : '';
-                if (equation) {
-                    return { type: 'function', equation, color, xMin, xMax, yMin, yMax };
-                }
-            }
-
-            if (type === 'points') {
-                const points = parseGraphPoints(g.points);
-                if (points) {
-                    return { type: 'points', points, color, xMin, xMax, yMin, yMax };
-                }
-            }
+        const graph = buildGraphConfig(g);
+        if (graph) {
+            return graph;
         }
     }
 
@@ -426,11 +600,16 @@ function mapToGraphConfig(payload: any, steps: QuestionStep[]): GraphConfig | nu
     if (typeof legacyEq === 'string' && legacyEq.trim()) {
         const legacyColor = payload?.graphColor ?? payload?.graph_color ?? 'white';
         return {
-            type: 'function',
-            equation: legacyEq.trim(),
             color: normalizeGraphColor(legacyColor),
+            scaleMode: 'equalUnits',
             xMin: -10,
             xMax: 10,
+            series: [
+                {
+                    type: 'function',
+                    equation: legacyEq.trim(),
+                },
+            ],
         };
     }
 
@@ -443,11 +622,16 @@ function mapToGraphConfig(payload: any, steps: QuestionStep[]): GraphConfig | nu
             if (typeof eq === 'string' && eq.trim()) {
                 const c = s?.graphColor ?? s?.graph_color ?? 'white';
                 return {
-                    type: 'function',
-                    equation: eq.trim(),
                     color: normalizeGraphColor(c),
+                    scaleMode: 'equalUnits',
                     xMin: -10,
                     xMax: 10,
+                    series: [
+                        {
+                            type: 'function',
+                            equation: eq.trim(),
+                        },
+                    ],
                 };
             }
         }

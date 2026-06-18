@@ -22,7 +22,6 @@ import Loadout from "./routes/Loadout";
 import Profile from "./pages/Profile";
 import Career from "./pages/Career";
 import NotFound from "./pages/NotFound";
-import ModeSelection from "./pages/ModeSelection";
 import GameModes from "./components/GameModes";
 import StepBattlePage from "./components/StepBattlePage";
 import BattlePageNew from "./components/BattlePageNew";
@@ -38,7 +37,7 @@ import BattleConnected from "./pages/BattleConnected";
 import MatchResults from "./pages/MatchResults";
 import DebugQuestions from "./pages/DebugQuestions";
 import Practice from "./pages/Practice";
-import OfflineCampaign from "./pages/OfflineCampaign";
+import CampaignMode from "./pages/CampaignMode";
 import MatchSandbox from "./pages/MatchSandbox";
 import SoloChallenge from "./pages/SoloChallenge";
 import { DevContractTest } from "./pages/DevContractTest";
@@ -73,7 +72,8 @@ const App = () => {
                       <Route path="/daily-challenge" element={<DailyChallenge />} />
                       <Route path="/study" element={<Study />} />
                       <Route path="/practice" element={<Practice />} />
-                      <Route path="/offline" element={<OfflineCampaign />} />
+                      <Route path="/campaign" element={<CampaignMode />} />
+                      <Route path="/offline" element={<Navigate to="/campaign" replace />} />
                       <Route path="/battle/queue" element={<BattleQueue />} />
                       <Route path="/modules" element={<Modules />} />
                       <Route path="/challenges" element={<Challenges />} />
@@ -84,7 +84,7 @@ const App = () => {
                       <Route path="/profile" element={<Profile />} />
                       <Route path="/career" element={<Career />} />
                       <Route path="/old-home" element={<Index />} />
-                      <Route path="/modes" element={<ModeSelection />} />
+                      <Route path="/modes" element={<Navigate to="/campaign" replace />} />
                       <Route path="/game-modes" element={<GameModes />} />
                       <Route path="/admin/login" element={<AdminLogin />} />
                       <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
@@ -105,19 +105,25 @@ const App = () => {
                           </ProtectedAdminRoute>
                         }
                       />
-                      <Route path="/debug/questions" element={<DebugQuestions />} />
-                      <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
-                      <Route path="/dev/contract-test" element={<DevContractTest />} />
-                      <Route path="/dev/db-test" element={<DevDatabaseTest />} />
-                      <Route path="/dev/mapper-test" element={<DevMapperTest />} />
-                      <Route path="/supabase-debug" element={<SupabaseDebug />} />
-                      <Route path="/matchmaking-test" element={<MatchmakingTest />} />
+                      {/* Dev/debug tooling is excluded from production builds */}
+                      {import.meta.env.DEV && (
+                        <>
+                          <Route path="/debug/questions" element={<DebugQuestions />} />
+                          <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
+                          <Route path="/dev/contract-test" element={<DevContractTest />} />
+                          <Route path="/dev/db-test" element={<DevDatabaseTest />} />
+                          <Route path="/dev/mapper-test" element={<DevMapperTest />} />
+                          <Route path="/supabase-debug" element={<SupabaseDebug />} />
+                          <Route path="/matchmaking-test" element={<MatchmakingTest />} />
+                        </>
+                      )}
                       <Route path="/battle-simple/:matchId" element={<BattleSimple />} />
                       <Route path="/battle" element={<BattleLoader />} />
                       {/* Old route - using useGame hook (deprecated, use /online-battle-new instead) */}
                       {/* <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} /> */}
                       <Route path="/online-battle-new/:matchId" element={<BattleConnected />} />
                       <Route path="/battle/:matchId" element={<BattleConnected />} />
+                      <Route path="/campaign/play" element={<SoloChallenge />} />
                       <Route path="/solo-challenge" element={<SoloChallenge />} />
                       <Route path="/match-results/:matchId" element={<MatchResults />} />
                       <Route

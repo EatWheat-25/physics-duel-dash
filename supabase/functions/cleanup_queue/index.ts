@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { corsHeaders } from '../_shared/cors.ts'
+import { getSecretKey, isElevatedAuthHeader } from '../_shared/keys.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -7,14 +8,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Allow calls from cron jobs (no auth header) or with service role key
+    // Allow calls from cron jobs (shared secret header) or with an elevated key
     const authHeader = req.headers.get('Authorization')
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const userAgent = req.headers.get('User-Agent') || ''
 
-    // Allow if: called by pg_cron (no auth but specific user agent) OR has valid service role
-    const isCronJob = !authHeader && userAgent.includes('pg_net')
-    const hasServiceRole = authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey)
+    // Cron calls must present the shared secret header (User-Agent is spoofable).
+    const cronSecret = Deno.env.get('CRON_SECRET')
+    const isCronJob = !!cronSecret && req.headers.get('x-cron-secret') === cronSecret
+    const hasServiceRole = isElevatedAuthHeader(authHeader)
 
     if (!isCronJob && !hasServiceRole) {
       console.log('Unauthorized cleanup attempt')
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      serviceRoleKey ?? ''
+      getSecretKey()
     )
 
     console.log('Running queue cleanup...')

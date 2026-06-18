@@ -12,6 +12,8 @@ export function MainQuestionCard({
   totalSteps,
   isWebSocketConnected = true,
   onSubmitEarly,
+  hasRequestedEarly = false,
+  opponentRequestedEarly = false,
 }: {
   stem: string
   imageUrl?: string | null
@@ -20,6 +22,8 @@ export function MainQuestionCard({
   totalSteps: number
   isWebSocketConnected?: boolean
   onSubmitEarly?: () => void
+  hasRequestedEarly?: boolean
+  opponentRequestedEarly?: boolean
 }) {
   const paperGraph: GraphConfig | null | undefined = graph ? ({ ...graph, color: 'black' } as GraphConfig) : graph
 
@@ -71,16 +75,35 @@ export function MainQuestionCard({
         className="w-full mt-6"
       >
         <button
-          onClick={() => onSubmitEarly?.()}
-          disabled={!isWebSocketConnected || !onSubmitEarly}
+          onClick={() => {
+            if (hasRequestedEarly) return
+            onSubmitEarly?.()
+          }}
+          disabled={!isWebSocketConnected || !onSubmitEarly || hasRequestedEarly}
           className={`w-full py-6 px-8 rounded-md text-xl transition-colors border ${
-            isWebSocketConnected && onSubmitEarly
-              ? 'bg-white hover:bg-slate-50 text-black border-slate-300 cursor-pointer'
-              : 'bg-white text-black/50 border-slate-300 cursor-not-allowed opacity-70'
+            !isWebSocketConnected || !onSubmitEarly
+              ? 'bg-white text-black/50 border-slate-300 cursor-not-allowed opacity-70'
+              : hasRequestedEarly
+                ? 'bg-slate-100 text-black/60 border-slate-300 cursor-wait'
+                : 'bg-white hover:bg-slate-50 text-black border-slate-300 cursor-pointer'
           }`}
         >
-          {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
+          {!isWebSocketConnected
+            ? 'Connecting...'
+            : hasRequestedEarly
+              ? 'Waiting for opponent...'
+              : 'Submit Answer Early'}
         </button>
+        {!hasRequestedEarly && opponentRequestedEarly && (
+          <div className="mt-3 text-center text-sm text-white/70">
+            Your opponent is ready to start the steps — submit early to skip ahead.
+          </div>
+        )}
+        {hasRequestedEarly && (
+          <div className="mt-3 text-center text-sm text-white/70">
+            The steps begin once your opponent submits early too (or the timer runs out).
+          </div>
+        )}
       </motion.div>
     </motion.div>
   )

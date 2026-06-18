@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
+import { getPublishableKey } from '../_shared/keys.ts'
 
 /**
  * Simple, Reliable game-ws
@@ -43,7 +44,7 @@ Deno.serve(async (req) => {
   // Verify JWT
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    getPublishableKey(),
     { global: { headers: { Authorization: `Bearer ${token}` } } }
   )
 

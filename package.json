@@ -21,7 +21,8 @@
     "db:check": "tsx scripts/query-supabase.ts check",
     "db:match": "tsx scripts/query-supabase.ts match",
     "check:match": "tsx scripts/check-match.ts",
-    "debug:connection": "tsx scripts/debug-connection.ts"
+    "debug:connection": "tsx scripts/debug-connection.ts",
+    "fix:fractions": "node scripts/fix-slash-fractions.mjs"
   },
   "dependencies": {
     "@fontsource/orbitron": "^5.2.8",

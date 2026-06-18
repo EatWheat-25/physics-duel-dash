@@ -104,12 +104,14 @@ export default function Auth() {
   };
 
   const handleGoogleLogin = async () => {
+    const redirectTo = `${window.location.origin}/onboarding`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/onboarding`,
+        redirectTo,
       },
     });
+
     if (error) {
       toast({
         title: "Error",
@@ -133,6 +135,7 @@ export default function Auth() {
           data: { is_guest: true },
         },
       });
+
       if (signUpError) throw signUpError;
 
       // Automatically sign in the guest user
@@ -140,6 +143,7 @@ export default function Auth() {
         email: guestEmail,
         password: guestPassword,
       });
+
       if (signInError) throw signInError;
 
       navigate("/onboarding");

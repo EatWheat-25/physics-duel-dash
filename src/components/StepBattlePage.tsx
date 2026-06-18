@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
 import { StepBasedQuestion, BattleProgress, StepResult } from '@/types/questions';
 import { ScienceText } from '@/components/chem/ScienceText';
+import { normalizeInlineMathOption } from '@/lib/optionMath';
 
 interface StepMatchStats {
   totalQuestions: number;
@@ -337,7 +338,7 @@ const StepBattlePage: React.FC<StepBattlePageProps> = ({ onGoBack, questions, on
                   whileTap={!showFeedback ? { scale: 0.98 } : {}}
                 >
                   <span className="font-semibold mr-2">{String.fromCharCode(65 + index)}.</span>
-                  <ScienceText text={option} smilesSize="sm" />
+                  <ScienceText text={normalizeInlineMathOption(option)} smilesSize="sm" />
                 </motion.button>
               ))}
             </div>

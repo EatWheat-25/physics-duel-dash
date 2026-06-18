@@ -664,11 +664,11 @@ export const QUESTION_TEMPLATES: QuestionTemplate[] = [
       },
       {
         id: 'step-3',
-        questionTemplate: 'Use formula cosθ = (a·b)/(|a||b|):',
-        optionsTemplate: ['θ = arccos((a·b)/(|a||b|))', 'θ = (a·b)/(|a||b|)', 'θ = arcsin((a·b)/(|a||b|))', 'Cannot find angle'],
+        questionTemplate: 'Use formula cosθ = \frac{a·b}{|a||b|}:',
+        optionsTemplate: ['θ = arccos(\frac{a·b}{|a||b|})', 'θ = \frac{a·b}{|a||b|}', 'θ = arcsin(\frac{a·b}{|a||b|})', 'Cannot find angle'],
         correctAnswer: 0,
         marks: 2,
-        explanationTemplate: 'cosθ = (a·b)/(|a||b|), so θ = arccos((a·b)/(|a||b|))'
+        explanationTemplate: 'cosθ = \frac{a·b}{|a||b|}, so θ = arccos(\frac{a·b}{|a||b|})'
       }
     ]
   },
@@ -699,10 +699,10 @@ export const QUESTION_TEMPLATES: QuestionTemplate[] = [
       {
         id: 'step-2',
         questionTemplate: 'Integrate both sides:',
-        optionsTemplate: ['ln|y| = {k}x + C', 'y = {k}x + C', '1/y = {k}x + C', 'y² = {k}x + C'],
+        optionsTemplate: ['ln|y| = {k}x + C', 'y = {k}x + C', '\frac{1}{y} = {k}x + C', 'y² = {k}x + C'],
         correctAnswer: 0,
         marks: 3,
-        explanationTemplate: '∫(1/y)dy = ∫{k}dx gives ln|y| = {k}x + C'
+        explanationTemplate: '∫(\frac{1}{y})dy = ∫{k}dx gives ln|y| = {k}x + C'
       },
       {
         id: 'step-3',
@@ -749,11 +749,11 @@ export const QUESTION_TEMPLATES: QuestionTemplate[] = [
       },
       {
         id: 'step-3',
-        questionTemplate: 'Use dy/dx = (dy/dt)/(dx/dt):',
-        optionsTemplate: ['dy/dx = ({3*b}t²)/({2*a}t) = ({3*b}/{2*a})t', 'dy/dx = {3*b}t²/{2*a}', 'dy/dx = ({3*b}t)/({2*a}t²)', 'Cannot simplify'],
+        questionTemplate: 'Use dy/dx = \frac{dy/dt}{dx/dt}:',
+        optionsTemplate: ['dy/dx = \frac{{3*b}t²}{{2*a}t} = ({3*b}/{2*a})t', 'dy/dx = {3*b}t²/{2*a}', 'dy/dx = \frac{{3*b}t}{{2*a}t²}', 'Cannot simplify'],
         correctAnswer: 0,
         marks: 3,
-        explanationTemplate: 'dy/dx = (dy/dt)/(dx/dt) = ({3*b}t²)/({2*a}t) = ({3*b}/{2*a})t'
+        explanationTemplate: 'dy/dx = \frac{dy/dt}{dx/dt} = \frac{{3*b}t²}{{2*a}t} = ({3*b}/{2*a})t'
       }
     ]
   },
@@ -834,10 +834,10 @@ export const QUESTION_TEMPLATES: QuestionTemplate[] = [
       {
         id: 'step-3',
         questionTemplate: 'Solve for dy/dx:',
-        optionsTemplate: ['dy/dx = (-2x - y)/(x + 2y)', 'dy/dx = -2x - y', 'dy/dx = (x + 2y)/(-2x - y)', 'Cannot solve'],
+        optionsTemplate: ['dy/dx = \frac{-2x - y}{x + 2y}', 'dy/dx = -2x - y', 'dy/dx = \frac{x + 2y}{-2x - y}', 'Cannot solve'],
         correctAnswer: 0,
         marks: 2,
-        explanationTemplate: 'Factor out dy/dx: dy/dx(x + 2y) = -2x - y, so dy/dx = (-2x - y)/(x + 2y)'
+        explanationTemplate: 'Factor out dy/dx: dy/dx(x + 2y) = -2x - y, so dy/dx = \frac{-2x - y}{x + 2y}'
       }
     ]
   },
@@ -910,7 +910,7 @@ export const QUESTION_TEMPLATES: QuestionTemplate[] = [
     chapter: 'a2-composites',
     rank: { tier: 'Pocket Calculator', subRank: 1 },
     difficulty: 'A★',
-    templateText: 'Integrate ∫(x² + {a})/(x³ + {3*a}x + {b}) dx',
+    templateText: 'Integrate ∫\frac{x² + {a}}{x³ + {3*a}x + {b}} dx',
     variables: {
       a: [1, 2, 3],
       b: [1, 2, 4]
@@ -930,18 +930,18 @@ export const QUESTION_TEMPLATES: QuestionTemplate[] = [
       {
         id: 'step-2',
         questionTemplate: 'Rewrite integral:',
-        optionsTemplate: ['(1/3)∫(3x² + {3*a})/(x³ + {3*a}x + {b}) dx', 'Cannot rewrite', 'Use substitution u = x²', 'Expand and integrate'],
+        optionsTemplate: ['(\frac{1}{3})∫\frac{3x² + {3*a}}{x³ + {3*a}x + {b}} dx', 'Cannot rewrite', 'Use substitution u = x²', 'Expand and integrate'],
         correctAnswer: 0,
         marks: 5,
-        explanationTemplate: 'Multiply numerator and denominator appropriately: (1/3)∫(3x² + {3*a})/(x³ + {3*a}x + {b}) dx'
+        explanationTemplate: 'Multiply numerator and denominator appropriately: (\frac{1}{3})∫\frac{3x² + {3*a}}{x³ + {3*a}x + {b}} dx'
       },
       {
         id: 'step-3',
         questionTemplate: 'Recognize standard form:',
-        optionsTemplate: ['∫f\'(x)/f(x) dx = ln|f(x)| + C', '∫1/x dx = ln|x| + C', 'Use by parts', 'Cannot recognize'],
+        optionsTemplate: ['∫f\'(x)/f(x) dx = ln|f(x)| + C', '∫\frac{1}{x} dx = ln|x| + C', 'Use by parts', 'Cannot recognize'],
         correctAnswer: 0,
         marks: 5,
-        explanationTemplate: 'This is ∫f\'(x)/f(x) dx where f(x) = x³ + {3*a}x + {b}, giving (1/3)ln|x³ + {3*a}x + {b}| + C'
+        explanationTemplate: 'This is ∫f\'(x)/f(x) dx where f(x) = x³ + {3*a}x + {b}, giving (\frac{1}{3})ln|x³ + {3*a}x + {b}| + C'
       }
     ]
   },
@@ -1017,8 +1017,8 @@ export const QUESTION_TEMPLATES: QuestionTemplate[] = [
     topicTags: ['integration by parts', 'logarithms'],
     steps: [
       { id: 'step-1', questionTemplate: 'Choose u = ln(x), dv/dx = 1', optionsTemplate: ['Correct choice', 'u = 1, dv/dx = ln(x)', 'Cannot use by parts', 'Use substitution'], correctAnswer: 0, marks: 2, explanationTemplate: 'Let u = ln(x), dv/dx = 1' },
-      { id: 'step-2', questionTemplate: 'Find du/dx = 1/x, v = x', optionsTemplate: ['Correct derivatives', 'Wrong derivatives', 'Cannot find', 'Use approximation'], correctAnswer: 0, marks: 2, explanationTemplate: 'du/dx = 1/x, ∫1 dx = x' },
-      { id: 'step-3', questionTemplate: 'Apply formula: xln(x) - ∫x×(1/x) dx', optionsTemplate: ['xln(x) - x + C', 'xln(x) + C', 'ln(x) - x + C', 'Cannot integrate'], correctAnswer: 0, marks: 3, explanationTemplate: 'Result: xln(x) - x + C' }
+      { id: 'step-2', questionTemplate: 'Find du/dx = \frac{1}{x}, v = x', optionsTemplate: ['Correct derivatives', 'Wrong derivatives', 'Cannot find', 'Use approximation'], correctAnswer: 0, marks: 2, explanationTemplate: 'du/dx = \frac{1}{x}, ∫1 dx = x' },
+      { id: 'step-3', questionTemplate: 'Apply formula: xln(x) - ∫x×(\frac{1}{x}) dx', optionsTemplate: ['xln(x) - x + C', 'xln(x) + C', 'ln(x) - x + C', 'Cannot integrate'], correctAnswer: 0, marks: 3, explanationTemplate: 'Result: xln(x) - x + C' }
     ]
   },
 
@@ -1036,7 +1036,7 @@ export const QUESTION_TEMPLATES: QuestionTemplate[] = [
     topicTags: ['trigonometric integration', 'double angle'],
     steps: [
       { id: 'step-1', questionTemplate: 'Rewrite using double angle formula', optionsTemplate: ['∫(1-cos(2x))/2 dx', '∫sin(x)×sin(x) dx', 'Cannot rewrite', 'Use substitution'], correctAnswer: 0, marks: 2, explanationTemplate: 'sin²(x) = (1-cos(2x))/2' },
-      { id: 'step-2', questionTemplate: 'Split integral', optionsTemplate: ['(1/2)∫1 dx - (1/2)∫cos(2x) dx', '∫1 dx - ∫cos(2x) dx', 'Cannot split', 'Use by parts'], correctAnswer: 0, marks: 2, explanationTemplate: 'Separate into two integrals' },
+      { id: 'step-2', questionTemplate: 'Split integral', optionsTemplate: ['(\frac{1}{2})∫1 dx - (\frac{1}{2})∫cos(2x) dx', '∫1 dx - ∫cos(2x) dx', 'Cannot split', 'Use by parts'], correctAnswer: 0, marks: 2, explanationTemplate: 'Separate into two integrals' },
       { id: 'step-3', questionTemplate: 'Integrate', optionsTemplate: ['x/2 - sin(2x)/4 + C', 'x - sin(2x)/2 + C', 'sin²(x) + C', 'Cannot integrate'], correctAnswer: 0, marks: 2, explanationTemplate: '∫(1-cos(2x))/2 dx = x/2 - sin(2x)/4 + C' }
     ]
   },
@@ -1103,7 +1103,7 @@ export const QUESTION_TEMPLATES: QuestionTemplate[] = [
 
   { id: 'a2-bronze1-inverse-func', mode: 'A2-Only', chapter: 'functions-advanced', rank: { tier: 'Bronze', subRank: 1 }, difficulty: 'Easy', templateText: 'Find inverse of f(x) = {a}x + {b}', variables: { a: [2, 3, 4], b: [1, 2, 3] }, totalMarks: 4, estimatedTime: 3, topicTags: ['inverse functions'], steps: [{ id: 's1', questionTemplate: 'Swap x and y', optionsTemplate: ['x = {a}y + {b}', 'y = {a}x + {b}', 'Cannot swap', 'Use different method'], correctAnswer: 0, marks: 2, explanationTemplate: 'Replace y with x' }, { id: 's2', questionTemplate: 'Solve for y', optionsTemplate: ['y = (x - {b})/{a}', 'y = {a}x - {b}', 'Cannot solve', 'Use approximation'], correctAnswer: 0, marks: 2, explanationTemplate: 'Rearrange for y' }] },
   
-  { id: 'a2-bronze2-tan-compound', mode: 'A2-Only', chapter: 'trigonometry-3', rank: { tier: 'Bronze', subRank: 2 }, difficulty: 'Easy', templateText: 'Simplify tan({angle1}° + {angle2}°) using tan formula', variables: { angle1: [30, 45], angle2: [45, 60] }, totalMarks: 5, estimatedTime: 4, topicTags: ['compound angles', 'tangent'], steps: [{ id: 's1', questionTemplate: 'Use tan(A+B) = (tanA+tanB)/(1-tanAtanB)', optionsTemplate: ['Correct formula', 'Wrong formula', 'Cannot use', 'Use sin/cos instead'], correctAnswer: 0, marks: 3, explanationTemplate: 'Standard compound angle formula' }, { id: 's2', questionTemplate: 'Substitute and simplify', optionsTemplate: ['Calculate', 'Cannot simplify', 'Use calculator', 'Use approximation'], correctAnswer: 0, marks: 2, explanationTemplate: 'Use exact values' }] },
+  { id: 'a2-bronze2-tan-compound', mode: 'A2-Only', chapter: 'trigonometry-3', rank: { tier: 'Bronze', subRank: 2 }, difficulty: 'Easy', templateText: 'Simplify tan({angle1}° + {angle2}°) using tan formula', variables: { angle1: [30, 45], angle2: [45, 60] }, totalMarks: 5, estimatedTime: 4, topicTags: ['compound angles', 'tangent'], steps: [{ id: 's1', questionTemplate: 'Use tan(A+B) = \frac{tanA+tanB}{1-tanAtanB}', optionsTemplate: ['Correct formula', 'Wrong formula', 'Cannot use', 'Use sin/cos instead'], correctAnswer: 0, marks: 3, explanationTemplate: 'Standard compound angle formula' }, { id: 's2', questionTemplate: 'Substitute and simplify', optionsTemplate: ['Calculate', 'Cannot simplify', 'Use calculator', 'Use approximation'], correctAnswer: 0, marks: 2, explanationTemplate: 'Use exact values' }] },
   
   { id: 'a2-silver1-pf-improper', mode: 'A2-Only', chapter: 'partial-fractions', rank: { tier: 'Silver', subRank: 1 }, difficulty: 'Med', templateText: 'Express (x²+{a}x+{b})/((x+{c})(x+{d})) in partial fractions', variables: { a: [3, 4], b: [2, 3], c: [1, 2], d: [3, 4] }, totalMarks: 8, estimatedTime: 7, topicTags: ['improper partial fractions'], steps: [{ id: 's1', questionTemplate: 'Divide first since degree numerator ≥ denominator', optionsTemplate: ['Polynomial division needed', 'Direct split', 'Cannot divide', 'Use substitution'], correctAnswer: 0, marks: 3, explanationTemplate: 'Improper fraction needs division' }, { id: 's2', questionTemplate: 'Split remainder', optionsTemplate: ['Use partial fractions on remainder', 'Cannot split', 'Stop after division', 'Use different method'], correctAnswer: 0, marks: 5, explanationTemplate: 'Remainder goes into partial fractions' }] },
   

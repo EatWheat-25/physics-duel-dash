@@ -85,6 +85,8 @@ interface ConnectionState {
   playerRoundWins: { [playerId: string]: number }
   matchOver: boolean
   matchWinnerId: string | null
+  // Players who asked to skip the main question early (both must agree)
+  earlyAnswerRequestedBy: string[]
 }
 
 interface RoundStartEvent {
@@ -156,7 +158,8 @@ export function useGame(match: MatchRow | null) {
     targetRoundsToWin: 3,
     playerRoundWins: {},
     matchOver: false,
-    matchWinnerId: null
+    matchWinnerId: null,
+    earlyAnswerRequestedBy: []
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -615,7 +618,8 @@ export function useGame(match: MatchRow | null) {
           return
         }
 
-        const wsUrl = `${SUPABASE_URL.replace('http', 'ws')}/functions/v1/game-ws?token=${session.access_token}&match_id=${match.id}`
+        const wsBase = SUPABASE_URL.replace('https://', 'wss://').replace('http://', 'ws://')
+        const wsUrl = `${wsBase}/functions/v1/game-ws?token=${encodeURIComponent(session.access_token)}&match_id=${encodeURIComponent(match.id)}`
         console.log(`[useGame] ${isRetry ? `Retry ${retryCountRef.current}/${MAX_RETRY_ATTEMPTS}: ` : ''}Connecting to:`, wsUrl)
 
         const ws = new WebSocket(wsUrl)
@@ -767,6 +771,7 @@ export function useGame(match: MatchRow | null) {
                   results: null, // Clear results when new round starts
                   nextRoundEndsAt: null,
                   nextRoundTimeLeft: null,
+                  earlyAnswerRequestedBy: [],
                   errorMessage: null
                 }))
               } else {
@@ -788,6 +793,7 @@ export function useGame(match: MatchRow | null) {
                   results: null, // Clear results when new round starts
                   nextRoundEndsAt: null,
                   nextRoundTimeLeft: null,
+                  earlyAnswerRequestedBy: [],
                   errorMessage: null
                 }))
               }
@@ -808,7 +814,8 @@ export function useGame(match: MatchRow | null) {
                   answerSubmitted: false,
                   waitingForOpponent: false,
                   allStepsComplete: false,
-                  waitingForOpponentToCompleteSteps: false
+                  waitingForOpponentToCompleteSteps: false,
+                  earlyAnswerRequestedBy: []
                 }))
               } else {
                 // Other phase changes (choosing, result)
@@ -819,6 +826,12 @@ export function useGame(match: MatchRow | null) {
                   totalSteps: message.totalSteps ?? prev.totalSteps
                 }))
               }
+            } else if (message.type === 'EARLY_ANSWER_STATUS') {
+              console.log('[useGame] EARLY_ANSWER_STATUS message received', message)
+              setState(prev => ({
+                ...prev,
+                earlyAnswerRequestedBy: Array.isArray(message.requestedBy) ? message.requestedBy : []
+              }))
             } else if (message.type === 'STEP_ANSWER_RECEIVED') {
               console.log('[useGame] STEP_ANSWER_RECEIVED message received', message)
               setState(prev => ({
@@ -1274,12 +1287,18 @@ export function useGame(match: MatchRow | null) {
       if (!isMultiStepContext) return prev
 
       const status = roundRow.status
+      // Early-answer requests live on the round row so they sync across edge
+      // instances; pick them up whenever the row carries the column.
+      const nextEarlyAnswerRequestedBy = Array.isArray(roundRow.early_answer_player_ids)
+        ? roundRow.early_answer_player_ids as string[]
+        : prev.earlyAnswerRequestedBy
       if (status === 'main') {
         const nextEndsAt = roundRow.main_question_ends_at ?? prev.mainQuestionEndsAt
         return {
           ...prev,
           phase: 'main_question',
           mainQuestionEndsAt: nextEndsAt,
+          earlyAnswerRequestedBy: nextEarlyAnswerRequestedBy,
           // Clear step-specific state
           stepEndsAt: null,
           stepTimeLeft: null,
@@ -1312,7 +1331,8 @@ export function useGame(match: MatchRow | null) {
           answerSubmitted: stepChanged ? false : prev.answerSubmitted,
           waitingForOpponent: false,
           allStepsComplete: false,
-          waitingForOpponentToCompleteSteps: false
+          waitingForOpponentToCompleteSteps: false,
+          earlyAnswerRequestedBy: []
         }
       }
 
@@ -1358,7 +1378,7 @@ export function useGame(match: MatchRow | null) {
       try {
         const { data, error } = await supabase
           .from('match_rounds')
-          .select('id, status, current_step_index, step_ends_at, main_question_ends_at, question_payload, round_deadline, question_id')
+          .select('id, status, current_step_index, step_ends_at, main_question_ends_at, question_payload, round_deadline, question_id, early_answer_player_ids')
           .eq('id', roundId)
           .single() as { data: any; error: any }
 
@@ -1777,6 +1797,13 @@ export function useGame(match: MatchRow | null) {
     currentSegment: state.currentSegment,
     currentSubStepIndex: state.currentSubStepIndex,
     currentSubStep: state.currentSubStep,
+    // Early-answer consent status (both players must request to skip)
+    hasRequestedEarlyAnswer: Boolean(
+      userIdRef.current && state.earlyAnswerRequestedBy.includes(userIdRef.current)
+    ),
+    opponentRequestedEarlyAnswer: state.earlyAnswerRequestedBy.some(
+      (id) => id !== userIdRef.current
+    ),
     submitEarlyAnswer,
     submitStepAnswer,
     readyForNextRound,

@@ -12,6 +12,8 @@ import RankBadge from '@/components/RankBadge';
 import RankUpTransition from '@/components/RankUpTransition';
 import { RANKS, RankName, getRankByPoints } from '@/types/ranking';
 import { ScienceText } from '@/components/chem/ScienceText';
+import { normalizeInlineMathOption } from '@/lib/optionMath';
+import type { GraphConfig } from '@/types/question-contract';
 
 export default function BattleConnected() {
   const { matchId } = useParams();
@@ -171,6 +173,7 @@ export default function BattleConnected() {
     phase, currentStepIndex, totalSteps, mainQuestionEndsAt, stepEndsAt,
     mainQuestionTimeLeft, stepTimeLeft, subStepTimeLeft, currentStep, currentSegment, currentSubStepIndex,
     submitEarlyAnswer, submitStepAnswer,
+    hasRequestedEarlyAnswer, opponentRequestedEarlyAnswer,
     currentRoundNumber, targetRoundsToWin, playerRoundWins, matchOver, matchWinnerId,
     isWebSocketConnected, waitingForOpponent, waitingForOpponentToAcknowledge,
     allStepsComplete, waitingForOpponentToCompleteSteps, manualRetry
@@ -284,9 +287,12 @@ export default function BattleConnected() {
   const myRank = getRankByPoints(myMeta?.rank_points ?? 0);
   const oppRank = getRankByPoints(oppMeta?.rank_points ?? 0);
   const questionKeyBase = question?.id ? String(question.id) : 'question';
-  const mainQuestionKey = `main-question-${questionKeyBase}`;
-  const stepsQuestionKey = `steps-${questionKeyBase}-${currentStepIndex}-${currentSubStepIndex}-${currentSegment}`;
+  const multiStepQuestionKey = `multi-step-${questionKeyBase}`;
+  const stepsBodyKey = `steps-body-${questionKeyBase}-${currentStepIndex}-${currentSubStepIndex}-${currentSegment}`;
   const singleQuestionKey = `playing-${questionKeyBase}`;
+  const paperGraph: GraphConfig | null | undefined = (question as any)?.graph
+    ? ({ ...(question as any).graph, color: 'black' } as GraphConfig)
+    : undefined;
   const questionMotionInitial = { opacity: 0, y: 16, scale: 0.98 };
   const questionMotionAnimate = { opacity: 1, y: 0, scale: 1 };
   const questionMotionExit = {
@@ -510,7 +516,7 @@ export default function BattleConnected() {
         </div>
 
         {/* Game Content */}
-        <div className="flex-1 relative flex items-center justify-center">
+        <div className="flex-1 relative overflow-y-auto flex items-start justify-center pb-10">
           <AnimatePresence mode="wait">
             {/* CONNECTING STATE */}
             {(status === 'connecting' || status === 'connected' || status === 'both_connected') && (
@@ -519,7 +525,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
-                className="text-center"
+                className="text-center self-center"
               >
                 <div className="relative w-32 h-32 mx-auto mb-8">
                   <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full" />
@@ -539,131 +545,151 @@ export default function BattleConnected() {
               </motion.div>
             )}
 
-            {/* MAIN QUESTION PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'main_question' && !showRoundIntro && (
-              <motion.div
-                key={mainQuestionKey}
-                initial={questionMotionInitial}
-                animate={questionMotionAnimate}
-                exit={questionMotionExit}
-                transition={questionMotionTransition}
-                className="match-paper w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
-              >
-                <div className="paper-card mb-8">
-                  <div className="paper-meta mb-4">
-                    This is main question
-                  </div>
-                  {(question as any)?.graph && (
-                    <div className="mb-6">
-                      <QuestionGraph graph={(question as any).graph} />
-                    </div>
-                  )}
-                  <h3 className="paper-title">
-                    {question.stem || question.questionText || question.title}
-                  </h3>
-                  <div className="mt-4 paper-meta">
-                    {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
-                  </div>
-                </div>
-                
-                {/* Separate Early Answer Button - OUTSIDE card */}
+            {/* MULTI-STEP: Persistent main question + phase body */}
+            {status === 'playing'
+              && question
+              && !showRoundIntro
+              && (phase === 'main_question' || (phase === 'steps' && currentStep))
+              && !(phase === 'steps' && allStepsComplete && waitingForOpponentToCompleteSteps)
+              && (
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="w-full mt-6"
+                  key={multiStepQuestionKey}
+                  initial={questionMotionInitial}
+                  animate={questionMotionAnimate}
+                  exit={questionMotionExit}
+                  transition={questionMotionTransition}
+                  className="match-paper w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
                 >
-                  <button
-                    onClick={() => {
-                      if (!isWebSocketConnected) {
-                        toast.error('Connection lost. Please wait for reconnection...');
-                        return;
-                      }
-                      submitEarlyAnswer();
-                    }}
-                    disabled={!isWebSocketConnected}
-                    className={`w-full py-6 px-8 rounded-md text-xl transition-colors border ${
-                      isWebSocketConnected
-                        ? 'bg-white hover:bg-slate-50 text-black border-slate-300 cursor-pointer'
-                        : 'bg-white text-black/50 border-slate-300 cursor-not-allowed opacity-70'
-                    }`}
-                  >
-                    {isWebSocketConnected ? 'Submit Answer Early' : 'Connecting...'}
-                  </button>
-                </motion.div>
-              </motion.div>
-            )}
-
-            {/* STEPS PHASE (Multi-step) */}
-            {status === 'playing' && question && phase === 'steps' && currentStep && !showRoundIntro && !(allStepsComplete && waitingForOpponentToCompleteSteps) && (
-              <motion.div
-                key={stepsQuestionKey}
-                initial={questionMotionInitial}
-                animate={questionMotionAnimate}
-                exit={questionMotionExit}
-                transition={questionMotionTransition}
-                className="match-paper w-full max-w-[96rem] mx-auto px-4 md:px-8 lg:px-12"
-              >
-                <div className="paper-card mb-8">
-                  <div className="space-y-4 mb-6">
-                    <div className="paper-meta">
-                      {currentSegment === 'sub'
-                        ? `Step ${currentStepIndex + 1} • Sub-step ${currentSubStepIndex + 1}`
-                        : `Step ${currentStepIndex + 1}`}
+                  <div className="paper-card sticky top-3 z-10 mb-8">
+                    <div className="paper-meta mb-4">
+                      Main Question
                     </div>
-                    <h3 className="paper-title">
-                      {currentStep.prompt || currentStep.question}
-                    </h3>
-                    {currentSegment === 'sub' && (
-                      <p className="text-sm text-black mt-3">
-                        Quick check — must be correct to earn this step&apos;s marks
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                    {currentStep.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => !answerSubmitted && submitStepAnswer(currentStepIndex, idx)}
-                        disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)}
-                        className="paper-option"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="paper-option-letter">
-                            {String.fromCharCode(65 + idx)}
-                          </div>
-                          <span className="paper-option-text">{option}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {answerSubmitted && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }} 
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mt-6 text-left"
-                    >
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md text-sm border border-slate-300">
-                        {/* During steps, always show "ANSWER SUBMITTED" - no waiting message */}
-                        {(phase === 'steps' || !waitingForOpponent) ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            Answer submitted
-                          </>
-                        ) : (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Waiting for opponent...
-                          </>
-                        )}
+                    {paperGraph && (
+                      <div className="mb-6">
+                        <QuestionGraph graph={paperGraph} />
                       </div>
-                    </motion.div>
-                  )}
-                </div>
-              </motion.div>
-            )}
+                    )}
+                    <h3 className="paper-title">
+                      <ScienceText text={question.stem || (question as any).questionText || question.title || ''} />
+                    </h3>
+                    <div className="mt-4 paper-meta">
+                      {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
+                    </div>
+                  </div>
+
+                  <AnimatePresence mode="wait" initial={false}>
+                    {phase === 'main_question' ? (
+                      <motion.div
+                        key={`main-phase-${questionKeyBase}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full"
+                      >
+                        <div className="w-full mt-6">
+                          <button
+                            onClick={() => {
+                              if (!isWebSocketConnected) {
+                                toast.error('Connection lost. Please wait for reconnection...');
+                                return;
+                              }
+                              if (hasRequestedEarlyAnswer) return;
+                              submitEarlyAnswer();
+                            }}
+                            disabled={!isWebSocketConnected || hasRequestedEarlyAnswer}
+                            className={`w-full py-6 px-8 rounded-md text-xl transition-colors border ${
+                              !isWebSocketConnected
+                                ? 'bg-white text-black/50 border-slate-300 cursor-not-allowed opacity-70'
+                                : hasRequestedEarlyAnswer
+                                  ? 'bg-slate-100 text-black/60 border-slate-300 cursor-wait'
+                                  : 'bg-white hover:bg-slate-50 text-black border-slate-300 cursor-pointer'
+                            }`}
+                          >
+                            {!isWebSocketConnected
+                              ? 'Connecting...'
+                              : hasRequestedEarlyAnswer
+                                ? 'Waiting for opponent...'
+                                : 'Submit Answer Early'}
+                          </button>
+                          {!hasRequestedEarlyAnswer && opponentRequestedEarlyAnswer && (
+                            <div className="mt-3 text-center text-sm text-white/70">
+                              Your opponent is ready to start the steps — submit early to skip ahead.
+                            </div>
+                          )}
+                          {hasRequestedEarlyAnswer && (
+                            <div className="mt-3 text-center text-sm text-white/70">
+                              The steps begin once your opponent submits early too (or the timer runs out).
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key={stepsBodyKey}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full"
+                      >
+                        <div className="paper-card mb-8">
+                          <div className="space-y-4 mb-6">
+                            <div className="paper-meta">
+                              {currentSegment === 'sub'
+                                ? `Step ${currentStepIndex + 1} • Sub-step ${currentSubStepIndex + 1}`
+                                : `Step ${currentStepIndex + 1} of ${totalSteps}`}
+                            </div>
+                            <h3 className="paper-title">
+                              <ScienceText text={String(currentStep?.prompt || (currentStep as any)?.question || '')} />
+                            </h3>
+                            {currentSegment === 'sub' && (
+                              <p className="text-sm text-black mt-3">
+                                Quick check — must be correct to earn this step&apos;s marks
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                            {currentStep?.options?.filter((o: string) => String(o).trim()).map((option: string, idx: number) => (
+                              <button
+                                key={idx}
+                                onClick={() => !answerSubmitted && submitStepAnswer(currentStepIndex, idx)}
+                                disabled={answerSubmitted || (stepTimeLeft !== null && stepTimeLeft <= 0)}
+                                className="paper-option"
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="paper-option-letter">
+                                    {String.fromCharCode(65 + idx)}
+                                  </div>
+                                  <ScienceText
+                                    text={normalizeInlineMathOption(String(option))}
+                                    className="paper-option-text"
+                                    smilesSize="sm"
+                                  />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+
+                          {answerSubmitted && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-6 text-left"
+                            >
+                              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md text-sm border border-slate-300">
+                                <Check className="w-4 h-4" />
+                                Answer submitted
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
 
             {/* WAITING FOR OPPONENT TO COMPLETE ALL STEPS */}
             {status === 'playing' && phase === 'steps' && allStepsComplete && waitingForOpponentToCompleteSteps && (
@@ -672,7 +698,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                className="w-full max-w-2xl self-center bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]"
               >
                 <div className="mb-6">
                   <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto mb-4" />
@@ -724,7 +750,7 @@ export default function BattleConnected() {
                           {String.fromCharCode(65 + idx)}
                         </div>
                         <ScienceText
-                          text={String(option)}
+                          text={normalizeInlineMathOption(String(option))}
                           className="paper-option-text"
                           smilesSize="sm"
                         />
@@ -767,7 +793,7 @@ export default function BattleConnected() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-                className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                className="w-full max-w-2xl self-center bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
               >
                 {rankUpState && (
                   <RankUpTransition fromRank={rankUpState.from} toRank={rankUpState.to} active />

@@ -10,9 +10,6 @@ import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { StepBasedQuestion, QuestionFilters, QuestionInput } from '@/types/questions';
 import { dbRowsToQuestions, questionToDBRow, validateQuestion } from '@/utils/questionMapper';
-import { useAuth } from '@/contexts/AuthContext';
-
-const ADMIN_EMAIL = 'noffalnawaz65@gmail.com';
 
 /**
  * Fetch questions with optional filters
@@ -47,18 +44,15 @@ export const useQuestions = (filters?: QuestionFilters) => {
     queryFn: async () => {
       console.log('🔍 useQuestions: Starting fetch with filters:', filters);
 
-      let query = supabase.from('questions_v2').select('*');
-
-      if (filters?.subject) query = query.eq('subject', filters.subject);
-      if (filters?.chapter) query = query.eq('chapter', filters.chapter);
-      if (filters?.level) query = query.eq('level', filters.level);
-      if (filters?.difficulty) query = query.eq('difficulty', filters.difficulty);
-      if (filters?.rankTier) query = query.eq('rank_tier', filters.rankTier);
-
-      // Apply limit if specified
-      if (filters?.limit) query = query.limit(filters.limit);
-
-      const { data, error } = await query.order('created_at', { ascending: false });
+      // Sanitized server-side fetch (steps come back without answer keys).
+      const { data, error } = await (supabase.rpc as any)('get_questions_for_play_v1', {
+        p_subject: filters?.subject ?? null,
+        p_chapter: filters?.chapter ?? null,
+        p_level: filters?.level ?? null,
+        p_difficulty: filters?.difficulty ?? null,
+        p_rank_tier: filters?.rankTier ?? null,
+        p_limit: filters?.limit ?? 500,
+      });
 
       console.log('📊 useQuestions: Raw data from Supabase:', data);
       console.log('📊 useQuestions: Data count:', data?.length || 0);
@@ -83,15 +77,10 @@ export const useQuestions = (filters?: QuestionFilters) => {
  */
 export const useAddQuestion = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (question: QuestionInput) => {
-      // Server-side email validation
-      if (user?.email !== ADMIN_EMAIL) {
-        throw new Error('Unauthorized: Admin access required');
-      }
-
+      // Authorization is enforced server-side by questions_v2 RLS (admin role).
       // Convert QuestionInput to StepBasedQuestion (add id if missing)
       const stepBasedQuestion: StepBasedQuestion = {
         ...question,
@@ -125,15 +114,10 @@ export const useAddQuestion = () => {
  */
 export const useUpdateQuestion = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, question }: { id: string; question: QuestionInput }) => {
-      // Server-side email validation
-      if (user?.email !== ADMIN_EMAIL) {
-        throw new Error('Unauthorized: Admin access required');
-      }
-
+      // Authorization is enforced server-side by questions_v2 RLS (admin role).
       // Convert QuestionInput to StepBasedQuestion (id is required)
       const stepBasedQuestion: StepBasedQuestion = {
         ...question,
@@ -172,15 +156,10 @@ export const useUpdateQuestion = () => {
  */
 export const useDeleteQuestion = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Server-side email validation
-      if (user?.email !== ADMIN_EMAIL) {
-        throw new Error('Unauthorized: Admin access required');
-      }
-
+      // Authorization is enforced server-side by questions_v2 RLS (admin role).
       const { error } = await supabase.from('questions_v2').delete().eq('id', id);
 
       if (error) throw error;

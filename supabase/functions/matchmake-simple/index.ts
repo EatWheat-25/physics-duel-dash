@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { corsHeaders } from '../_shared/cors.ts'
+import { getPublishableKey, getSecretKey } from '../_shared/keys.ts'
 
 /**
  * Simple Matchmaker
@@ -25,7 +26,7 @@ Deno.serve(async (req) => {
 
     const supabaseUser = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      getPublishableKey(),
       { global: { headers: { Authorization: authHeader } } }
     )
 
@@ -58,10 +59,10 @@ Deno.serve(async (req) => {
     console.log(`[MM] Normalized subject/level:`, subject, level)
     console.log(`[MATCHMAKER] Player ${user.id} requesting match (subject: ${subject}, level: ${level})`)
 
-    // Use service role for database operations
+    // Use elevated key for database operations
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      getSecretKey()
     )
 
     const { data: result, error: rpcError } = await supabase.rpc('matchmake_simple_v1', {

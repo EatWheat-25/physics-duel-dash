@@ -1,9 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import {
+  AnimatePresence,
+  motion,
+  useMotionTemplate,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+} from 'framer-motion';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { RankMenu } from '@/components/RankMenu';
 import { ChevronRight, History, LogOut, Plus, Settings, Shield, Sparkles, Trophy, X } from 'lucide-react';
 import { StudyPatternBackground } from '@/components/StudyPatternBackground';
+import { RollingNumber } from '@/components/battle/RollingNumber';
+import {
+  PREMIUM_EASE,
+  fadeDown,
+  fadeLeft,
+  fadeRight,
+  hoverLift,
+  staggerContainer,
+  tapPress,
+} from '@/lib/motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useCharacter } from '@/hooks/useCharacter';
@@ -20,7 +37,7 @@ export default function Home() {
   const { selectedCharacter } = useCharacter();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { subject: mmSubject, level: mmLevel } = useMatchmakingPrefs();
-  const { status: matchmakingStatus, startMatchmaking, startBotMatch, leaveQueue } = useMatchmaking();
+  const { status: matchmakingStatus, startMatchmaking, leaveQueue } = useMatchmaking();
   const [rankMenuOpen, setRankMenuOpen] = useState(false);
   const [currentMMR, setCurrentMMR] = useState<number>(0);
   const [queueTime, setQueueTime] = useState(0);
@@ -29,10 +46,43 @@ export default function Home() {
   const [onboardingStatus, setOnboardingStatus] = useState<
     'unknown' | 'complete' | 'incomplete'
   >(initialOnboardingStatus);
-  const prefersReducedMotion = useMemo(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    []
+  const prefersReducedMotion = useReducedMotion();
+
+  // Spring-smoothed 3D tilt + cursor sheen for the player card.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const tiltX = useMotionValue(0);
+  const tiltY = useMotionValue(0);
+  const sheenX = useMotionValue(50);
+  const sheenY = useMotionValue(30);
+  const sheenOpacity = useMotionValue(0);
+  const springTiltX = useSpring(tiltX, { stiffness: 220, damping: 28, mass: 0.8 });
+  const springTiltY = useSpring(tiltY, { stiffness: 220, damping: 28, mass: 0.8 });
+  const springSheenOpacity = useSpring(sheenOpacity, { stiffness: 180, damping: 26 });
+  const sheenBackground = useMotionTemplate`radial-gradient(420px 320px at ${sheenX}% ${sheenY}%, rgba(255,255,255,0.10) 0%, transparent 65%)`;
+
+  const handleCardMouseMove = useCallback(
+    (e: ReactMouseEvent<HTMLDivElement>) => {
+      if (prefersReducedMotion) return;
+      const el = cardRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width; // 0..1
+      const py = (e.clientY - rect.top) / rect.height;
+      const MAX_TILT = 4;
+      tiltX.set((0.5 - py) * MAX_TILT * 2);
+      tiltY.set((px - 0.5) * MAX_TILT * 2);
+      sheenX.set(px * 100);
+      sheenY.set(py * 100);
+      sheenOpacity.set(1);
+    },
+    [prefersReducedMotion, tiltX, tiltY, sheenX, sheenY, sheenOpacity]
   );
+
+  const handleCardMouseLeave = useCallback(() => {
+    tiltX.set(0);
+    tiltY.set(0);
+    sheenOpacity.set(0);
+  }, [tiltX, tiltY, sheenOpacity]);
 
   useEffect(() => {
     if (onboardingStatus !== 'complete') return;
@@ -204,21 +254,6 @@ export default function Home() {
     startMatchmaking(subject, level);
   };
 
-  const handleStartBotMatch = () => {
-    if (matchmakingStatus === 'searching') return;
-
-    if (!hasMatchmakingPrefs) {
-      navigate('/matchmaking-new');
-      return;
-    }
-
-    const subject = mmSubject as string;
-    let level = mmLevel as string;
-    if (level === 'Both') level = 'A2';
-
-    navigate('/solo-challenge', { state: { subject, level } });
-  };
-
   const handleCancelMatchmaking = async () => {
     await leaveQueue();
     setQueueTime(0);
@@ -230,7 +265,12 @@ export default function Home() {
       <StudyPatternBackground />
 
       {/* Top bar (centered nav like reference) */}
-      <header className="relative z-30 w-full px-4 sm:px-6 pt-5">
+      <motion.header
+        className="relative z-30 w-full px-4 sm:px-6 pt-5"
+        variants={fadeDown}
+        initial={prefersReducedMotion ? false : 'hidden'}
+        animate="visible"
+      >
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-[180px]">
             <div
@@ -262,25 +302,39 @@ export default function Home() {
                   }`}
                   aria-current={active ? 'page' : undefined}
                 >
-                  <span
-                    className={`absolute -inset-x-4 -inset-y-2 rounded-full transition-opacity ${
-                      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}
-                    style={{
-                      background: active ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)',
-                      border: active ? '1px solid rgba(163,230,53,0.22)' : '1px solid rgba(255,255,255,0.10)',
-                      boxShadow: active ? '0 0 28px rgba(163,230,53,0.10)' : undefined,
-                    }}
-                    aria-hidden="true"
-                  />
+                  {!active && (
+                    <span
+                      className="absolute -inset-x-4 -inset-y-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                      }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  {active && (
+                    <motion.span
+                      layoutId="homeNavPill"
+                      className="absolute -inset-x-4 -inset-y-2 rounded-full"
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(163,230,53,0.22)',
+                        boxShadow: '0 0 28px rgba(163,230,53,0.10)',
+                      }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+                      aria-hidden="true"
+                    />
+                  )}
                   {item.label}
                   {active && (
-                    <span
+                    <motion.span
+                      layoutId="homeNavUnderline"
                       className="absolute left-0 right-0 -bottom-1 mx-auto h-0.5 w-10 rounded-full"
                       style={{
                         background:
                           'linear-gradient(90deg, rgba(163,230,53,0), rgba(163,230,53,1), rgba(163,230,53,0))',
                       }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 34 }}
                     />
                   )}
                 </button>
@@ -360,13 +414,82 @@ export default function Home() {
             </button>
           </div>
         </div>
-      </header>
+      </motion.header>
+
+      {/* Valorant-style queue status popup (top-center) */}
+      <AnimatePresence>
+        {matchmakingStatus === 'searching' && (
+          <div className="fixed inset-x-0 top-20 z-40 flex justify-center pointer-events-none">
+            <motion.div
+              className="pointer-events-auto flex items-center gap-4 rounded-2xl px-6 py-3"
+              style={{
+                background: 'rgba(15, 23, 42, 0.82)',
+                border: '1px solid rgba(163, 230, 53, 0.28)',
+                backdropFilter: 'blur(18px)',
+                boxShadow: '0 18px 55px rgba(0,0,0,0.55), 0 0 36px rgba(163,230,53,0.10)',
+              }}
+              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -28, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -28, scale: 0.94 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+              role="status"
+              aria-live="polite"
+            >
+              {/* Radar pulse */}
+              <span className="relative inline-flex h-5 w-5 items-center justify-center">
+                <span className="absolute h-2.5 w-2.5 rounded-full bg-lime-400" />
+                {!prefersReducedMotion && (
+                  <>
+                    <motion.span
+                      className="absolute h-2.5 w-2.5 rounded-full border border-lime-400"
+                      animate={{ scale: [1, 3.2], opacity: [0.8, 0] }}
+                      transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
+                    />
+                    <motion.span
+                      className="absolute h-2.5 w-2.5 rounded-full border border-lime-400"
+                      animate={{ scale: [1, 3.2], opacity: [0.8, 0] }}
+                      transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.8 }}
+                    />
+                  </>
+                )}
+              </span>
+
+              <div className="leading-tight text-left">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/60">
+                  Finding Match
+                </div>
+                <div className="text-xl font-bold text-white tabular-nums">
+                  {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCancelMatchmaking}
+                className="ml-2 h-8 w-8 rounded-xl flex items-center justify-center text-white/70 hover:text-white transition-colors"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                }}
+                aria-label="Cancel matchmaking"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <main className="relative z-20 min-h-[calc(100vh-120px)]">
         {/* Keep the lobby clean like the reference (no large character overlay) */}
 
         {/* Left stack (reference-style tiles) */}
-        <div className="hidden lg:flex absolute left-6 top-28 w-[260px] flex-col gap-3">
+        <motion.div
+          className="hidden lg:flex absolute left-6 top-28 w-[260px] flex-col gap-3"
+          variants={staggerContainer(0.06, 0.15)}
+          initial={prefersReducedMotion ? false : 'hidden'}
+          animate="visible"
+        >
           <motion.button
             type="button"
             onClick={() => navigate('/modes')}
@@ -377,8 +500,9 @@ export default function Home() {
               backdropFilter: 'blur(18px)',
               boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
             }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            variants={fadeLeft}
+            whileHover={prefersReducedMotion ? undefined : hoverLift}
+            whileTap={prefersReducedMotion ? undefined : tapPress}
             aria-label="Selected mode"
           >
             <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-lime-400/70" />
@@ -396,8 +520,9 @@ export default function Home() {
               backdropFilter: 'blur(18px)',
               boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
             }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            variants={fadeLeft}
+            whileHover={prefersReducedMotion ? undefined : hoverLift}
+            whileTap={prefersReducedMotion ? undefined : tapPress}
             aria-label="Open leaderboard"
           >
             <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-sky-400/70" />
@@ -420,24 +545,49 @@ export default function Home() {
               backdropFilter: 'blur(18px)',
               boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
             }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            variants={fadeLeft}
+            whileHover={prefersReducedMotion ? undefined : hoverLift}
+            whileTap={prefersReducedMotion ? undefined : tapPress}
             aria-label="Review last game"
           >
             <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-white/30" />
             <div className="text-sm font-semibold text-white">VICTORY</div>
             <div className="text-xs text-white/55 mt-1">Review Last Game</div>
           </motion.button>
-        </div>
+        </motion.div>
 
         {/* Center player card (Lobby layout) */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[clamp(280px,40vh,360px)] max-w-[90vw] aspect-[5/7]">
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[clamp(280px,40vh,360px)] max-w-[90vw] aspect-[5/7]"
+          style={{ perspective: 1100 }}
+        >
           <motion.div
-            initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+            initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 180, damping: 24, mass: 1, delay: 0.2 }}
             className="relative h-full w-full"
           >
+            {/* Ambient breathing glow behind the card */}
+            <motion.div
+              className="absolute -inset-3 rounded-[2rem] pointer-events-none"
+              style={{ background: rank.gradient, filter: 'blur(28px)' }}
+              initial={{ opacity: 0.3 }}
+              animate={prefersReducedMotion ? { opacity: 0.35 } : { opacity: [0.28, 0.5, 0.28] }}
+              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+              aria-hidden="true"
+            />
+
+            <motion.div
+              ref={cardRef}
+              className="relative h-full w-full"
+              style={{
+                rotateX: springTiltX,
+                rotateY: springTiltY,
+                transformStyle: 'preserve-3d',
+              }}
+              onMouseMove={handleCardMouseMove}
+              onMouseLeave={handleCardMouseLeave}
+            >
             {/* Gradient outline wrapper (clean, premium) */}
             <div
               className="relative h-full w-full rounded-3xl p-[1px]"
@@ -566,7 +716,9 @@ export default function Home() {
                       <div className="mt-1 text-xs text-white/55">Level {level}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-white tabular-nums">{mmr}</div>
+                      <div className="text-2xl font-bold text-white tabular-nums">
+                        <RollingNumber value={mmr} duration={0.9} delay={0.5} cycles={1} stagger={0.05} />
+                      </div>
                       <div className="text-xs text-white/55">MMR</div>
                     </div>
                   </div>
@@ -607,13 +759,26 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
+
+                {/* Cursor-following light sheen */}
+                <motion.div
+                  className="absolute inset-0 rounded-[calc(1.5rem-1px)] pointer-events-none"
+                  style={{ background: sheenBackground, opacity: springSheenOpacity }}
+                  aria-hidden="true"
+                />
               </div>
             </div>
+            </motion.div>
           </motion.div>
         </div>
 
         {/* Right widgets (merge from bright reference; subtle in dark theme) */}
-        <div className="hidden lg:flex absolute right-6 top-28 w-[340px] flex-col gap-3">
+        <motion.div
+          className="hidden lg:flex absolute right-6 top-28 w-[340px] flex-col gap-3"
+          variants={staggerContainer(0.06, 0.15)}
+          initial={prefersReducedMotion ? false : 'hidden'}
+          animate="visible"
+        >
           <motion.button
             type="button"
             onClick={() => navigate('/progression')}
@@ -624,8 +789,9 @@ export default function Home() {
               backdropFilter: 'blur(18px)',
               boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
             }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            variants={fadeRight}
+            whileHover={prefersReducedMotion ? undefined : hoverLift}
+            whileTap={prefersReducedMotion ? undefined : tapPress}
             aria-label="Battle pass"
           >
             <div className="p-4">
@@ -654,7 +820,7 @@ export default function Home() {
 
           <motion.button
             type="button"
-            onClick={() => navigate('/offline')}
+            onClick={() => navigate('/campaign')}
             className="w-full text-left rounded-2xl p-4"
             style={{
               background: 'rgba(15, 23, 42, 0.58)',
@@ -662,14 +828,15 @@ export default function Home() {
               backdropFilter: 'blur(18px)',
               boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
             }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
-            aria-label="Offline campaign"
+            variants={fadeRight}
+            whileHover={prefersReducedMotion ? undefined : hoverLift}
+            whileTap={prefersReducedMotion ? undefined : tapPress}
+            aria-label="Campaign mode"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xs text-white/60">Offline</div>
-                <div className="mt-1 text-lg font-bold text-white">Solo Campaign</div>
+                <div className="text-xs text-white/60">Campaign</div>
+                <div className="mt-1 text-lg font-bold text-white">Topic Ranked Run</div>
               </div>
               <div
                 className="px-3 py-1 rounded-full text-[10px] font-semibold text-white"
@@ -682,7 +849,7 @@ export default function Home() {
               </div>
             </div>
             <div className="mt-3 text-sm text-white/65">
-              4 hearts • 3 questions per level
+              Pick a subject, lock a topic, and climb that campaign ladder.
             </div>
           </motion.button>
 
@@ -696,8 +863,9 @@ export default function Home() {
               backdropFilter: 'blur(18px)',
               boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
             }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            variants={fadeRight}
+            whileHover={prefersReducedMotion ? undefined : hoverLift}
+            whileTap={prefersReducedMotion ? undefined : tapPress}
             aria-label="Challenges"
           >
             <div className="flex items-start justify-between gap-4">
@@ -725,8 +893,9 @@ export default function Home() {
               backdropFilter: 'blur(18px)',
               boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
             }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            variants={fadeRight}
+            whileHover={prefersReducedMotion ? undefined : hoverLift}
+            whileTap={prefersReducedMotion ? undefined : tapPress}
             aria-label="Activity"
           >
             <div className="flex items-start justify-between gap-4">
@@ -738,43 +907,42 @@ export default function Home() {
             </div>
             <div className="mt-3 text-sm text-white/65">Jump in and find an opponent.</div>
           </motion.button>
-        </div>
+        </motion.div>
 
         {/* Bottom-left actions (START + quick actions) */}
-        <div className="absolute left-6 bottom-8 w-[560px] max-w-[calc(100vw-3rem)]">
-          <div className="flex flex-wrap items-center gap-2">
+        <motion.div
+          className="absolute left-6 bottom-8 w-[560px] max-w-[calc(100vw-3rem)]"
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: PREMIUM_EASE, delay: 0.35 }}
+        >
+          <div className="grid grid-cols-1 gap-2">
             <motion.button
               type="button"
-              onClick={() => navigate('/modes')}
-              className="inline-flex items-center gap-2 rounded px-3 py-2 text-xs font-semibold"
+              onClick={() => navigate('/campaign')}
+              className="w-full inline-flex items-center justify-between gap-4 rounded-2xl px-6 py-5 text-left"
               style={{
                 background: '#facc15',
                 color: '#0b1220',
                 border: '1px solid rgba(0,0,0,0.35)',
                 boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
               }}
-              whileHover={prefersReducedMotion ? undefined : { y: -1 }}
-              whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
-              aria-label="Standard mode"
+              whileHover={prefersReducedMotion ? undefined : hoverLift}
+              whileTap={prefersReducedMotion ? undefined : tapPress}
+              aria-label="Campaign mode"
             >
-              STANDARD <span className="opacity-80">»</span>
-            </motion.button>
-
-            <motion.button
-              type="button"
-              onClick={() => navigate('/offline')}
-              className="inline-flex items-center gap-2 rounded px-3 py-2 text-xs font-semibold"
-              style={{
-                background: 'rgba(34, 197, 94, 0.18)',
-                color: '#ecfdf3',
-                border: '1px solid rgba(34, 197, 94, 0.35)',
-                boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
-              }}
-              whileHover={prefersReducedMotion ? undefined : { y: -1 }}
-              whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
-              aria-label="Offline campaign"
-            >
-              OFFLINE <span className="opacity-80">»</span>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.32em] opacity-70">
+                  Campaign
+                </div>
+                <div className="mt-2 text-2xl font-black uppercase tracking-[0.08em]">
+                  Choose Topic And Play
+                </div>
+                <div className="mt-2 text-sm font-medium opacity-75">
+                  Physics, chemistry, or math with A1/A2 and a dedicated campaign rank.
+                </div>
+              </div>
+              <span className="text-2xl font-black opacity-80">»</span>
             </motion.button>
           </div>
 
@@ -790,8 +958,8 @@ export default function Home() {
                   backdropFilter: 'blur(18px)',
                   boxShadow: '0 14px 44px rgba(0,0,0,0.4)',
                 }}
-                whileHover={prefersReducedMotion ? undefined : { y: -1 }}
-                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+                whileHover={prefersReducedMotion ? undefined : hoverLift}
+                whileTap={prefersReducedMotion ? undefined : tapPress}
                 aria-label="Change subject and grade"
               >
                 <div className="text-xs text-white/60">Selected</div>
@@ -819,30 +987,90 @@ export default function Home() {
             </div>
           )}
 
-          {matchmakingStatus === 'searching' && (
-            <div className="mt-3 text-xs text-white/70 tabular-nums">
-              Searching… {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
-            </div>
-          )}
-
           <div className="mt-3 flex items-stretch gap-3">
             {/* START (primary) */}
             <motion.button
               onClick={handleStartMatchmaking}
               disabled={matchmakingStatus === 'searching'}
-              className="flex-1 min-w-[260px] px-8 py-6 text-2xl sm:text-3xl font-bold rounded-2xl"
+              className="relative overflow-hidden flex-1 min-w-[260px] px-8 py-6 text-2xl sm:text-3xl font-bold rounded-2xl"
               style={{
                 background: 'linear-gradient(135deg, #a3e635, #22c55e)',
                 color: '#0b1220',
                 border: '1px solid rgba(0,0,0,0.45)',
                 boxShadow: '0 18px 55px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
-                opacity: matchmakingStatus === 'searching' ? 0.75 : 1,
+                opacity: matchmakingStatus === 'searching' ? 0.85 : 1,
               }}
-              whileHover={prefersReducedMotion || matchmakingStatus === 'searching' ? undefined : { scale: 1.01 }}
+              animate={
+                prefersReducedMotion || matchmakingStatus === 'searching'
+                  ? { scale: 1 }
+                  : { scale: [1, 1.01, 1] }
+              }
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              whileHover={prefersReducedMotion || matchmakingStatus === 'searching' ? undefined : { y: -2 }}
               whileTap={prefersReducedMotion || matchmakingStatus === 'searching' ? undefined : { scale: 0.99 }}
               aria-label="Start matchmaking"
             >
-              {matchmakingStatus === 'searching' ? 'SEARCHING…' : 'START'}
+              {/* One-time gradient shimmer after the entrance settles */}
+              {!prefersReducedMotion && matchmakingStatus !== 'searching' && (
+                <motion.span
+                  className="absolute inset-y-0 w-1/3 pointer-events-none"
+                  style={{
+                    background:
+                      'linear-gradient(105deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)',
+                  }}
+                  initial={{ left: '-40%' }}
+                  animate={{ left: '120%' }}
+                  transition={{ duration: 0.9, ease: PREMIUM_EASE, delay: 1.0 }}
+                  aria-hidden="true"
+                />
+              )}
+
+              <AnimatePresence mode="wait" initial={false}>
+                {matchmakingStatus === 'searching' ? (
+                  <motion.span
+                    key="searching"
+                    className="relative z-10 inline-flex items-center justify-center gap-3 text-lg sm:text-xl"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25, ease: PREMIUM_EASE }}
+                  >
+                    {/* Radar pulse */}
+                    <span className="relative inline-flex h-4 w-4 items-center justify-center">
+                      <span className="absolute h-2.5 w-2.5 rounded-full bg-[#0b1220]" />
+                      {!prefersReducedMotion && (
+                        <>
+                          <motion.span
+                            className="absolute h-2.5 w-2.5 rounded-full border-2 border-[#0b1220]"
+                            animate={{ scale: [1, 3], opacity: [0.7, 0] }}
+                            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
+                          />
+                          <motion.span
+                            className="absolute h-2.5 w-2.5 rounded-full border-2 border-[#0b1220]"
+                            animate={{ scale: [1, 3], opacity: [0.7, 0] }}
+                            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.8 }}
+                          />
+                        </>
+                      )}
+                    </span>
+                    <span>SEARCHING</span>
+                    <span className="text-base sm:text-lg font-semibold tabular-nums opacity-80">
+                      {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
+                    </span>
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="start"
+                    className="relative z-10 inline-block"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25, ease: PREMIUM_EASE }}
+                  >
+                    START
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </motion.button>
 
             {/* Slot 1: Career */}
@@ -856,8 +1084,8 @@ export default function Home() {
                 backdropFilter: 'blur(18px)',
                 boxShadow: '0 14px 44px rgba(0,0,0,0.35)',
               }}
-              whileHover={prefersReducedMotion ? undefined : { y: -1 }}
-              whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+              whileHover={prefersReducedMotion ? undefined : hoverLift}
+              whileTap={prefersReducedMotion ? undefined : tapPress}
               aria-label="Career"
             >
               <History className="w-5 h-5 text-white/85" />
@@ -893,8 +1121,8 @@ export default function Home() {
                   backdropFilter: 'blur(18px)',
                   boxShadow: '0 14px 44px rgba(0,0,0,0.35)',
                 }}
-                whileHover={prefersReducedMotion ? undefined : { y: -1 }}
-                whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+                whileHover={prefersReducedMotion ? undefined : hoverLift}
+                whileTap={prefersReducedMotion ? undefined : tapPress}
                 aria-label="Cancel matchmaking"
               >
                 <X className="w-5 h-5 text-white/85" />
@@ -919,26 +1147,7 @@ export default function Home() {
             )}
           </div>
 
-          <div className="mt-3">
-            <motion.button
-              onClick={handleStartBotMatch}
-              disabled={matchmakingStatus === 'searching'}
-              className="w-full px-6 py-4 rounded-2xl text-base sm:text-lg font-semibold uppercase tracking-wider"
-              style={{
-                background: 'linear-gradient(135deg, rgba(71,85,105,0.9), rgba(51,65,85,0.9))',
-                color: '#e2e8f0',
-                border: '1px solid rgba(148, 163, 184, 0.35)',
-                boxShadow: '0 14px 44px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1)',
-                opacity: matchmakingStatus === 'searching' ? 0.7 : 1,
-              }}
-              whileHover={prefersReducedMotion || matchmakingStatus === 'searching' ? undefined : { scale: 1.01 }}
-              whileTap={prefersReducedMotion || matchmakingStatus === 'searching' ? undefined : { scale: 0.99 }}
-              aria-label="Start bot match"
-            >
-              BOT MATCH <span className="opacity-70">(Win &gt;70% accuracy)</span>
-            </motion.button>
-          </div>
-        </div>
+        </motion.div>
 
       </main>
       <RankMenu open={rankMenuOpen} onOpenChange={setRankMenuOpen} currentMMR={currentMMR} />

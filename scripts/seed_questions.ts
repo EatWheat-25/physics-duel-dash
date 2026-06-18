@@ -1,20 +1,16 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = "https://qvunaswogfwhixecjpcn.supabase.co";
-const supabaseServiceKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2dW5hc3dvZ2Z3aGl4ZWNqcGNuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1Nzk0MjI0MCwiZXhwIjoyMDczNTE4MjQwfQ.fake_key_placeholder";
-// WAIT, I shouldn't use the ANON key for seeding if I need to write to tables that might be protected?
-// The previous script used ANON key.
-// "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2dW5hc3dvZ2Z3aGl4ZWNqcGNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5NDIyNDAsImV4cCI6MjA3MzUxODI0MH0.mNFMhdalJrFdpQNbORIC4FZVRNSHrrTEqx63zVILqlg"
-// This is the ANON key.
-// If RLS allows anon to write (unlikely for questions), I need SERVICE_ROLE key.
-// The user's previous script used ANON key. Maybe RLS is open or it's just for testing?
-// Or maybe the user didn't provide the service key.
-// I'll check the previous script content again.
-// It used `supabaseAnonKey`.
-// I'll use the same key. If it fails, I'll tell the user.
+// SECURITY: never commit Supabase keys. Provide them via environment variables:
+//   SUPABASE_URL=https://<project-ref>.supabase.co
+//   SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   (keep this secret!)
+const supabaseUrl = process.env.SUPABASE_URL ?? "https://qvunaswogfwhixecjpcn.supabase.co";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2dW5hc3dvZ2Z3aGl4ZWNqcGNuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1Nzk0MjI0MCwiZXhwIjoyMDczNTE4MjQwfQ.AkDsAqKERcAdiH5n4HI6iwpSBiYYsX6uNxd-z7X4WPs";
+if (!supabaseKey) {
+    console.error('Missing SUPABASE_SERVICE_ROLE_KEY environment variable.');
+    process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

@@ -1,11 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { RANKS, RankName, getRankByPoints } from '@/types/ranking';
+import { RANKS, RankName } from '@/types/ranking';
 
 interface RankBadgeProps {
   rank: RankName;
   showAnimation?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
 
@@ -34,6 +34,12 @@ const RankBadge: React.FC<RankBadgeProps> = ({
       emoji: 'text-8xl',
       label: 'text-base',
       gap: 'gap-2',
+    },
+    xl: {
+      image: 'w-28 h-28 md:w-32 md:h-32',
+      emoji: 'text-[5.5rem] md:text-[6.5rem]',
+      label: 'text-base',
+      gap: 'gap-2.5',
     },
   };
   const activeSize = sizeConfig[size];

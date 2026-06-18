@@ -57,10 +57,9 @@ const GameModes: React.FC = () => {
       backgroundImage: 'linear-gradient(135deg, hsl(260 75% 50%), hsl(320 68% 62%))',
     },
     {
-      id: 'standard',
-      title: 'STANDARD',
-      description: 'Classic ranked gameplay',
-      requiresLevel: 15,
+      id: 'campaign',
+      title: 'CAMPAIGN',
+      description: 'Topic-based ranked runs',
       gradient: 'from-yellow-400 via-orange-500 to-red-500',
       backgroundImage: 'linear-gradient(135deg, hsl(60 100% 50%), hsl(0 84% 60%))',
     },

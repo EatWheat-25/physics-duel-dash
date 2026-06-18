@@ -62,7 +62,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
       options: ['60°, 300°', '30°, 330°', '45°, 315°', '60°, 240°'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'sec θ = 2 means cos θ = 1/2, so θ = 60° or 300°'
+      explanation: 'sec θ = 2 means cos θ = \frac{1}{2}, so θ = 60° or 300°'
     }]
   },
   {
@@ -187,22 +187,22 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
   },
   {
     id: 'a2-bronze-10',
-    title: 'Find the inverse of f(x) = (2x-1)/(x+3)',
+    title: 'Find the inverse of f(x) = \frac{2x-1}{x+3}',
     subject: 'math',
     chapter: 'Functions Advanced',
     level: 'A2',
     difficulty: 'hard',
     rankTier: 'Bronze',
     totalMarks: 1,
-    questionText: 'Find f⁻¹(x) where f(x) = (2x-1)/(x+3)',
+    questionText: 'Find f⁻¹(x) where f(x) = \frac{2x-1}{x+3}',
     topicTags: ['inverse functions'],
     steps: [{
       id: 'step-1',
       question: 'What is f⁻¹(x)?',
-      options: ['(-3x-1)/(x-2)', '(3x+1)/(2-x)', '(2x+1)/(3-x)', '(-2x-1)/(x-3)'],
+      options: ['\frac{-3x-1}{x-2}', '\frac{3x+1}{2-x}', '\frac{2x+1}{3-x}', '\frac{-2x-1}{x-3}'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'Let y = (2x-1)/(x+3). Swap and solve: xy + 3y = 2x - 1, so y = (-3x-1)/(x-2)'
+      explanation: 'Let y = \frac{2x-1}{x+3}. Swap and solve: xy + 3y = 2x - 1, so y = \frac{-3x-1}{x-2}'
     }]
   },
   {
@@ -279,10 +279,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is ff(x)?',
-      options: ['(x-1)/(2-x)', '1/(1-x)', 'x/(x-1)', '(1-x)/x'],
+      options: ['\frac{x-1}{2-x}', '1/(1-x)', 'x/(x-1)', '(1-x)/x'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'ff(x) = f(1/(x-1)) = 1/(1/(x-1) - 1) = 1/((2-x)/(x-1)) = (x-1)/(2-x)'
+      explanation: 'ff(x) = f(1/(x-1)) = 1/(1/(x-1) - 1) = 1/(\frac{2-x}{x-1}) = \frac{x-1}{2-x}'
     }]
   },
   {
@@ -342,7 +342,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
       options: ['7π/6, 11π/6', '5π/6, 7π/6', 'π/6, 5π/6', '4π/3, 5π/3'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'cosec x = -2 means sin x = -1/2, so x = 7π/6 or 11π/6'
+      explanation: 'cosec x = -2 means sin x = -\frac{1}{2}, so x = 7π/6 or 11π/6'
     }]
   },
   {
@@ -481,10 +481,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is the integral?',
-      options: ['(1/3)e^(3x) + c', '3e^(3x) + c', 'e^(3x) + c', '(1/3)e^x + c'],
+      options: ['(\frac{1}{3})e^(3x) + c', '3e^(3x) + c', 'e^(3x) + c', '(\frac{1}{3})e^x + c'],
       correctAnswer: 0,
       marks: 1,
-      explanation: '∫e^(3x)dx = (1/3)e^(3x) + c'
+      explanation: '∫e^(3x)dx = (\frac{1}{3})e^(3x) + c'
     }]
   },
   {
@@ -536,7 +536,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     difficulty: 'hard',
     rankTier: 'Silver',
     totalMarks: 1,
-    questionText: 'Express (x²+2x+3)/((x+1)(x²+1)) in partial fractions form A/(x+1) + (Bx+C)/(x²+1)',
+    questionText: 'Express (x²+2x+3)/((x+1)(x²+1)) in partial fractions form A/(x+1) + \frac{Bx+C}{x²+1}',
     topicTags: ['partial fractions'],
     steps: [{
       id: 'step-1',
@@ -581,7 +581,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is x?',
-      options: ['ln5/ln2', 'ln2/ln5', 'log₅2', 'ln(5/2)'],
+      options: ['ln5/ln2', 'ln2/ln5', 'log₅2', 'ln(\frac{5}{2})'],
       correctAnswer: 0,
       marks: 1,
       explanation: 'Taking ln: x ln2 = ln5, so x = ln5/ln2'
@@ -621,10 +621,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is the integral?',
-      options: ['(1/2)ln|2x+3| + c', 'ln|2x+3| + c', '2ln|2x+3| + c', 'ln|x+3| + c'],
+      options: ['(\frac{1}{2})ln|2x+3| + c', 'ln|2x+3| + c', '2ln|2x+3| + c', 'ln|x+3| + c'],
       correctAnswer: 0,
       marks: 1,
-      explanation: '∫1/(2x+3) dx = (1/2)ln|2x+3| + c'
+      explanation: '∫1/(2x+3) dx = (\frac{1}{2})ln|2x+3| + c'
     }]
   },
   {
@@ -684,7 +684,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
       options: ['x(2ln x + 1)', '2xln x', 'x² + 2xln x', '2x + x²/x'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'dy/dx = 2xln x + x²(1/x) = 2xln x + x = x(2ln x + 1)'
+      explanation: 'dy/dx = 2xln x + x²(\frac{1}{x}) = 2xln x + x = x(2ln x + 1)'
     }]
   },
   {
@@ -701,10 +701,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is the integral?',
-      options: ['-(1/3)cos(3x) + c', '-cos(3x) + c', '(1/3)cos(3x) + c', '-3cos(3x) + c'],
+      options: ['-(\frac{1}{3})cos(3x) + c', '-cos(3x) + c', '(\frac{1}{3})cos(3x) + c', '-3cos(3x) + c'],
       correctAnswer: 0,
       marks: 1,
-      explanation: '∫sin(3x) dx = -(1/3)cos(3x) + c'
+      explanation: '∫sin(3x) dx = -(\frac{1}{3})cos(3x) + c'
     }]
   },
   {
@@ -841,10 +841,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is the integral?',
-      options: ['(1/2)sin(2x+1) + c', 'sin(2x+1) + c', '2sin(2x+1) + c', '-(1/2)sin(2x+1) + c'],
+      options: ['(\frac{1}{2})sin(2x+1) + c', 'sin(2x+1) + c', '2sin(2x+1) + c', '-(\frac{1}{2})sin(2x+1) + c'],
       correctAnswer: 0,
       marks: 1,
-      explanation: '∫cos(2x+1) dx = (1/2)sin(2x+1) + c'
+      explanation: '∫cos(2x+1) dx = (\frac{1}{2})sin(2x+1) + c'
     }]
   },
   {
@@ -941,10 +941,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is dy/dx?',
-      options: ['2/x', '6/x', '1/x', '2x/3x²'],
+      options: ['\frac{2}{x}', '\frac{6}{x}', '\frac{1}{x}', '2x/3x²'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'ln(3x²) = ln3 + 2ln x, so dy/dx = 0 + 2/x = 2/x'
+      explanation: 'ln(3x²) = ln3 + 2ln x, so dy/dx = 0 + \frac{2}{x} = \frac{2}{x}'
     }]
   },
   {
@@ -969,22 +969,22 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
   },
   {
     id: 'a2-silver-29',
-    title: 'Find ∫(1/x) dx',
+    title: 'Find ∫(\frac{1}{x}) dx',
     subject: 'math',
     chapter: 'Integration 2',
     level: 'A2',
     difficulty: 'easy',
     rankTier: 'Silver',
     totalMarks: 1,
-    questionText: 'Find ∫(1/x) dx',
+    questionText: 'Find ∫(\frac{1}{x}) dx',
     topicTags: ['logarithmic integration'],
     steps: [{
       id: 'step-1',
       question: 'What is the integral?',
-      options: ['ln|x| + c', 'log x + c', 'x + c', '1/x² + c'],
+      options: ['ln|x| + c', 'log x + c', 'x + c', '\frac{1}{x²} + c'],
       correctAnswer: 0,
       marks: 1,
-      explanation: '∫(1/x) dx = ln|x| + c'
+      explanation: '∫(\frac{1}{x}) dx = ln|x| + c'
     }]
   },
   {
@@ -1151,22 +1151,22 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
   },
   {
     id: 'a2-gold-8',
-    title: 'Find ∫(3x²+2)/(x³+2x) dx',
+    title: 'Find ∫\frac{3x²+2}{x³+2x} dx',
     subject: 'math',
     chapter: 'Integration 3',
     level: 'A2',
     difficulty: 'medium',
     rankTier: 'Gold',
     totalMarks: 1,
-    questionText: 'Integrate ∫(3x²+2)/(x³+2x) dx',
+    questionText: 'Integrate ∫\frac{3x²+2}{x³+2x} dx',
     topicTags: ['integration by substitution'],
     steps: [{
       id: 'step-1',
       question: 'What is the integral?',
-      options: ['ln|x³+2x| + c', '(3x²+2)/(x³+2x) + c', 'ln|3x²+2| + c', 'x³+2x + c'],
+      options: ['ln|x³+2x| + c', '\frac{3x²+2}{x³+2x} + c', 'ln|3x²+2| + c', 'x³+2x + c'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'Let u = x³+2x, then du = (3x²+2)dx. So ∫(1/u)du = ln|u| + c'
+      explanation: 'Let u = x³+2x, then du = (3x²+2)dx. So ∫(\frac{1}{u})du = ln|u| + c'
     }]
   },
   {
@@ -1203,7 +1203,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is the iteration formula?',
-      options: ['(2xₙ³ + 2)/(3xₙ²)', 'xₙ - (xₙ³-2)/3xₙ²', '(xₙ³ + 4)/(3xₙ²)', 'xₙ - xₙ³/3xₙ²'],
+      options: ['\frac{2xₙ³ + 2}{3xₙ²}', 'xₙ - (xₙ³-2)/3xₙ²', '\frac{xₙ³ + 4}{3xₙ²}', 'xₙ - xₙ³/3xₙ²'],
       correctAnswer: 0,
       marks: 1,
       explanation: 'xₙ₊₁ = xₙ - f(xₙ)/f\'(xₙ) = xₙ - (xₙ³-2)/3xₙ² = (2xₙ³+2)/3xₙ²'
@@ -1291,14 +1291,14 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
   },
   {
     id: 'a2-gold-15',
-    title: 'Simplify (1-cos 2θ)/(sin 2θ)',
+    title: 'Simplify \frac{1-cos 2θ}{sin 2θ}',
     subject: 'math',
     chapter: 'Trig Identities Advanced',
     level: 'A2',
     difficulty: 'medium',
     rankTier: 'Gold',
     totalMarks: 1,
-    questionText: 'Simplify (1-cos 2θ)/(sin 2θ)',
+    questionText: 'Simplify \frac{1-cos 2θ}{sin 2θ}',
     topicTags: ['double angle'],
     steps: [{
       id: 'step-1',
@@ -1431,7 +1431,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
   },
   {
     id: 'a2-gold-22',
-    title: 'Integrate ∫(2x+3)/(x²+3x+2) dx using partial fractions',
+    title: 'Integrate ∫\frac{2x+3}{x²+3x+2} dx using partial fractions',
     subject: 'math',
     chapter: 'Integration 3',
     level: 'A2',
@@ -1568,7 +1568,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
       options: ['3t/2', '3t²/2t', 't/2', '2t/3'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'dy/dx = (dy/dt)/(dx/dt) = 3t²/2t = 3t/2'
+      explanation: 'dy/dx = \frac{dy/dt}{dx/dt} = 3t²/2t = 3t/2'
     }]
   },
   {
@@ -1585,10 +1585,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is cos θ?',
-      options: ['-2/9', '2/9', '0', '1'],
+      options: ['-\frac{2}{9}', '\frac{2}{9}', '0', '1'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'a·b = 2-2-4 = -4. |a| = 3, |b| = 3. cos θ = -4/9 = -2/9... wait, -4/9'
+      explanation: 'a·b = 2-2-4 = -4. |a| = 3, |b| = 3. cos θ = -\frac{4}{9} = -2/9... wait, -\frac{4}{9}'
     }]
   },
   {
@@ -1685,10 +1685,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is the area?',
-      options: ['8', '16', '4', '32/3'],
+      options: ['8', '16', '4', '\frac{32}{3}'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'A = ∫y(dx/dt)dt = ∫₀² 2t(2t)dt = ∫₀² 4t²dt = [4t³/3]₀² = 32/3'
+      explanation: 'A = ∫y(dx/dt)dt = ∫₀² 2t(2t)dt = ∫₀² 4t²dt = [4t³/3]₀² = \frac{32}{3}'
     }]
   },
   {
@@ -1748,7 +1748,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
       options: ['-1/cos³t', '1/cos³t', '-tan t', 'sec²t'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'dy/dx = -sin t/cos t = -tan t. d²y/dx² = d/dt(-tan t)/(dx/dt) = -sec²t/cos t = -1/cos³t'
+      explanation: 'dy/dx = -sin t/cos t = -tan t. d²y/dx² = d/dt\frac{-tan t}{dx/dt} = -sec²t/cos t = -1/cos³t'
     }]
   },
   {
@@ -1805,10 +1805,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'What is the gradient?',
-      options: ['2/3', '3/2', '1', '2'],
+      options: ['\frac{2}{3}', '\frac{3}{2}', '1', '2'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'dy/dx = (2t)/(3t²) = 2/(3t). At t=1: dy/dx = 2/3'
+      explanation: 'dy/dx = \frac{2t}{3t²} = 2/(3t). At t=1: dy/dx = \frac{2}{3}'
     }]
   },
 
@@ -1827,10 +1827,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'Correct partial fraction form?',
-      options: ['A/x + (Bx+C)/(x²+4)', 'A/x + B/(x²+4)', '(Ax+B)/(x(x²+4))', 'A/x + B/x² + C/(x²+4)'],
+      options: ['A/x + \frac{Bx+C}{x²+4}', 'A/x + B/(x²+4)', '(Ax+B)/(x(x²+4))', 'A/x + B/x² + C/(x²+4)'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'Linear factor x and irreducible quadratic x²+4 requires A/x + (Bx+C)/(x²+4)'
+      explanation: 'Linear factor x and irreducible quadratic x²+4 requires A/x + \frac{Bx+C}{x²+4}'
     }]
   },
   {
@@ -1855,22 +1855,22 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
   },
   {
     id: 'a2-unbeatable-3',
-    title: 'Solve DE: dy/dx + (2/x)y = x²',
+    title: 'Solve DE: dy/dx + (\frac{2}{x})y = x²',
     subject: 'math',
     chapter: 'DE Modeling',
     level: 'A2',
     difficulty: 'hard',
     rankTier: 'Unbeatable',
     totalMarks: 1,
-    questionText: 'What is the integrating factor for dy/dx + (2/x)y = x²?',
+    questionText: 'What is the integrating factor for dy/dx + (\frac{2}{x})y = x²?',
     topicTags: ['integrating factor'],
     steps: [{
       id: 'step-1',
       question: 'Integrating factor?',
-      options: ['x²', 'e^(2x)', '2x', 'e^(2/x)'],
+      options: ['x²', 'e^(2x)', '2x', 'e^(\frac{2}{x})'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'I.F. = e^(∫2/x dx) = e^(2ln|x|) = e^(ln x²) = x²'
+      explanation: 'I.F. = e^(∫\frac{2}{x} dx) = e^(2ln|x|) = e^(ln x²) = x²'
     }]
   },
   {
@@ -1952,7 +1952,7 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
       options: ['Use implicit differentiation on original', 'Parametric differentiation only', 'Direct substitution', 'Numerical methods'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'At origin, parametric form has issues. Implicit gives: dy/dx = (y-x²)/(y²-x)'
+      explanation: 'At origin, parametric form has issues. Implicit gives: dy/dx = \frac{y-x²}{y²-x}'
     }]
   },
   {
@@ -1969,10 +1969,10 @@ export const A2_ONLY_QUESTIONS: StepBasedQuestion[] = [
     steps: [{
       id: 'step-1',
       question: 'Integrating factor after rearranging?',
-      options: ['1/x²', 'x²', 'e^(-2/x)', 'x'],
+      options: ['\frac{1}{x²}', 'x²', 'e^(-\frac{2}{x})', 'x'],
       correctAnswer: 0,
       marks: 1,
-      explanation: 'Rearrange to dy/dx - (2/x)y = x²e^x. I.F. = e^(-2ln x) = 1/x²'
+      explanation: 'Rearrange to dy/dx - (\frac{2}{x})y = x²e^x. I.F. = e^(-2ln x) = \frac{1}{x²}'
     }]
   },
   {

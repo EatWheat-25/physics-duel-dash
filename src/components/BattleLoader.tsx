@@ -18,6 +18,8 @@ export default function BattleLoader() {
         subject: 'math',
         chapter,
         limit: 5
+      }, {
+        useSelectionHistory: true,
       });
       setQuestions(q);
       setLoading(false);

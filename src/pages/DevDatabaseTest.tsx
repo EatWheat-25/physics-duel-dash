@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, X, Loader2, AlertCircle } from 'lucide-react';
 import { StepBasedQuestion, isValidStepBasedQuestion } from '@/types/question-contract';
@@ -121,7 +121,8 @@ export const DevDatabaseTest = () => {
 
     const testWebSocket = () => {
         console.log('[WS-TEST] Starting connection test...');
-        const wsUrl = 'wss://qvunaswogfwhixecjpcn.supabase.co/functions/v1/game-ws?token=anon&match_id=test-connection';
+        const wsBase = SUPABASE_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+        const wsUrl = `${wsBase}/functions/v1/game-ws?token=${encodeURIComponent('anon')}&match_id=${encodeURIComponent('test-connection')}`;
 
         try {
             const ws = new WebSocket(wsUrl);

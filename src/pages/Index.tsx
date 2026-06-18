@@ -189,13 +189,13 @@ const Index = () => {
 
     if (level === "A1-Only") {
       // A1 level: differentiation, integration, quadratic functions
-      const q1 = await getStepMathQuestions({ subject: 'math', chapter: 'differentiation', level: 'A1', limit: 1 });
-      const q2 = await getStepMathQuestions({ subject: 'math', chapter: 'integration', level: 'A1', limit: 1 });
-      const q3 = await getStepMathQuestions({ subject: 'math', chapter: 'quadratic-functions', level: 'A1', limit: 1 });
+      const q1 = await getStepMathQuestions({ subject: 'math', chapter: 'differentiation', level: 'A1', limit: 1 }, { useSelectionHistory: true });
+      const q2 = await getStepMathQuestions({ subject: 'math', chapter: 'integration', level: 'A1', limit: 1 }, { useSelectionHistory: true });
+      const q3 = await getStepMathQuestions({ subject: 'math', chapter: 'quadratic-functions', level: 'A1', limit: 1 }, { useSelectionHistory: true });
       stepQuestions = [...q1, ...q2, ...q3];
   } else if (level === "A2-Only") {
   // Use any A2 maths questions from the DB
-  stepQuestions = await getStepMathQuestions({ subject: 'math', level: 'A2', limit: 5 });
+  stepQuestions = await getStepMathQuestions({ subject: 'math', level: 'A2', limit: 5 }, { useSelectionHistory: true });
 } else if (level === "A2-Integration") {
       // A2 Integration mode is currently unavailable
       toast({
@@ -206,8 +206,8 @@ const Index = () => {
       return;
     } else {
       // All-Maths: mix of A1 and A2 questions
-      const q1 = await getStepMathQuestions({ subject: 'math', chapter: 'differentiation', level: 'A1', limit: 1 });
-      const q2 = await getStepMathQuestions({ subject: 'math', chapter: 'parametric-equations', level: 'A2', limit: 1 });
+      const q1 = await getStepMathQuestions({ subject: 'math', chapter: 'differentiation', level: 'A1', limit: 1 }, { useSelectionHistory: true });
+      const q2 = await getStepMathQuestions({ subject: 'math', chapter: 'parametric-equations', level: 'A2', limit: 1 }, { useSelectionHistory: true });
       stepQuestions = [...q1, ...q2];
     }
 

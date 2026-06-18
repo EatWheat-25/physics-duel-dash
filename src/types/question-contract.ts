@@ -21,36 +21,92 @@
  * ═══════════════════════════════════════════════════════════════════════
  *
  * - Graphs are stored at the QUESTION level (not per-step).
- * - Supports function graphs (y = f(x)) and points/line graphs.
+ * - Supports one shared graph canvas with plotted series and geometry overlays.
+ * - Each series can be a function graph (y = f(x)) or points/line graph.
  * - Styling: transparent background, graph elements rendered in white/black.
  */
 
 export type GraphColor = 'white' | 'black';
+export type GraphDisplayMode = 'standard' | 'aLevelSketch';
+export type GraphScaleMode = 'equalUnits' | 'fill';
 
 export interface GraphPoint {
     x: number;
     y: number;
 }
 
-export type GraphConfig =
-    | {
-        type: 'function';
-        equation: string;
-        xMin?: number;
-        xMax?: number;
-        yMin?: number;
-        yMax?: number;
-        color?: GraphColor;
-    }
-    | {
-        type: 'points';
-        points: GraphPoint[];
-        xMin?: number;
-        xMax?: number;
-        yMin?: number;
-        yMax?: number;
-        color?: GraphColor;
-    };
+export interface GraphSeriesBase {
+    /** Draw dots at the endpoints of this series */
+    showEndpoints?: boolean;
+
+    /** Draw auto-generated coordinate labels like "(4, 2)" at the endpoints */
+    showEndpointLabels?: boolean;
+}
+
+export interface GraphFunctionSeries extends GraphSeriesBase {
+    type: 'function';
+    equation: string;
+
+    /**
+     * Optional plotting cap for this specific function series.
+     * When omitted, the function spans the graph's visible x-domain.
+     */
+    xStart?: number;
+    xEnd?: number;
+}
+
+export interface GraphPointsSeries extends GraphSeriesBase {
+    type: 'points';
+    points: GraphPoint[];
+}
+
+export interface GraphPolygon {
+    points: GraphPoint[];
+    fill?: boolean;
+    stroke?: boolean;
+}
+
+export interface GraphLabel {
+    x: number;
+    y: number;
+    text: string;
+    offsetX?: number;
+    offsetY?: number;
+}
+
+export interface GraphAngleMarker {
+    vertex: GraphPoint;
+    p1: GraphPoint;
+    p2: GraphPoint;
+    type: 'right';
+}
+
+export type GraphSeries = GraphFunctionSeries | GraphPointsSeries;
+
+export interface GraphConfig {
+    /** Explicit rendering preset for the graph surface */
+    displayMode?: GraphDisplayMode;
+
+    /** Shared graph styling, scaling mode, and viewport overrides */
+    color?: GraphColor;
+    scaleMode?: GraphScaleMode;
+    xMin?: number;
+    xMax?: number;
+    yMin?: number;
+    yMax?: number;
+
+    /** Ordered list of plotted series on the same graph */
+    series?: GraphSeries[];
+
+    /** Closed geometry overlays such as triangles or quadrilaterals */
+    polygons?: GraphPolygon[];
+
+    /** Explicit text labels anchored to graph coordinates */
+    labels?: GraphLabel[];
+
+    /** Geometry angle markers such as right-angle squares */
+    angleMarkers?: GraphAngleMarker[];
+}
 
 /**
  * A single step in a multi-step question.
@@ -204,9 +260,52 @@ function isFiniteNumber(n: any): n is number {
     return typeof n === 'number' && Number.isFinite(n);
 }
 
+function isValidGraphPoint(obj: any): obj is GraphPoint {
+    return !!obj && typeof obj === 'object' && isFiniteNumber(obj.x) && isFiniteNumber(obj.y);
+}
+
+function isValidGraphPolygon(obj: any): obj is GraphPolygon {
+    if (!obj || typeof obj !== 'object') return false;
+    if (!Array.isArray(obj.points) || obj.points.length < 3) return false;
+    if (!obj.points.every((point: any) => isValidGraphPoint(point))) return false;
+    if (obj.fill != null && typeof obj.fill !== 'boolean') return false;
+    if (obj.stroke != null && typeof obj.stroke !== 'boolean') return false;
+    if (obj.fill === false && obj.stroke === false) return false;
+    return true;
+}
+
+function isValidGraphLabel(obj: any): obj is GraphLabel {
+    if (!obj || typeof obj !== 'object') return false;
+    if (!isFiniteNumber(obj.x) || !isFiniteNumber(obj.y)) return false;
+    if (typeof obj.text !== 'string' || obj.text.trim().length === 0) return false;
+    if (obj.offsetX != null && !isFiniteNumber(obj.offsetX)) return false;
+    if (obj.offsetY != null && !isFiniteNumber(obj.offsetY)) return false;
+    return true;
+}
+
+function isValidGraphAngleMarker(obj: any): obj is GraphAngleMarker {
+    if (!obj || typeof obj !== 'object') return false;
+    if (obj.type !== 'right') return false;
+    if (!isValidGraphPoint(obj.vertex)) return false;
+    if (!isValidGraphPoint(obj.p1)) return false;
+    if (!isValidGraphPoint(obj.p2)) return false;
+    return true;
+}
+
 export function isValidGraphConfig(obj: any): obj is GraphConfig {
     if (!obj || typeof obj !== 'object') return false;
-    if (obj.type !== 'function' && obj.type !== 'points') return false;
+
+    const displayModeOk =
+        obj.displayMode == null ||
+        obj.displayMode === 'standard' ||
+        obj.displayMode === 'aLevelSketch';
+    if (!displayModeOk) return false;
+
+    const scaleModeOk =
+        obj.scaleMode == null ||
+        obj.scaleMode === 'equalUnits' ||
+        obj.scaleMode === 'fill';
+    if (!scaleModeOk) return false;
 
     const colorOk =
         obj.color == null ||
@@ -226,12 +325,56 @@ export function isValidGraphConfig(obj: any): obj is GraphConfig {
     if (hasXMin && hasXMax && obj.xMin >= obj.xMax) return false;
     if (hasYMin && hasYMax && obj.yMin >= obj.yMax) return false;
 
-    if (obj.type === 'function') {
-        return typeof obj.equation === 'string' && obj.equation.trim().length > 0;
-    }
+    if (obj.series != null && !Array.isArray(obj.series)) return false;
+    if (obj.polygons != null && !Array.isArray(obj.polygons)) return false;
+    if (obj.labels != null && !Array.isArray(obj.labels)) return false;
+    if (obj.angleMarkers != null && !Array.isArray(obj.angleMarkers)) return false;
 
-    if (!Array.isArray(obj.points) || obj.points.length < 2) return false;
-    return obj.points.every((p: any) => p && typeof p === 'object' && isFiniteNumber(p.x) && isFiniteNumber(p.y));
+    const seriesOk = (obj.series ?? []).every((series: any) => {
+        if (!series || typeof series !== 'object') return false;
+        if (series.showEndpoints != null && typeof series.showEndpoints !== 'boolean') return false;
+        if (series.showEndpointLabels != null && typeof series.showEndpointLabels !== 'boolean') return false;
+
+        if (series.type === 'function') {
+            const hasXStart = series.xStart != null;
+            const hasXEnd = series.xEnd != null;
+            if (hasXStart && !isFiniteNumber(series.xStart)) return false;
+            if (hasXEnd && !isFiniteNumber(series.xEnd)) return false;
+            if (hasXStart && hasXEnd && series.xStart >= series.xEnd) return false;
+            return typeof series.equation === 'string' && series.equation.trim().length > 0;
+        }
+
+        if (series.type === 'points') {
+            return (
+                Array.isArray(series.points) &&
+                series.points.length >= 2 &&
+                series.points.every(
+                    (p: any) => p && typeof p === 'object' && isFiniteNumber(p.x) && isFiniteNumber(p.y)
+                )
+            );
+        }
+
+        return false;
+    });
+
+    if (!seriesOk) return false;
+
+    const polygonsOk = (obj.polygons ?? []).every((polygon: any) => isValidGraphPolygon(polygon));
+    if (!polygonsOk) return false;
+
+    const labelsOk = (obj.labels ?? []).every((label: any) => isValidGraphLabel(label));
+    if (!labelsOk) return false;
+
+    const angleMarkersOk = (obj.angleMarkers ?? []).every((marker: any) => isValidGraphAngleMarker(marker));
+    if (!angleMarkersOk) return false;
+
+    const hasRenderableGeometry =
+        (Array.isArray(obj.series) && obj.series.length > 0) ||
+        (Array.isArray(obj.polygons) && obj.polygons.length > 0) ||
+        (Array.isArray(obj.labels) && obj.labels.length > 0) ||
+        (Array.isArray(obj.angleMarkers) && obj.angleMarkers.length > 0);
+
+    return hasRenderableGeometry;
 }
 
 /**

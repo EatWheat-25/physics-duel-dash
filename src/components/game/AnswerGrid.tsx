@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ScienceText } from '@/components/chem/ScienceText';
+import { normalizeInlineMathOption } from '@/lib/optionMath';
 
 interface AnswerGridProps {
     options: string[];
@@ -68,7 +69,7 @@ export const AnswerGrid: React.FC<AnswerGridProps> = ({
                     </div>
 
                     {/* Option Text */}
-                    <ScienceText text={option} className="font-medium text-lg leading-snug" smilesSize="sm" />
+                    <ScienceText text={normalizeInlineMathOption(option)} className="font-medium text-lg leading-snug" smilesSize="sm" />
 
                     {/* Selection Indicator (Corner) */}
                     {(index === selectedIndex || index === correctIndex) && (

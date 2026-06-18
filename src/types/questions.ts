@@ -7,6 +7,8 @@
  * DO NOT create duplicate types elsewhere!
  */
 
+import type { GraphColor, GraphConfig, GraphPoint } from '@/types/question-contract';
+
 // ============================================================================
 // CORE TYPES
 // ============================================================================
@@ -20,32 +22,7 @@ export type RankTier = 'Bronze' | 'Silver' | 'Gold' | 'Diamond' | 'Unbeatable' |
 // GRAPH TYPES (ONE PER QUESTION)
 // ============================================================================
 
-export type GraphColor = 'white' | 'black';
-
-export interface GraphPoint {
-  x: number;
-  y: number;
-}
-
-export type GraphConfig =
-  | {
-      type: 'function';
-      equation: string;
-      xMin?: number;
-      xMax?: number;
-      yMin?: number;
-      yMax?: number;
-      color?: GraphColor;
-    }
-  | {
-      type: 'points';
-      points: GraphPoint[];
-      xMin?: number;
-      xMax?: number;
-      yMin?: number;
-      yMax?: number;
-      color?: GraphColor;
-    };
+export type { GraphColor, GraphConfig, GraphPoint };
 
 /**
  * A single step in a multi-step question.

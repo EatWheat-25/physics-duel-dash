@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion';
 
 type StudyPatternBackgroundVariant = 'default' | 'battleNerds';
 
@@ -10,6 +11,30 @@ export const StudyPatternBackground: React.FC<StudyPatternBackgroundProps> = ({
   variant = 'default',
 }) => {
   const isBattleNerds = variant === 'battleNerds';
+  const prefersReducedMotion = useReducedMotion();
+
+  // Subtle spring-smoothed mouse parallax (~6px max drift) on the inner layers.
+  // Skipped under reduced motion and on touch devices.
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const driftX = useSpring(mouseX, { stiffness: 60, damping: 20, mass: 1.2 });
+  const driftY = useSpring(mouseY, { stiffness: 60, damping: 20, mass: 1.2 });
+  // Glow blobs drift the opposite way, slightly less, for a faint depth cue.
+  const glowX = useTransform(driftX, (v) => -v * 0.6);
+  const glowY = useTransform(driftY, (v) => -v * 0.6);
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseX.set((e.clientX / window.innerWidth - 0.5) * 12);
+      mouseY.set((e.clientY / window.innerHeight - 0.5) * 12);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [prefersReducedMotion, mouseX, mouseY]);
 
   // Dense, repeating "study doodles" pattern (original vector, inspired by your reference wallpaper)
   const patternStroke = isBattleNerds ? '#55C7FF' : '#22d3ee';
@@ -103,15 +128,18 @@ export const StudyPatternBackground: React.FC<StudyPatternBackgroundProps> = ({
         />
       )}
 
-      {/* 2. Dense repeating pattern overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none"
+      {/* 2. Dense repeating pattern overlay (mouse parallax) */}
+      <motion.div
+        className="absolute pointer-events-none"
         style={{
           width: '160%',
           height: '160%',
           left: '-30%',
           top: '-30%',
-          transform: 'rotate(-12deg) scale(1.2)',
+          rotate: -12,
+          scale: 1.2,
+          x: driftX,
+          y: driftY,
           transformOrigin: 'center',
           backgroundImage: patternUrl,
           backgroundRepeat: 'repeat',
@@ -123,18 +151,28 @@ export const StudyPatternBackground: React.FC<StudyPatternBackgroundProps> = ({
       {/* 3. Stronger Vignette for focus */}
       <div className="absolute inset-0 bg-[radial-gradient(transparent_30%,#000000_100%)] opacity-90 pointer-events-none" />
       
-      {/* 4. Electric Blue Glow Drifts */}
-      <div 
-        className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-20 animate-blob-float"
-        style={{ background: isBattleNerds ? 'hsl(var(--bn-secondary))' : '#06b6d4' }} // Cyan-500
-      />
-      <div 
-        className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[150px] opacity-10 animate-blob-float"
-        style={{ 
-          background: isBattleNerds ? 'hsl(var(--bn-secondary-deep))' : '#3b82f6', // Blue-500
-          animationDelay: '-5s' 
-        }} 
-      />
+      {/* 4. Electric Blue Glow Drifts (counter-parallax wrapper; CSS float on inner) */}
+      <motion.div
+        className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%]"
+        style={{ x: glowX, y: glowY }}
+      >
+        <div
+          className="h-full w-full rounded-full blur-[150px] opacity-20 animate-blob-float"
+          style={{ background: isBattleNerds ? 'hsl(var(--bn-secondary))' : '#06b6d4' }} // Cyan-500
+        />
+      </motion.div>
+      <motion.div
+        className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%]"
+        style={{ x: glowX, y: glowY }}
+      >
+        <div
+          className="h-full w-full rounded-full blur-[150px] opacity-10 animate-blob-float"
+          style={{
+            background: isBattleNerds ? 'hsl(var(--bn-secondary-deep))' : '#3b82f6', // Blue-500
+            animationDelay: '-5s',
+          }}
+        />
+      </motion.div>
     </div>
   );
 };

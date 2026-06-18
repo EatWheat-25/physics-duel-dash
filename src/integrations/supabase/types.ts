@@ -790,6 +790,115 @@ export type Database = {
           },
         ]
       }
+      campaign_rank_points: {
+        Row: {
+          created_at: string
+          id: number
+          level: string
+          player_id: string
+          rank_points: number
+          subject: string
+          topic_key: string
+          topic_kind: string
+          topic_label: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          level: string
+          player_id: string
+          rank_points?: number
+          subject: string
+          topic_key: string
+          topic_kind: string
+          topic_label: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          level?: string
+          player_id?: string
+          rank_points?: number
+          subject?: string
+          topic_key?: string
+          topic_kind?: string
+          topic_label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_rank_points_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_rank_points_history: {
+        Row: {
+          accuracy_pct: number
+          correct_parts: number
+          created_at: string
+          delta: number
+          id: number
+          level: string
+          new_points: number
+          old_points: number
+          outcome: string
+          player_id: string
+          subject: string
+          topic_key: string
+          topic_kind: string
+          topic_label: string
+          total_parts: number
+        }
+        Insert: {
+          accuracy_pct: number
+          correct_parts: number
+          created_at?: string
+          delta: number
+          id?: number
+          level: string
+          new_points: number
+          old_points: number
+          outcome: string
+          player_id: string
+          subject: string
+          topic_key: string
+          topic_kind: string
+          topic_label: string
+          total_parts: number
+        }
+        Update: {
+          accuracy_pct?: number
+          correct_parts?: number
+          created_at?: string
+          delta?: number
+          id?: number
+          level?: string
+          new_points?: number
+          old_points?: number
+          outcome?: string
+          player_id?: string
+          subject?: string
+          topic_key?: string
+          topic_kind?: string
+          topic_label?: string
+          total_parts?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_rank_points_history_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       player_rank_points_history: {
         Row: {
           accuracy_pct: number
@@ -1252,6 +1361,19 @@ export type Database = {
           id: string
           rank_points: number
         }[]
+      }
+      record_campaign_challenge_v1: {
+        Args: {
+          p_correct_parts: number
+          p_level: string
+          p_player_id: string
+          p_subject: string
+          p_topic_key: string
+          p_topic_kind: string
+          p_topic_label: string
+          p_total_parts: number
+        }
+        Returns: Json
       }
       has_role: {
         Args: {

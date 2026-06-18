@@ -3,6 +3,7 @@ import { Check } from 'lucide-react'
 import { ScienceText } from '@/components/chem/ScienceText'
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
 import { QuestionGraph } from '@/components/math/QuestionGraph'
+import { normalizeInlineMathOption } from '@/lib/optionMath'
 import type { GraphConfig } from '@/types/question-contract'
 
 export function StepCard({
@@ -95,7 +96,7 @@ export function StepCard({
                 <div className="paper-option-letter">
                   {String.fromCharCode(65 + idx)}
                 </div>
-                <ScienceText text={option} className="text-lg" smilesSize="sm" />
+                <ScienceText text={normalizeInlineMathOption(option)} className="text-lg" smilesSize="sm" />
               </div>
             </button>
           ))}

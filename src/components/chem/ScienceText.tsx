@@ -56,7 +56,7 @@ export function ScienceText({
   if (!raw.trim()) return null
 
   return (
-    <span className={cn('whitespace-pre-wrap', className)}>
+    <span className={cn('whitespace-pre-line', className)}>
       {tokens.map((t, idx) => {
         if (t.type === 'text') {
           return <MathText key={idx} text={t.content} />

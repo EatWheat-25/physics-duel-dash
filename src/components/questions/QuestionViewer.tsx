@@ -20,6 +20,8 @@ import { RoundPhase } from '@/types/gameEvents';
 import { ScienceText } from '@/components/chem/ScienceText';
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram';
 import { QuestionGraph } from '@/components/math/QuestionGraph';
+import { normalizeInlineMathOption } from '@/lib/optionMath';
+import type { GraphConfig } from '@/types/question-contract';
 
 interface QuestionViewerProps {
   questions: StepBasedQuestion[];
@@ -88,6 +90,9 @@ export function QuestionViewer({
     : currentQuestion
       ? getPrimaryDisplayStep(currentQuestion)
       : null;
+  const paperGraph: GraphConfig | null | undefined = currentQuestion?.graph
+    ? ({ ...currentQuestion.graph, color: 'black' } as GraphConfig)
+    : undefined;
 
   // In online mode, allow a server-provided sub-step override for display.
   // When present, the UI can show a sub-step without needing it to exist in currentQuestion.steps.
@@ -219,10 +224,10 @@ export function QuestionViewer({
             {currentQuestion.stem && totalSteps > 1 && (
               <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                 <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-1">Main Question:</p>
-                {((currentQuestion as any).graph || currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                {(paperGraph || currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
                   <div className="mt-3 flex flex-col items-center gap-3">
-                    {(currentQuestion as any).graph && (
-                      <QuestionGraph graph={(currentQuestion as any).graph} />
+                    {paperGraph && (
+                      <QuestionGraph graph={paperGraph} />
                     )}
                     {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
                       <img
@@ -247,10 +252,10 @@ export function QuestionViewer({
             {/* Single‑step stem fallback */}
             {currentQuestion.stem && totalSteps === 1 && (
               <div className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground">
-                {((currentQuestion as any).graph || currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                {(paperGraph || currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
                   <div className="flex flex-col items-center gap-3">
-                    {(currentQuestion as any).graph && (
-                      <QuestionGraph graph={(currentQuestion as any).graph} />
+                    {paperGraph && (
+                      <QuestionGraph graph={paperGraph} />
                     )}
                     {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
                       <img
@@ -366,7 +371,7 @@ export function QuestionViewer({
                             {showResult && isCorrect ? <Check className="w-5 h-5" /> : showResult && isWrong ? <X className="w-5 h-5" /> : optionLabel}
                           </div>
                           <p className="flex-1 text-gray-800 pt-1">
-                            <ScienceText text={option} smilesSize="sm" />
+                            <ScienceText text={normalizeInlineMathOption(option)} smilesSize="sm" />
                           </p>
                         </div>
                       </button>

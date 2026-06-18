@@ -66,7 +66,64 @@ function normalizePlainText(input: string): string {
       // If someone typed \text{...} outside math mode, show readable text
       .replace(/\\text\s*\{([^}]*)\}/g, '$1')
       .replace(/\\mathrm\s*\{([^}]*)\}/g, '$1')
+      // Collapse stray single newlines to a space so equations don't fracture
+      // across lines, while preserving deliberate paragraph breaks (\n\n+).
+      .replace(/\n{2,}/g, '\u0000PARA\u0000')
+      .replace(/[ \t]*\n[ \t]*/g, ' ')
+      .replace(/\u0000PARA\u0000/g, '\n\n')
   )
+}
+
+/**
+ * Convert "shorthand" slash fractions like "1/\cos^2 x" into proper stacked
+ * "\frac{1}{\cos^2 x}". Patterns are intentionally digit-numerator-biased so
+ * derivative notation ("dy/dx"), unit ratios ("m/s"), and function composition
+ * ("\sin x/\cos x") are never matched and stay as slashes.
+ */
+function convertSlashFractions(input: string): string {
+  let s = input
+
+  // Shared "do not start a fraction here" prefix character classes:
+  // - `\` `A-Za-z` `\d` `.` keep us out of mid-token positions
+  // - `√∛∜` keep "√3/2" meaning (√3)/2, not √(3/2)
+  // Trailing unicode superscripts (²³⁴⁵⁶⁷⁸⁹⁰¹) should be captured as part of
+  // the denominator so "1/x²" becomes \frac{1}{x²}, not \frac{1}{x}².
+  const SUP = '\u00B2\u00B3\u00B9\u2070\u2074\u2075\u2076\u2077\u2078\u2079'
+
+  // 1. Parenthesized fractions:  (a+b)/(c-d)  ->  \frac{a+b}{c-d}
+  //    Only matches when both sides are parenthesized AND the denominator is
+  //    not immediately followed by another `(...)` factor. That guards against
+  //    rewriting "(a)/(b)(c)" (meaning a / [b*c]) into a wrong "\frac{a}{b}(c)".
+  s = s.replace(/\(([^()]+)\)\s*\/\s*\(([^()]+)\)(?!\s*\()/g, '\\frac{$1}{$2}')
+
+  // 2. digit / \trigfunc[^n][ var]   e.g. 1/\cos^2 x  or  1/\sin x
+  s = s.replace(
+    /(?<![\\A-Za-z\d.\u221A\u221B\u221C])(\d+)\s*\/\s*(\\(?:sin|cos|tan|cot|sec|csc|ln|log)(?:\^(?:\d+|\{[^}]+\}))?(?:\s*[a-zA-Z])?)/g,
+    '\\frac{$1}{$2}',
+  )
+
+  // 3. digit / \command          e.g. 1/\pi, 2/\sqrt{3}
+  s = s.replace(
+    /(?<![\\A-Za-z\d.\u221A\u221B\u221C])(\d+)\s*\/\s*(\\[A-Za-z]+(?:\{[^}]+\})?)/g,
+    '\\frac{$1}{$2}',
+  )
+
+  // 4. digit / letter[^power]    e.g. 1/x, 1/n^2, 1/x^{n+1}, 1/x²
+  s = s.replace(
+    new RegExp(
+      `(?<![\\\\A-Za-z\\d.\\u221A\\u221B\\u221C])(\\d+)\\s*/\\s*([a-zA-Z](?:\\^(?:\\d+|\\{[^}]+\\})|[${SUP}])?)(?![A-Za-z])`,
+      'g',
+    ),
+    '\\frac{$1}{$2}',
+  )
+
+  // 5. digit / digit             e.g. 1/2, 3/4   (skips decimals like 2.5/3.1)
+  s = s.replace(
+    /(?<![\d.\u221A\u221B\u221C])(\d+)\s*\/\s*(\d+)(?![\d.])/g,
+    '\\frac{$1}{$2}',
+  )
+
+  return s
 }
 
 /**
@@ -74,11 +131,17 @@ function normalizePlainText(input: string): string {
  * Fixes common authoring mistakes like "\Q" or "\t" used for variables.
  */
 function normalizeMath(input: string): string {
-  return input
-    // Drop backslash for single-letter "commands" like \Q, \I, \t (not \theta, \text, etc).
-    .replace(/\\([A-Za-z])(?![A-Za-z])/g, '$1')
-    // Remove a trailing backslash from malformed math (e.g. "\Q = It\").
-    .replace(/\\$/g, '')
+  return convertSlashFractions(
+    input
+      // Recover double-escaped LaTeX commands ("\\circ" -> "\circ", "\\le" -> "\le").
+      // Real `\\` line breaks are followed by whitespace / `[length]` / end-of-input,
+      // never by a letter, so legitimate uses are untouched.
+      .replace(/\\\\([A-Za-z])/g, '\\$1')
+      // Drop backslash for single-letter "commands" like \Q, \I, \t (not \theta, \text, etc).
+      .replace(/\\([A-Za-z])(?![A-Za-z])/g, '$1')
+      // Remove a trailing backslash from malformed math (e.g. "\Q = It\").
+      .replace(/\\$/g, ''),
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +399,7 @@ export function MathText({
   const tokens = tokenizeMath(normalized)
 
   return (
-    <span className={cn('whitespace-pre-wrap', className)}>
+    <span className={cn('whitespace-pre-line', className)}>
       {tokens.map((t, idx) => {
         if (t.type === 'text') {
           // Render markdown-lite formatting for legacy question content.

@@ -1,6 +1,13 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useMemo, useRef, useState, useEffect, type ReactNode, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  motion,
+  AnimatePresence,
+  useMotionTemplate,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+} from 'framer-motion';
 import { Loader2, Zap, ArrowLeft, BookOpen, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMatchmaking } from '@/hooks/useMatchmaking';
@@ -9,9 +16,69 @@ import { StudyPatternBackground } from '@/components/StudyPatternBackground';
 import { useMatchmakingPrefs } from '@/store/useMatchmakingPrefs';
 import { BrandMark } from '@/components/BrandMark';
 import { playMatchStartSound } from '@/utils/matchSounds';
+import { PREMIUM_EASE, SOFT_SPRING, blurCrossfade, tapPress } from '@/lib/motion';
 
 type Subject = 'physics' | 'math' | 'chemistry';
 type Grade = 'A1' | 'A2' | 'Both';
+
+/** Glass card with spring entrance/hover and a cursor-following light sheen. */
+function SheenCard({
+  onClick,
+  accent,
+  delay,
+  ariaLabel,
+  children,
+}: {
+  onClick: () => void;
+  accent: string;
+  delay: number;
+  ariaLabel?: string;
+  children: ReactNode;
+}) {
+  const prefersReducedMotion = useReducedMotion();
+  const sheenX = useMotionValue(50);
+  const sheenY = useMotionValue(30);
+  const sheenOpacity = useMotionValue(0);
+  const springSheenOpacity = useSpring(sheenOpacity, { stiffness: 180, damping: 26 });
+  const sheenBackground = useMotionTemplate`radial-gradient(380px 260px at ${sheenX}% ${sheenY}%, rgba(255,255,255,0.10) 0%, transparent 65%)`;
+
+  const handleMouseMove = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    if (prefersReducedMotion) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    sheenX.set(((e.clientX - rect.left) / rect.width) * 100);
+    sheenY.set(((e.clientY - rect.top) / rect.height) * 100);
+    sheenOpacity.set(1);
+  };
+
+  return (
+    <motion.button
+      onClick={onClick}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => sheenOpacity.set(0)}
+      className="relative p-7 rounded-2xl text-white overflow-hidden text-left"
+      style={{
+        background: 'rgba(15, 23, 42, 0.62)',
+        border: '1px solid rgba(255, 255, 255, 0.14)',
+        backdropFilter: 'blur(18px)',
+        boxShadow: '0 14px 44px rgba(0,0,0,0.45)',
+      }}
+      initial={prefersReducedMotion ? false : { opacity: 0, y: 28 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...SOFT_SPRING, delay }}
+      whileHover={prefersReducedMotion ? undefined : { y: -3, scale: 1.02, transition: SOFT_SPRING }}
+      whileTap={prefersReducedMotion ? undefined : tapPress}
+      aria-label={ariaLabel}
+    >
+      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: accent }} />
+      <div className="relative z-10">{children}</div>
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: sheenBackground, opacity: springSheenOpacity }}
+        aria-hidden="true"
+      />
+    </motion.button>
+  );
+}
 
 const subjects = [
   { id: 'physics' as Subject, name: 'Physics', icon: '⚛️', color: '#3b82f6', glow: 'rgba(59, 130, 246, 0.5)' },
@@ -27,6 +94,7 @@ const grades = [
 
 export default function LobbyNew() {
   const navigate = useNavigate();
+  const searchPulseReduced = useReducedMotion();
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState<'subject' | 'grade' | 'ready'>('subject');
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
@@ -187,7 +255,7 @@ export default function LobbyNew() {
     if (level.toLowerCase() === 'a1') level = 'A1';
     if (level.toLowerCase() === 'a2') level = 'A2';
 
-    navigate('/solo-challenge', { state: { subject, level } });
+    navigate('/campaign', { state: { subject, level } });
   };
 
   const handleLeaveQueue = async () => {
@@ -238,13 +306,7 @@ export default function LobbyNew() {
         <div className="w-full max-w-6xl">
           <AnimatePresence mode="wait">
             {step === 'subject' && (
-              <motion.div
-                key="subject"
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 50 }}
-                transition={{ duration: 0.3 }}
-              >
+              <motion.div key="subject" {...blurCrossfade}>
                 <div className="text-center mb-12">
                   <motion.div
                     initial={{ scale: 0, rotate: -180 }}
@@ -276,55 +338,25 @@ export default function LobbyNew() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {subjects.map((subject, index) => (
-                    <motion.button
+                    <SheenCard
                       key={subject.id}
                       onClick={() => handleSubjectSelect(subject.id)}
-                      className="relative p-7 rounded-2xl text-white overflow-hidden group"
-                      style={{
-                        background: 'rgba(15, 23, 42, 0.62)',
-                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                        backdropFilter: 'blur(18px)',
-                        boxShadow: '0 14px 44px rgba(0,0,0,0.45)',
-                      }}
-                      initial={{ opacity: 0, y: 50 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 * index, type: 'spring' }}
-                      whileHover={{ scale: 1.03, y: -2 }}
-                      whileTap={{ scale: 0.95 }}
+                      accent={subject.glow}
+                      delay={0.06 * index}
+                      ariaLabel={`Choose ${subject.name}`}
                     >
-                      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: subject.glow }} />
-                      
-                      <div className="relative z-10">
-                        <div className="text-5xl mb-3">
-                          {subject.icon}
-                        </div>
-                        <h2 className="text-xl font-semibold">{subject.name}</h2>
+                      <div className="text-5xl mb-3">
+                        {subject.icon}
                       </div>
-                      
-                      {/* Hover effect overlay */}
-                      <motion.div
-                        className="absolute inset-0"
-                        initial={{ opacity: 0 }}
-                        whileHover={{ opacity: 1 }}
-                        style={{
-                          background:
-                            'radial-gradient(500px 260px at 50% 0%, rgba(56,189,248,0.08), transparent 60%)',
-                        }}
-                      />
-                    </motion.button>
+                      <h2 className="text-xl font-semibold">{subject.name}</h2>
+                    </SheenCard>
                   ))}
                 </div>
               </motion.div>
             )}
 
             {step === 'grade' && (
-              <motion.div
-                key="grade"
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 50 }}
-                transition={{ duration: 0.3 }}
-              >
+              <motion.div key="grade" {...blurCrossfade}>
                 <div className="text-center mb-12">
                   <motion.div
                     initial={{ scale: 0, rotate: -180 }}
@@ -356,40 +388,16 @@ export default function LobbyNew() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {grades.map((grade, index) => (
-                    <motion.button
+                    <SheenCard
                       key={grade.id}
                       onClick={() => handleGradeSelect(grade.id)}
-                      className="relative p-7 rounded-2xl text-white overflow-hidden group"
-                      style={{
-                        background: 'rgba(15, 23, 42, 0.62)',
-                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                        backdropFilter: 'blur(18px)',
-                        boxShadow: '0 14px 44px rgba(0,0,0,0.45)',
-                      }}
-                      initial={{ opacity: 0, y: 50 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 * index, type: 'spring' }}
-                      whileHover={{ scale: 1.03, y: -2 }}
-                      whileTap={{ scale: 0.95 }}
+                      accent="rgba(34, 211, 238, 0.5)"
+                      delay={0.06 * index}
+                      ariaLabel={`Choose ${grade.name}`}
                     >
-                      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-cyan-400/50" />
-                      
-                      <div className="relative z-10">
-                        <h2 className="text-xl font-semibold mb-2">{grade.name}</h2>
-                        <p className="text-white/65">{grade.description}</p>
-                      </div>
-                      
-                      {/* Hover effect overlay */}
-                      <motion.div
-                        className="absolute inset-0"
-                        initial={{ opacity: 0 }}
-                        whileHover={{ opacity: 1 }}
-                        style={{
-                          background:
-                            'radial-gradient(500px 260px at 50% 0%, rgba(56,189,248,0.08), transparent 60%)',
-                        }}
-                      />
-                    </motion.button>
+                      <h2 className="text-xl font-semibold mb-2">{grade.name}</h2>
+                      <p className="text-white/65">{grade.description}</p>
+                    </SheenCard>
                   ))}
                 </div>
               </motion.div>
@@ -398,10 +406,7 @@ export default function LobbyNew() {
             {step === 'ready' && status !== 'searching' && (
               <motion.div
                 key="ready"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
+                {...blurCrossfade}
                 className="flex items-center justify-center"
               >
                 <div
@@ -602,7 +607,7 @@ export default function LobbyNew() {
                           </>
                         ) : (
                           <>
-                            <span className="drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">BOT MATCH</span>
+                            <span className="drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">CAMPAIGN</span>
                           </>
                         )}
                       </span>
@@ -615,7 +620,7 @@ export default function LobbyNew() {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.6 }}
                   >
-                    Start a battle or play a bot match. Win condition: &gt;70% accuracy.
+                    Start an online battle or jump into Campaign for a ranked topic run.
                   </motion.p>
                 </div>
               </motion.div>
@@ -624,9 +629,7 @@ export default function LobbyNew() {
             {status === 'searching' && (
               <motion.div
                 key="queued"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
+                {...blurCrossfade}
                 className="flex items-center justify-center"
               >
                 <div
@@ -664,22 +667,35 @@ export default function LobbyNew() {
                     FINDING OPPONENT...
                   </motion.h1>
 
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                    className="mb-8"
-                  >
-                    <Loader2 className="w-20 h-20 mx-auto text-blue-400 drop-shadow-[0_0_20px_rgba(96,165,250,0.8)]" />
-                  </motion.div>
+                  {/* Concentric radar pulse */}
+                  <div className="relative mx-auto mb-8 h-24 w-24 flex items-center justify-center">
+                    <span className="h-4 w-4 rounded-full bg-blue-400 shadow-[0_0_24px_rgba(96,165,250,0.9)]" />
+                    {!searchPulseReduced &&
+                      [0, 0.7, 1.4].map((delay) => (
+                        <motion.span
+                          key={delay}
+                          className="absolute h-6 w-6 rounded-full border-2 border-blue-400"
+                          animate={{ scale: [1, 4], opacity: [0.8, 0] }}
+                          transition={{ duration: 2.1, repeat: Infinity, ease: 'easeOut', delay }}
+                          aria-hidden="true"
+                        />
+                      ))}
+                  </div>
 
-                  <motion.p 
-                    className="text-4xl font-bold mb-8 text-white font-mono"
-                    initial={{ scale: 0.8 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 200 }}
-                  >
-                    {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
-                  </motion.p>
+                  <div className="text-4xl font-bold mb-8 text-white font-mono tabular-nums overflow-hidden">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      <motion.span
+                        key={queueTime}
+                        className="inline-block"
+                        initial={searchPulseReduced ? false : { y: 14, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={searchPulseReduced ? undefined : { y: -14, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: PREMIUM_EASE }}
+                      >
+                        {Math.floor(queueTime / 60)}:{(queueTime % 60).toString().padStart(2, '0')}
+                      </motion.span>
+                    </AnimatePresence>
+                  </div>
 
                   <motion.button
                     onClick={handleLeaveQueue}

@@ -53,11 +53,10 @@ export const saveCachedQuestionBank = (subject: QuestionSubject, questions: Offl
 };
 
 export const refreshQuestionBank = async (subject: QuestionSubject) => {
-  const { data, error } = await supabase
-    .from('questions_v2')
-    .select('*')
-    .eq('subject', subject)
-    .eq('is_enabled', true);
+  // Sanitized server-side fetch (steps come back without answer keys).
+  const { data, error } = await (supabase.rpc as any)('get_questions_for_play_v1', {
+    p_subject: subject,
+  });
 
   if (error) throw error;
   const mapped = (data || []).map((row) => {

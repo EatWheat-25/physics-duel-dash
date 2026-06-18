@@ -1,6 +1,11 @@
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { corsHeaders } from '../_shared/cors.ts'
+import { getPublishableKey, getSecretKey } from '../_shared/keys.ts'
+import {
+  getDifficultyFallbackOrder,
+  getDifficultyForAverageRankPoints,
+} from '../../../shared/rankDifficulty.ts'
 
 /**
  * Minimal Game WebSocket
@@ -51,9 +56,7 @@ interface RoundStartEvent {
       question: string
       prompt?: string
       options: string[]
-      correctAnswer: number
       marks: number
-      explanation?: string
     }>
     topicTags?: string[]
     rankTier?: string
@@ -91,7 +94,6 @@ interface PhaseChangeEvent {
     id: string
     prompt: string
     options: string[]
-    correctAnswer: number
     marks: number
   }
 }
@@ -172,6 +174,20 @@ const BOT_PLAYER_ID = Deno.env.get('BOT_PLAYER_ID') ?? '8f7f6c2a-1f4d-4f0b-9b7d-
 const BOT_ANSWER_MIN_DELAY_MS = 800
 const BOT_ANSWER_MAX_DELAY_MS = 1600
 const BOT_RESULTS_ACK_DELAY_MS = 2500
+
+// Archetype anti-clumping (mirror of src/lib/archetypes.ts). The archetype is
+// encoded as a single `archetype_<value>` entry in questions_v2.topic_tags.
+const ARCHETYPE_PREFIX = 'archetype_'
+function getArchetypeFromTags(topicTags: any): string {
+  if (Array.isArray(topicTags)) {
+    const found = topicTags.find(
+      (tag: any) =>
+        typeof tag === 'string' && tag.startsWith(ARCHETYPE_PREFIX) && tag.length > ARCHETYPE_PREFIX.length
+    )
+    if (found) return found
+  }
+  return `${ARCHETYPE_PREFIX}unclassified`
+}
 
 const botSingleAnswerTimeouts = new Map<string, number>()
 const botStepAnswerTimeouts = new Map<string, number>()
@@ -286,6 +302,11 @@ interface GameState {
   playerRoundWins: Map<string, number> // playerId -> round wins
   p1AllStepsComplete: boolean
   p2AllStepsComplete: boolean
+  // Players who asked to skip the main-question phase early (both must agree)
+  earlyAnswerRequests: Set<string>
+  // Cross-instance poll: watches match_rounds.early_answer_player_ids while
+  // the local player waits for the opponent (who may be on another instance).
+  earlyAnswerPoll?: number | null
 }
 
 const gameStates = new Map<string, GameState>() // matchId -> GameState
@@ -625,7 +646,6 @@ async function runAsyncProgressSweepTick(
         id: segStep?.id || '',
         prompt: coercePrompt(segStep),
         options: coerceOptions(segStep),
-        correctAnswer: coerceCorrectAnswerIndex(segStep),
         marks: mainStep?.marks || 0
       }
     }
@@ -817,7 +837,7 @@ async function broadcastQuestion(
     steps = []
   }
 
-  const isMultiStep = Array.isArray(steps) && steps.length >= 2
+  const isMultiStep = Array.isArray(steps) && steps.length >= 1
 
   // Get match players + target rounds for game state
   const { data: matchData } = await (supabase
@@ -875,7 +895,8 @@ async function broadcastQuestion(
         targetRoundsToWin: matchState.targetRoundsToWin,
         playerRoundWins: new Map(matchState.playerRoundWins), // Copy match-level wins
         p1AllStepsComplete: false,
-        p2AllStepsComplete: false
+        p2AllStepsComplete: false,
+        earlyAnswerRequests: new Set()
       }
       gameStates.set(matchId, gameState)
     } else {
@@ -900,6 +921,11 @@ async function broadcastQuestion(
       gameState.playerRoundWins = new Map(matchState.playerRoundWins) // Sync with match state
       gameState.p1AllStepsComplete = false
       gameState.p2AllStepsComplete = false
+      gameState.earlyAnswerRequests = new Set()
+      if (gameState.earlyAnswerPoll) {
+        clearInterval(gameState.earlyAnswerPoll)
+        gameState.earlyAnswerPoll = null
+      }
     }
 
     // Read main question timer from metadata or default to 180 seconds (clamped 5–600)
@@ -952,9 +978,7 @@ async function broadcastQuestion(
           question: s.prompt || s.question || '',
           prompt: s.prompt || s.question || '',
           options: Array.isArray(s.options) ? s.options : [],
-          correctAnswer: s.correct_answer?.correctIndex ?? s.correctAnswer ?? 0,
-          marks: s.marks || 0,
-          explanation: s.explanation || undefined
+          marks: s.marks || 0
         })),
         topicTags: questionDb.topic_tags || [],
         rankTier: questionDb.rank_tier || undefined
@@ -1011,7 +1035,7 @@ async function broadcastQuestion(
     
     const questionReceivedEvent: QuestionReceivedEvent = {
       type: 'QUESTION_RECEIVED',
-      question: questionDb, // Send raw DB object
+      question: sanitizeQuestionForClient(questionDb), // Steps stripped of answer keys
       timer_end_at: timerEndAt
     }
     
@@ -1184,7 +1208,7 @@ async function selectAndBroadcastQuestion(
     // Get match with current_round_id for clearing old results
     const { data: match, error: matchError } = await (supabase
       .from('matches')
-      .select('subject, mode, status, winner_id, question_id, question_sent_at, current_round_id, current_round_number, target_rounds_to_win')
+      .select('subject, mode, status, winner_id, question_id, question_sent_at, current_round_id, current_round_number, target_rounds_to_win, player1_id, player2_id')
       .eq('id', matchId)
       .single() as any)
 
@@ -1248,10 +1272,15 @@ async function selectAndBroadcastQuestion(
       // Avoid repeats within the same match: collect question_ids already used by prior rounds.
       // This is DB-backed so it works across Edge instances.
       const usedQuestionIds = new Set<string>()
+      // System B (Exclusion Memory): track the archetype of the most recent round
+      // so the next question is mechanically different. Stored on the round so it
+      // works across Edge instances.
+      let lastQuestionId: string | null = null
+      let lastRoundNumber = -Infinity
       try {
         const { data: usedRows, error: usedErr } = await supabase
           .from('match_rounds')
-          .select('question_id')
+          .select('question_id, round_number, created_at')
           .eq('match_id', matchId)
 
         if (usedErr) {
@@ -1259,7 +1288,15 @@ async function selectAndBroadcastQuestion(
         } else {
           ;(usedRows ?? []).forEach((r: any) => {
             const qid = r?.question_id
-            if (typeof qid === 'string' && qid.length > 0) usedQuestionIds.add(qid)
+            if (typeof qid === 'string' && qid.length > 0) {
+              usedQuestionIds.add(qid)
+              const roundNo = Number(r?.round_number)
+              const order = Number.isFinite(roundNo) ? roundNo : Date.parse(r?.created_at ?? '') || 0
+              if (order >= lastRoundNumber) {
+                lastRoundNumber = order
+                lastQuestionId = qid
+              }
+            }
           })
         }
       } catch (err) {
@@ -1268,9 +1305,30 @@ async function selectAndBroadcastQuestion(
 
       const subject = match.subject ?? null
       const level = match.mode ?? null // mode = level (A1/A2)
+      const playerIds = [match.player1_id, match.player2_id].filter((id: any) => typeof id === 'string' && id.length > 0)
+      let targetDifficulty = getDifficultyForAverageRankPoints([])
+
+      if (playerIds.length > 0) {
+        const { data: playerRanks, error: playerRanksError } = await supabase
+          .from('players')
+          .select('id, rank_points')
+          .in('id', playerIds)
+
+        if (playerRanksError) {
+          console.warn(`[${matchId}] ⚠️ Failed to load player rank_points for difficulty gating:`, playerRanksError)
+        } else {
+          const rankPoints = (playerRanks ?? []).map((player: any) => Number(player?.rank_points ?? 0))
+          targetDifficulty = getDifficultyForAverageRankPoints(rankPoints)
+          console.log(
+            `[${matchId}] 🎚️ Ranked difficulty gating -> average rank_points=${rankPoints.length > 0 ? Math.round(rankPoints.reduce((sum, value) => sum + value, 0) / rankPoints.length) : 0}, targetDifficulty=${targetDifficulty}`
+          )
+        }
+      }
+
+      const difficultyFallbackOrder = getDifficultyFallbackOrder(targetDifficulty)
 
       // Tiered fetching with early filtering
-      const fetchTier = async (filters: { subject?: boolean; level?: boolean }) => {
+      const fetchTier = async (filters: { subject?: boolean; level?: boolean; difficulty?: string | null }) => {
         let q = supabase
           .from('questions_v2')
           .select('*')
@@ -1283,6 +1341,7 @@ async function selectAndBroadcastQuestion(
         
         if (filters.subject && subject) q = q.eq('subject', subject)
         if (filters.level && level) q = q.eq('level', level)
+        if (filters.difficulty) q = q.eq('difficulty', filters.difficulty)
         
         const { data, error } = await q
         
@@ -1319,43 +1378,96 @@ async function selectAndBroadcastQuestion(
         }
       }
 
-      // Fetch in tiers with proper priority (only fall back if the stricter tier is empty).
-      // This also keeps the selection pool small, increasing the chance of new questions appearing.
-      const tier1 = (await fetchTier({ subject: true, level: true })).filter(isValidQuestion)
-      const tier2 = tier1.length === 0 ? (await fetchTier({ subject: true, level: false })).filter(isValidQuestion) : []
-      const tier3 = tier1.length === 0 && tier2.length === 0 ? (await fetchTier({ subject: false, level: true })).filter(isValidQuestion) : []
-      const tier4 = tier1.length === 0 && tier2.length === 0 && tier3.length === 0
-        ? (await fetchTier({ subject: false, level: false })).filter(isValidQuestion)
-        : []
+      const poolsByDifficulty: Array<{ difficulty: string; pool: any[]; unusedPool: any[] }> = []
 
-      const questionPool = tier1.length > 0 ? tier1 : tier2.length > 0 ? tier2 : tier3.length > 0 ? tier3 : tier4
+      for (const difficulty of difficultyFallbackOrder) {
+        const tier1 = (await fetchTier({ subject: true, level: true, difficulty })).filter(isValidQuestion)
+        const tier2 = tier1.length === 0 ? (await fetchTier({ subject: true, level: false, difficulty })).filter(isValidQuestion) : []
+        const tier3 = tier1.length === 0 && tier2.length === 0 ? (await fetchTier({ subject: false, level: true, difficulty })).filter(isValidQuestion) : []
+        const tier4 = tier1.length === 0 && tier2.length === 0 && tier3.length === 0
+          ? (await fetchTier({ subject: false, level: false, difficulty })).filter(isValidQuestion)
+          : []
 
-      if (questionPool.length === 0) {
-        console.error(`[${matchId}] ❌ No valid questions available (need True/False or MCQ questions)`)
+        const pool = tier1.length > 0 ? tier1 : tier2.length > 0 ? tier2 : tier3.length > 0 ? tier3 : tier4
+        if (pool.length === 0) continue
+
+        const unusedPool = usedQuestionIds.size > 0
+          ? pool.filter((question: any) => !usedQuestionIds.has(String(question?.id ?? '')))
+          : pool
+
+        poolsByDifficulty.push({ difficulty, pool, unusedPool })
+      }
+
+      const preferredPool =
+        poolsByDifficulty.find((entry) => entry.unusedPool.length > 0) ??
+        poolsByDifficulty[0]
+
+      if (!preferredPool) {
+        console.error(`[${matchId}] ❌ No valid questions available for ranked difficulty gating`)
         throw new Error('No valid questions available')
       }
 
-      // Avoid repeats within the same match (fallback to repeats if pool exhausted, per product requirement).
-      const unusedPool = usedQuestionIds.size > 0
-        ? questionPool.filter((q: any) => !usedQuestionIds.has(String(q?.id ?? '')))
-        : questionPool
+      const selectionPool = preferredPool.unusedPool.length > 0 ? preferredPool.unusedPool : preferredPool.pool
 
-      const selectionPool = unusedPool.length > 0 ? unusedPool : questionPool
-
-      if (unusedPool.length === 0 && usedQuestionIds.size > 0) {
+      if (preferredPool.difficulty !== targetDifficulty) {
         console.warn(
-          `[${matchId}] ⚠️ Unused question pool exhausted (used=${usedQuestionIds.size}, pool=${questionPool.length}). Falling back to allowing repeats.`
-        )
-      } else {
-        console.log(
-          `[${matchId}] ✅ No-repeat selection active (used=${usedQuestionIds.size}, pool=${questionPool.length}, unused=${unusedPool.length}).`
+          `[${matchId}] ⚠️ Target difficulty ${targetDifficulty} had no unused questions. Falling back to ${preferredPool.difficulty}.`
         )
       }
 
-      // Bias toward newer questions: pick randomly from the newest N (still randomized, but boosts recency).
-      const RECENT_POOL_MAX = 50
-      const recentPool = selectionPool.slice(0, Math.min(RECENT_POOL_MAX, selectionPool.length))
-      const selectedQuestion: any = recentPool[Math.floor(Math.random() * recentPool.length)]
+      if (preferredPool.unusedPool.length === 0 && usedQuestionIds.size > 0) {
+        console.warn(
+          `[${matchId}] ⚠️ Unused question pool exhausted (used=${usedQuestionIds.size}, pool=${preferredPool.pool.length}, difficulty=${preferredPool.difficulty}). Falling back to allowing repeats.`
+        )
+      } else {
+        console.log(
+          `[${matchId}] ✅ No-repeat selection active (used=${usedQuestionIds.size}, pool=${preferredPool.pool.length}, unused=${preferredPool.unusedPool.length}, difficulty=${preferredPool.difficulty}).`
+        )
+      }
+
+      // System B (Exclusion Memory): determine the archetype of the previous
+      // round, then prefer questions with a different archetype. Never stall: if
+      // excluding the last archetype empties the pool, fall back to the full pool.
+      let lastArchetype: string | null = null
+      if (lastQuestionId) {
+        const fromPool = poolsByDifficulty
+          .flatMap((entry) => entry.pool)
+          .find((question: any) => String(question?.id ?? '') === lastQuestionId)
+        if (fromPool) {
+          lastArchetype = getArchetypeFromTags(fromPool.topic_tags)
+        } else {
+          try {
+            const { data: lastRow } = await supabase
+              .from('questions_v2')
+              .select('topic_tags')
+              .eq('id', lastQuestionId)
+              .maybeSingle()
+            if (lastRow) lastArchetype = getArchetypeFromTags((lastRow as any).topic_tags)
+          } catch (err) {
+            console.warn(`[${matchId}] ⚠️ Could not resolve last archetype:`, err)
+          }
+        }
+      }
+
+      let varietyPool = selectionPool
+      if (lastArchetype) {
+        const filtered = selectionPool.filter(
+          (question: any) => getArchetypeFromTags(question?.topic_tags) !== lastArchetype
+        )
+        if (filtered.length > 0) {
+          varietyPool = filtered
+          console.log(
+            `[${matchId}] 🔀 Archetype anti-clumping active: excluding ${lastArchetype} (${selectionPool.length}->${filtered.length}).`
+          )
+        } else {
+          console.warn(
+            `[${matchId}] ⚠️ Only ${lastArchetype} questions available; skipping archetype exclusion to avoid stall.`
+          )
+        }
+      }
+
+      // Randomize across the full eligible pool so matches do not feel like they are walking a fixed sequence.
+      const selectedQuestion: any = varietyPool[Math.floor(Math.random() * varietyPool.length)]
       console.log(`[${matchId}] 🎯 Selected question: ${selectedQuestion.id} - "${selectedQuestion.title}"`)
 
       // Atomic claim: UPDATE only if question_id IS NULL
@@ -1617,7 +1729,8 @@ async function selectAndBroadcastQuestion(
         targetRoundsToWin: match.target_rounds_to_win || 3,
         playerRoundWins: new Map(),
         p1AllStepsComplete: false,
-        p2AllStepsComplete: false
+        p2AllStepsComplete: false,
+        earlyAnswerRequests: new Set()
       }
       gameStates.set(matchId, newGameState)
     }
@@ -1765,6 +1878,10 @@ function cleanupGameState(matchId: string): void {
     if (state.segmentTimer) {
       clearTimeout(state.segmentTimer)
     }
+    if (state.earlyAnswerPoll) {
+      clearInterval(state.earlyAnswerPoll)
+      state.earlyAnswerPoll = null
+    }
     gameStates.delete(matchId)
   }
   clearBotTimeout(botSingleAnswerTimeouts, matchId)
@@ -1804,9 +1921,34 @@ function normalizeSubSteps(step: any): any[] {
   return []
 }
 
-function coerceTimeLimitSeconds(raw: any, fallback: number): number {
-  const n = Number(raw)
-  return Number.isFinite(n) && n > 0 ? n : fallback
+// ─── Answer-key sanitization ─────────────────────────────────────────────────
+// Clients must never receive correct answers / explanations before the reveal
+// phase; grading happens server-side and results events carry the reveal.
+
+function sanitizeStepForClient(step: any): any {
+  if (!step || typeof step !== 'object') return step
+  const { correctAnswer: _ca, correct_answer: _ca2, explanation: _ex, ...rest } = step
+
+  for (const key of ['subSteps', 'sub_steps']) {
+    if (Array.isArray(rest[key])) {
+      rest[key] = rest[key].map((sub: any) => sanitizeStepForClient(sub))
+    }
+  }
+  for (const key of ['subStep', 'sub_step']) {
+    if (rest[key] && typeof rest[key] === 'object') {
+      rest[key] = sanitizeStepForClient(rest[key])
+    }
+  }
+
+  return rest
+}
+
+function sanitizeQuestionForClient(question: any): any {
+  if (!question || typeof question !== 'object') return question
+  return {
+    ...question,
+    steps: normalizeSteps(question.steps).map((s: any) => sanitizeStepForClient(s)),
+  }
 }
 
 function coerceCorrectAnswerIndex(step: any): number {
@@ -2188,6 +2330,12 @@ async function transitionToSteps(
     state.mainQuestionTimer = null
   }
 
+  // Stop watching for early-answer consensus; we're leaving the main phase.
+  if (state.earlyAnswerPoll) {
+    clearInterval(state.earlyAnswerPoll)
+    state.earlyAnswerPoll = null
+  }
+
   state.currentPhase = 'steps'
   state.currentStepIndex = 0
   state.currentSegment = 'main'
@@ -2208,8 +2356,7 @@ async function transitionToSteps(
   }
 
   const currentStep = steps[0]
-  const stepSecondsRaw = currentStep?.timeLimitSeconds ?? currentStep?.time_limit_seconds
-  const stepSeconds = (typeof stepSecondsRaw === 'number' && stepSecondsRaw > 0) ? stepSecondsRaw : 15
+    const stepSeconds = 15
   const stepEndsAt = new Date(Date.now() + stepSeconds * 1000).toISOString()
   state.stepEndsAt = stepEndsAt
 
@@ -2272,7 +2419,6 @@ async function transitionToSteps(
             id: currentStep.id || '',
             prompt: currentStep.prompt || currentStep.question || '',
             options: Array.isArray(currentStep.options) ? currentStep.options : [],
-            correctAnswer: currentStep.correct_answer?.correctIndex ?? currentStep.correctAnswer ?? 0,
             marks: currentStep.marks || 0
           }
         }
@@ -2312,7 +2458,6 @@ async function transitionToSteps(
       id: currentStep.id || '',
       prompt: currentStep.prompt || currentStep.question || '',
       options: Array.isArray(currentStep.options) ? currentStep.options : [],
-      correctAnswer: currentStep.correct_answer?.correctIndex ?? currentStep.correctAnswer ?? 0,
       marks: currentStep.marks || 0
     }
   }
@@ -2505,9 +2650,7 @@ async function moveToNextStep(
   const subSteps = normalizeSubSteps(mainStep)
   const segmentStep = nextSegment === 'main' ? mainStep : subSteps[nextSubStepIndex]
 
-  const seconds = nextSegment === 'main'
-    ? coerceTimeLimitSeconds(segmentStep?.timeLimitSeconds ?? segmentStep?.time_limit_seconds, 15)
-    : coerceTimeLimitSeconds(segmentStep?.timeLimitSeconds ?? segmentStep?.time_limit_seconds, 5)
+  const seconds = 15
 
   const stepEndsAt = new Date(Date.now() + seconds * 1000).toISOString()
   state.stepEndsAt = stepEndsAt
@@ -2525,7 +2668,6 @@ async function moveToNextStep(
       id: segmentStep?.id || '',
       prompt: coercePrompt(segmentStep),
       options: coerceOptions(segmentStep),
-      correctAnswer: coerceCorrectAnswerIndex(segmentStep),
       // Show the main step marks (sub-steps don't award marks themselves)
       marks: mainStep?.marks || 0
     }
@@ -2760,10 +2902,19 @@ async function calculateStepResults(
 }
 
 /**
- * Handle EARLY_ANSWER message (skip main question phase)
+ * Handle EARLY_ANSWER message (skip main question phase).
+ * One player must not be able to cut short the opponent's reading time, so the
+ * transition only happens once every (human) participant has requested it.
+ * Bots count as having agreed automatically.
+ *
+ * The two players' WebSockets may be served by DIFFERENT edge function
+ * instances, each with its own in-memory state. Requests are therefore
+ * persisted on match_rounds (request_early_answer_v1) and each instance
+ * polls the row while its player waits, so both instances converge.
  */
 async function handleEarlyAnswer(
   matchId: string,
+  playerId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   const state = gameStates.get(matchId)
@@ -2772,8 +2923,128 @@ async function handleEarlyAnswer(
     return
   }
 
-  console.log(`[${matchId}] ⚡ Early answer received - transitioning to steps`)
+  if (playerId !== state.p1Id && playerId !== state.p2Id) {
+    console.warn(`[${matchId}] ⚠️ EARLY_ANSWER from non-participant ${playerId} - ignored`)
+    return
+  }
+
+  state.earlyAnswerRequests.add(playerId)
+
+  const participants = [state.p1Id, state.p2Id].filter(Boolean) as string[]
+  const humanParticipants = participants.filter((pid) => pid !== BOT_PLAYER_ID)
+
+  // In-memory view (works when both sockets share this instance, and as a
+  // fallback if the RPC/migration is unavailable).
+  let requestedBy = [...state.earlyAnswerRequests]
+  let everyoneReady = humanParticipants.every((pid) => state.earlyAnswerRequests.has(pid))
+
+  // Persist the request so the opponent's instance (and their client via the
+  // match_rounds realtime subscription) can see it.
+  try {
+    const { data: matchRow } = await (supabase
+      .from('matches')
+      .select('current_round_id')
+      .eq('id', matchId)
+      .single() as any)
+
+    const roundId = matchRow?.current_round_id as string | undefined
+    if (roundId) {
+      const { data: rpcData, error: rpcError } = await (supabase.rpc('request_early_answer_v1', {
+        p_match_id: matchId,
+        p_round_id: roundId,
+        p_player_id: playerId
+      } as any) as any)
+
+      if (!rpcError && rpcData?.success) {
+        const dbRequested = Array.isArray(rpcData.requested_by) ? rpcData.requested_by as string[] : []
+        dbRequested.forEach((pid) => state.earlyAnswerRequests.add(pid))
+        requestedBy = [...state.earlyAnswerRequests]
+        everyoneReady = Boolean(rpcData.all_ready)
+      } else if (rpcError) {
+        console.warn(`[${matchId}] ⚠️ request_early_answer_v1 failed (using in-memory fallback):`, rpcError)
+      }
+
+      // The opponent may press on another instance; watch the DB row so this
+      // instance transitions its player too.
+      if (!everyoneReady) {
+        startEarlyAnswerPoll(matchId, roundId, humanParticipants, supabase)
+      }
+    }
+  } catch (err) {
+    console.warn(`[${matchId}] ⚠️ Early answer persistence error (using in-memory fallback):`, err)
+  }
+
+  // Let local clients know who has requested the skip so the UI can show
+  // "waiting for opponent" instead of appearing to do nothing.
+  broadcastToMatch(matchId, {
+    type: 'EARLY_ANSWER_STATUS',
+    requestedBy,
+    required: humanParticipants.length
+  })
+
+  if (!everyoneReady) {
+    console.log(`[${matchId}] ⚡ Early answer from ${playerId} recorded - waiting for opponent`)
+    return
+  }
+
+  console.log(`[${matchId}] ⚡ All players ready - transitioning to steps early`)
+  stopEarlyAnswerPoll(matchId)
   await transitionToSteps(matchId, supabase)
+}
+
+function stopEarlyAnswerPoll(matchId: string): void {
+  const state = gameStates.get(matchId)
+  if (state?.earlyAnswerPoll) {
+    clearInterval(state.earlyAnswerPoll)
+    state.earlyAnswerPoll = null
+  }
+}
+
+function startEarlyAnswerPoll(
+  matchId: string,
+  roundId: string,
+  humanParticipants: string[],
+  supabase: ReturnType<typeof createClient>
+): void {
+  const state = gameStates.get(matchId)
+  if (!state || state.earlyAnswerPoll) return
+
+  state.earlyAnswerPoll = setInterval(async () => {
+    const s = gameStates.get(matchId)
+    if (!s || s.currentPhase !== 'main_question') {
+      stopEarlyAnswerPoll(matchId)
+      return
+    }
+
+    try {
+      const { data: round } = await (supabase
+        .from('match_rounds')
+        .select('early_answer_player_ids, status')
+        .eq('id', roundId)
+        .single() as any)
+
+      const ids: string[] = Array.isArray(round?.early_answer_player_ids)
+        ? round.early_answer_player_ids
+        : []
+      ids.forEach((pid) => s.earlyAnswerRequests.add(pid))
+
+      const ready = humanParticipants.length > 0
+        && humanParticipants.every((pid) => s.earlyAnswerRequests.has(pid))
+
+      if (ready) {
+        console.log(`[${matchId}] ⚡ Early answer consensus reached (via DB) - transitioning to steps`)
+        stopEarlyAnswerPoll(matchId)
+        broadcastToMatch(matchId, {
+          type: 'EARLY_ANSWER_STATUS',
+          requestedBy: [...s.earlyAnswerRequests],
+          required: humanParticipants.length
+        })
+        await transitionToSteps(matchId, supabase)
+      }
+    } catch (err) {
+      console.warn(`[${matchId}] ⚠️ Early answer poll error:`, err)
+    }
+  }, 2000) as unknown as number
 }
 
 /**
@@ -2911,7 +3182,6 @@ async function handleStepAnswer(
             id: segmentStep?.id || '',
             prompt: coercePrompt(segmentStep),
             options: coerceOptions(segmentStep),
-            correctAnswer: coerceCorrectAnswerIndex(segmentStep),
             marks: mainStep?.marks || 0
           }
         }
@@ -2978,7 +3248,6 @@ async function handleStepAnswer(
             id: cSegStep?.id || '',
             prompt: coercePrompt(cSegStep),
             options: coerceOptions(cSegStep),
-            correctAnswer: coerceCorrectAnswerIndex(cSegStep),
             marks: cMainStep?.marks || 0
           }
         }
@@ -3057,7 +3326,6 @@ async function handleStepAnswer(
         id: nextSegStep?.id || '',
         prompt: coercePrompt(nextSegStep),
         options: coerceOptions(nextSegStep),
-        correctAnswer: coerceCorrectAnswerIndex(nextSegStep),
         // Sub-steps don't award marks; show the parent step marks for UI consistency.
         marks: nextMainStep?.marks || 0
       }
@@ -3995,7 +4263,7 @@ Deno.serve(async (req) => {
     // Verify JWT and get user
     const supabaseUser = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      getPublishableKey(),
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     )
 
@@ -4039,10 +4307,10 @@ Deno.serve(async (req) => {
   }
   sockets.get(matchId)!.add(socket)
 
-  // Use service role for database operations
+  // Use elevated key (new secret key, legacy service_role fallback) for database operations
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    getSecretKey()
   )
 
   socket.onopen = async () => {
@@ -4075,7 +4343,7 @@ Deno.serve(async (req) => {
         await handleJoinMatch(matchId, user.id, socket, supabase)
       } else if (message.type === 'EARLY_ANSWER') {
         console.log(`[${matchId}] Processing EARLY_ANSWER from user ${user.id}`)
-        await handleEarlyAnswer(matchId, supabase)
+        await handleEarlyAnswer(matchId, user.id, supabase)
       } else if (message.type === 'SUBMIT_STEP_ANSWER') {
         console.log(`[${matchId}] Processing SUBMIT_STEP_ANSWER from user ${user.id}`)
         const seg = (message.segment === 'sub' ? 'sub' : 'main') as 'main' | 'sub'

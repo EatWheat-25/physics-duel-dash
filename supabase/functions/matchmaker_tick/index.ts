@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 import { corsHeaders } from '../_shared/cors.ts'
+import { getSecretKey, isElevatedAuthHeader } from '../_shared/keys.ts'
 
 interface MatchResult {
   matched: boolean
@@ -15,11 +16,11 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization')
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const userAgent = req.headers.get('User-Agent') || ''
 
-    const isCronJob = !authHeader && userAgent.includes('pg_net')
-    const hasServiceRole = authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey)
+    // Cron calls must present the shared secret header (User-Agent is spoofable).
+    const cronSecret = Deno.env.get('CRON_SECRET')
+    const isCronJob = !!cronSecret && req.headers.get('x-cron-secret') === cronSecret
+    const hasServiceRole = isElevatedAuthHeader(authHeader)
 
     if (!isCronJob && !hasServiceRole) {
       console.log('Unauthorized matchmaker tick attempt')
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      serviceRoleKey ?? ''
+      getSecretKey()
     )
 
     console.log('🔄 Running matchmaker tick...')
