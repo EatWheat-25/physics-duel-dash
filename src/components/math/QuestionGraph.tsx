@@ -2,6 +2,9 @@ import React, { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import type {
   GraphAngleMarker,
+  GraphArc,
+  GraphArcFill,
+  GraphCircle,
   GraphConfig,
   GraphColor,
   GraphDisplayMode,
@@ -11,6 +14,7 @@ import type {
   GraphPolygon,
   GraphPointsSeries,
   GraphScaleMode,
+  GraphSegment,
   GraphSeries,
 } from '@/types/question-contract'
 
@@ -31,6 +35,9 @@ type NormalizedGraph = {
   polygons: GraphPolygon[]
   labels: GraphLabel[]
   angleMarkers: GraphAngleMarker[]
+  circles: GraphCircle[]
+  arcs: GraphArc[]
+  segments: GraphSegment[]
 }
 
 type PreparedFunctionSeries = {
@@ -87,6 +94,27 @@ type RenderedAngleMarker = {
   path: string
 }
 
+type RenderedCircle = {
+  cx: number
+  cy: number
+  r: number
+  fill: boolean
+  stroke: boolean
+}
+
+type RenderedArc = {
+  path: string
+  fill: GraphArcFill
+  stroke: boolean
+}
+
+type RenderedSegment = {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+
 type RenderedSeries = RenderedFunctionSeries | RenderedPointsSeries
 
 type RenderState =
@@ -115,6 +143,9 @@ type RenderState =
       polygons: RenderedPolygon[]
       labels: RenderedLabel[]
       angleMarkers: RenderedAngleMarker[]
+      circles: RenderedCircle[]
+      arcs: RenderedArc[]
+      segments: RenderedSegment[]
       xToPx: (x: number) => number
       yToPx: (y: number) => number
     }
@@ -139,9 +170,13 @@ function normalizeColor(raw: any): GraphColor {
 
 function normalizeDisplayMode(raw: any): GraphDisplayMode {
   const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-  return mode === 'alevelsketch' || mode === 'a_level_sketch' || mode === 'a-level-sketch'
-    ? 'aLevelSketch'
-    : 'standard'
+  if (mode === 'alevelsketch' || mode === 'a_level_sketch' || mode === 'a-level-sketch') {
+    return 'aLevelSketch'
+  }
+  if (mode === 'blank' || mode === 'none' || mode === 'no_lines' || mode === 'no-lines') {
+    return 'blank'
+  }
+  return 'standard'
 }
 
 function normalizeScaleMode(raw: any): GraphScaleMode {
@@ -226,6 +261,65 @@ function normalizeGraphAngleMarker(raw: any): GraphAngleMarker | null {
     p2,
     type: 'right',
   }
+}
+
+function normalizeGraphCircle(raw: any): GraphCircle | null {
+  if (!raw || typeof raw !== 'object') return null
+
+  const center = normalizeGraphPoint(raw.center)
+  const radius = coerceNumber(raw.radius)
+  if (!center || !isFiniteNumber(radius) || radius <= 0) return null
+
+  const fill = coerceBoolean(raw.fill)
+  const stroke = coerceBoolean(raw.stroke)
+  if (fill === false && stroke === false) return null
+
+  return {
+    center,
+    radius,
+    fill,
+    stroke,
+  }
+}
+
+function normalizeArcFill(raw: any): GraphArcFill {
+  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  return value === 'segment' || value === 'sector' ? value : 'none'
+}
+
+function normalizeGraphArc(raw: any): GraphArc | null {
+  if (!raw || typeof raw !== 'object') return null
+
+  const center = normalizeGraphPoint(raw.center)
+  const radius = coerceNumber(raw.radius)
+  const startAngle = coerceNumber(raw.startAngle ?? raw.start_angle)
+  const endAngle = coerceNumber(raw.endAngle ?? raw.end_angle)
+  if (!center || !isFiniteNumber(radius) || radius <= 0) return null
+  if (!isFiniteNumber(startAngle) || !isFiniteNumber(endAngle)) return null
+  if (startAngle === endAngle) return null
+
+  const fill = normalizeArcFill(raw.fill)
+  const stroke = coerceBoolean(raw.stroke)
+
+  return {
+    center,
+    radius,
+    startAngle,
+    endAngle,
+    fill,
+    stroke,
+  }
+}
+
+function normalizeGraphSegment(raw: any): GraphSegment | null {
+  if (!raw || typeof raw !== 'object') return null
+
+  const from = normalizeGraphPoint(raw.from)
+  const to = normalizeGraphPoint(raw.to)
+  if (!from || !to) return null
+  if (from.x === to.x && from.y === to.y) return null
+
+  return { from, to }
 }
 
 function roundNice(n: number): number {
@@ -447,7 +541,33 @@ function normalizeGraphConfig(graph: GraphConfig | null | undefined): Normalized
         .filter(Boolean) as GraphAngleMarker[]
     : []
 
-  if (series.length === 0 && polygons.length === 0 && labels.length === 0 && angleMarkers.length === 0) {
+  const circles = Array.isArray((graph as any).circles)
+    ? ((graph as any).circles as any[])
+        .map(normalizeGraphCircle)
+        .filter(Boolean) as GraphCircle[]
+    : []
+
+  const arcs = Array.isArray((graph as any).arcs)
+    ? ((graph as any).arcs as any[])
+        .map(normalizeGraphArc)
+        .filter(Boolean) as GraphArc[]
+    : []
+
+  const segments = Array.isArray((graph as any).segments)
+    ? ((graph as any).segments as any[])
+        .map(normalizeGraphSegment)
+        .filter(Boolean) as GraphSegment[]
+    : []
+
+  if (
+    series.length === 0 &&
+    polygons.length === 0 &&
+    labels.length === 0 &&
+    angleMarkers.length === 0 &&
+    circles.length === 0 &&
+    arcs.length === 0 &&
+    segments.length === 0
+  ) {
     return null
   }
 
@@ -463,6 +583,9 @@ function normalizeGraphConfig(graph: GraphConfig | null | undefined): Normalized
     polygons,
     labels,
     angleMarkers,
+    circles,
+    arcs,
+    segments,
   }
 }
 
@@ -579,6 +702,29 @@ function buildBaseDomain(graph: NormalizedGraph, preparedSeries: PreparedSeries[
 
   for (const marker of graph.angleMarkers) {
     for (const point of [marker.vertex, marker.p1, marker.p2]) {
+      rawXMin = Math.min(rawXMin, point.x)
+      rawXMax = Math.max(rawXMax, point.x)
+      rawYMin = Math.min(rawYMin, point.y)
+      rawYMax = Math.max(rawYMax, point.y)
+    }
+  }
+
+  for (const circle of graph.circles) {
+    rawXMin = Math.min(rawXMin, circle.center.x - circle.radius)
+    rawXMax = Math.max(rawXMax, circle.center.x + circle.radius)
+    rawYMin = Math.min(rawYMin, circle.center.y - circle.radius)
+    rawYMax = Math.max(rawYMax, circle.center.y + circle.radius)
+  }
+
+  for (const arc of graph.arcs) {
+    rawXMin = Math.min(rawXMin, arc.center.x - arc.radius)
+    rawXMax = Math.max(rawXMax, arc.center.x + arc.radius)
+    rawYMin = Math.min(rawYMin, arc.center.y - arc.radius)
+    rawYMax = Math.max(rawYMax, arc.center.y + arc.radius)
+  }
+
+  for (const segment of graph.segments) {
+    for (const point of [segment.from, segment.to]) {
       rawXMin = Math.min(rawXMin, point.x)
       rawXMax = Math.max(rawXMax, point.x)
       rawYMin = Math.min(rawYMin, point.y)
@@ -784,6 +930,48 @@ function buildRightAngleMarkerPath(
   return `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} L ${b.x.toFixed(2)} ${b.y.toFixed(2)} L ${c.x.toFixed(2)} ${c.y.toFixed(2)}`
 }
 
+function buildArcPaths(
+  arc: GraphArc,
+  xToPx: (x: number) => number,
+  yToPx: (y: number) => number
+): { open: string; segment: string; sector: string } | null {
+  const { center, radius } = arc
+
+  const startRad = (arc.startAngle * Math.PI) / 180
+  const endRad = (arc.endAngle * Math.PI) / 180
+
+  const startPoint: GraphPoint = {
+    x: center.x + radius * Math.cos(startRad),
+    y: center.y + radius * Math.sin(startRad),
+  }
+  const endPoint: GraphPoint = {
+    x: center.x + radius * Math.cos(endRad),
+    y: center.y + radius * Math.sin(endRad),
+  }
+
+  const sStart = toScreenPoint(startPoint, xToPx, yToPx)
+  const sEnd = toScreenPoint(endPoint, xToPx, yToPx)
+  const sCenter = toScreenPoint(center, xToPx, yToPx)
+
+  const rx = Math.abs(xToPx(center.x + radius) - xToPx(center.x))
+  const ry = Math.abs(yToPx(center.y + radius) - yToPx(center.y))
+  if (rx < 0.5 || ry < 0.5) return null
+
+  const delta = arc.endAngle - arc.startAngle
+  const absDelta = Math.abs(delta) % 360
+  const largeArc = absDelta > 180 ? 1 : 0
+  // Data angles increase counter-clockwise; screen y is flipped, so a positive
+  // data delta corresponds to a clockwise (sweep-flag = 1) arc on screen.
+  const sweep = delta > 0 ? 1 : 0
+
+  const arcCmd = `A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} ${sweep} ${sEnd.x.toFixed(2)} ${sEnd.y.toFixed(2)}`
+  const open = `M ${sStart.x.toFixed(2)} ${sStart.y.toFixed(2)} ${arcCmd}`
+  const segment = `${open} Z`
+  const sector = `${open} L ${sCenter.x.toFixed(2)} ${sCenter.y.toFixed(2)} Z`
+
+  return { open, segment, sector }
+}
+
 export function QuestionGraph({
   graph,
   className,
@@ -844,12 +1032,18 @@ export function QuestionGraph({
     const domain = buildBaseDomain(normalizedGraph, preparedSeries)
     if (!domain) return { error: 'No graph data', color }
 
+    // Circles and arcs must keep equal units on both axes, otherwise they render
+    // as distorted ellipses.
+    const requiresEqualUnits =
+      normalizedGraph.circles.length > 0 || normalizedGraph.arcs.length > 0
+    const effectiveScaleMode: GraphScaleMode = requiresEqualUnits ? 'equalUnits' : normalizedGraph.scaleMode
+
     const { margins: M, plotWidth: PW, plotHeight: PH } = fitPlotRect(
       domain,
       outerMargins,
       W,
       H,
-      normalizedGraph.scaleMode
+      effectiveScaleMode
     )
 
     const xTicks = makeTicks(domain.xMin, domain.xMax, 6)
@@ -928,9 +1122,43 @@ export function QuestionGraph({
       }))
       .filter((marker) => marker.path.length > 0)
 
+    const renderedCircles: RenderedCircle[] = normalizedGraph.circles
+      .map((circle) => {
+        const cx = xToPx(circle.center.x)
+        const cy = yToPx(circle.center.y)
+        const r = Math.abs(xToPx(circle.center.x + circle.radius) - cx)
+        return {
+          cx,
+          cy,
+          r,
+          fill: circle.fill === true,
+          stroke: circle.stroke !== false,
+        }
+      })
+      .filter((circle) => circle.r > 0.5)
+
+    const renderedArcs: RenderedArc[] = normalizedGraph.arcs
+      .map((arc): RenderedArc | null => {
+        const paths = buildArcPaths(arc, xToPx, yToPx)
+        if (!paths) return null
+        const fill = arc.fill ?? 'none'
+        const stroke = arc.stroke !== false
+        const path = fill === 'sector' ? paths.sector : fill === 'segment' ? paths.segment : paths.open
+        return { path, fill, stroke }
+      })
+      .filter(Boolean) as RenderedArc[]
+
+    const renderedSegments: RenderedSegment[] = normalizedGraph.segments.map((segment) => ({
+      x1: xToPx(segment.from.x),
+      y1: yToPx(segment.from.y),
+      x2: xToPx(segment.to.x),
+      y2: yToPx(segment.to.y),
+    }))
+
     const hasVisibleGeometry = renderedSeries.some((series) =>
       series.kind === 'function' ? series.path.length > 0 : series.poly.length > 0
     ) || renderedPolygons.length > 0 || renderedLabels.length > 0 || renderedAngleMarkers.length > 0
+      || renderedCircles.length > 0 || renderedArcs.length > 0 || renderedSegments.length > 0
     if (!hasVisibleGeometry) {
       return { error: 'Graph produced no visible plots', color }
     }
@@ -956,6 +1184,9 @@ export function QuestionGraph({
       polygons: renderedPolygons,
       labels: renderedLabels,
       angleMarkers: renderedAngleMarkers,
+      circles: renderedCircles,
+      arcs: renderedArcs,
+      segments: renderedSegments,
       xToPx,
       yToPx,
     }
@@ -973,6 +1204,13 @@ export function QuestionGraph({
   }
 
   const isSketch = render.displayMode === 'aLevelSketch'
+  const isBlank = render.displayMode === 'blank'
+  // Grid lines, border and tick labels are only drawn in the standard mode.
+  const showGrid = !isSketch && !isBlank
+  // The two main x/y axis lines are hidden entirely in the no-lines blank mode.
+  const showAxes = !isBlank
+  // Sketch and blank modes share the cleaner geometry styling.
+  const cleanStyle = isSketch || isBlank
   const opacityAxis = isSketch ? 0.8 : 0.65
   const opacityGrid = isSketch ? 0 : 0.18
   const opacityBorder = isSketch ? 0 : 0.35
@@ -986,7 +1224,7 @@ export function QuestionGraph({
         role="img"
         aria-label="Question graph"
       >
-        {!isSketch && (
+        {showGrid && (
           <rect
             x={render.M.l}
             y={render.M.t}
@@ -999,97 +1237,145 @@ export function QuestionGraph({
           />
         )}
 
-        {render.xTicks.map((x, i) => {
+        {showGrid && render.xTicks.map((x, i) => {
           const px = render.xToPx(x)
           return (
             <g key={`x-${i}`}>
-              {!isSketch && (
-                <line
-                  x1={px}
-                  y1={render.M.t}
-                  x2={px}
-                  y2={render.M.t + render.PH}
-                  stroke={render.gridStroke}
-                  strokeOpacity={opacityGrid}
-                  strokeWidth={1}
-                />
-              )}
-              {!isSketch && (
-                <text
-                  x={px}
-                  y={render.M.t + render.PH + 18}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fill={render.axisStroke}
-                  fillOpacity={opacityAxis}
-                >
-                  {formatTick(x)}
-                </text>
-              )}
+              <line
+                x1={px}
+                y1={render.M.t}
+                x2={px}
+                y2={render.M.t + render.PH}
+                stroke={render.gridStroke}
+                strokeOpacity={opacityGrid}
+                strokeWidth={1}
+              />
+              <text
+                x={px}
+                y={render.M.t + render.PH + 18}
+                textAnchor="middle"
+                fontSize="10"
+                fill={render.axisStroke}
+                fillOpacity={opacityAxis}
+              >
+                {formatTick(x)}
+              </text>
             </g>
           )
         })}
 
-        {render.yTicks.map((y, i) => {
+        {showGrid && render.yTicks.map((y, i) => {
           const py = render.yToPx(y)
           return (
             <g key={`y-${i}`}>
-              {!isSketch && (
-                <line
-                  x1={render.M.l}
-                  y1={py}
-                  x2={render.M.l + render.PW}
-                  y2={py}
-                  stroke={render.gridStroke}
-                  strokeOpacity={opacityGrid}
-                  strokeWidth={1}
-                />
-              )}
-              {!isSketch && (
-                <text
-                  x={render.M.l - 8}
-                  y={py + 3}
-                  textAnchor="end"
-                  fontSize="10"
-                  fill={render.axisStroke}
-                  fillOpacity={opacityAxis}
-                >
-                  {formatTick(y)}
-                </text>
-              )}
+              <line
+                x1={render.M.l}
+                y1={py}
+                x2={render.M.l + render.PW}
+                y2={py}
+                stroke={render.gridStroke}
+                strokeOpacity={opacityGrid}
+                strokeWidth={1}
+              />
+              <text
+                x={render.M.l - 8}
+                y={py + 3}
+                textAnchor="end"
+                fontSize="10"
+                fill={render.axisStroke}
+                fillOpacity={opacityAxis}
+              >
+                {formatTick(y)}
+              </text>
             </g>
           )
         })}
 
-        <line
-          x1={render.M.l}
-          y1={render.xAxisY}
-          x2={render.M.l + render.PW}
-          y2={render.xAxisY}
-          stroke={render.axisStroke}
-          strokeOpacity={opacityAxis}
-          strokeWidth={isSketch ? 1 : 1.2}
-        />
-        <line
-          x1={render.yAxisX}
-          y1={render.M.t}
-          x2={render.yAxisX}
-          y2={render.M.t + render.PH}
-          stroke={render.axisStroke}
-          strokeOpacity={opacityAxis}
-          strokeWidth={isSketch ? 1 : 1.2}
-        />
+        {showAxes && (
+          <>
+            <line
+              x1={render.M.l}
+              y1={render.xAxisY}
+              x2={render.M.l + render.PW}
+              y2={render.xAxisY}
+              stroke={render.axisStroke}
+              strokeOpacity={opacityAxis}
+              strokeWidth={isSketch ? 1 : 1.2}
+            />
+            <line
+              x1={render.yAxisX}
+              y1={render.M.t}
+              x2={render.yAxisX}
+              y2={render.M.t + render.PH}
+              stroke={render.axisStroke}
+              strokeOpacity={opacityAxis}
+              strokeWidth={isSketch ? 1 : 1.2}
+            />
+          </>
+        )}
 
         {render.polygons.map((polygon, polygonIndex) => (
           <polygon
             key={`polygon-${polygonIndex}`}
             points={polygon.points}
             fill={polygon.fill ? render.stroke : 'none'}
-            fillOpacity={polygon.fill ? (isSketch ? 0.08 : 0.1) : 0}
+            fillOpacity={polygon.fill ? (cleanStyle ? 0.08 : 0.1) : 0}
             stroke={polygon.stroke ? render.stroke : 'none'}
             strokeOpacity={polygon.stroke ? 0.95 : 0}
             strokeWidth={1.8}
             strokeLinejoin="round"
+          />
+        ))}
+
+        {render.circles.map((circle, circleIndex) => (
+          <circle
+            key={`circle-${circleIndex}`}
+            cx={circle.cx}
+            cy={circle.cy}
+            r={circle.r}
+            fill={circle.fill ? render.stroke : 'none'}
+            fillOpacity={circle.fill ? (cleanStyle ? 0.08 : 0.1) : 0}
+            stroke={circle.stroke ? render.stroke : 'none'}
+            strokeOpacity={circle.stroke ? 0.95 : 0}
+            strokeWidth={1.8}
+          />
+        ))}
+
+        {render.arcs.map((arc, arcIndex) => (
+          <g key={`arc-${arcIndex}`}>
+            {arc.fill !== 'none' && (
+              <path
+                d={arc.path}
+                fill={render.stroke}
+                fillOpacity={cleanStyle ? 0.08 : 0.1}
+                stroke="none"
+              />
+            )}
+            {arc.stroke && (
+              <path
+                d={arc.path}
+                fill="none"
+                stroke={render.stroke}
+                strokeOpacity={0.95}
+                strokeWidth={1.8}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            )}
+          </g>
+        ))}
+
+        {render.segments.map((segment, segmentIndex) => (
+          <line
+            key={`segment-${segmentIndex}`}
+            x1={segment.x1}
+            y1={segment.y1}
+            x2={segment.x2}
+            y2={segment.y2}
+            stroke={render.stroke}
+            strokeOpacity={0.95}
+            strokeWidth={1.8}
+            strokeLinecap="round"
           />
         ))}
 

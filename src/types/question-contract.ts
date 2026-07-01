@@ -27,7 +27,7 @@
  */
 
 export type GraphColor = 'white' | 'black';
-export type GraphDisplayMode = 'standard' | 'aLevelSketch';
+export type GraphDisplayMode = 'standard' | 'aLevelSketch' | 'blank';
 export type GraphScaleMode = 'equalUnits' | 'fill';
 
 export interface GraphPoint {
@@ -81,6 +81,37 @@ export interface GraphAngleMarker {
     type: 'right';
 }
 
+export interface GraphCircle {
+    center: GraphPoint;
+    radius: number;
+    fill?: boolean;
+    stroke?: boolean;
+}
+
+export type GraphArcFill = 'none' | 'segment' | 'sector';
+
+export interface GraphArc {
+    center: GraphPoint;
+    radius: number;
+    /** Arc start angle in degrees (measured counter-clockwise from the positive x-axis) */
+    startAngle: number;
+    /** Arc end angle in degrees (measured counter-clockwise from the positive x-axis) */
+    endAngle: number;
+    /**
+     * Shaded region produced by the arc:
+     * - 'segment' closes the chord between the arc endpoints
+     * - 'sector' closes to the circle center (pie slice)
+     * - 'none' (default) draws only the arc outline
+     */
+    fill?: GraphArcFill;
+    stroke?: boolean;
+}
+
+export interface GraphSegment {
+    from: GraphPoint;
+    to: GraphPoint;
+}
+
 export type GraphSeries = GraphFunctionSeries | GraphPointsSeries;
 
 export interface GraphConfig {
@@ -106,6 +137,15 @@ export interface GraphConfig {
 
     /** Geometry angle markers such as right-angle squares */
     angleMarkers?: GraphAngleMarker[];
+
+    /** Full circles (optionally shaded) */
+    circles?: GraphCircle[];
+
+    /** Circular arcs, optionally closed into shaded segments or sectors */
+    arcs?: GraphArc[];
+
+    /** Straight line segments such as radii or chords */
+    segments?: GraphSegment[];
 }
 
 /**
@@ -292,13 +332,43 @@ function isValidGraphAngleMarker(obj: any): obj is GraphAngleMarker {
     return true;
 }
 
+function isValidGraphCircle(obj: any): obj is GraphCircle {
+    if (!obj || typeof obj !== 'object') return false;
+    if (!isValidGraphPoint(obj.center)) return false;
+    if (!isFiniteNumber(obj.radius) || obj.radius <= 0) return false;
+    if (obj.fill != null && typeof obj.fill !== 'boolean') return false;
+    if (obj.stroke != null && typeof obj.stroke !== 'boolean') return false;
+    if (obj.fill === false && obj.stroke === false) return false;
+    return true;
+}
+
+function isValidGraphArc(obj: any): obj is GraphArc {
+    if (!obj || typeof obj !== 'object') return false;
+    if (!isValidGraphPoint(obj.center)) return false;
+    if (!isFiniteNumber(obj.radius) || obj.radius <= 0) return false;
+    if (!isFiniteNumber(obj.startAngle) || !isFiniteNumber(obj.endAngle)) return false;
+    if (obj.startAngle === obj.endAngle) return false;
+    if (obj.fill != null && obj.fill !== 'none' && obj.fill !== 'segment' && obj.fill !== 'sector') return false;
+    if (obj.stroke != null && typeof obj.stroke !== 'boolean') return false;
+    return true;
+}
+
+function isValidGraphSegment(obj: any): obj is GraphSegment {
+    if (!obj || typeof obj !== 'object') return false;
+    if (!isValidGraphPoint(obj.from)) return false;
+    if (!isValidGraphPoint(obj.to)) return false;
+    if (obj.from.x === obj.to.x && obj.from.y === obj.to.y) return false;
+    return true;
+}
+
 export function isValidGraphConfig(obj: any): obj is GraphConfig {
     if (!obj || typeof obj !== 'object') return false;
 
     const displayModeOk =
         obj.displayMode == null ||
         obj.displayMode === 'standard' ||
-        obj.displayMode === 'aLevelSketch';
+        obj.displayMode === 'aLevelSketch' ||
+        obj.displayMode === 'blank';
     if (!displayModeOk) return false;
 
     const scaleModeOk =
@@ -329,6 +399,9 @@ export function isValidGraphConfig(obj: any): obj is GraphConfig {
     if (obj.polygons != null && !Array.isArray(obj.polygons)) return false;
     if (obj.labels != null && !Array.isArray(obj.labels)) return false;
     if (obj.angleMarkers != null && !Array.isArray(obj.angleMarkers)) return false;
+    if (obj.circles != null && !Array.isArray(obj.circles)) return false;
+    if (obj.arcs != null && !Array.isArray(obj.arcs)) return false;
+    if (obj.segments != null && !Array.isArray(obj.segments)) return false;
 
     const seriesOk = (obj.series ?? []).every((series: any) => {
         if (!series || typeof series !== 'object') return false;
@@ -368,11 +441,23 @@ export function isValidGraphConfig(obj: any): obj is GraphConfig {
     const angleMarkersOk = (obj.angleMarkers ?? []).every((marker: any) => isValidGraphAngleMarker(marker));
     if (!angleMarkersOk) return false;
 
+    const circlesOk = (obj.circles ?? []).every((circle: any) => isValidGraphCircle(circle));
+    if (!circlesOk) return false;
+
+    const arcsOk = (obj.arcs ?? []).every((arc: any) => isValidGraphArc(arc));
+    if (!arcsOk) return false;
+
+    const segmentsOk = (obj.segments ?? []).every((segment: any) => isValidGraphSegment(segment));
+    if (!segmentsOk) return false;
+
     const hasRenderableGeometry =
         (Array.isArray(obj.series) && obj.series.length > 0) ||
         (Array.isArray(obj.polygons) && obj.polygons.length > 0) ||
         (Array.isArray(obj.labels) && obj.labels.length > 0) ||
-        (Array.isArray(obj.angleMarkers) && obj.angleMarkers.length > 0);
+        (Array.isArray(obj.angleMarkers) && obj.angleMarkers.length > 0) ||
+        (Array.isArray(obj.circles) && obj.circles.length > 0) ||
+        (Array.isArray(obj.arcs) && obj.arcs.length > 0) ||
+        (Array.isArray(obj.segments) && obj.segments.length > 0);
 
     return hasRenderableGeometry;
 }

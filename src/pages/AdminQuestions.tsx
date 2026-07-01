@@ -4,6 +4,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, SUPABASE_URL } from '@/integrations/supabase/client';
 import type {
   GraphAngleMarker,
+  GraphArc,
+  GraphArcFill,
+  GraphCircle,
   GraphColor,
   GraphConfig,
   GraphDisplayMode,
@@ -11,6 +14,7 @@ import type {
   GraphLabel,
   GraphPoint,
   GraphPolygon,
+  GraphSegment,
   GraphSeries,
 } from '@/types/question-contract';
 import { StepBasedQuestion, QuestionStep } from '@/types/question-contract';
@@ -177,6 +181,34 @@ type FormGraphAngleMarker = {
   p2Y: string;
 };
 
+type FormGraphCircle = {
+  id: string;
+  centerX: string;
+  centerY: string;
+  radius: string;
+  fill: boolean;
+  stroke: boolean;
+};
+
+type FormGraphArc = {
+  id: string;
+  centerX: string;
+  centerY: string;
+  radius: string;
+  startAngle: string;
+  endAngle: string;
+  fill: GraphArcFill;
+  stroke: boolean;
+};
+
+type FormGraphSegment = {
+  id: string;
+  fromX: string;
+  fromY: string;
+  toX: string;
+  toY: string;
+};
+
 type QuestionForm = {
   title: string;
   subject: 'math' | 'physics' | 'chemistry';
@@ -196,6 +228,9 @@ type QuestionForm = {
   graphPolygons: FormGraphPolygon[];
   graphLabels: FormGraphLabel[];
   graphAngleMarkers: FormGraphAngleMarker[];
+  graphCircles: FormGraphCircle[];
+  graphArcs: FormGraphArc[];
+  graphSegments: FormGraphSegment[];
   graphXMin: string;
   graphXMax: string;
   graphYMin: string;
@@ -338,6 +373,40 @@ function getEmptyGraphAngleMarker(): FormGraphAngleMarker {
   }
 }
 
+function getEmptyGraphCircle(): FormGraphCircle {
+  return {
+    id: createGraphFormItemId('graph-circle'),
+    centerX: '',
+    centerY: '',
+    radius: '',
+    fill: false,
+    stroke: true,
+  }
+}
+
+function getEmptyGraphArc(): FormGraphArc {
+  return {
+    id: createGraphFormItemId('graph-arc'),
+    centerX: '',
+    centerY: '',
+    radius: '',
+    startAngle: '',
+    endAngle: '',
+    fill: 'none',
+    stroke: true,
+  }
+}
+
+function getEmptyGraphSegment(): FormGraphSegment {
+  return {
+    id: createGraphFormItemId('graph-segment'),
+    fromX: '',
+    fromY: '',
+    toX: '',
+    toY: '',
+  }
+}
+
 function getGraphSeriesFromConfig(graph: GraphConfig | null | undefined): FormGraphSeries[] {
   const rawSeries = Array.isArray((graph as any)?.series)
     ? ((graph as any).series as any[])
@@ -416,6 +485,63 @@ function getGraphAngleMarkersFromConfig(graph: GraphConfig | null | undefined): 
       }
     })
     .filter(Boolean) as FormGraphAngleMarker[]
+}
+
+function getGraphCirclesFromConfig(graph: GraphConfig | null | undefined): FormGraphCircle[] {
+  const rawCircles = Array.isArray((graph as any)?.circles) ? ((graph as any).circles as any[]) : []
+  return rawCircles
+    .map((raw): FormGraphCircle | null => {
+      if (typeof raw?.center?.x !== 'number' || typeof raw?.center?.y !== 'number') return null
+      if (typeof raw?.radius !== 'number') return null
+      return {
+        id: createGraphFormItemId('graph-circle'),
+        centerX: String(raw.center.x),
+        centerY: String(raw.center.y),
+        radius: String(raw.radius),
+        fill: raw?.fill === true,
+        stroke: raw?.stroke !== false,
+      }
+    })
+    .filter(Boolean) as FormGraphCircle[]
+}
+
+function getGraphArcsFromConfig(graph: GraphConfig | null | undefined): FormGraphArc[] {
+  const rawArcs = Array.isArray((graph as any)?.arcs) ? ((graph as any).arcs as any[]) : []
+  return rawArcs
+    .map((raw): FormGraphArc | null => {
+      if (typeof raw?.center?.x !== 'number' || typeof raw?.center?.y !== 'number') return null
+      if (typeof raw?.radius !== 'number') return null
+      if (typeof raw?.startAngle !== 'number' || typeof raw?.endAngle !== 'number') return null
+      const fill: GraphArcFill = raw?.fill === 'segment' || raw?.fill === 'sector' ? raw.fill : 'none'
+      return {
+        id: createGraphFormItemId('graph-arc'),
+        centerX: String(raw.center.x),
+        centerY: String(raw.center.y),
+        radius: String(raw.radius),
+        startAngle: String(raw.startAngle),
+        endAngle: String(raw.endAngle),
+        fill,
+        stroke: raw?.stroke !== false,
+      }
+    })
+    .filter(Boolean) as FormGraphArc[]
+}
+
+function getGraphSegmentsFromConfig(graph: GraphConfig | null | undefined): FormGraphSegment[] {
+  const rawSegments = Array.isArray((graph as any)?.segments) ? ((graph as any).segments as any[]) : []
+  return rawSegments
+    .map((raw): FormGraphSegment | null => {
+      if (typeof raw?.from?.x !== 'number' || typeof raw?.from?.y !== 'number') return null
+      if (typeof raw?.to?.x !== 'number' || typeof raw?.to?.y !== 'number') return null
+      return {
+        id: createGraphFormItemId('graph-segment'),
+        fromX: String(raw.from.x),
+        fromY: String(raw.from.y),
+        toX: String(raw.to.x),
+        toY: String(raw.to.y),
+      }
+    })
+    .filter(Boolean) as FormGraphSegment[]
 }
 
 function buildGraphSeriesFromForm(series: FormGraphSeries): GraphSeries | null {
@@ -500,6 +626,56 @@ function buildGraphAngleMarkerFromForm(marker: FormGraphAngleMarker): GraphAngle
     vertex: { x: vertexX, y: vertexY },
     p1: { x: p1X, y: p1Y },
     p2: { x: p2X, y: p2Y },
+  }
+}
+
+function buildGraphCircleFromForm(circle: FormGraphCircle): GraphCircle | null {
+  const centerX = parseNumberOrUndefined(circle.centerX)
+  const centerY = parseNumberOrUndefined(circle.centerY)
+  const radius = parseNumberOrUndefined(circle.radius)
+  if (centerX == null || centerY == null || radius == null || radius <= 0) return null
+  if (!circle.fill && !circle.stroke) return null
+
+  return {
+    center: { x: centerX, y: centerY },
+    radius,
+    fill: !!circle.fill,
+    stroke: !!circle.stroke,
+  }
+}
+
+function buildGraphArcFromForm(arc: FormGraphArc): GraphArc | null {
+  const centerX = parseNumberOrUndefined(arc.centerX)
+  const centerY = parseNumberOrUndefined(arc.centerY)
+  const radius = parseNumberOrUndefined(arc.radius)
+  const startAngle = parseNumberOrUndefined(arc.startAngle)
+  const endAngle = parseNumberOrUndefined(arc.endAngle)
+  if (centerX == null || centerY == null || radius == null || radius <= 0) return null
+  if (startAngle == null || endAngle == null || startAngle === endAngle) return null
+
+  const fill: GraphArcFill = arc.fill === 'segment' || arc.fill === 'sector' ? arc.fill : 'none'
+
+  return {
+    center: { x: centerX, y: centerY },
+    radius,
+    startAngle,
+    endAngle,
+    fill,
+    stroke: !!arc.stroke,
+  }
+}
+
+function buildGraphSegmentFromForm(segment: FormGraphSegment): GraphSegment | null {
+  const fromX = parseNumberOrUndefined(segment.fromX)
+  const fromY = parseNumberOrUndefined(segment.fromY)
+  const toX = parseNumberOrUndefined(segment.toX)
+  const toY = parseNumberOrUndefined(segment.toY)
+  if (fromX == null || fromY == null || toX == null || toY == null) return null
+  if (fromX === toX && fromY === toY) return null
+
+  return {
+    from: { x: fromX, y: fromY },
+    to: { x: toX, y: toY },
   }
 }
 
@@ -617,6 +793,64 @@ function validateGraphAngleMarkerForm(marker: FormGraphAngleMarker, index: numbe
   return null
 }
 
+function isBlankGraphCircle(circle: FormGraphCircle): boolean {
+  return (
+    !String(circle.centerX ?? '').trim() &&
+    !String(circle.centerY ?? '').trim() &&
+    !String(circle.radius ?? '').trim() &&
+    !circle.fill &&
+    !!circle.stroke
+  )
+}
+
+function isBlankGraphArc(arc: FormGraphArc): boolean {
+  return (
+    !String(arc.centerX ?? '').trim() &&
+    !String(arc.centerY ?? '').trim() &&
+    !String(arc.radius ?? '').trim() &&
+    !String(arc.startAngle ?? '').trim() &&
+    !String(arc.endAngle ?? '').trim() &&
+    arc.fill === 'none' &&
+    !!arc.stroke
+  )
+}
+
+function isBlankGraphSegment(segment: FormGraphSegment): boolean {
+  return (
+    !String(segment.fromX ?? '').trim() &&
+    !String(segment.fromY ?? '').trim() &&
+    !String(segment.toX ?? '').trim() &&
+    !String(segment.toY ?? '').trim()
+  )
+}
+
+function validateGraphCircleForm(circle: FormGraphCircle, index: number): string | null {
+  if (isBlankGraphCircle(circle)) return null
+  if (!circle.fill && !circle.stroke) {
+    return `Circle ${index + 1}: enable stroke and/or fill.`
+  }
+  if (!buildGraphCircleFromForm(circle)) {
+    return `Circle ${index + 1}: center and a positive radius must be valid numbers.`
+  }
+  return null
+}
+
+function validateGraphArcForm(arc: FormGraphArc, index: number): string | null {
+  if (isBlankGraphArc(arc)) return null
+  if (!buildGraphArcFromForm(arc)) {
+    return `Arc ${index + 1}: center, positive radius, and distinct start/end angles must be valid.`
+  }
+  return null
+}
+
+function validateGraphSegmentForm(segment: FormGraphSegment, index: number): string | null {
+  if (isBlankGraphSegment(segment)) return null
+  if (!buildGraphSegmentFromForm(segment)) {
+    return `Segment ${index + 1}: from and to must be valid, distinct coordinates.`
+  }
+  return null
+}
+
 function needsSciencePreview(text: string | null | undefined): boolean {
   const s = String(text ?? '')
   if (!s.trim()) return false
@@ -644,7 +878,12 @@ function countUnescapedDollars(text: string): number {
 function buildGraphConfigFromForm(form: QuestionForm): GraphConfig | null {
   if (!form.graphEnabled) return null
 
-  const displayMode = form.graphDisplayMode === 'aLevelSketch' ? 'aLevelSketch' : 'standard'
+  const displayMode: GraphDisplayMode =
+    form.graphDisplayMode === 'aLevelSketch'
+      ? 'aLevelSketch'
+      : form.graphDisplayMode === 'blank'
+        ? 'blank'
+        : 'standard'
   const scaleMode = form.graphScaleMode === 'fill' ? 'fill' : 'equalUnits'
   const color = normalizeGraphColor(form.graphColor)
   const xMin = parseNumberOrUndefined(form.graphXMin)
@@ -663,8 +902,25 @@ function buildGraphConfigFromForm(form: QuestionForm): GraphConfig | null {
   const angleMarkers = (Array.isArray(form.graphAngleMarkers) ? form.graphAngleMarkers : [])
     .map(buildGraphAngleMarkerFromForm)
     .filter(Boolean) as GraphAngleMarker[]
+  const circles = (Array.isArray(form.graphCircles) ? form.graphCircles : [])
+    .map(buildGraphCircleFromForm)
+    .filter(Boolean) as GraphCircle[]
+  const arcs = (Array.isArray(form.graphArcs) ? form.graphArcs : [])
+    .map(buildGraphArcFromForm)
+    .filter(Boolean) as GraphArc[]
+  const segments = (Array.isArray(form.graphSegments) ? form.graphSegments : [])
+    .map(buildGraphSegmentFromForm)
+    .filter(Boolean) as GraphSegment[]
 
-  if (series.length === 0 && polygons.length === 0 && labels.length === 0 && angleMarkers.length === 0) {
+  if (
+    series.length === 0 &&
+    polygons.length === 0 &&
+    labels.length === 0 &&
+    angleMarkers.length === 0 &&
+    circles.length === 0 &&
+    arcs.length === 0 &&
+    segments.length === 0
+  ) {
     return null
   }
 
@@ -680,6 +936,9 @@ function buildGraphConfigFromForm(form: QuestionForm): GraphConfig | null {
     ...(polygons.length > 0 ? { polygons } : {}),
     ...(labels.length > 0 ? { labels } : {}),
     ...(angleMarkers.length > 0 ? { angleMarkers } : {}),
+    ...(circles.length > 0 ? { circles } : {}),
+    ...(arcs.length > 0 ? { arcs } : {}),
+    ...(segments.length > 0 ? { segments } : {}),
   }
 }
 
@@ -871,6 +1130,90 @@ export default function AdminQuestions() {
     }))
   }, [])
 
+  const updateGraphCircle = useCallback(
+    (index: number, updater: (circle: FormGraphCircle) => FormGraphCircle) => {
+      setForm((prev) => ({
+        ...prev,
+        graphCircles: (Array.isArray(prev.graphCircles) ? prev.graphCircles : []).map((circle, circleIndex) =>
+          circleIndex === index ? updater(circle) : circle
+        ),
+      }))
+    },
+    []
+  )
+
+  const addGraphCircle = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      graphCircles: [...(Array.isArray(prev.graphCircles) ? prev.graphCircles : []), getEmptyGraphCircle()],
+    }))
+  }, [])
+
+  const removeGraphCircle = useCallback((index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      graphCircles: (Array.isArray(prev.graphCircles) ? prev.graphCircles : []).filter(
+        (_, circleIndex) => circleIndex !== index
+      ),
+    }))
+  }, [])
+
+  const updateGraphArc = useCallback(
+    (index: number, updater: (arc: FormGraphArc) => FormGraphArc) => {
+      setForm((prev) => ({
+        ...prev,
+        graphArcs: (Array.isArray(prev.graphArcs) ? prev.graphArcs : []).map((arc, arcIndex) =>
+          arcIndex === index ? updater(arc) : arc
+        ),
+      }))
+    },
+    []
+  )
+
+  const addGraphArc = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      graphArcs: [...(Array.isArray(prev.graphArcs) ? prev.graphArcs : []), getEmptyGraphArc()],
+    }))
+  }, [])
+
+  const removeGraphArc = useCallback((index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      graphArcs: (Array.isArray(prev.graphArcs) ? prev.graphArcs : []).filter(
+        (_, arcIndex) => arcIndex !== index
+      ),
+    }))
+  }, [])
+
+  const updateGraphSegment = useCallback(
+    (index: number, updater: (segment: FormGraphSegment) => FormGraphSegment) => {
+      setForm((prev) => ({
+        ...prev,
+        graphSegments: (Array.isArray(prev.graphSegments) ? prev.graphSegments : []).map((segment, segmentIndex) =>
+          segmentIndex === index ? updater(segment) : segment
+        ),
+      }))
+    },
+    []
+  )
+
+  const addGraphSegment = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      graphSegments: [...(Array.isArray(prev.graphSegments) ? prev.graphSegments : []), getEmptyGraphSegment()],
+    }))
+  }, [])
+
+  const removeGraphSegment = useCallback((index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      graphSegments: (Array.isArray(prev.graphSegments) ? prev.graphSegments : []).filter(
+        (_, segmentIndex) => segmentIndex !== index
+      ),
+    }))
+  }, [])
+
   const chemistryWarnings = useMemo(() => {
     const warnings: string[] = []
 
@@ -1021,6 +1364,9 @@ export default function AdminQuestions() {
       graphPolygons: [],
       graphLabels: [],
       graphAngleMarkers: [],
+      graphCircles: [],
+      graphArcs: [],
+      graphSegments: [],
       graphXMin: '',
       graphXMax: '',
       graphYMin: '',
@@ -1474,12 +1820,20 @@ export default function AdminQuestions() {
       structureSmiles: q.structureSmiles || '',
       graphEnabled: !!g,
       graphColor: normalizeGraphColor((g as any)?.color),
-      graphDisplayMode: (g as any)?.displayMode === 'aLevelSketch' ? 'aLevelSketch' : 'standard',
+      graphDisplayMode:
+        (g as any)?.displayMode === 'aLevelSketch'
+          ? 'aLevelSketch'
+          : (g as any)?.displayMode === 'blank'
+            ? 'blank'
+            : 'standard',
       graphScaleMode: normalizeGraphScaleMode((g as any)?.scaleMode ?? (g as any)?.scale_mode),
       graphSeries: getGraphSeriesFromConfig(g),
       graphPolygons: getGraphPolygonsFromConfig(g),
       graphLabels: getGraphLabelsFromConfig(g),
       graphAngleMarkers: getGraphAngleMarkersFromConfig(g),
+      graphCircles: getGraphCirclesFromConfig(g),
+      graphArcs: getGraphArcsFromConfig(g),
+      graphSegments: getGraphSegmentsFromConfig(g),
       graphXMin: g && typeof (g as any).xMin === 'number' ? String((g as any).xMin) : '',
       graphXMax: g && typeof (g as any).xMax === 'number' ? String((g as any).xMax) : '',
       graphYMin: g && typeof (g as any).yMin === 'number' ? String((g as any).yMin) : '',
@@ -2245,6 +2599,33 @@ export default function AdminQuestions() {
 
         if (graphAngleMarkerError) {
           toast.error(graphAngleMarkerError)
+          return
+        }
+
+        const graphCircleError = (Array.isArray(form.graphCircles) ? form.graphCircles : [])
+          .map((circle, index) => validateGraphCircleForm(circle, index))
+          .find(Boolean)
+
+        if (graphCircleError) {
+          toast.error(graphCircleError)
+          return
+        }
+
+        const graphArcError = (Array.isArray(form.graphArcs) ? form.graphArcs : [])
+          .map((arc, index) => validateGraphArcForm(arc, index))
+          .find(Boolean)
+
+        if (graphArcError) {
+          toast.error(graphArcError)
+          return
+        }
+
+        const graphSegmentError = (Array.isArray(form.graphSegments) ? form.graphSegments : [])
+          .map((segment, index) => validateGraphSegmentForm(segment, index))
+          .find(Boolean)
+
+        if (graphSegmentError) {
+          toast.error(graphSegmentError)
           return
         }
       }
@@ -3592,6 +3973,7 @@ export default function AdminQuestions() {
                                     {([
                                       { value: 'standard', label: 'Standard' },
                                       { value: 'aLevelSketch', label: 'A-Level Sketch' },
+                                      { value: 'blank', label: 'Blank (no lines)' },
                                     ] as Array<{ value: GraphDisplayMode; label: string }>).map((mode) => (
                                       <button
                                         key={mode.value}
@@ -3608,7 +3990,7 @@ export default function AdminQuestions() {
                                     ))}
                                   </div>
                                   <p className="text-xs text-white/40 mt-2">
-                                    A-Level Sketch hides the grid and border so polygons, labels, and right-angle markers stay clean.
+                                    A-Level Sketch hides the grid and border. Blank also removes the x/y axis lines, leaving a clean geometry diagram (best for circles, arcs, and shaded figures).
                                   </p>
                                 </div>
 
@@ -4194,6 +4576,407 @@ export default function AdminQuestions() {
                                                     updateGraphAngleMarker(index, (current) => ({
                                                       ...current,
                                                       p2Y: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="y"
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="rounded-xl border border-white/10 bg-black/10 p-4 space-y-4">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                      <div className="text-sm font-semibold text-white/90">Circles</div>
+                                      <p className="text-xs text-white/45">
+                                        Full circles by center and radius. Use the Blank display mode to drop the axes.
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                      onClick={addGraphCircle}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add Circle
+                                    </Button>
+                                  </div>
+
+                                  {(Array.isArray(form.graphCircles) ? form.graphCircles : []).length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+                                      No circles yet.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {(Array.isArray(form.graphCircles) ? form.graphCircles : []).map((circle, index) => (
+                                        <div
+                                          key={circle.id}
+                                          className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3"
+                                        >
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="text-sm font-semibold text-white/85">
+                                              Circle {index + 1}
+                                            </div>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="outline"
+                                              className="h-8 w-8 border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                                              onClick={() => removeGraphCircle(index)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                            <div>
+                                              <label className={labelStyle}>Center X</label>
+                                              <Input
+                                                value={circle.centerX}
+                                                onChange={(e) =>
+                                                  updateGraphCircle(index, (current) => ({
+                                                    ...current,
+                                                    centerX: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="0"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={labelStyle}>Center Y</label>
+                                              <Input
+                                                value={circle.centerY}
+                                                onChange={(e) =>
+                                                  updateGraphCircle(index, (current) => ({
+                                                    ...current,
+                                                    centerY: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="0"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={labelStyle}>Radius</label>
+                                              <Input
+                                                value={circle.radius}
+                                                onChange={(e) =>
+                                                  updateGraphCircle(index, (current) => ({
+                                                    ...current,
+                                                    radius: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="5"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <label className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 select-none">
+                                              <input
+                                                type="checkbox"
+                                                checked={circle.stroke}
+                                                onChange={(e) =>
+                                                  updateGraphCircle(index, (current) => ({
+                                                    ...current,
+                                                    stroke: e.target.checked,
+                                                  }))
+                                                }
+                                                className="h-4 w-4 accent-yellow-400"
+                                              />
+                                              Stroke outline
+                                            </label>
+                                            <label className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 select-none">
+                                              <input
+                                                type="checkbox"
+                                                checked={circle.fill}
+                                                onChange={(e) =>
+                                                  updateGraphCircle(index, (current) => ({
+                                                    ...current,
+                                                    fill: e.target.checked,
+                                                  }))
+                                                }
+                                                className="h-4 w-4 accent-yellow-400"
+                                              />
+                                              Light fill
+                                            </label>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="rounded-xl border border-white/10 bg-black/10 p-4 space-y-4">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                      <div className="text-sm font-semibold text-white/90">Arcs &amp; Shaded Areas</div>
+                                      <p className="text-xs text-white/45">
+                                        Arc by center, radius, and start/end angles (degrees, counter-clockwise). Fill a segment (chord) or sector (pie slice) for shaded areas.
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                      onClick={addGraphArc}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add Arc
+                                    </Button>
+                                  </div>
+
+                                  {(Array.isArray(form.graphArcs) ? form.graphArcs : []).length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+                                      No arcs yet.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {(Array.isArray(form.graphArcs) ? form.graphArcs : []).map((arc, index) => (
+                                        <div
+                                          key={arc.id}
+                                          className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3"
+                                        >
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="text-sm font-semibold text-white/85">
+                                              Arc {index + 1}
+                                            </div>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="outline"
+                                              className="h-8 w-8 border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                                              onClick={() => removeGraphArc(index)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                            <div>
+                                              <label className={labelStyle}>Center X</label>
+                                              <Input
+                                                value={arc.centerX}
+                                                onChange={(e) =>
+                                                  updateGraphArc(index, (current) => ({
+                                                    ...current,
+                                                    centerX: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="0"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={labelStyle}>Center Y</label>
+                                              <Input
+                                                value={arc.centerY}
+                                                onChange={(e) =>
+                                                  updateGraphArc(index, (current) => ({
+                                                    ...current,
+                                                    centerY: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="0"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={labelStyle}>Radius</label>
+                                              <Input
+                                                value={arc.radius}
+                                                onChange={(e) =>
+                                                  updateGraphArc(index, (current) => ({
+                                                    ...current,
+                                                    radius: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="5"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={labelStyle}>Start Angle (deg)</label>
+                                              <Input
+                                                value={arc.startAngle}
+                                                onChange={(e) =>
+                                                  updateGraphArc(index, (current) => ({
+                                                    ...current,
+                                                    startAngle: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="0"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={labelStyle}>End Angle (deg)</label>
+                                              <Input
+                                                value={arc.endAngle}
+                                                onChange={(e) =>
+                                                  updateGraphArc(index, (current) => ({
+                                                    ...current,
+                                                    endAngle: e.target.value,
+                                                  }))
+                                                }
+                                                className={glassInput}
+                                                placeholder="180"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <label className={labelStyle}>Fill</label>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                              {([
+                                                { value: 'none', label: 'None' },
+                                                { value: 'segment', label: 'Segment (chord)' },
+                                                { value: 'sector', label: 'Sector (pie)' },
+                                              ] as Array<{ value: GraphArcFill; label: string }>).map((option) => (
+                                                <button
+                                                  key={option.value}
+                                                  type="button"
+                                                  onClick={() =>
+                                                    updateGraphArc(index, (current) => ({
+                                                      ...current,
+                                                      fill: option.value,
+                                                    }))
+                                                  }
+                                                  className={`px-3 py-1.5 rounded-lg border-2 text-sm transition-all ${
+                                                    arc.fill === option.value
+                                                      ? 'border-yellow-400 bg-yellow-400/10'
+                                                      : 'border-white/20 hover:border-white/40'
+                                                  }`}
+                                                >
+                                                  {option.label}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          <label className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 select-none">
+                                            <input
+                                              type="checkbox"
+                                              checked={arc.stroke}
+                                              onChange={(e) =>
+                                                updateGraphArc(index, (current) => ({
+                                                  ...current,
+                                                  stroke: e.target.checked,
+                                                }))
+                                              }
+                                              className="h-4 w-4 accent-yellow-400"
+                                            />
+                                            Stroke outline
+                                          </label>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="rounded-xl border border-white/10 bg-black/10 p-4 space-y-4">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                      <div className="text-sm font-semibold text-white/90">Line Segments</div>
+                                      <p className="text-xs text-white/45">
+                                        Straight lines such as radii or chords, from one point to another.
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                                      onClick={addGraphSegment}
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add Segment
+                                    </Button>
+                                  </div>
+
+                                  {(Array.isArray(form.graphSegments) ? form.graphSegments : []).length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+                                      No segments yet.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {(Array.isArray(form.graphSegments) ? form.graphSegments : []).map((segment, index) => (
+                                        <div
+                                          key={segment.id}
+                                          className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3"
+                                        >
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="text-sm font-semibold text-white/85">
+                                              Segment {index + 1}
+                                            </div>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="outline"
+                                              className="h-8 w-8 border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                                              onClick={() => removeGraphSegment(index)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
+                                              <div className="text-xs font-semibold uppercase tracking-wider text-white/55">
+                                                From
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-3">
+                                                <Input
+                                                  value={segment.fromX}
+                                                  onChange={(e) =>
+                                                    updateGraphSegment(index, (current) => ({
+                                                      ...current,
+                                                      fromX: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="x"
+                                                />
+                                                <Input
+                                                  value={segment.fromY}
+                                                  onChange={(e) =>
+                                                    updateGraphSegment(index, (current) => ({
+                                                      ...current,
+                                                      fromY: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="y"
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
+                                              <div className="text-xs font-semibold uppercase tracking-wider text-white/55">
+                                                To
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-3">
+                                                <Input
+                                                  value={segment.toX}
+                                                  onChange={(e) =>
+                                                    updateGraphSegment(index, (current) => ({
+                                                      ...current,
+                                                      toX: e.target.value,
+                                                    }))
+                                                  }
+                                                  className={glassInput}
+                                                  placeholder="x"
+                                                />
+                                                <Input
+                                                  value={segment.toY}
+                                                  onChange={(e) =>
+                                                    updateGraphSegment(index, (current) => ({
+                                                      ...current,
+                                                      toY: e.target.value,
                                                     }))
                                                   }
                                                   className={glassInput}
