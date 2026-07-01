@@ -13,6 +13,9 @@
 import { StepBasedQuestion, QuestionStep } from '@/types/questions';
 import type {
   GraphAngleMarker,
+  GraphArc,
+  GraphArcFill,
+  GraphCircle,
   GraphConfig,
   GraphColor,
   GraphDisplayMode,
@@ -20,6 +23,7 @@ import type {
   GraphLabel,
   GraphPoint,
   GraphPolygon,
+  GraphSegment,
   GraphSeries,
 } from '@/types/question-contract';
 import { normalizeInlineMathOption } from '@/lib/optionMath';
@@ -176,9 +180,13 @@ function normalizeGraphColor(raw: any): GraphColor {
 
 function normalizeGraphDisplayMode(raw: any): GraphDisplayMode {
   const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-  return mode === 'alevelsketch' || mode === 'a_level_sketch' || mode === 'a-level-sketch'
-    ? 'aLevelSketch'
-    : 'standard'
+  if (mode === 'alevelsketch' || mode === 'a_level_sketch' || mode === 'a-level-sketch') {
+    return 'aLevelSketch'
+  }
+  if (mode === 'blank' || mode === 'none' || mode === 'no_lines' || mode === 'no-lines') {
+    return 'blank'
+  }
+  return 'standard'
 }
 
 function normalizeGraphScaleMode(raw: any): GraphScaleMode {
@@ -269,6 +277,58 @@ function parseGraphAngleMarker(raw: any): GraphAngleMarker | null {
   }
 }
 
+function parseGraphCircle(raw: any): GraphCircle | null {
+  if (!raw || typeof raw !== 'object') return null
+  const center = parseGraphPoint(raw.center)
+  const radius = coerceNumber(raw.radius)
+  if (!center || radius == null || radius <= 0) return null
+
+  const fill = parseGraphBoolean(raw.fill)
+  const stroke = parseGraphBoolean(raw.stroke)
+  if (fill === false && stroke === false) return null
+
+  return {
+    center,
+    radius,
+    fill,
+    stroke,
+  }
+}
+
+function normalizeArcFill(raw: any): GraphArcFill {
+  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  return value === 'segment' || value === 'sector' ? value : 'none'
+}
+
+function parseGraphArc(raw: any): GraphArc | null {
+  if (!raw || typeof raw !== 'object') return null
+  const center = parseGraphPoint(raw.center)
+  const radius = coerceNumber(raw.radius)
+  const startAngle = coerceNumber(raw.startAngle ?? raw.start_angle)
+  const endAngle = coerceNumber(raw.endAngle ?? raw.end_angle)
+  if (!center || radius == null || radius <= 0) return null
+  if (startAngle == null || endAngle == null || startAngle === endAngle) return null
+
+  return {
+    center,
+    radius,
+    startAngle,
+    endAngle,
+    fill: normalizeArcFill(raw.fill),
+    stroke: parseGraphBoolean(raw.stroke),
+  }
+}
+
+function parseGraphSegment(raw: any): GraphSegment | null {
+  if (!raw || typeof raw !== 'object') return null
+  const from = parseGraphPoint(raw.from)
+  const to = parseGraphPoint(raw.to)
+  if (!from || !to) return null
+  if (from.x === to.x && from.y === to.y) return null
+
+  return { from, to }
+}
+
 function parseGraphSeries(raw: any): GraphSeries | null {
   if (!raw || typeof raw !== 'object') return null
 
@@ -335,6 +395,15 @@ function buildGraphConfig(raw: any): GraphConfig | null {
         .map(parseGraphAngleMarker)
         .filter(Boolean) as GraphAngleMarker[]
     : []
+  const circles = Array.isArray(raw.circles)
+    ? raw.circles.map(parseGraphCircle).filter(Boolean) as GraphCircle[]
+    : []
+  const arcs = Array.isArray(raw.arcs)
+    ? raw.arcs.map(parseGraphArc).filter(Boolean) as GraphArc[]
+    : []
+  const segments = Array.isArray(raw.segments)
+    ? raw.segments.map(parseGraphSegment).filter(Boolean) as GraphSegment[]
+    : []
   let series: GraphSeries[] = []
 
   if (Array.isArray(raw.series)) {
@@ -346,7 +415,15 @@ function buildGraphConfig(raw: any): GraphConfig | null {
     series = [legacySeries]
   }
 
-  if (series.length === 0 && polygons.length === 0 && labels.length === 0 && angleMarkers.length === 0) {
+  if (
+    series.length === 0 &&
+    polygons.length === 0 &&
+    labels.length === 0 &&
+    angleMarkers.length === 0 &&
+    circles.length === 0 &&
+    arcs.length === 0 &&
+    segments.length === 0
+  ) {
     return null
   }
 
@@ -362,6 +439,9 @@ function buildGraphConfig(raw: any): GraphConfig | null {
     ...(polygons.length > 0 ? { polygons } : {}),
     ...(labels.length > 0 ? { labels } : {}),
     ...(angleMarkers.length > 0 ? { angleMarkers } : {}),
+    ...(circles.length > 0 ? { circles } : {}),
+    ...(arcs.length > 0 ? { arcs } : {}),
+    ...(segments.length > 0 ? { segments } : {}),
   }
 }
 
