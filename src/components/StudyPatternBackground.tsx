@@ -104,7 +104,7 @@ export const StudyPatternBackground: React.FC<StudyPatternBackgroundProps> = ({
   const patternUrl = `url("data:image/svg+xml,${patternSvg}")`;
 
   return (
-    <div className="fixed inset-0 z-[-1] overflow-hidden bg-black">
+    <div className="fixed inset-0 z-0 overflow-hidden bg-black pointer-events-none">
       {/* 1. High Contrast Dark Base (Black/Dark Slate) */}
       <div 
         className="absolute inset-0"

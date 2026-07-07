@@ -260,13 +260,13 @@ export default function Home() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-white font-sans">
+    <div className="relative h-full overflow-hidden text-white font-sans flex flex-col">
       {/* Study Icons Pattern Background */}
-      <StudyPatternBackground />
+      <StudyPatternBackground variant="battleNerds" />
 
       {/* Top bar (centered nav like reference) */}
       <motion.header
-        className="relative z-30 w-full px-4 sm:px-6 pt-5"
+        className="relative z-30 w-full px-4 sm:px-6 lg:px-8 pt-5 shrink-0"
         variants={fadeDown}
         initial={prefersReducedMotion ? false : 'hidden'}
         animate="visible"
@@ -480,12 +480,12 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <main className="relative z-20 min-h-[calc(100vh-120px)]">
+      <main className="relative z-20 flex-1 min-h-0">
         {/* Keep the lobby clean like the reference (no large character overlay) */}
 
-        {/* Left stack (reference-style tiles) */}
+        {/* Left stack — pinned to viewport left edge */}
         <motion.div
-          className="hidden lg:flex absolute left-6 top-28 w-[260px] flex-col gap-3"
+          className="hidden lg:flex fixed left-4 xl:left-6 2xl:left-8 top-24 xl:top-28 w-[240px] xl:w-[260px] flex-col gap-3 z-20"
           variants={staggerContainer(0.06, 0.15)}
           initial={prefersReducedMotion ? false : 'hidden'}
           animate="visible"
@@ -556,9 +556,9 @@ export default function Home() {
           </motion.button>
         </motion.div>
 
-        {/* Center player card (Lobby layout) */}
+        {/* Center player card — always centered in viewport */}
         <div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[clamp(280px,40vh,360px)] max-w-[90vw] aspect-[5/7]"
+          className="fixed left-1/2 top-[52%] -translate-x-1/2 -translate-y-1/2 w-[clamp(260px,38vh,360px)] max-w-[min(90vw,calc(100vw-560px))] aspect-[5/7] z-10"
           style={{ perspective: 1100 }}
         >
           <motion.div
@@ -772,9 +772,9 @@ export default function Home() {
           </motion.div>
         </div>
 
-        {/* Right widgets (merge from bright reference; subtle in dark theme) */}
+        {/* Right widgets — pinned to viewport right edge */}
         <motion.div
-          className="hidden lg:flex absolute right-6 top-28 w-[340px] flex-col gap-3"
+          className="hidden lg:flex fixed right-4 xl:right-6 2xl:right-8 top-24 xl:top-28 w-[300px] xl:w-[340px] flex-col gap-3 z-20"
           variants={staggerContainer(0.06, 0.15)}
           initial={prefersReducedMotion ? false : 'hidden'}
           animate="visible"
@@ -909,9 +909,9 @@ export default function Home() {
           </motion.button>
         </motion.div>
 
-        {/* Bottom-left actions (START + quick actions) */}
+        {/* Bottom-left actions — pinned to viewport bottom-left edge */}
         <motion.div
-          className="absolute left-6 bottom-8 w-[560px] max-w-[calc(100vw-3rem)]"
+          className="fixed left-4 xl:left-6 2xl:left-8 bottom-4 xl:bottom-8 w-[min(560px,calc(100vw-2rem))] lg:w-[min(560px,calc(100vw-640px))] z-20"
           initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: PREMIUM_EASE, delay: 0.35 }}
