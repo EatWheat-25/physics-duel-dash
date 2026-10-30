@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const guestLoginPending = useRef(false);
   const { user, profile } = useAuth();
   const navigate = useNavigate();
 
@@ -92,10 +93,10 @@ export default function Auth() {
         });
         if (error) throw error;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Authentication failed. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -115,45 +116,40 @@ export default function Auth() {
     if (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Authentication failed. Please try again.",
         variant: "destructive",
       });
     }
   };
 
   const handleGuestLogin = async () => {
+    if (guestLoginPending.current || loading) return;
+    guestLoginPending.current = true;
     setLoading(true);
     try {
-      const guestEmail = `guest_${Date.now()}@temp.com`;
-      const guestPassword = Math.random().toString(36).slice(-8);
-      
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: guestEmail,
-        password: guestPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/onboarding`,
-          data: { is_guest: true },
-        },
-      });
-
-      if (signUpError) throw signUpError;
-
-      // Automatically sign in the guest user
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: guestEmail,
-        password: guestPassword,
-      });
-
-      if (signInError) throw signInError;
-
-      navigate("/onboarding");
-    } catch (error: any) {
+      const { data, error } = await supabase.auth.signInAnonymously();
+      if (error) throw error;
+      if (!data.session || !data.user) {
+        throw new Error("Guest sign-in did not return a session");
+      }
+      // AuthContext receives SIGNED_IN. The shared redirect above checks the
+      // profile before routing to onboarding or home, just like other logins.
+    } catch (error: unknown) {
+      const code = error && typeof error === "object" && "code" in error
+        ? error.code
+        : undefined;
+      const unavailable = code === "anonymous_provider_disabled" || code === "signup_disabled";
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Guest sign-in unavailable",
+        description: unavailable
+          ? "Guest play is currently disabled. Please sign in or create an account to continue."
+          : code === "over_request_rate_limit"
+            ? "Too many guest sign-in attempts. Please wait a few minutes and try again, or use another sign-in method."
+            : "We couldn't start a guest session. Please try again or use another sign-in method.",
         variant: "destructive",
       });
     } finally {
+      guestLoginPending.current = false;
       setLoading(false);
     }
   };
@@ -261,6 +257,7 @@ export default function Auth() {
             variant="outline"
             className="w-full"
             onClick={handleGoogleLogin}
+            disabled={loading}
           >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
               <path
@@ -291,6 +288,10 @@ export default function Auth() {
           >
             Continue as Guest
           </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Guest progress is tied to this browser. Signing out or clearing browser data
+            means you cannot return to this guest account.
+          </p>
         </div>
 
         <div className="text-center text-sm">
