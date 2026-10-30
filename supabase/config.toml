@@ -1,5 +1,9 @@
 project_id = "qvunaswogfwhixecjpcn"
 
+# Local Auth configuration; enable Anonymous Sign-Ins separately in hosted projects.
+[auth]
+enable_anonymous_sign_ins = true
+
 [functions.enqueue]
 verify_jwt = true
 
