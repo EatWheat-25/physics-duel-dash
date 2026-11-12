@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,52 +7,53 @@ import { CharacterProvider } from "@/hooks/useCharacter";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ElevatorShutterProvider } from "@/components/transitions/ElevatorShutterTransition";
 import { AuthProvider } from "./contexts/AuthContext";
-import Index from "./pages/Index";
-import Home from "./routes/Home";
-import Lobby from "./routes/Lobby";
-import LobbyNew from "./pages/LobbyNew";
-import DailyChallenge from "./routes/DailyChallenge";
-import Study from "./routes/Study";
-import BattleQueue from "./routes/BattleQueue";
-import Modules from "./routes/Modules";
-import Challenges from "./routes/Challenges";
-import Progression from "./routes/Progression";
-import Shop from "./routes/Shop";
-import Customize from "./routes/Customize";
-import Loadout from "./routes/Loadout";
-import Profile from "./pages/Profile";
-import Career from "./pages/Career";
-import NotFound from "./pages/NotFound";
-import GameModes from "./components/GameModes";
-import StepBattlePage from "./components/StepBattlePage";
-import BattlePageNew from "./components/BattlePageNew";
-import BattleLoader from "./components/BattleLoader";
-import Auth from "./pages/Auth";
-import Onboarding from "./pages/Onboarding";
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminQuestions from "./pages/AdminQuestions";
-import AdminDiagrams from "./pages/AdminDiagrams";
-import AdminLogin from "./pages/AdminLogin";
-import AdminEndgamePreview from "./pages/AdminEndgamePreview";
-import AdminChemPreview from "./pages/AdminChemPreview";
-import OnlineBattlePage from "./pages/OnlineBattlePage";
-import BattleConnected from "./pages/BattleConnected";
-import MatchResults from "./pages/MatchResults";
-import DebugQuestions from "./pages/DebugQuestions";
-import Practice from "./pages/Practice";
-import CampaignMode from "./pages/CampaignMode";
-import MatchSandbox from "./pages/MatchSandbox";
-import SoloChallenge from "./pages/SoloChallenge";
-import { DevContractTest } from "./pages/DevContractTest";
-import { DevDatabaseTest } from "./pages/DevDatabaseTest";
-import { DevMapperTest } from "./pages/DevMapperTest";
-import MatchmakingTest from "./pages/MatchmakingTest";
-import BattleSimple from "./pages/BattleSimple";
-import SupabaseDebug from "./pages/SupabaseDebug";
-import { getRandomQuestions } from "./data/questions";
 import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
+import Home from "./routes/Home";
+
+// Every screen except Home is loaded on demand, so a player never downloads
+// the admin tools (or any screen they do not open).
+const Auth = lazy(() => import("./pages/Auth"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const LobbyNew = lazy(() => import("./pages/LobbyNew"));
+const BattleConnected = lazy(() => import("./pages/BattleConnected"));
+const MatchResults = lazy(() => import("./pages/MatchResults"));
+const CampaignMode = lazy(() => import("./pages/CampaignMode"));
+const SoloChallenge = lazy(() => import("./pages/SoloChallenge"));
+const Practice = lazy(() => import("./pages/Practice"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Career = lazy(() => import("./pages/Career"));
+const DailyChallenge = lazy(() => import("./routes/DailyChallenge"));
+const Study = lazy(() => import("./routes/Study"));
+const Modules = lazy(() => import("./routes/Modules"));
+const Challenges = lazy(() => import("./routes/Challenges"));
+const Progression = lazy(() => import("./routes/Progression"));
+const Shop = lazy(() => import("./routes/Shop"));
+const Customize = lazy(() => import("./routes/Customize"));
+const Loadout = lazy(() => import("./routes/Loadout"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminQuestions = lazy(() => import("./pages/AdminQuestions"));
+const AdminDiagrams = lazy(() => import("./pages/AdminDiagrams"));
+const AdminEndgamePreview = lazy(() => import("./pages/AdminEndgamePreview"));
+const AdminChemPreview = lazy(() => import("./pages/AdminChemPreview"));
+
+// Dev/debug tooling: routed only on a local dev server.
+const DebugQuestions = lazy(() => import("./pages/DebugQuestions"));
+const MatchSandbox = lazy(() => import("./pages/MatchSandbox"));
+const SupabaseDebug = lazy(() => import("./pages/SupabaseDebug"));
+const DevContractTest = lazy(() => import("./pages/DevContractTest").then((m) => ({ default: m.DevContractTest })));
+const DevDatabaseTest = lazy(() => import("./pages/DevDatabaseTest").then((m) => ({ default: m.DevDatabaseTest })));
+const DevMapperTest = lazy(() => import("./pages/DevMapperTest").then((m) => ({ default: m.DevMapperTest })));
 
 const queryClient = new QueryClient();
+
+const ScreenLoading = () => (
+  <div className="h-full min-h-screen flex items-center justify-center bg-slate-950" role="status" aria-label="Loading">
+    <div className="h-8 w-8 rounded-full border-2 border-white/20 border-t-white/80 animate-spin" />
+  </div>
+);
 
 const App = () => {
   return (
@@ -65,103 +67,104 @@ const App = () => {
               <AuthProvider>
                 <div className="h-full overflow-hidden">
                   <div className="h-full overflow-auto">
-                    <Routes>
-                      <Route path="/auth" element={<Auth />} />
-                      <Route path="/onboarding" element={<Onboarding />} />
-                      <Route path="/" element={<Home />} />
-                      <Route path="/lobby" element={<Lobby />} />
-                      <Route path="/matchmaking-new" element={<LobbyNew />} />
-                      <Route path="/daily-challenge" element={<DailyChallenge />} />
-                      <Route path="/study" element={<Study />} />
-                      <Route path="/practice" element={<Practice />} />
-                      <Route path="/campaign" element={<CampaignMode />} />
-                      <Route path="/offline" element={<Navigate to="/campaign" replace />} />
-                      <Route path="/battle/queue" element={<BattleQueue />} />
-                      <Route path="/modules" element={<Modules />} />
-                      <Route path="/challenges" element={<Challenges />} />
-                      <Route path="/progression" element={<Progression />} />
-                      <Route path="/shop" element={<Shop />} />
-                      <Route path="/customize" element={<Customize />} />
-                      <Route path="/loadout" element={<Loadout />} />
-                      <Route path="/profile" element={<Profile />} />
-                      <Route path="/career" element={<Career />} />
-                      <Route path="/old-home" element={<Index />} />
-                      <Route path="/modes" element={<Navigate to="/campaign" replace />} />
-                      <Route path="/game-modes" element={<GameModes />} />
-                      <Route path="/admin/login" element={<AdminLogin />} />
-                      <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-                      <Route
-                        path="/admin/dashboard"
-                        element={
-                          <ProtectedAdminRoute>
-                            <AdminDashboard />
-                          </ProtectedAdminRoute>
-                        }
-                      />
-                      <Route path="/admin/questions" element={<AdminQuestions />} />
-                      <Route
-                        path="/admin/diagrams"
-                        element={
-                          <ProtectedAdminRoute>
-                            <AdminDiagrams />
-                          </ProtectedAdminRoute>
-                        }
-                      />
-                      <Route
-                        path="/admin/preview/endgame"
-                        element={
-                          <ProtectedAdminRoute>
-                            <AdminEndgamePreview />
-                          </ProtectedAdminRoute>
-                        }
-                      />
-                      <Route
-                        path="/admin/preview/chem"
-                        element={
-                          // Static drawings only, so it is open on a local dev server for quick checking.
-                          import.meta.env.DEV ? (
-                            <AdminChemPreview />
-                          ) : (
+                    <Suspense fallback={<ScreenLoading />}>
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/auth" element={<Auth />} />
+                        <Route path="/onboarding" element={<Onboarding />} />
+
+                        {/* Online 1v1 */}
+                        <Route path="/matchmaking-new" element={<LobbyNew />} />
+                        <Route path="/battle/:matchId" element={<BattleConnected />} />
+                        <Route path="/online-battle-new/:matchId" element={<BattleConnected />} />
+                        <Route path="/match-results/:matchId" element={<MatchResults />} />
+
+                        {/* Solo modes */}
+                        <Route path="/campaign" element={<CampaignMode />} />
+                        <Route path="/campaign/play" element={<SoloChallenge />} />
+                        <Route path="/solo-challenge" element={<SoloChallenge />} />
+                        <Route path="/practice" element={<Practice />} />
+
+                        {/* Player hub */}
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/career" element={<Career />} />
+                        <Route path="/daily-challenge" element={<DailyChallenge />} />
+                        <Route path="/study" element={<Study />} />
+                        <Route path="/modules" element={<Modules />} />
+                        <Route path="/challenges" element={<Challenges />} />
+                        <Route path="/progression" element={<Progression />} />
+                        <Route path="/shop" element={<Shop />} />
+                        <Route path="/customize" element={<Customize />} />
+                        <Route path="/loadout" element={<Loadout />} />
+
+                        {/* Old screens were removed; their addresses lead to the current ones. */}
+                        <Route path="/lobby" element={<Navigate to="/matchmaking-new" replace />} />
+                        <Route path="/battle/queue" element={<Navigate to="/matchmaking-new" replace />} />
+                        <Route path="/battle" element={<Navigate to="/matchmaking-new" replace />} />
+                        <Route path="/battle-simple/:matchId" element={<Navigate to="/matchmaking-new" replace />} />
+                        <Route path="/physics-battle" element={<Navigate to="/" replace />} />
+                        <Route path="/old-home" element={<Navigate to="/" replace />} />
+                        <Route path="/game-modes" element={<Navigate to="/campaign" replace />} />
+                        <Route path="/modes" element={<Navigate to="/campaign" replace />} />
+                        <Route path="/offline" element={<Navigate to="/campaign" replace />} />
+
+                        {/* Admin */}
+                        <Route path="/admin/login" element={<AdminLogin />} />
+                        <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+                        <Route
+                          path="/admin/dashboard"
+                          element={
                             <ProtectedAdminRoute>
-                              <AdminChemPreview />
+                              <AdminDashboard />
                             </ProtectedAdminRoute>
-                          )
-                        }
-                      />
-                      {/* Dev/debug tooling is excluded from production builds */}
-                      {import.meta.env.DEV && (
-                        <>
-                          <Route path="/debug/questions" element={<DebugQuestions />} />
-                          <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
-                          <Route path="/dev/contract-test" element={<DevContractTest />} />
-                          <Route path="/dev/db-test" element={<DevDatabaseTest />} />
-                          <Route path="/dev/mapper-test" element={<DevMapperTest />} />
-                          <Route path="/supabase-debug" element={<SupabaseDebug />} />
-                          <Route path="/matchmaking-test" element={<MatchmakingTest />} />
-                        </>
-                      )}
-                      <Route path="/battle-simple/:matchId" element={<BattleSimple />} />
-                      <Route path="/battle" element={<BattleLoader />} />
-                      {/* Old route - using useGame hook (deprecated, use /online-battle-new instead) */}
-                      {/* <Route path="/online-battle/:matchId" element={<OnlineBattlePage />} /> */}
-                      <Route path="/online-battle-new/:matchId" element={<BattleConnected />} />
-                      <Route path="/battle/:matchId" element={<BattleConnected />} />
-                      <Route path="/campaign/play" element={<SoloChallenge />} />
-                      <Route path="/solo-challenge" element={<SoloChallenge />} />
-                      <Route path="/match-results/:matchId" element={<MatchResults />} />
-                      <Route
-                        path="/physics-battle"
-                        element={
-                          <BattlePageNew
-                            questions={getRandomQuestions(5)}
-                            onBattleEnd={() => {}}
-                            onGoBack={() => (window.location.href = '/')}
-                          />
-                        }
-                      />
-                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
+                          }
+                        />
+                        <Route path="/admin/questions" element={<AdminQuestions />} />
+                        <Route
+                          path="/admin/diagrams"
+                          element={
+                            <ProtectedAdminRoute>
+                              <AdminDiagrams />
+                            </ProtectedAdminRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/preview/endgame"
+                          element={
+                            <ProtectedAdminRoute>
+                              <AdminEndgamePreview />
+                            </ProtectedAdminRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/preview/chem"
+                          element={
+                            // Static drawings only, so it is open on a local dev server for quick checking.
+                            import.meta.env.DEV ? (
+                              <AdminChemPreview />
+                            ) : (
+                              <ProtectedAdminRoute>
+                                <AdminChemPreview />
+                              </ProtectedAdminRoute>
+                            )
+                          }
+                        />
+
+                        {import.meta.env.DEV && (
+                          <>
+                            <Route path="/debug/questions" element={<DebugQuestions />} />
+                            <Route path="/dev/match-sandbox" element={<MatchSandbox />} />
+                            <Route path="/dev/contract-test" element={<DevContractTest />} />
+                            <Route path="/dev/db-test" element={<DevDatabaseTest />} />
+                            <Route path="/dev/mapper-test" element={<DevMapperTest />} />
+                            <Route path="/supabase-debug" element={<SupabaseDebug />} />
+                          </>
+                        )}
+
+                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </Suspense>
                   </div>
                 </div>
               </AuthProvider>

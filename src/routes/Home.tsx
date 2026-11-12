@@ -492,7 +492,7 @@ export default function Home() {
         >
           <motion.button
             type="button"
-            onClick={() => navigate('/modes')}
+            onClick={() => navigate('/campaign')}
             className="relative w-full rounded-2xl px-4 py-4 text-left"
             style={{
               background: 'rgba(15, 23, 42, 0.58)',
@@ -885,7 +885,7 @@ export default function Home() {
 
           <motion.button
             type="button"
-            onClick={() => navigate('/battle/queue')}
+            onClick={() => navigate('/matchmaking-new')}
             className="w-full text-left rounded-2xl p-4"
             style={{
               background: 'rgba(15, 23, 42, 0.58)',

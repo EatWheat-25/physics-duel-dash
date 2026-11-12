@@ -1,4 +1,7 @@
 import katex from 'katex'
+// Loaded here, not in main.tsx, so the maths renderer is only downloaded by screens that show questions.
+import 'katex/dist/katex.min.css'
+import 'katex/dist/contrib/mhchem.mjs'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 

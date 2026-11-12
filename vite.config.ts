@@ -19,6 +19,9 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // The app logs heavily while debugging. Drop log/debug calls from production
+  // builds (they cost time on slow phones); warnings and errors are kept.
+  esbuild: mode === 'production' ? { pure: ['console.log', 'console.debug'] } : undefined,
   // Some dependencies (e.g. smiles-drawer) contain mixed ESM + CommonJS syntax.
   // Without this, Rollup can leave `require()` calls in the browser bundle, causing a white screen.
   build: {
