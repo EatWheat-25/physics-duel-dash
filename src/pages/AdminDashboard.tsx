@@ -268,6 +268,13 @@ export default function AdminDashboard() {
               Refresh
             </Button>
             <Button
+              onClick={() => navigate('/admin/diagrams')}
+              variant="ghost"
+              className="text-white/70 hover:text-white hover:bg-white/10"
+            >
+              Diagrams
+            </Button>
+            <Button
               onClick={() => navigate('/admin/questions')}
               variant="ghost"
               className="text-white/70 hover:text-white hover:bg-white/10"

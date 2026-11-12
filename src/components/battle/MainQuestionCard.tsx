@@ -2,11 +2,13 @@ import { motion } from 'framer-motion'
 import { ScienceText } from '@/components/chem/ScienceText'
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
 import { QuestionGraph } from '@/components/math/QuestionGraph'
+import { QuestionImage } from '@/components/battle/QuestionImage'
 import type { GraphConfig } from '@/types/question-contract'
 
 export function MainQuestionCard({
   stem,
   imageUrl,
+  imageAlt,
   structureSmiles,
   graph,
   totalSteps,
@@ -17,6 +19,7 @@ export function MainQuestionCard({
 }: {
   stem: string
   imageUrl?: string | null
+  imageAlt?: string | null
   structureSmiles?: string | null
   graph?: GraphConfig | null
   totalSteps: number
@@ -40,22 +43,12 @@ export function MainQuestionCard({
             <QuestionGraph graph={paperGraph} />
           </div>
         )}
-        {imageUrl && (
-          <div className="mb-6 flex justify-center">
-            <img
-              src={imageUrl}
-              alt="Question"
-              className="rounded-lg max-w-full border border-slate-300"
-              loading="lazy"
-            />
-          </div>
-        )}
-
         <div className="space-y-4">
           <div className="paper-meta">Main Question</div>
           <h3 className="text-2xl md:text-3xl leading-relaxed">
             <ScienceText text={stem} />
           </h3>
+          {imageUrl && <QuestionImage src={imageUrl} alt={imageAlt} />}
           {structureSmiles && (
             <div className="pt-2">
               <SmilesDiagram smiles={structureSmiles} size="lg" />

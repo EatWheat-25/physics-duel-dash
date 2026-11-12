@@ -20,6 +20,7 @@ import { RoundPhase } from '@/types/gameEvents';
 import { ScienceText } from '@/components/chem/ScienceText';
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram';
 import { QuestionGraph } from '@/components/math/QuestionGraph';
+import { QuestionImage } from '@/components/battle/QuestionImage';
 import { normalizeInlineMathOption } from '@/lib/optionMath';
 import type { GraphConfig } from '@/types/question-contract';
 
@@ -224,24 +225,17 @@ export function QuestionViewer({
             {currentQuestion.stem && totalSteps > 1 && (
               <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
                 <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-1">Main Question:</p>
-                {(paperGraph || currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
-                  <div className="mt-3 flex flex-col items-center gap-3">
-                    {paperGraph && (
-                      <QuestionGraph graph={paperGraph} />
-                    )}
-                    {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
-                      <img
-                        src={currentQuestion.imageUrl || (currentQuestion as any).image_url}
-                        alt="Question"
-                        className="rounded-lg max-w-full border border-black/10"
-                        loading="lazy"
-                      />
-                    )}
+                {paperGraph && (
+                  <div className="mt-3 flex justify-center">
+                    <QuestionGraph graph={paperGraph} />
                   </div>
                 )}
                 <p className="mt-3 text-gray-800 font-medium">
                   <ScienceText text={currentQuestion.stem} />
                 </p>
+                {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                  <QuestionImage src={currentQuestion.imageUrl || (currentQuestion as any).image_url} />
+                )}
                 {currentQuestion.structureSmiles && (
                   <div className="mt-4 flex justify-center">
                     <SmilesDiagram smiles={currentQuestion.structureSmiles} size="lg" />
@@ -252,25 +246,18 @@ export function QuestionViewer({
             {/* Single‑step stem fallback */}
             {currentQuestion.stem && totalSteps === 1 && (
               <div className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground">
-                {(paperGraph || currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
-                  <div className="flex flex-col items-center gap-3">
-                    {paperGraph && (
-                      <QuestionGraph graph={paperGraph} />
-                    )}
-                    {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
-                      <img
-                        src={currentQuestion.imageUrl || (currentQuestion as any).image_url}
-                        alt="Question"
-                        className="rounded-lg max-w-full border border-border/50"
-                        loading="lazy"
-                      />
-                    )}
+                {paperGraph && (
+                  <div className="flex justify-center">
+                    <QuestionGraph graph={paperGraph} />
                   </div>
                 )}
                 <div className="mt-3">
                   <span className="font-semibold mr-2">Question:</span>
                   <ScienceText text={currentQuestion.stem} />
                 </div>
+                {(currentQuestion.imageUrl || (currentQuestion as any).image_url) && (
+                  <QuestionImage src={currentQuestion.imageUrl || (currentQuestion as any).image_url} />
+                )}
                 {currentQuestion.structureSmiles && (
                   <div className="mt-4 flex justify-center">
                     <SmilesDiagram smiles={currentQuestion.structureSmiles} size="lg" />

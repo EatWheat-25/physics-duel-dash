@@ -1,4 +1,4 @@
-const SCIENCE_TOKEN_RE = /\[\[(smiles|img):[\s\S]*?\]\]/i
+const SCIENCE_TOKEN_RE = /\[\[(smiles|img|mol):[\s\S]*?\]\]/i
 const CHEM_COMMAND_RE = /\\ce\s*\{/
 const SUPERSCRIPT_OR_MATH_SYMBOL_RE = /[²³⁴⁵⁶⁷⁸⁹⁰₀₁₂₃₄₅₆₇₈₉√∫∞≈≤≥≠±×÷·πθΔ∑∏]/
 const SUPERSCRIPT_OR_MATH_SYMBOL_GLOBAL_RE = /[²³⁴⁵⁶⁷⁸⁹⁰₀₁₂₃₄₅₆₇₈₉√∫∞≈≤≥≠±×÷·πθΔ∑∏]/g

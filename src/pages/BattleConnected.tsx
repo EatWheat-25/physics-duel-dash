@@ -8,6 +8,7 @@ import type { MatchRow } from '@/types/schema';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MatchPatternBackground } from '@/components/battle/MatchPatternBackground';
 import { QuestionGraph } from '@/components/math/QuestionGraph';
+import { QuestionImage } from '@/components/battle/QuestionImage';
 import RankBadge from '@/components/RankBadge';
 import RankUpTransition from '@/components/RankUpTransition';
 import { RANKS, RankName, getRankByPoints } from '@/types/ranking';
@@ -293,6 +294,10 @@ export default function BattleConnected() {
   const paperGraph: GraphConfig | null | undefined = (question as any)?.graph
     ? ({ ...(question as any).graph, color: 'black' } as GraphConfig)
     : undefined;
+  const questionImageUrl: string | null =
+    (question as { imageUrl?: string | null; image_url?: string | null } | null | undefined)?.imageUrl ||
+    (question as { imageUrl?: string | null; image_url?: string | null } | null | undefined)?.image_url ||
+    null;
   const questionMotionInitial = { opacity: 0, y: 16, scale: 0.98 };
   const questionMotionAnimate = { opacity: 1, y: 0, scale: 1 };
   const questionMotionExit = {
@@ -572,6 +577,7 @@ export default function BattleConnected() {
                     <h3 className="paper-title">
                       <ScienceText text={question.stem || (question as any).questionText || question.title || ''} />
                     </h3>
+                    {questionImageUrl && <QuestionImage src={questionImageUrl} />}
                     <div className="mt-4 paper-meta">
                       {totalSteps} step{totalSteps !== 1 ? 's' : ''} will follow
                     </div>
@@ -734,6 +740,7 @@ export default function BattleConnected() {
                   <h3 className="paper-title">
                     <ScienceText text={question.stem || question.questionText} />
                   </h3>
+                  {questionImageUrl && <QuestionImage src={questionImageUrl} />}
                 </div>
 
                 {/* Answers Grid */}

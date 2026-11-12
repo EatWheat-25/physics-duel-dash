@@ -30,8 +30,10 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminQuestions from "./pages/AdminQuestions";
+import AdminDiagrams from "./pages/AdminDiagrams";
 import AdminLogin from "./pages/AdminLogin";
 import AdminEndgamePreview from "./pages/AdminEndgamePreview";
+import AdminChemPreview from "./pages/AdminChemPreview";
 import OnlineBattlePage from "./pages/OnlineBattlePage";
 import BattleConnected from "./pages/BattleConnected";
 import MatchResults from "./pages/MatchResults";
@@ -98,11 +100,32 @@ const App = () => {
                       />
                       <Route path="/admin/questions" element={<AdminQuestions />} />
                       <Route
+                        path="/admin/diagrams"
+                        element={
+                          <ProtectedAdminRoute>
+                            <AdminDiagrams />
+                          </ProtectedAdminRoute>
+                        }
+                      />
+                      <Route
                         path="/admin/preview/endgame"
                         element={
                           <ProtectedAdminRoute>
                             <AdminEndgamePreview />
                           </ProtectedAdminRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/preview/chem"
+                        element={
+                          // Static drawings only, so it is open on a local dev server for quick checking.
+                          import.meta.env.DEV ? (
+                            <AdminChemPreview />
+                          ) : (
+                            <ProtectedAdminRoute>
+                              <AdminChemPreview />
+                            </ProtectedAdminRoute>
+                          )
                         }
                       />
                       {/* Dev/debug tooling is excluded from production builds */}

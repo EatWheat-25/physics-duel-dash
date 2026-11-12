@@ -3,12 +3,14 @@ import { Loader2 } from 'lucide-react'
 import { ScienceText } from '@/components/chem/ScienceText'
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
 import { QuestionGraph } from '@/components/math/QuestionGraph'
+import { QuestionImage } from '@/components/battle/QuestionImage'
 import { normalizeInlineMathOption } from '@/lib/optionMath'
 import type { GraphConfig } from '@/types/question-contract'
 
 export function SingleStepCard({
   questionText,
   imageUrl,
+  imageAlt,
   structureSmiles,
   graph,
   options,
@@ -17,6 +19,7 @@ export function SingleStepCard({
 }: {
   questionText: string
   imageUrl?: string | null
+  imageAlt?: string | null
   structureSmiles?: string | null
   graph?: GraphConfig | null
   options: string[] | null | undefined
@@ -41,20 +44,11 @@ export function SingleStepCard({
             <QuestionGraph graph={paperGraph} />
           </div>
         )}
-        {imageUrl && (
-          <div className="mb-6 flex justify-center">
-            <img
-              src={imageUrl}
-              alt="Question"
-              className="rounded-lg max-w-full border border-slate-300"
-              loading="lazy"
-            />
-          </div>
-        )}
-
         <h3 className="text-2xl md:text-3xl leading-relaxed">
           <ScienceText text={questionText} />
         </h3>
+
+        {imageUrl && <QuestionImage src={imageUrl} alt={imageAlt} />}
 
         {structureSmiles && (
           <div className="pt-2">

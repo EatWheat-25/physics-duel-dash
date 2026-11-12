@@ -37,6 +37,10 @@ import { SmilesDiagram } from '@/components/chem/SmilesDiagram';
 import { GameQuestionPreview } from '@/components/battle/GameQuestionPreview';
 import { InGamePreview } from '@/components/admin/InGamePreview';
 import { SmilesPresetSelect } from '@/components/admin/SmilesPresetSelect';
+import { SavedDiagramPicker } from '@/components/admin/SavedDiagramPicker';
+import { InlineDiagramStudioField } from '@/components/admin/InlineDiagramStudioField';
+import { MoleculeInsertButton } from '@/components/admin/MoleculeInsertButton';
+import { buildMolDrawing, findMolTags } from '@/lib/chem/draw';
 import { QuestionGraph } from '@/components/math/QuestionGraph';
 import { smilesAuthoringWarnings } from '@/lib/smilesAuthoringHints';
 import { hasMathDelimiters, normalizeInlineMathOption, optionNeedsInlineMathWrapper } from '@/lib/optionMath';
@@ -860,6 +864,7 @@ function needsSciencePreview(text: string | null | undefined): boolean {
     s.includes('\\(') ||
     s.includes('\\[') ||
     s.includes('[[smiles:') ||
+    s.includes('[[mol:') ||
     s.includes('[[img:')
   )
 }
@@ -1233,6 +1238,14 @@ export default function AdminQuestions() {
       const dollars = countUnescapedDollars(s)
       if (dollars % 2 === 1) {
         warnings.push(`${label}: unbalanced $ delimiters (odd count).`)
+      }
+
+      for (const { tag } of findMolTags(s)) {
+        const problem = buildMolDrawing(tag.input, { style: tag.style, kind: tag.kind }).error
+        if (problem) warnings.push(`${label}: molecule "${tag.input}" cannot be drawn. ${problem}`)
+      }
+      if (/\[\[mol:/.test(s) && findMolTags(s).length === 0) {
+        warnings.push(`${label}: a [[mol:...]] tag is not closed with ]].`)
       }
     }
 
@@ -3693,6 +3706,14 @@ export default function AdminQuestions() {
                           className={`${glassInput} min-h-[120px]`}
                           placeholder="Enter the main question text/context here. This appears before all steps..."
                         />
+                        {form.subject === 'chemistry' && (
+                          <div className="mt-1 flex justify-end">
+                            <MoleculeInsertButton
+                              value={form.stem}
+                              onChange={(next) => setForm((prev) => ({ ...prev, stem: next }))}
+                            />
+                          </div>
+                        )}
                         <p className="text-xs text-white/40 mt-1">
                           This is the main question context that appears before all steps
                         </p>
@@ -3763,6 +3784,22 @@ export default function AdminQuestions() {
                             {uploadingMainImage && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                             <span>Uploads to storage (max 5 MB).</span>
                           </div>
+                          <div className="flex flex-col gap-1 pt-1 border-t border-white/5">
+                            <span className="text-xs text-white/40">
+                              Or reuse a diagram from the{' '}
+                              <a href="/admin/diagrams" target="_blank" rel="noreferrer" className="text-cyan-300 hover:underline">
+                                Diagram Library
+                              </a>
+                              :
+                            </span>
+                            <SavedDiagramPicker
+                              selectClassName={glassInput + ' rounded-md px-2 py-1.5 text-sm'}
+                              onPick={(url) => setForm({ ...form, imageUrl: url })}
+                            />
+                          </div>
+                          <InlineDiagramStudioField
+                            onApply={(url) => setForm({ ...form, imageUrl: url })}
+                          />
                         </div>
                         {form.imageUrl && (
                           <img src={form.imageUrl} alt="Preview" className="mt-2 rounded-lg max-w-xs border border-white/10" onError={(e) => {
@@ -5125,6 +5162,14 @@ export default function AdminQuestions() {
                                 onChange={e => updateStepField(index, 'prompt', e.target.value)}
                                 className={`${glassInput} min-h-[80px]`}
                               />
+                              {form.subject === 'chemistry' && (
+                                <div className="mt-1 flex justify-end">
+                                  <MoleculeInsertButton
+                                    value={step.prompt}
+                                    onChange={(next) => updateStepField(index, 'prompt', next)}
+                                  />
+                                </div>
+                              )}
                               {needsSciencePreview(step.prompt) && (
                                 <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
                                   <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">
@@ -5239,6 +5284,13 @@ export default function AdminQuestions() {
                                       className={`${glassInput} h-10 text-sm flex-1`}
                                       placeholder={step.type === 'true_false' && optIdx === 0 ? 'True' : step.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
                                     />
+                                    {form.subject === 'chemistry' && step.type !== 'true_false' && (
+                                      <MoleculeInsertButton
+                                        compact
+                                        value={step.options[optIdx] || ''}
+                                        onChange={(next) => updateStepOption(index, optIdx, next)}
+                                      />
+                                    )}
                                   </div>
                                   {needsSciencePreview(step.options[optIdx] || '') && (
                                     <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-2">
@@ -5470,6 +5522,14 @@ export default function AdminQuestions() {
                                             className={`${glassInput} min-h-[70px]`}
                                             placeholder="Mini question prompt..."
                                           />
+                                          {form.subject === 'chemistry' && (
+                                            <div className="mt-1 flex justify-end">
+                                              <MoleculeInsertButton
+                                                value={sub.prompt}
+                                                onChange={(next) => updateSubStepField(index, subIdx, 'prompt', next)}
+                                              />
+                                            </div>
+                                          )}
                                           {needsSciencePreview(sub.prompt) && (
                                             <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
                                               <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">
@@ -5514,6 +5574,13 @@ export default function AdminQuestions() {
                                                   className={`${glassInput} h-10 text-sm flex-1`}
                                                   placeholder={sub.type === 'true_false' && optIdx === 0 ? 'True' : sub.type === 'true_false' && optIdx === 1 ? 'False' : `Option ${String.fromCharCode(65 + optIdx)}`}
                                                 />
+                                                {form.subject === 'chemistry' && sub.type !== 'true_false' && (
+                                                  <MoleculeInsertButton
+                                                    compact
+                                                    value={sub.options[optIdx] || ''}
+                                                    onChange={(next) => updateSubStepOption(index, subIdx, optIdx, next)}
+                                                  />
+                                                )}
                                               </div>
                                               {needsSciencePreview(sub.options[optIdx] || '') && (
                                                 <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-2">

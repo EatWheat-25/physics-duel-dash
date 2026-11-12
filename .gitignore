@@ -26,3 +26,6 @@ dist-ssr
 
 # Supabase CLI local cache (project ref + tool versions; not for VCS)
 supabase/.temp/
+
+# Scraped past-paper material (copyrighted Cambridge content; private reference only)
+scraped/

@@ -3,6 +3,7 @@ import { Check } from 'lucide-react'
 import { ScienceText } from '@/components/chem/ScienceText'
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
 import { QuestionGraph } from '@/components/math/QuestionGraph'
+import { QuestionImage } from '@/components/battle/QuestionImage'
 import { normalizeInlineMathOption } from '@/lib/optionMath'
 import type { GraphConfig } from '@/types/question-contract'
 
@@ -14,6 +15,7 @@ export function StepCard({
   prompt,
   diagramSmiles,
   diagramImageUrl,
+  diagramImageAlt,
   graph,
   options,
   answerSubmitted,
@@ -27,6 +29,7 @@ export function StepCard({
   prompt: string
   diagramSmiles?: string | null
   diagramImageUrl?: string | null
+  diagramImageAlt?: string | null
   graph?: GraphConfig | null
   options: string[] | null | undefined
   answerSubmitted: boolean
@@ -50,17 +53,9 @@ export function StepCard({
             <QuestionGraph graph={paperGraph} />
           </div>
         )}
-        {(diagramSmiles || diagramImageUrl) && (
+        {diagramSmiles && (
           <div className="mb-6 flex flex-col items-center gap-4">
-            {diagramSmiles && <SmilesDiagram smiles={diagramSmiles} size="md" />}
-            {diagramImageUrl && (
-              <img
-                src={diagramImageUrl}
-                alt="Diagram"
-                className="rounded-lg max-w-full border border-slate-300"
-                loading="lazy"
-              />
-            )}
+            <SmilesDiagram smiles={diagramSmiles} size="md" />
           </div>
         )}
 
@@ -81,6 +76,8 @@ export function StepCard({
             </p>
           )}
         </div>
+
+        {diagramImageUrl && <QuestionImage src={diagramImageUrl} alt={diagramImageAlt} />}
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           {visibleOptions.map((option, idx) => (

@@ -1136,6 +1136,39 @@ export type Database = {
         }
         Relationships: []
       }
+      question_diagrams: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          public_url: string
+          python_source: string | null
+          svg: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          public_url: string
+          python_source?: string | null
+          svg: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          public_url?: string
+          python_source?: string | null
+          svg?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       questions_v2: {
         Row: {
           chapter: string

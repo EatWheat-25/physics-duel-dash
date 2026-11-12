@@ -2,13 +2,17 @@ import React, { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { MathText } from '@/components/math/MathText'
 import { SmilesDiagram } from '@/components/chem/SmilesDiagram'
+import { Molecule } from '@/components/chem/Molecule'
+import { parseMolTag } from '@/lib/chem/draw'
 
 type Token =
   | { type: 'text'; content: string }
   | { type: 'smiles'; content: string }
   | { type: 'img'; content: string }
+  | { type: 'mol'; content: string }
 
-const TOKEN_RE = /\[\[(smiles|img):([\s\S]*?)\]\]/g
+// The (?!\]) lets a payload end in "]" (e.g. a SMILES bracket atom) without being cut short.
+const TOKEN_RE = /\[\[(smiles|img|mol):([\s\S]*?)\]\](?!\])/g
 
 function tokenizeScience(text: string): Token[] {
   const out: Token[] = []
@@ -27,6 +31,7 @@ function tokenizeScience(text: string): Token[] {
     const content = String(payload ?? '').trim()
     if (kind === 'smiles') out.push({ type: 'smiles', content })
     else if (kind === 'img') out.push({ type: 'img', content })
+    else if (kind === 'mol') out.push({ type: 'mol', content })
     else out.push({ type: 'text', content: full })
 
     lastIdx = start + full.length
@@ -76,6 +81,24 @@ export function ScienceText({
                 )}
               />
             </span>
+          )
+        }
+
+        if (t.type === 'mol') {
+          const tag = parseMolTag(t.content)
+          // Inline-flex, not full width, so several labelled structures can sit side by side.
+          return (
+            <Molecule
+              key={idx}
+              input={tag.input}
+              style={tag.style}
+              kind={tag.kind}
+              label={tag.label}
+              rotate={tag.rotate}
+              flip={tag.flip}
+              size={smilesSize}
+              className="m-1.5"
+            />
           )
         }
 
