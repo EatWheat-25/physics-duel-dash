@@ -29,3 +29,6 @@ supabase/.temp/
 
 # Scraped past-paper material (copyrighted Cambridge content; private reference only)
 scraped/
+
+# Past-paper PDFs and extracted records (copyrighted Cambridge content; private reference only)
+papers/
