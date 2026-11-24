@@ -15,7 +15,7 @@ const DEFAULT_TYPE: OscillatorType = 'triangle';
 
 let audioContext: AudioContext | null = null;
 
-function getAudioContext(): AudioContext | null {
+export function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   const AudioCtor = window.AudioContext || (window as any).webkitAudioContext;
   if (!AudioCtor) return null;

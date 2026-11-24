@@ -91,6 +91,11 @@ export default function BattleConnected() {
 
     let cancelled = false;
     (async () => {
+      // Make sure both players have a `players` row (guests don't until their first finished match).
+      if (match.id) {
+        await (supabase as any).rpc('ensure_players_for_match_v1', { p_match_id: match.id });
+      }
+
       const { data, error } = await (supabase as any).rpc('get_players_rank_public_v1', {
         p_ids: [match.player1_id, match.player2_id],
       });

@@ -3,6 +3,13 @@ import { motion, useAnimation, useReducedMotion } from 'framer-motion';
 import { LobbyPlayerCard } from '@/components/lobby/LobbyPlayerCard';
 import { getRankByPoints } from '@/types/ranking';
 import { PREMIUM_EASE } from '@/lib/motion';
+import {
+  playDoorsClosing,
+  playDoorsImpact,
+  playDoorsLatch,
+  playDoorsOpening,
+  playVersusSting,
+} from '@/utils/doorSounds';
 
 export type MatchDoorPlayer = {
   displayName: string;
@@ -48,10 +55,40 @@ const DOOR_BLUE_DARK = '#121B3C';
 const DOOR_RED = '#6F1F2D';
 const DOOR_RED_DARK = '#3A0F17';
 
-// Accelerating ease-in: doors pick up speed into the collision.
-const SLAM_EASE: [number, number, number, number] = [0.7, 0, 0.84, 0];
-// Expo-style ease-out: doors fling open fast, then land softly.
-const OPEN_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
+// Heavy door driven by a motor: a short wind-up, then still travelling fast when the edges meet.
+const CLOSE_EASE: [number, number, number, number] = [0.55, 0, 0.85, 0.45];
+const CLOSE_SECONDS = 0.46;
+// Motorised open: eases in as the motor takes up the weight, glides, then settles.
+const OPEN_EASE: [number, number, number, number] = [0.5, 0, 0.15, 1];
+const OPEN_SECONDS = 0.75;
+const OPEN_RELEASE_SECONDS = 0.09;
+
+// Sparks thrown from the seam on impact: [x px, y px, size px] per particle.
+const SPARKS: Array<[number, number, number]> = [
+  [-46, -70, 3], [38, -84, 2], [-22, -112, 2], [58, -40, 3], [-64, -28, 2],
+  [-40, 72, 3], [30, 92, 2], [62, 54, 2], [-14, 118, 2], [12, -136, 2],
+];
+
+// Brushed-metal finish + two horizontal panel grooves, layered over each door's colour.
+const METAL_TEXTURE = [
+  'repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px)',
+  'linear-gradient(180deg, transparent calc(33% - 1px), rgba(0,0,0,0.35) calc(33% - 1px), rgba(0,0,0,0.35) 33%, rgba(255,255,255,0.06) 33%, rgba(255,255,255,0.06) calc(33% + 1px), transparent calc(33% + 1px))',
+  'linear-gradient(180deg, transparent calc(67% - 1px), rgba(0,0,0,0.35) calc(67% - 1px), rgba(0,0,0,0.35) 67%, rgba(255,255,255,0.06) 67%, rgba(255,255,255,0.06) calc(67% + 1px), transparent calc(67% + 1px))',
+].join(', ');
+
+/** Bevelled metal edge with a rubber seal, on the side of the door that meets the other one. */
+function DoorEdge({ side }: { side: 'left' | 'right' }) {
+  const toward = side === 'right' ? '90deg' : '270deg';
+  return (
+    <div
+      className="absolute inset-y-0 w-[14px] pointer-events-none z-20"
+      style={{
+        [side]: 0,
+        background: `linear-gradient(${toward}, rgba(255,255,255,0.10) 0px, rgba(255,255,255,0.22) 2px, rgba(0,0,0,0.15) 6px, rgba(0,0,0,0.35) 10px, #07070a 10px, #111116 14px)`,
+      }}
+    />
+  );
+}
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, Math.max(0, ms)));
 
@@ -66,7 +103,8 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
   const textControls = useAnimation();
   const shakeControls = useAnimation();
   const flashControls = useAnimation();
-  const shockwaveControls = useAnimation();
+  const sparkControls = useAnimation();
+  const backdropControls = useAnimation();
   const sheenControls = useAnimation();
   const cardLeftControls = useAnimation();
   const cardRightControls = useAnimation();
@@ -148,11 +186,13 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
         cardLeftControls.set({ opacity: 1, x: 0 });
         cardRightControls.set({ opacity: 1, x: 0 });
         flashControls.set({ opacity: 0 });
-        shockwaveControls.set({ opacity: 0, scale: 0.2 });
-        shakeControls.set({ x: 0 });
+        sparkControls.set({ opacity: 0 });
+        backdropControls.set({ opacity: 0.6 });
+        shakeControls.set({ x: 0, y: 0, scale: 1 });
         overlayControls.set({ opacity: 0 });
 
         await overlayControls.start({ opacity: 1, transition: { duration: 0.3, ease: 'easeOut' } });
+        playDoorsLatch(0);
         // Mounted after the fade; reveal content without motion.
         await Promise.all([
           vsControls.start({ opacity: 1, scale: 1, transition: { duration: 0.2 } }),
@@ -169,6 +209,7 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
 
         await overlayControls.start({ opacity: 0, transition: { duration: 0.3, ease: 'easeIn' } });
         overlayControls.set({ opacity: 1 });
+        backdropControls.set({ opacity: 0 });
         leftControls.set({ x: '-100%' });
         rightControls.set({ x: '100%' });
         finish();
@@ -182,45 +223,53 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
       cardLeftControls.set({ opacity: 0, x: -180 });
       cardRightControls.set({ opacity: 0, x: 180 });
       flashControls.set({ opacity: 0 });
-      shockwaveControls.set({ opacity: 0, scale: 0.2 });
-      shakeControls.set({ x: 0 });
+      sparkControls.set({ opacity: 0, x: 0, y: 0, scale: 1 });
+      backdropControls.set({ opacity: 0 });
+      shakeControls.set({ x: 0, y: 0, scale: 1 });
       sheenControls.set({ x: '-25vw' });
 
-      // 1. Slam: doors accelerate into the collision.
+      // 1. Close: motor-driven doors slide in; the room darkens as they cut off the light.
+      playDoorsClosing(CLOSE_SECONDS);
       await Promise.all([
-        leftControls.start({ x: '0%', transition: { duration: 0.5, ease: SLAM_EASE } }),
-        rightControls.start({ x: '0%', transition: { duration: 0.5, ease: SLAM_EASE } }),
+        backdropControls.start({ opacity: 0.6, transition: { duration: CLOSE_SECONDS, ease: 'easeIn' } }),
+        leftControls.start({ x: '0%', transition: { duration: CLOSE_SECONDS, ease: CLOSE_EASE } }),
+        rightControls.start({ x: '0%', transition: { duration: CLOSE_SECONDS, ease: CLOSE_EASE } }),
       ]);
 
-      // 2. Impact: seam flash + decaying screen shake + shockwave + door recoil.
+      // 2. Impact: doors bounce back a little and settle, the frame jolts once, a few sparks fly.
+      playDoorsImpact();
+      playDoorsLatch();
+      const settle = { duration: 0.34, times: [0, 0.28, 0.62, 1], ease: 'easeOut' as const };
       const impact = Promise.all([
-        flashControls.start({
-          opacity: [0, 1, 0],
-          transition: { duration: 0.3, times: [0, 0.15, 1], ease: 'easeOut' },
-        }),
-        shockwaveControls.start({
-          scale: [0.2, 3],
-          opacity: [0.7, 0],
-          transition: { duration: 0.6, ease: 'easeOut' },
-        }),
+        leftControls.start({ x: ['0%', '-0.9%', '0.15%', '0%'], transition: settle }),
+        rightControls.start({ x: ['0%', '0.9%', '-0.15%', '0%'], transition: settle }),
         shakeControls.start({
-          x: [0, -10, 8, -5, 3, 0],
-          transition: { duration: 0.4, ease: 'easeOut' },
+          x: [0, -5, 4, -2, 1, 0],
+          y: [0, 3, -2, 1, 0, 0],
+          scale: [1, 1.012, 1, 1, 1, 1],
+          transition: { duration: 0.36, ease: 'easeOut' },
         }),
-        leftControls.start({
-          x: ['0%', '1.5%', '0%'],
-          transition: { duration: 0.22, ease: 'easeOut' },
+        flashControls.start({
+          opacity: [0, 0.9, 0],
+          transition: { duration: 0.22, times: [0, 0.12, 1], ease: 'easeOut' },
         }),
-        rightControls.start({
-          x: ['0%', '-1.5%', '0%'],
-          transition: { duration: 0.22, ease: 'easeOut' },
+        sparkControls.start((i: number) => {
+          const [dx, dy] = SPARKS[i];
+          return {
+            x: [0, dx * 0.7, dx],
+            y: [0, dy * 0.7, dy + 40],
+            opacity: [0, 1, 0],
+            scale: [1, 1, 0.4],
+            transition: { duration: 0.55, times: [0, 0.35, 1], ease: 'easeOut' },
+          };
         }),
       ]);
 
       // 3. Reveal: staggered cards, VS stamp, message punch-in (overlaps the impact tail).
       const cardSpring = { type: 'spring' as const, stiffness: 240, damping: 19, mass: 0.9 };
       const reveal = (async () => {
-        await sleep(120);
+        await sleep(160);
+        playVersusSting();
         await Promise.all([
           cardLeftControls.start({ opacity: 1, x: 0, transition: cardSpring }),
           (async () => {
@@ -259,14 +308,18 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
         vsControls.start({ opacity: 0, transition: { duration: 0.15, ease: 'easeIn' } }),
       ]);
 
-      // 5. Open: brief anticipation squeeze, then fling open (cards exit with the doors).
+      // 5. Open: bolts release with a small jolt, a beat, then the motor slides the doors apart.
+      playDoorsOpening(OPEN_RELEASE_SECONDS + 0.06, OPEN_SECONDS);
       await Promise.all([
-        leftControls.start({ x: '0.8%', transition: { duration: 0.12, ease: 'easeOut' } }),
-        rightControls.start({ x: '-0.8%', transition: { duration: 0.12, ease: 'easeOut' } }),
+        leftControls.start({ x: '-0.5%', transition: { duration: OPEN_RELEASE_SECONDS, ease: 'easeOut' } }),
+        rightControls.start({ x: '0.5%', transition: { duration: OPEN_RELEASE_SECONDS, ease: 'easeOut' } }),
+        shakeControls.start({ y: [0, 1.5, 0], transition: { duration: OPEN_RELEASE_SECONDS * 2 } }),
       ]);
+      await sleep(60);
       await Promise.all([
-        leftControls.start({ x: '-100%', transition: { duration: 0.55, ease: OPEN_EASE } }),
-        rightControls.start({ x: '100%', transition: { duration: 0.55, ease: OPEN_EASE } }),
+        backdropControls.start({ opacity: 0, transition: { duration: OPEN_SECONDS, ease: 'easeOut' } }),
+        leftControls.start({ x: '-100%', transition: { duration: OPEN_SECONDS, ease: OPEN_EASE } }),
+        rightControls.start({ x: '100%', transition: { duration: OPEN_SECONDS, ease: OPEN_EASE } }),
       ]);
 
       finish();
@@ -277,7 +330,8 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
       textControls,
       shakeControls,
       flashControls,
-      shockwaveControls,
+      sparkControls,
+      backdropControls,
       sheenControls,
       cardLeftControls,
       cardRightControls,
@@ -335,6 +389,13 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
         }}
         aria-hidden={!active}
       >
+        {/* Room darkens while the doors are shut */}
+        <motion.div
+          className="absolute inset-0 bg-black pointer-events-none"
+          initial={{ opacity: 0 }}
+          animate={backdropControls}
+          aria-hidden="true"
+        />
         {/* Shake wrapper: everything inside shudders on door impact */}
         <motion.div className="absolute inset-0" animate={shakeControls}>
         {/* Left door */}
@@ -343,12 +404,13 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '-100%' }}
           animate={leftControls}
           style={{
-            background: `linear-gradient(180deg, ${DOOR_BLUE} 0%, ${DOOR_BLUE_DARK} 100%)`,
+            background: `${METAL_TEXTURE}, linear-gradient(180deg, ${DOOR_BLUE} 0%, ${DOOR_BLUE_DARK} 100%)`,
             boxShadow:
-              'inset 0 0 0 1px rgba(0,0,0,0.06), inset -18px 0 28px rgba(0,0,0,0.12)',
+              'inset 0 0 0 1px rgba(0,0,0,0.06), inset -18px 0 28px rgba(0,0,0,0.18), 12px 0 40px rgba(0,0,0,0.55)',
             willChange: 'transform',
           }}
         >
+          <DoorEdge side="right" />
           <motion.div
             className="absolute inset-0 flex items-center justify-center z-10"
             initial={{ opacity: 0, x: -180 }}
@@ -389,12 +451,13 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           initial={{ x: '100%' }}
           animate={rightControls}
           style={{
-            background: `linear-gradient(180deg, ${DOOR_RED} 0%, ${DOOR_RED_DARK} 100%)`,
+            background: `${METAL_TEXTURE}, linear-gradient(180deg, ${DOOR_RED} 0%, ${DOOR_RED_DARK} 100%)`,
             boxShadow:
-              'inset 0 0 0 1px rgba(0,0,0,0.06), inset 18px 0 28px rgba(0,0,0,0.12)',
+              'inset 0 0 0 1px rgba(0,0,0,0.06), inset 18px 0 28px rgba(0,0,0,0.18), -12px 0 40px rgba(0,0,0,0.55)',
             willChange: 'transform',
           }}
         >
+          <DoorEdge side="left" />
           <motion.div
             className="absolute inset-0 flex items-center justify-center z-10"
             initial={{ opacity: 0, x: 180 }}
@@ -429,36 +492,41 @@ export function ElevatorShutterProvider({ children }: { children: React.ReactNod
           />
         </motion.div>
 
-        {/* Impact seam flash */}
+        {/* Impact: thin hot line along the seam */}
         <motion.div
-          className="absolute inset-y-0 left-1/2 w-[160px] pointer-events-none"
+          className="absolute inset-y-0 left-1/2 w-[36px] pointer-events-none"
           initial={{ opacity: 0 }}
           animate={flashControls}
           style={{
             x: '-50%',
             background:
-              'linear-gradient(90deg, transparent, rgba(255,255,255,0.95), transparent)',
-            filter: 'blur(6px)',
+              'linear-gradient(90deg, transparent, rgba(255,236,200,0.55) 40%, rgba(255,255,255,0.95) 50%, rgba(255,236,200,0.55) 60%, transparent)',
+            filter: 'blur(3px)',
             willChange: 'opacity',
           }}
           aria-hidden="true"
         />
 
-        {/* Impact shockwave ring */}
-        <motion.div
-          className="absolute left-1/2 top-1/2 h-48 w-48 rounded-full pointer-events-none"
-          initial={{ opacity: 0, scale: 0.2 }}
-          animate={shockwaveControls}
-          style={{
-            x: '-50%',
-            y: '-50%',
-            border: '3px solid rgba(255,255,255,0.8)',
-            boxShadow:
-              '0 0 60px rgba(255,255,255,0.35), inset 0 0 40px rgba(255,255,255,0.2)',
-            willChange: 'transform, opacity',
-          }}
-          aria-hidden="true"
-        />
+        {/* Impact sparks from the middle of the seam */}
+        <div className="absolute left-1/2 top-1/2 pointer-events-none" aria-hidden="true">
+          {SPARKS.map(([, , size], i) => (
+            <motion.div
+              key={i}
+              custom={i}
+              className="absolute rounded-full"
+              initial={{ opacity: 0 }}
+              animate={sparkControls}
+              style={{
+                width: size,
+                height: size,
+                marginLeft: -size / 2,
+                marginTop: -size / 2,
+                background: '#FFE7B0',
+                boxShadow: '0 0 6px 1px rgba(255,190,90,0.9)',
+              }}
+            />
+          ))}
+        </div>
 
         {/* Diagonal sheen sweep across closed doors */}
         <motion.div

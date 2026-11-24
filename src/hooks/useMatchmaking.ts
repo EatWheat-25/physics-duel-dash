@@ -73,6 +73,10 @@ export function useMatchmaking(): {
         const isPlayer1 = match.player1_id === currentUserId;
         const opponentId = isPlayer1 ? match.player2_id : match.player1_id;
 
+        // Players who have never finished a match (e.g. guests) have no `players` row yet,
+        // so the name lookup below would come back empty. Create any missing rows first.
+        await (supabase as any).rpc('ensure_players_for_match_v1', { p_match_id: match.id });
+
         const { data, error } = await (supabase as any).rpc('get_players_rank_public_v1', {
           p_ids: [currentUserId, opponentId],
         });
