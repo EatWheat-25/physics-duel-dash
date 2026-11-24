@@ -4250,7 +4250,15 @@ Deno.serve(async (req) => {
     }
 
     const url = new URL(req.url)
-    const token = url.searchParams.get('token')
+    // Browsers can't set headers on a WebSocket, so the client sends its access token as a
+    // subprotocol: ["bn-v1", "bn-auth.<jwt>"]. This keeps the token out of the URL (and so
+    // out of request logs). The ?token= query param is still accepted from older clients.
+    const offeredProtocols = (req.headers.get('sec-websocket-protocol') ?? '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+    const protocolToken = offeredProtocols.find((p) => p.startsWith('bn-auth.'))?.slice('bn-auth.'.length) ?? null
+    const token = protocolToken ?? url.searchParams.get('token')
     const matchId = url.searchParams.get('match_id')
 
     if (!token || !matchId) {
@@ -4290,7 +4298,11 @@ Deno.serve(async (req) => {
     let socket: WebSocket
     let response: Response
     try {
-      const upgradeResult = Deno.upgradeWebSocket(req)
+      // A client that offered subprotocols must get one back, or the browser drops the
+      // connection. Echo only "bn-v1" — never the token.
+      const upgradeResult = protocolToken
+        ? Deno.upgradeWebSocket(req, { protocol: 'bn-v1' })
+        : Deno.upgradeWebSocket(req)
       socket = upgradeResult.socket
       response = upgradeResult.response
     } catch (upgradeError) {

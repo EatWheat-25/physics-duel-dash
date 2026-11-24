@@ -619,10 +619,12 @@ export function useGame(match: MatchRow | null) {
         }
 
         const wsBase = SUPABASE_URL.replace('https://', 'wss://').replace('http://', 'ws://')
-        const wsUrl = `${wsBase}/functions/v1/game-ws?token=${encodeURIComponent(session.access_token)}&match_id=${encodeURIComponent(match.id)}`
+        // The access token travels as a WebSocket subprotocol, not in the URL, so it never
+        // shows up in request logs or the console. The server answers with "bn-v1".
+        const wsUrl = `${wsBase}/functions/v1/game-ws?match_id=${encodeURIComponent(match.id)}`
         console.log(`[useGame] ${isRetry ? `Retry ${retryCountRef.current}/${MAX_RETRY_ATTEMPTS}: ` : ''}Connecting to:`, wsUrl)
 
-        const ws = new WebSocket(wsUrl)
+        const ws = new WebSocket(wsUrl, ['bn-v1', `bn-auth.${session.access_token}`])
         wsRef.current = ws
 
         connectionTimeoutRef.current = window.setTimeout(() => {
