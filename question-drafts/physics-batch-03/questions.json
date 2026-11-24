@@ -1,0 +1,913 @@
+[
+  {
+    "title": "Kinematics: car speeding up",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "A car speeds up uniformly from \\(8.0\\,\\mathrm{m\\,s^{-1}}\\) to \\(20.0\\,\\mathrm{m\\,s^{-1}}\\) in \\(6.0\\,\\mathrm{s}\\).\n\nCalculate\n\n(a) the acceleration,\n\n(b) the distance travelled.",
+    "total_marks": 4,
+    "topic_tags": [
+      "kinematics",
+      "suvat",
+      "acceleration"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q01-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Initial velocity",
+        "prompt": "What is the initial velocity \\(u\\)?",
+        "options": [
+          "\\(8.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(20.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(0\\)",
+          "\\(6.0\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "The car starts at \\(8.0\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb3-q01-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Final velocity",
+        "prompt": "What is the final velocity \\(v\\)?",
+        "options": [
+          "\\(8.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(12.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(20.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(0\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "The car ends at \\(20.0\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb3-q01-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(a) Acceleration",
+        "prompt": "What is the acceleration \\(a\\)?",
+        "options": [
+          "\\(3.3\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(2.0\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(1.3\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(12\\,\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(a=\\dfrac{20.0-8.0}{6.0}=2.0\\,\\mathrm{m\\,s^{-2}}\\)."
+      },
+      {
+        "id": "pb3-q01-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(b) Distance",
+        "prompt": "What is the distance travelled \\(s\\)?",
+        "options": [
+          "\\(120\\,\\mathrm{m}\\)",
+          "\\(36\\,\\mathrm{m}\\)",
+          "\\(84\\,\\mathrm{m}\\)",
+          "\\(72\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(s=\\tfrac{u+v}{2}t=\\tfrac{8.0+20.0}{2}\\times6.0=84\\,\\mathrm{m}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 120,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Kinematics: train braking to a stop",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "A train moving at \\(30\\,\\mathrm{m\\,s^{-1}}\\) brakes uniformly and stops in a distance of \\(450\\,\\mathrm{m}\\).\n\nCalculate\n\n(a) the deceleration,\n\n(b) the time taken to stop.",
+    "total_marks": 4,
+    "topic_tags": [
+      "kinematics",
+      "suvat",
+      "deceleration"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q02-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Initial velocity",
+        "prompt": "What is the initial velocity \\(u\\)?",
+        "options": [
+          "\\(0\\)",
+          "\\(30\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(15\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(450\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "The train starts at \\(30\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb3-q02-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Final velocity",
+        "prompt": "What is the final velocity \\(v\\)?",
+        "options": [
+          "\\(30\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(15\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(0\\)",
+          "\\(-30\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "The train stops, so \\(v=0\\)."
+      },
+      {
+        "id": "pb3-q02-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(a) Acceleration",
+        "prompt": "What is the acceleration \\(a\\)?",
+        "options": [
+          "\\(-1.0\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(-2.0\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(-0.067\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(+1.0\\,\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(0=30^{2}+2a(450)\\Rightarrow a=-1.0\\,\\mathrm{m\\,s^{-2}}\\), a deceleration of \\(1.0\\,\\mathrm{m\\,s^{-2}}\\)."
+      },
+      {
+        "id": "pb3-q02-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(b) Time",
+        "prompt": "What is the time taken \\(t\\)?",
+        "options": [
+          "\\(15\\,\\mathrm{s}\\)",
+          "\\(30\\,\\mathrm{s}\\)",
+          "\\(60\\,\\mathrm{s}\\)",
+          "\\(450\\,\\mathrm{s}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(t=\\dfrac{v-u}{a}=\\dfrac{0-30}{-1.0}=30\\,\\mathrm{s}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Kinematics: ball dropped from a height",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "A ball is dropped from rest from a height of \\(20.0\\,\\mathrm{m}\\). Air resistance is negligible. Take \\(g=9.81\\,\\mathrm{m\\,s^{-2}}\\).\n\nCalculate\n\n(a) the time to reach the ground,\n\n(b) the speed just before it hits the ground.",
+    "total_marks": 4,
+    "topic_tags": [
+      "kinematics",
+      "free fall",
+      "suvat"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q03-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Initial velocity",
+        "prompt": "What is the initial velocity \\(u\\)?",
+        "options": [
+          "\\(9.81\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(20.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(0\\)",
+          "\\(1.0\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "Dropped from rest, so \\(u=0\\)."
+      },
+      {
+        "id": "pb3-q03-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Acceleration",
+        "prompt": "What is the acceleration \\(a\\)?",
+        "options": [
+          "\\(0\\)",
+          "\\(9.81\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(20.0\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(4.9\\,\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "In free fall \\(a=g=9.81\\,\\mathrm{m\\,s^{-2}}\\) (downwards positive)."
+      },
+      {
+        "id": "pb3-q03-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(a) Time",
+        "prompt": "What is the time taken \\(t\\)?",
+        "options": [
+          "\\(2.02\\,\\mathrm{s}\\)",
+          "\\(4.08\\,\\mathrm{s}\\)",
+          "\\(1.43\\,\\mathrm{s}\\)",
+          "\\(2.04\\,\\mathrm{s}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(s=\\tfrac12at^{2}\\Rightarrow t=\\sqrt{\\dfrac{2(20.0)}{9.81}}=2.02\\,\\mathrm{s}\\)."
+      },
+      {
+        "id": "pb3-q03-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(b) Speed",
+        "prompt": "What is the final velocity \\(v\\)?",
+        "options": [
+          "\\(39.2\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(14.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(19.8\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(9.81\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(v=\\sqrt{2as}=\\sqrt{2(9.81)(20.0)}=19.8\\,\\mathrm{m\\,s^{-1}}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Kinematics: ball thrown straight up",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A ball is thrown vertically upwards at \\(15.0\\,\\mathrm{m\\,s^{-1}}\\). Air resistance is negligible. Take \\(g=9.81\\,\\mathrm{m\\,s^{-2}}\\).\n\nCalculate\n\n(a) the maximum height reached,\n\n(b) the time taken to reach it.",
+    "total_marks": 5,
+    "topic_tags": [
+      "kinematics",
+      "vertical motion",
+      "suvat"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q04-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Initial velocity",
+        "prompt": "Taking up as positive, what is the initial velocity \\(u\\)?",
+        "options": [
+          "\\(+15.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(0\\)",
+          "\\(-15.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(+9.81\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "Thrown upwards at \\(15.0\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb3-q04-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Velocity at the top",
+        "prompt": "What is the velocity at the top, \\(v\\)?",
+        "options": [
+          "\\(15.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(9.81\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(-15.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(0\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 15,
+        "explanation": "At the highest point the ball is momentarily at rest."
+      },
+      {
+        "id": "pb3-q04-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Acceleration",
+        "prompt": "What is the acceleration \\(a\\)?",
+        "options": [
+          "\\(+9.81\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(-9.81\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(0\\)",
+          "\\(-15.0\\,\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "Gravity acts downwards, opposite to the positive direction."
+      },
+      {
+        "id": "pb3-q04-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(a) Height",
+        "prompt": "What is the maximum height \\(s\\)?",
+        "options": [
+          "\\(22.9\\,\\mathrm{m}\\)",
+          "\\(1.53\\,\\mathrm{m}\\)",
+          "\\(11.5\\,\\mathrm{m}\\)",
+          "\\(7.6\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(0=15.0^{2}-2(9.81)s\\Rightarrow s=11.5\\,\\mathrm{m}\\)."
+      },
+      {
+        "id": "pb3-q04-step-5",
+        "type": "mcq",
+        "index": 4,
+        "marks": 1,
+        "title": "(b) Time",
+        "prompt": "What is the time taken \\(t\\)?",
+        "options": [
+          "\\(3.06\\,\\mathrm{s}\\)",
+          "\\(1.53\\,\\mathrm{s}\\)",
+          "\\(0.65\\,\\mathrm{s}\\)",
+          "\\(1.75\\,\\mathrm{s}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(t=\\dfrac{0-15.0}{-9.81}=1.53\\,\\mathrm{s}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Dynamics: force to accelerate a car",
+    "subject": "physics",
+    "chapter": "Chapter 3: Dynamics",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "A car of mass \\(1200\\,\\mathrm{kg}\\) accelerates uniformly from rest to \\(18\\,\\mathrm{m\\,s^{-1}}\\) in \\(9.0\\,\\mathrm{s}\\).\n\nCalculate the resultant force on the car.",
+    "total_marks": 4,
+    "topic_tags": [
+      "dynamics",
+      "newton's second law",
+      "F = ma"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q05-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Initial velocity",
+        "prompt": "What is the initial velocity \\(u\\)?",
+        "options": [
+          "\\(18\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(0\\)",
+          "\\(9.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(2.0\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "The car starts from rest."
+      },
+      {
+        "id": "pb3-q05-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Final velocity",
+        "prompt": "What is the final velocity \\(v\\)?",
+        "options": [
+          "\\(0\\)",
+          "\\(9.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(18\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(162\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "The car reaches \\(18\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb3-q05-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Acceleration",
+        "prompt": "What is the acceleration \\(a\\)?",
+        "options": [
+          "\\(0.5\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(2.0\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(162\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(9.0\\,\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(a=\\dfrac{18-0}{9.0}=2.0\\,\\mathrm{m\\,s^{-2}}\\)."
+      },
+      {
+        "id": "pb3-q05-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "Resultant force",
+        "prompt": "What is the resultant force \\(F\\)?",
+        "options": [
+          "\\(600\\,\\mathrm{N}\\)",
+          "\\(1200\\,\\mathrm{N}\\)",
+          "\\(21\\,600\\,\\mathrm{N}\\)",
+          "\\(2400\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(F=ma=1200\\times2.0=2400\\,\\mathrm{N}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 120,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Dynamics: box pulled against friction",
+    "subject": "physics",
+    "chapter": "Chapter 3: Dynamics",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "A box of mass \\(5.0\\,\\mathrm{kg}\\) is at rest on the floor. It is pulled by a horizontal force of \\(30\\,\\mathrm{N}\\). The friction force on it is \\(10\\,\\mathrm{N}\\).\n\nCalculate\n\n(a) the acceleration of the box,\n\n(b) the distance it moves in the first \\(4.0\\,\\mathrm{s}\\).",
+    "total_marks": 4,
+    "topic_tags": [
+      "dynamics",
+      "friction",
+      "resultant force"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q06-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Resultant force",
+        "prompt": "What is the resultant force \\(F\\)?",
+        "options": [
+          "\\(40\\,\\mathrm{N}\\)",
+          "\\(30\\,\\mathrm{N}\\)",
+          "\\(20\\,\\mathrm{N}\\)",
+          "\\(10\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(30-10=20\\,\\mathrm{N}\\) forwards."
+      },
+      {
+        "id": "pb3-q06-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "(a) Acceleration",
+        "prompt": "What is the acceleration \\(a\\)?",
+        "options": [
+          "\\(4.0\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(6.0\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(8.0\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(2.0\\,\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(a=\\dfrac{F}{m}=\\dfrac{20}{5.0}=4.0\\,\\mathrm{m\\,s^{-2}}\\)."
+      },
+      {
+        "id": "pb3-q06-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Initial velocity",
+        "prompt": "What is the initial velocity \\(u\\)?",
+        "options": [
+          "\\(4.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(0\\)",
+          "\\(30\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(16\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "The box starts at rest."
+      },
+      {
+        "id": "pb3-q06-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(b) Distance",
+        "prompt": "What is the distance travelled \\(s\\)?",
+        "options": [
+          "\\(16\\,\\mathrm{m}\\)",
+          "\\(64\\,\\mathrm{m}\\)",
+          "\\(8.0\\,\\mathrm{m}\\)",
+          "\\(32\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(s=\\tfrac12at^{2}=\\tfrac12(4.0)(4.0)^{2}=32\\,\\mathrm{m}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Momentum: two trolleys stick together",
+    "subject": "physics",
+    "chapter": "Chapter 3: Dynamics",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A trolley of mass \\(2.0\\,\\mathrm{kg}\\) moving at \\(3.0\\,\\mathrm{m\\,s^{-1}}\\) hits a stationary trolley of mass \\(1.0\\,\\mathrm{kg}\\). They stick together.\n\nCalculate\n\n(a) their speed after the collision,\n\n(b) the kinetic energy lost.",
+    "total_marks": 5,
+    "topic_tags": [
+      "momentum",
+      "collisions",
+      "kinetic energy"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q07-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Momentum before",
+        "prompt": "What is the total momentum before, \\(p\\)?",
+        "options": [
+          "\\(3.0\\,\\mathrm{N\\,s}\\)",
+          "\\(6.0\\,\\mathrm{N\\,s}\\)",
+          "\\(9.0\\,\\mathrm{N\\,s}\\)",
+          "\\(1.5\\,\\mathrm{N\\,s}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(p=2.0\\times3.0=6.0\\,\\mathrm{N\\,s}\\). The other trolley has none."
+      },
+      {
+        "id": "pb3-q07-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Total mass",
+        "prompt": "What is the total mass after, \\(m\\)?",
+        "options": [
+          "\\(2.0\\,\\mathrm{kg}\\)",
+          "\\(1.0\\,\\mathrm{kg}\\)",
+          "\\(3.0\\,\\mathrm{kg}\\)",
+          "\\(6.0\\,\\mathrm{kg}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "The trolleys move together: \\(2.0+1.0=3.0\\,\\mathrm{kg}\\)."
+      },
+      {
+        "id": "pb3-q07-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(a) Speed after",
+        "prompt": "What is the velocity after, \\(v\\)?",
+        "options": [
+          "\\(2.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(3.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(1.5\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(6.0\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(v=\\dfrac{6.0}{3.0}=2.0\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb3-q07-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "KE before",
+        "prompt": "What is the kinetic energy before?",
+        "options": [
+          "\\(6.0\\,\\mathrm{J}\\)",
+          "\\(18\\,\\mathrm{J}\\)",
+          "\\(3.0\\,\\mathrm{J}\\)",
+          "\\(9.0\\,\\mathrm{J}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(\\tfrac12(2.0)(3.0)^{2}=9.0\\,\\mathrm{J}\\)."
+      },
+      {
+        "id": "pb3-q07-step-5",
+        "type": "mcq",
+        "index": 4,
+        "marks": 1,
+        "title": "KE after",
+        "prompt": "What is the kinetic energy after?",
+        "options": [
+          "\\(6.0\\,\\mathrm{J}\\)",
+          "\\(12\\,\\mathrm{J}\\)",
+          "\\(4.0\\,\\mathrm{J}\\)",
+          "\\(9.0\\,\\mathrm{J}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(\\tfrac12(3.0)(2.0)^{2}=6.0\\,\\mathrm{J}\\), so \\(9.0-6.0=3.0\\,\\mathrm{J}\\) is lost."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 180,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Dynamics: person in an accelerating lift",
+    "subject": "physics",
+    "chapter": "Chapter 3: Dynamics",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A person of mass \\(60\\,\\mathrm{kg}\\) stands on scales in a lift. The lift accelerates upwards at \\(2.0\\,\\mathrm{m\\,s^{-2}}\\). Take \\(g=9.81\\,\\mathrm{m\\,s^{-2}}\\).\n\nCalculate the force the scales exert on the person.",
+    "total_marks": 4,
+    "topic_tags": [
+      "dynamics",
+      "weight",
+      "normal contact force"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q08-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Weight",
+        "prompt": "What is the weight \\(W\\)?",
+        "options": [
+          "\\(60\\,\\mathrm{N}\\)",
+          "\\(589\\,\\mathrm{N}\\)",
+          "\\(120\\,\\mathrm{N}\\)",
+          "\\(709\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(W=mg=60\\times9.81=589\\,\\mathrm{N}\\)."
+      },
+      {
+        "id": "pb3-q08-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Resultant force",
+        "prompt": "What is the resultant force \\(F\\)?",
+        "options": [
+          "\\(120\\,\\mathrm{N}\\)",
+          "\\(589\\,\\mathrm{N}\\)",
+          "\\(30\\,\\mathrm{N}\\)",
+          "\\(0\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(F=ma=60\\times2.0=120\\,\\mathrm{N}\\)."
+      },
+      {
+        "id": "pb3-q08-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Direction",
+        "prompt": "Which way is the resultant force?",
+        "options": [
+          "\\(\\text{Up}\\)",
+          "\\(\\text{Down}\\)",
+          "\\(\\text{No direction}\\)",
+          "\\(\\text{Sideways}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "It points the same way as the acceleration: up."
+      },
+      {
+        "id": "pb3-q08-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "Scale force",
+        "prompt": "What is the scale force \\(R\\)?",
+        "options": [
+          "\\(469\\,\\mathrm{N}\\)",
+          "\\(589\\,\\mathrm{N}\\)",
+          "\\(709\\,\\mathrm{N}\\)",
+          "\\(120\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(R-W=ma\\Rightarrow R=589+120=709\\,\\mathrm{N}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Energy: speed of a falling ball",
+    "subject": "physics",
+    "chapter": "Chapter 5: Work, Energy and Power",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "A ball of mass \\(0.50\\,\\mathrm{kg}\\) is dropped from a height of \\(5.0\\,\\mathrm{m}\\). Air resistance is negligible. Take \\(g=9.81\\,\\mathrm{m\\,s^{-2}}\\).\n\nUse energy to find the speed of the ball just before it hits the ground.",
+    "total_marks": 3,
+    "topic_tags": [
+      "energy",
+      "conservation of energy",
+      "gpe",
+      "kinetic energy"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q09-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "GPE lost",
+        "prompt": "What is the gravitational potential energy lost?",
+        "options": [
+          "\\(2.5\\,\\mathrm{J}\\)",
+          "\\(49\\,\\mathrm{J}\\)",
+          "\\(24.5\\,\\mathrm{J}\\)",
+          "\\(4.9\\,\\mathrm{J}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(mgh=0.50\\times9.81\\times5.0=24.5\\,\\mathrm{J}\\)."
+      },
+      {
+        "id": "pb3-q09-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "KE gained",
+        "prompt": "What is the kinetic energy gained?",
+        "options": [
+          "\\(24.5\\,\\mathrm{J}\\)",
+          "\\(0\\)",
+          "\\(12.3\\,\\mathrm{J}\\)",
+          "\\(49\\,\\mathrm{J}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "All the GPE lost becomes KE."
+      },
+      {
+        "id": "pb3-q09-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Speed",
+        "prompt": "What is the speed \\(v\\)?",
+        "options": [
+          "\\(7.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(9.90\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(98.1\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(4.95\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(\\tfrac12(0.50)v^{2}=24.5\\Rightarrow v=9.90\\,\\mathrm{m\\,s^{-1}}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 120,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Power: motor lifting a load",
+    "subject": "physics",
+    "chapter": "Chapter 5: Work, Energy and Power",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "A motor lifts a load of mass \\(80\\,\\mathrm{kg}\\) through a height of \\(12\\,\\mathrm{m}\\) at constant speed in \\(16\\,\\mathrm{s}\\). Take \\(g=9.81\\,\\mathrm{m\\,s^{-2}}\\).\n\nCalculate\n\n(a) the work done on the load,\n\n(b) the power of the motor.",
+    "total_marks": 3,
+    "topic_tags": [
+      "work",
+      "power",
+      "gpe"
+    ],
+    "steps": [
+      {
+        "id": "pb3-q10-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Lifting force",
+        "prompt": "What is the lifting force \\(F\\)?",
+        "options": [
+          "\\(80\\,\\mathrm{N}\\)",
+          "\\(785\\,\\mathrm{N}\\)",
+          "\\(960\\,\\mathrm{N}\\)",
+          "\\(392\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "At constant speed the force equals the weight: \\(80\\times9.81=785\\,\\mathrm{N}\\)."
+      },
+      {
+        "id": "pb3-q10-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "(a) Work done",
+        "prompt": "What is the work done \\(W\\)?",
+        "options": [
+          "\\(9420\\,\\mathrm{J}\\)",
+          "\\(960\\,\\mathrm{J}\\)",
+          "\\(589\\,\\mathrm{J}\\)",
+          "\\(12\\,600\\,\\mathrm{J}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(W=Fs=785\\times12=9420\\,\\mathrm{J}\\)."
+      },
+      {
+        "id": "pb3-q10-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(b) Power",
+        "prompt": "What is the power \\(P\\)?",
+        "options": [
+          "\\(9420\\,\\mathrm{W}\\)",
+          "\\(150\\,\\mathrm{W}\\)",
+          "\\(785\\,\\mathrm{W}\\)",
+          "\\(589\\,\\mathrm{W}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(P=\\dfrac{W}{t}=\\dfrac{9420}{16}=589\\,\\mathrm{W}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  }
+]

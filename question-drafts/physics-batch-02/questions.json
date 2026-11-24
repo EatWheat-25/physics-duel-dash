@@ -1,0 +1,1671 @@
+[
+  {
+    "title": "SI base units of kinetic energy",
+    "subject": "physics",
+    "chapter": "Physical Quantities",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "The kinetic energy \\(E_{k}\\) of an object of mass \\(m\\) moving at speed \\(v\\) is given by\n\\[\nE_{k}=\\tfrac{1}{2}mv^{2}\n\\]\nDetermine the SI base units of kinetic energy.",
+    "total_marks": 3,
+    "topic_tags": [
+      "units",
+      "si base units",
+      "energy"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q01-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Unit of mass",
+        "prompt": "In your working, what is the SI base unit of \\(m\\)?",
+        "options": [
+          "\\(\\mathrm{g}\\)",
+          "\\(\\mathrm{N}\\)",
+          "\\(\\mathrm{kg\\,m^{-1}}\\)",
+          "\\(\\mathrm{kg}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 15,
+        "explanation": "Mass is a base quantity measured in kilograms."
+      },
+      {
+        "id": "pb2-q01-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Units of v²",
+        "prompt": "What are the SI base units of \\(v^{2}\\)?",
+        "options": [
+          "\\(\\mathrm{m\\,s^{-1}}\\)",
+          "\\(\\mathrm{m^{2}\\,s^{-1}}\\)",
+          "\\(\\mathrm{m^{2}\\,s^{-2}}\\)",
+          "\\(\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 15,
+        "explanation": "\\((\\mathrm{m\\,s^{-1}})^{2}=\\mathrm{m^{2}\\,s^{-2}}\\)."
+      },
+      {
+        "id": "pb2-q01-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Final answer",
+        "prompt": "What are the SI base units of \\(E_{k}\\)?",
+        "options": [
+          "\\(\\mathrm{kg\\,m\\,s^{-2}}\\)",
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-2}}\\)",
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-1}}\\)",
+          "\\(\\mathrm{J}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\tfrac12\\) has no units, so \\(\\mathrm{kg}\\times\\mathrm{m^{2}\\,s^{-2}}\\). The joule is a derived unit."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 120,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Homogeneity: period of a simple pendulum",
+    "subject": "physics",
+    "chapter": "Physical Quantities",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "The period \\(T\\) of a simple pendulum of length \\(l\\) is given by\n\\[\nT=2\\pi\\sqrt{\\frac{l}{g}}\n\\]\nwhere \\(g\\) is the acceleration of free fall.\n\nUse SI base units to show whether this equation is homogeneous.",
+    "total_marks": 3,
+    "topic_tags": [
+      "units",
+      "homogeneity",
+      "pendulum"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q02-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Units of l/g",
+        "prompt": "In your working, what are the SI base units of \\(\\dfrac{l}{g}\\)?",
+        "options": [
+          "\\(\\mathrm{s^{2}}\\)",
+          "\\(\\mathrm{s^{-2}}\\)",
+          "\\(\\mathrm{m^{2}\\,s^{-2}}\\)",
+          "\\(\\mathrm{s}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\dfrac{\\mathrm{m}}{\\mathrm{m\\,s^{-2}}}=\\mathrm{s^{2}}\\)."
+      },
+      {
+        "id": "pb2-q02-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Units of the right-hand side",
+        "prompt": "What are the SI base units of \\(2\\pi\\sqrt{\\dfrac{l}{g}}\\)?",
+        "options": [
+          "\\(\\mathrm{s^{2}}\\)",
+          "\\(\\mathrm{s^{-1}}\\)",
+          "\\(\\mathrm{m\\,s^{-1}}\\)",
+          "\\(\\mathrm{s}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(2\\pi\\) has no units and \\(\\sqrt{\\mathrm{s^{2}}}=\\mathrm{s}\\)."
+      },
+      {
+        "id": "pb2-q02-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Final answer",
+        "prompt": "What is your conclusion?",
+        "options": [
+          "Not homogeneous: the right-hand side has units of s²",
+          "Not homogeneous: 2π has units",
+          "Homogeneous: both sides have units of s",
+          "Homogeneous: both sides have units of s⁻¹"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(T\\) is a time, in \\(\\mathrm{s}\\), and the right-hand side is also in \\(\\mathrm{s}\\), so the equation is homogeneous."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "SI base units of a drag constant",
+    "subject": "physics",
+    "chapter": "Physical Quantities",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "At high speed, the drag force \\(F\\) on a car is given by\n\\[\nF=kv^{2}\n\\]\nwhere \\(v\\) is the speed of the car and \\(k\\) is a constant.\n\nDetermine the SI base units of \\(k\\).",
+    "total_marks": 3,
+    "topic_tags": [
+      "units",
+      "si base units",
+      "derivation"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q03-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Rearranged equation",
+        "prompt": "What expression for \\(k\\) did you use?",
+        "options": [
+          "\\(k=\\dfrac{F}{v^{2}}\\)",
+          "\\(k=Fv^{2}\\)",
+          "\\(k=\\dfrac{v^{2}}{F}\\)",
+          "\\(k=\\dfrac{F}{v}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "Divide both sides by \\(v^{2}\\)."
+      },
+      {
+        "id": "pb2-q03-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Units of F",
+        "prompt": "What are the SI base units of \\(F\\)?",
+        "options": [
+          "\\(\\mathrm{kg\\,m\\,s^{-1}}\\)",
+          "\\(\\mathrm{kg\\,m\\,s^{-2}}\\)",
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-2}}\\)",
+          "\\(\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(F=ma\\): \\(\\mathrm{kg\\,m\\,s^{-2}}\\)."
+      },
+      {
+        "id": "pb2-q03-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Final answer",
+        "prompt": "What are the SI base units of \\(k\\)?",
+        "options": [
+          "\\(\\mathrm{kg\\,m^{3}\\,s^{-4}}\\)",
+          "\\(\\mathrm{kg\\,s^{-1}}\\)",
+          "\\(\\mathrm{kg\\,m^{-1}\\,s^{-4}}\\)",
+          "\\(\\mathrm{kg\\,m^{-1}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\dfrac{\\mathrm{kg\\,m\\,s^{-2}}}{\\mathrm{m^{2}\\,s^{-2}}}=\\mathrm{kg\\,m^{-1}}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "SI base units of resistivity",
+    "subject": "physics",
+    "chapter": "Physical Quantities",
+    "level": "A1",
+    "difficulty": "hard",
+    "rank_tier": null,
+    "stem": "The resistivity \\(\\rho\\) of the material of a wire is given by\n\\[\n\\rho=\\frac{RA}{L}\n\\]\nwhere \\(R\\) is the resistance of the wire, \\(A\\) is its cross-sectional area and \\(L\\) is its length.\n\nDetermine the SI base units of \\(\\rho\\).",
+    "total_marks": 5,
+    "topic_tags": [
+      "units",
+      "si base units",
+      "electricity",
+      "derivation"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q04-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Units of potential difference",
+        "prompt": "In your working, what are the SI base units of potential difference?",
+        "options": [
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-2}\\,A^{-1}}\\)",
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-3}\\,A^{-1}}\\)",
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-3}\\,A}\\)",
+          "\\(\\mathrm{kg\\,m\\,s^{-3}\\,A^{-1}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(V=\\dfrac{P}{I}=\\dfrac{\\mathrm{kg\\,m^{2}\\,s^{-3}}}{\\mathrm{A}}\\)."
+      },
+      {
+        "id": "pb2-q04-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Units of R",
+        "prompt": "What are the SI base units of resistance \\(R\\)?",
+        "options": [
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-3}\\,A^{-1}}\\)",
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-3}}\\)",
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-3}\\,A^{-2}}\\)",
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-2}\\,A^{-2}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(R=\\dfrac{V}{I}\\): divide by another \\(\\mathrm{A}\\)."
+      },
+      {
+        "id": "pb2-q04-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Units of A/L",
+        "prompt": "What are the SI base units of \\(\\dfrac{A}{L}\\)?",
+        "options": [
+          "\\(\\mathrm{m}\\)",
+          "\\(\\mathrm{m^{2}}\\)",
+          "\\(\\mathrm{m^{3}}\\)",
+          "\\(\\mathrm{m^{-1}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(\\dfrac{\\mathrm{m^{2}}}{\\mathrm{m}}=\\mathrm{m}\\)."
+      },
+      {
+        "id": "pb2-q04-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 2,
+        "title": "Final answer",
+        "prompt": "What are the SI base units of \\(\\rho\\)?",
+        "options": [
+          "\\(\\mathrm{kg\\,m\\,s^{-3}\\,A^{-2}}\\)",
+          "\\(\\mathrm{kg\\,m^{3}\\,s^{-3}\\,A^{-1}}\\)",
+          "\\(\\mathrm{kg\\,m^{2}\\,s^{-3}\\,A^{-2}}\\)",
+          "\\(\\mathrm{kg\\,m^{3}\\,s^{-3}\\,A^{-2}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 30,
+        "explanation": "\\(\\mathrm{kg\\,m^{2}\\,s^{-3}\\,A^{-2}}\\times\\mathrm{m}=\\mathrm{kg\\,m^{3}\\,s^{-3}\\,A^{-2}}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 210,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Prefixes: area and volume of a wire",
+    "subject": "physics",
+    "chapter": "Physical Quantities",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "A copper wire has a diameter of \\(0.48\\,\\mathrm{mm}\\) and a length of \\(2.5\\,\\mathrm{m}\\).\n\nCalculate, in standard form,\n\n(a) the cross-sectional area of the wire in \\(\\mathrm{m^{2}}\\),\n\n(b) the volume of the wire in \\(\\mathrm{m^{3}}\\).",
+    "total_marks": 3,
+    "topic_tags": [
+      "prefixes",
+      "standard form",
+      "area"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q05-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Radius in metres",
+        "prompt": "What radius, in metres, did you use?",
+        "options": [
+          "\\(4.8\\times10^{-4}\\,\\mathrm{m}\\)",
+          "\\(2.4\\times10^{-4}\\,\\mathrm{m}\\)",
+          "\\(2.4\\times10^{-3}\\,\\mathrm{m}\\)",
+          "\\(2.4\\times10^{-7}\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(0.48\\,\\mathrm{mm}=4.8\\times10^{-4}\\,\\mathrm{m}\\), and the radius is half of that."
+      },
+      {
+        "id": "pb2-q05-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "(a) Area",
+        "prompt": "What is the cross-sectional area?",
+        "options": [
+          "\\(7.24\\times10^{-7}\\,\\mathrm{m^{2}}\\)",
+          "\\(1.81\\times10^{-1}\\,\\mathrm{m^{2}}\\)",
+          "\\(1.81\\times10^{-7}\\,\\mathrm{m^{2}}\\)",
+          "\\(7.54\\times10^{-4}\\,\\mathrm{m^{2}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 30,
+        "explanation": "\\(\\pi r^{2}=\\pi(2.4\\times10^{-4})^{2}=1.81\\times10^{-7}\\,\\mathrm{m^{2}}\\)."
+      },
+      {
+        "id": "pb2-q05-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(b) Volume",
+        "prompt": "What is the volume of the wire?",
+        "options": [
+          "\\(4.52\\times10^{-7}\\,\\mathrm{m^{3}}\\)",
+          "\\(1.81\\times10^{-6}\\,\\mathrm{m^{3}}\\)",
+          "\\(7.24\\times10^{-8}\\,\\mathrm{m^{3}}\\)",
+          "\\(4.52\\times10^{-4}\\,\\mathrm{m^{3}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(V=AL=1.81\\times10^{-7}\\times2.5=4.52\\times10^{-7}\\,\\mathrm{m^{3}}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Uncertainty: resistance from meter readings",
+    "subject": "physics",
+    "chapter": "Uncertainties",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "The circuit shown is used to determine the resistance \\(R\\) of a resistor.\n\nThe readings are:\n- voltmeter: \\((6.0\\pm0.1)\\,\\mathrm{V}\\)\n- ammeter: \\((0.50\\pm0.02)\\,\\mathrm{A}\\)\n\n(a) Calculate \\(R\\).\n\n(b) Determine the absolute uncertainty in \\(R\\), and write \\(R\\) with its uncertainty.",
+    "total_marks": 3,
+    "topic_tags": [
+      "uncertainties",
+      "absolute uncertainty",
+      "resistance"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q06-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "(a) Resistance",
+        "prompt": "What value of \\(R\\) did you calculate?",
+        "options": [
+          "\\(12.0\\,\\mathrm{\\Omega}\\)",
+          "\\(3.0\\,\\mathrm{\\Omega}\\)",
+          "\\(0.083\\,\\mathrm{\\Omega}\\)",
+          "\\(6.5\\,\\mathrm{\\Omega}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 20,
+        "explanation": "\\(R=\\dfrac{V}{I}=\\dfrac{6.0}{0.50}=12.0\\,\\Omega\\)."
+      },
+      {
+        "id": "pb2-q06-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Percentage uncertainty in R",
+        "prompt": "What percentage uncertainty in \\(R\\) did you find?",
+        "options": [
+          "\\(2.3\\%\\)",
+          "\\(5.7\\%\\)",
+          "\\(4.0\\%\\)",
+          "\\(2.4\\%\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\%V=\\dfrac{0.1}{6.0}\\times100=1.7\\%\\), \\(\\%I=\\dfrac{0.02}{0.50}\\times100=4.0\\%\\). For a quotient, add: \\(5.7\\%\\)."
+      },
+      {
+        "id": "pb2-q06-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(b) Final answer",
+        "prompt": "How should \\(R\\) be written with its absolute uncertainty?",
+        "options": [
+          "\\((12.0\\pm0.1)\\,\\mathrm{\\Omega}\\)",
+          "\\((12.0\\pm0.68)\\,\\mathrm{\\Omega}\\)",
+          "\\((12.0\\pm0.7)\\,\\mathrm{\\Omega}\\)",
+          "\\((12.0\\pm0.3)\\,\\mathrm{\\Omega}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\Delta R=0.057\\times12.0=0.68\\), given to 1 s.f. as \\(0.7\\,\\Omega\\)."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q06-circuit.svg",
+    "main_question_timer_seconds": 180,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Uncertainty: area of a rectangular sheet",
+    "subject": "physics",
+    "chapter": "Uncertainties",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "The length and width of a rectangular sheet of metal are measured as:\n- length \\(=(25.0\\pm0.2)\\,\\mathrm{cm}\\)\n- width \\(=(12.0\\pm0.1)\\,\\mathrm{cm}\\)\n\nCalculate the area of the sheet, and give it with its absolute uncertainty.",
+    "total_marks": 3,
+    "topic_tags": [
+      "uncertainties",
+      "percentage uncertainty",
+      "area"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q07-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Area",
+        "prompt": "What area did you calculate?",
+        "options": [
+          "\\(37.0\\,\\mathrm{cm^{2}}\\)",
+          "\\(74.0\\,\\mathrm{cm^{2}}\\)",
+          "\\(3.00\\,\\mathrm{cm^{2}}\\)",
+          "\\(300\\,\\mathrm{cm^{2}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 15,
+        "explanation": "\\(25.0\\times12.0=300\\,\\mathrm{cm^{2}}\\)."
+      },
+      {
+        "id": "pb2-q07-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Percentage uncertainty",
+        "prompt": "What percentage uncertainty in the area did you find?",
+        "options": [
+          "\\(0.8\\%\\)",
+          "\\(1.6\\%\\)",
+          "\\(0.3\\%\\)",
+          "\\(2.5\\%\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\dfrac{0.2}{25.0}\\times100=0.8\\%\\) and \\(\\dfrac{0.1}{12.0}\\times100=0.83\\%\\). For a product, add: \\(1.6\\%\\)."
+      },
+      {
+        "id": "pb2-q07-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Final answer",
+        "prompt": "How should the area be written with its absolute uncertainty?",
+        "options": [
+          "\\((300\\pm0.3)\\,\\mathrm{cm^{2}}\\)",
+          "\\((300\\pm2)\\,\\mathrm{cm^{2}}\\)",
+          "\\((300\\pm5)\\,\\mathrm{cm^{2}}\\)",
+          "\\((300\\pm16)\\,\\mathrm{cm^{2}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(1.6\\%\\) of \\(300\\) is \\(4.9\\approx5\\,\\mathrm{cm^{2}}\\). Absolute uncertainties are not simply added for a product."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Uncertainty: kinetic energy of a trolley",
+    "subject": "physics",
+    "chapter": "Uncertainties",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A trolley of mass \\((0.250\\pm0.005)\\,\\mathrm{kg}\\) moves at a speed of \\((4.0\\pm0.2)\\,\\mathrm{m\\,s^{-1}}\\).\n\n(a) Calculate the kinetic energy of the trolley.\n\n(b) Determine the absolute uncertainty in the kinetic energy.",
+    "total_marks": 4,
+    "topic_tags": [
+      "uncertainties",
+      "percentage uncertainty",
+      "energy"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q08-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "(a) Kinetic energy",
+        "prompt": "What kinetic energy did you calculate?",
+        "options": [
+          "\\(4.0\\,\\mathrm{J}\\)",
+          "\\(0.50\\,\\mathrm{J}\\)",
+          "\\(1.0\\,\\mathrm{J}\\)",
+          "\\(2.0\\,\\mathrm{J}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 20,
+        "explanation": "\\(\\tfrac12mv^{2}=\\tfrac12(0.250)(4.0)^{2}=2.0\\,\\mathrm{J}\\)."
+      },
+      {
+        "id": "pb2-q08-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Percentage uncertainty in v²",
+        "prompt": "What percentage uncertainty did \\(v^{2}\\) contribute?",
+        "options": [
+          "\\(10\\%\\)",
+          "\\(5\\%\\)",
+          "\\(25\\%\\)",
+          "\\(2.5\\%\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\%v=\\dfrac{0.2}{4.0}\\times100=5\\%\\). Squaring doubles it to \\(10\\%\\)."
+      },
+      {
+        "id": "pb2-q08-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Total percentage uncertainty",
+        "prompt": "What total percentage uncertainty in the kinetic energy did you find?",
+        "options": [
+          "\\(7\\%\\)",
+          "\\(10\\%\\)",
+          "\\(12\\%\\)",
+          "\\(22\\%\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\%m=2\\%\\), so the total is \\(2+10=12\\%\\)."
+      },
+      {
+        "id": "pb2-q08-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(b) Absolute uncertainty",
+        "prompt": "What is the absolute uncertainty in the kinetic energy?",
+        "options": [
+          "\\(\\pm0.2\\,\\mathrm{J}\\)",
+          "\\(\\pm0.1\\,\\mathrm{J}\\)",
+          "\\(\\pm0.24\\,\\mathrm{J}\\)",
+          "\\(\\pm0.02\\,\\mathrm{J}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(0.12\\times2.0=0.24\\), given to 1 s.f. as \\(0.2\\,\\mathrm{J}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 180,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Uncertainty: specific heat capacity from a temperature rise",
+    "subject": "physics",
+    "chapter": "Uncertainties",
+    "level": "A1",
+    "difficulty": "hard",
+    "rank_tier": null,
+    "stem": "A heater supplies \\((5400\\pm50)\\,\\mathrm{J}\\) of energy to \\((0.100\\pm0.001)\\,\\mathrm{kg}\\) of water. The thermometer readings at the start and end are shown. Each reading has an uncertainty of \\(\\pm0.5\\,^{\\circ}\\mathrm{C}\\).\n\nThe specific heat capacity \\(c\\) of water is given by\n\\[\nc=\\frac{E}{m\\,\\Delta T}\n\\]\n(a) Determine the temperature rise \\(\\Delta T\\) with its uncertainty.\n\n(b) Calculate \\(c\\).\n\n(c) Determine the absolute uncertainty in \\(c\\).",
+    "total_marks": 4,
+    "topic_tags": [
+      "uncertainties",
+      "difference",
+      "specific heat capacity"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q09-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "(a) Temperature rise",
+        "prompt": "What temperature rise, with its uncertainty, did you find?",
+        "options": [
+          "\\((13.5\\pm0.5)\\,^{\\circ}\\mathrm{C}\\)",
+          "\\((13.5\\pm0.0)\\,^{\\circ}\\mathrm{C}\\)",
+          "\\((56.5\\pm1.0)\\,^{\\circ}\\mathrm{C}\\)",
+          "\\((13.5\\pm1.0)\\,^{\\circ}\\mathrm{C}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(35.0-21.5=13.5\\,^{\\circ}\\mathrm{C}\\). For a difference, the absolute uncertainties add: \\(0.5+0.5=1.0\\,^{\\circ}\\mathrm{C}\\)."
+      },
+      {
+        "id": "pb2-q09-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "(b) Specific heat capacity",
+        "prompt": "What value of \\(c\\) did you calculate?",
+        "options": [
+          "\\(400\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)",
+          "\\(4000\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)",
+          "\\(1500\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)",
+          "\\(3700\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(c=\\dfrac{5400}{0.100\\times13.5}=4000\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)."
+      },
+      {
+        "id": "pb2-q09-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Percentage uncertainty in c",
+        "prompt": "What percentage uncertainty in \\(c\\) did you find?",
+        "options": [
+          "\\(5.6\\%\\)",
+          "\\(2.9\\%\\)",
+          "\\(9.3\\%\\)",
+          "\\(7.4\\%\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 30,
+        "explanation": "\\(\\%E=0.93\\%\\), \\(\\%m=1.0\\%\\), \\(\\%\\Delta T=\\dfrac{1.0}{13.5}\\times100=7.4\\%\\). Total \\(9.3\\%\\)."
+      },
+      {
+        "id": "pb2-q09-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(c) Absolute uncertainty",
+        "prompt": "What is the absolute uncertainty in \\(c\\)?",
+        "options": [
+          "\\(\\pm200\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)",
+          "\\(\\pm400\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)",
+          "\\(\\pm370\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)",
+          "\\(\\pm40\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(0.093\\times4000=372\\), given to 1 s.f. as \\(400\\,\\mathrm{J\\,kg^{-1}\\,K^{-1}}\\)."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q09-thermometers.svg",
+    "main_question_timer_seconds": 240,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Uncertainty: density of a stone by displacement",
+    "subject": "physics",
+    "chapter": "Uncertainties",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A stone of mass \\((45.0\\pm0.1)\\,\\mathrm{g}\\) is lowered into a measuring cylinder containing water. The water level before and after is shown. Each reading of the cylinder has an uncertainty of \\(\\pm1\\,\\mathrm{cm^{3}}\\).\n\n(a) Determine the volume of the stone.\n\n(b) Calculate the density of the stone, and give it with its absolute uncertainty.",
+    "total_marks": 4,
+    "topic_tags": [
+      "uncertainties",
+      "density",
+      "measuring cylinder"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q10-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "(a) Volume",
+        "prompt": "What volume of the stone did you find?",
+        "options": [
+          "\\((18\\pm2)\\,\\mathrm{cm^{3}}\\)",
+          "\\((18\\pm1)\\,\\mathrm{cm^{3}}\\)",
+          "\\((58\\pm1)\\,\\mathrm{cm^{3}}\\)",
+          "\\((98\\pm2)\\,\\mathrm{cm^{3}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(58-40=18\\,\\mathrm{cm^{3}}\\). Two readings are subtracted, so the uncertainties add: \\(\\pm2\\,\\mathrm{cm^{3}}\\)."
+      },
+      {
+        "id": "pb2-q10-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Density",
+        "prompt": "What value of the density did you calculate?",
+        "options": [
+          "\\(0.40\\,\\mathrm{g\\,cm^{-3}}\\)",
+          "\\(0.78\\,\\mathrm{g\\,cm^{-3}}\\)",
+          "\\(810\\,\\mathrm{g\\,cm^{-3}}\\)",
+          "\\(2.5\\,\\mathrm{g\\,cm^{-3}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 20,
+        "explanation": "\\(\\rho=\\dfrac{45.0}{18}=2.5\\,\\mathrm{g\\,cm^{-3}}\\)."
+      },
+      {
+        "id": "pb2-q10-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Percentage uncertainty",
+        "prompt": "What percentage uncertainty in the density did you find?",
+        "options": [
+          "\\(5.8\\%\\)",
+          "\\(11\\%\\)",
+          "\\(0.2\\%\\)",
+          "\\(22\\%\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\%V=\\dfrac{2}{18}\\times100=11.1\\%\\), \\(\\%m=0.2\\%\\). Total \\(11\\%\\)."
+      },
+      {
+        "id": "pb2-q10-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(b) Final answer",
+        "prompt": "How should the density be written with its absolute uncertainty?",
+        "options": [
+          "\\((2.5\\pm0.3)\\,\\mathrm{g\\,cm^{-3}}\\)",
+          "\\((2.5\\pm0.1)\\,\\mathrm{g\\,cm^{-3}}\\)",
+          "\\((2.50\\pm0.28)\\,\\mathrm{g\\,cm^{-3}}\\)",
+          "\\((2.5\\pm2)\\,\\mathrm{g\\,cm^{-3}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(0.113\\times2.5=0.28\\), given to 1 s.f. as \\(0.3\\,\\mathrm{g\\,cm^{-3}}\\)."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q10-cylinders.svg",
+    "main_question_timer_seconds": 180,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Vectors: aircraft in a crosswind",
+    "subject": "physics",
+    "chapter": "Chapter 1: Physical Quantities",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "An aircraft is heading due north with a speed of \\(120\\,\\mathrm{m\\,s^{-1}}\\) relative to the air. A wind blows towards the east at \\(50\\,\\mathrm{m\\,s^{-1}}\\), as shown.\n\nDetermine\n\n(a) the resultant speed of the aircraft,\n\n(b) the angle between the resultant velocity and due north.",
+    "total_marks": 3,
+    "topic_tags": [
+      "vectors",
+      "resultant",
+      "relative velocity"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q11-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "(a) Resultant speed",
+        "prompt": "What resultant speed did you find?",
+        "options": [
+          "\\(170\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(109\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(70\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(130\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "The velocities are perpendicular: \\(\\sqrt{120^{2}+50^{2}}=130\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb2-q11-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Trig ratio",
+        "prompt": "Which expression did you use for the angle \\(\\theta\\) from north?",
+        "options": [
+          "\\(\\tan\\theta=\\dfrac{120}{50}\\)",
+          "\\(\\sin\\theta=\\dfrac{50}{120}\\)",
+          "\\(\\tan\\theta=\\dfrac{50}{120}\\)",
+          "\\(\\cos\\theta=\\dfrac{50}{130}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 20,
+        "explanation": "Measured from north, the side opposite \\(\\theta\\) is the wind, \\(50\\), and the adjacent side is \\(120\\)."
+      },
+      {
+        "id": "pb2-q11-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(b) Angle",
+        "prompt": "What angle from due north did you find?",
+        "options": [
+          "\\(67.4^{\\circ}\\)",
+          "\\(24.6^{\\circ}\\)",
+          "\\(22.6^{\\circ}\\)",
+          "\\(22.0^{\\circ}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\tan^{-1}\\left(\\dfrac{50}{120}\\right)=22.6^{\\circ}\\), east of north."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q11-aircraft.svg",
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Vectors: components of weight on a slope",
+    "subject": "physics",
+    "chapter": "Chapter 1: Physical Quantities",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A block of weight \\(50\\,\\mathrm{N}\\) rests on a slope inclined at \\(25^{\\circ}\\) to the horizontal, as shown.\n\nCalculate the component of the weight\n\n(a) parallel to the slope,\n\n(b) perpendicular to the slope.",
+    "total_marks": 3,
+    "topic_tags": [
+      "vectors",
+      "components",
+      "slope"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q12-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Angle used",
+        "prompt": "In your working, what is the angle between the weight and the line perpendicular to the slope?",
+        "options": [
+          "\\(65^{\\circ}\\)",
+          "\\(90^{\\circ}\\)",
+          "\\(50^{\\circ}\\)",
+          "\\(25^{\\circ}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 20,
+        "explanation": "The angle between the weight and the normal to the slope equals the angle of the slope, \\(25^{\\circ}\\)."
+      },
+      {
+        "id": "pb2-q12-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "(a) Parallel component",
+        "prompt": "What component parallel to the slope did you find?",
+        "options": [
+          "\\(21.1\\,\\mathrm{N}\\)",
+          "\\(45.3\\,\\mathrm{N}\\)",
+          "\\(23.3\\,\\mathrm{N}\\)",
+          "\\(50.0\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(50\\sin25^{\\circ}=21.1\\,\\mathrm{N}\\)."
+      },
+      {
+        "id": "pb2-q12-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(b) Perpendicular component",
+        "prompt": "What component perpendicular to the slope did you find?",
+        "options": [
+          "\\(21.1\\,\\mathrm{N}\\)",
+          "\\(45.3\\,\\mathrm{N}\\)",
+          "\\(55.2\\,\\mathrm{N}\\)",
+          "\\(50.0\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(50\\cos25^{\\circ}=45.3\\,\\mathrm{N}\\)."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q12-slope.svg",
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Vectors: resultant displacement of a hiker",
+    "subject": "physics",
+    "chapter": "Chapter 1: Physical Quantities",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A hiker walks \\(3.0\\,\\mathrm{km}\\) due east, then \\(5.0\\,\\mathrm{km}\\) in a direction \\(30^{\\circ}\\) north of east, as shown.\n\nDetermine\n\n(a) the magnitude of the hiker's resultant displacement,\n\n(b) the direction of the resultant displacement, as an angle north of east.",
+    "total_marks": 4,
+    "topic_tags": [
+      "vectors",
+      "displacement",
+      "components"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q13-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "East component",
+        "prompt": "What total eastward component did you find?",
+        "options": [
+          "\\(8.00\\,\\mathrm{km}\\)",
+          "\\(7.33\\,\\mathrm{km}\\)",
+          "\\(5.50\\,\\mathrm{km}\\)",
+          "\\(4.33\\,\\mathrm{km}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(3.0+5.0\\cos30^{\\circ}=3.0+4.33=7.33\\,\\mathrm{km}\\)."
+      },
+      {
+        "id": "pb2-q13-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "North component",
+        "prompt": "What total northward component did you find?",
+        "options": [
+          "\\(4.33\\,\\mathrm{km}\\)",
+          "\\(5.00\\,\\mathrm{km}\\)",
+          "\\(2.50\\,\\mathrm{km}\\)",
+          "\\(0\\,\\mathrm{km}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "Only the second walk has a northward part: \\(5.0\\sin30^{\\circ}=2.50\\,\\mathrm{km}\\)."
+      },
+      {
+        "id": "pb2-q13-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(a) Magnitude",
+        "prompt": "What magnitude of displacement did you find?",
+        "options": [
+          "\\(8.0\\,\\mathrm{km}\\)",
+          "\\(5.8\\,\\mathrm{km}\\)",
+          "\\(9.8\\,\\mathrm{km}\\)",
+          "\\(7.7\\,\\mathrm{km}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\sqrt{7.33^{2}+2.50^{2}}=7.7\\,\\mathrm{km}\\)."
+      },
+      {
+        "id": "pb2-q13-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(b) Direction",
+        "prompt": "What direction did you find?",
+        "options": [
+          "\\(18.8^{\\circ}\\text{ north of east}\\)",
+          "\\(71.2^{\\circ}\\text{ north of east}\\)",
+          "\\(30.0^{\\circ}\\text{ north of east}\\)",
+          "\\(19.0^{\\circ}\\text{ north of east}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\tan^{-1}\\left(\\dfrac{2.50}{7.33}\\right)=18.8^{\\circ}\\)."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q13-walk.svg",
+    "main_question_timer_seconds": 210,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Vectors: two tugs pulling a ship",
+    "subject": "physics",
+    "chapter": "Chapter 1: Physical Quantities",
+    "level": "A1",
+    "difficulty": "hard",
+    "rank_tier": null,
+    "stem": "Two tugboats pull a ship using horizontal cables. One cable has a tension of \\(3000\\,\\mathrm{N}\\) and the other a tension of \\(2000\\,\\mathrm{N}\\). The angle between the cables is \\(40^{\\circ}\\), as shown.\n\nDetermine\n\n(a) the magnitude of the resultant force on the ship from the two cables,\n\n(b) the angle between the resultant force and the \\(3000\\,\\mathrm{N}\\) cable.",
+    "total_marks": 4,
+    "topic_tags": [
+      "vectors",
+      "resultant",
+      "components"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q14-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Component along the 3000 N cable",
+        "prompt": "Taking the \\(3000\\,\\mathrm{N}\\) cable as your reference direction, what total component along it did you find?",
+        "options": [
+          "\\(4530\\,\\mathrm{N}\\)",
+          "\\(5000\\,\\mathrm{N}\\)",
+          "\\(4290\\,\\mathrm{N}\\)",
+          "\\(1530\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 30,
+        "explanation": "\\(3000+2000\\cos40^{\\circ}=3000+1532=4530\\,\\mathrm{N}\\)."
+      },
+      {
+        "id": "pb2-q14-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Component perpendicular to it",
+        "prompt": "What total component perpendicular to the \\(3000\\,\\mathrm{N}\\) cable did you find?",
+        "options": [
+          "\\(1530\\,\\mathrm{N}\\)",
+          "\\(2000\\,\\mathrm{N}\\)",
+          "\\(1290\\,\\mathrm{N}\\)",
+          "\\(3290\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "Only the \\(2000\\,\\mathrm{N}\\) force has a perpendicular part: \\(2000\\sin40^{\\circ}=1290\\,\\mathrm{N}\\)."
+      },
+      {
+        "id": "pb2-q14-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(a) Resultant",
+        "prompt": "What magnitude of resultant force did you find?",
+        "options": [
+          "\\(5000\\,\\mathrm{N}\\)",
+          "\\(3600\\,\\mathrm{N}\\)",
+          "\\(5800\\,\\mathrm{N}\\)",
+          "\\(4700\\,\\mathrm{N}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\sqrt{4530^{2}+1290^{2}}=4.7\\times10^{3}\\,\\mathrm{N}\\)."
+      },
+      {
+        "id": "pb2-q14-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(b) Angle",
+        "prompt": "What angle between the resultant and the \\(3000\\,\\mathrm{N}\\) cable did you find?",
+        "options": [
+          "\\(20.0^{\\circ}\\)",
+          "\\(15.8^{\\circ}\\)",
+          "\\(74.2^{\\circ}\\)",
+          "\\(24.2^{\\circ}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\tan^{-1}\\left(\\dfrac{1290}{4530}\\right)=15.8^{\\circ}\\). It is not half of \\(40^{\\circ}\\), because the forces are unequal."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q14-tugs.svg",
+    "main_question_timer_seconds": 240,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Kinematics: ball kicked at an angle",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A ball is kicked from level ground with a velocity of \\(18\\,\\mathrm{m\\,s^{-1}}\\) at \\(35^{\\circ}\\) above the horizontal, as shown. Air resistance is negligible. Take \\(g=9.81\\,\\mathrm{m\\,s^{-2}}\\).\n\nCalculate\n\n(a) the maximum height reached by the ball,\n\n(b) the horizontal distance from where the ball is kicked to where it lands.",
+    "total_marks": 5,
+    "topic_tags": [
+      "kinematics",
+      "projectile",
+      "components"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q15-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Vertical component",
+        "prompt": "What initial vertical velocity did you use?",
+        "options": [
+          "\\(14.7\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(10.3\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(18.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(12.6\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(18\\sin35^{\\circ}=10.3\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb2-q15-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Horizontal component",
+        "prompt": "What horizontal velocity did you use?",
+        "options": [
+          "\\(10.3\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(18.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(25.7\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(14.7\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(18\\cos35^{\\circ}=14.7\\,\\mathrm{m\\,s^{-1}}\\), constant throughout."
+      },
+      {
+        "id": "pb2-q15-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(a) Maximum height",
+        "prompt": "What maximum height did you find?",
+        "options": [
+          "\\(5.43\\,\\mathrm{m}\\)",
+          "\\(16.5\\,\\mathrm{m}\\)",
+          "\\(10.9\\,\\mathrm{m}\\)",
+          "\\(1.05\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 30,
+        "explanation": "At the top the vertical velocity is zero: \\(h=\\dfrac{10.3^{2}}{2\\times9.81}=5.43\\,\\mathrm{m}\\)."
+      },
+      {
+        "id": "pb2-q15-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "Time of flight",
+        "prompt": "What total time in the air did you find?",
+        "options": [
+          "\\(1.05\\,\\mathrm{s}\\)",
+          "\\(3.67\\,\\mathrm{s}\\)",
+          "\\(2.10\\,\\mathrm{s}\\)",
+          "\\(1.50\\,\\mathrm{s}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "Time to the top is \\(\\dfrac{10.3}{9.81}=1.05\\,\\mathrm{s}\\); the flight is twice that, \\(2.10\\,\\mathrm{s}\\)."
+      },
+      {
+        "id": "pb2-q15-step-5",
+        "type": "mcq",
+        "index": 4,
+        "marks": 1,
+        "title": "(b) Horizontal distance",
+        "prompt": "What horizontal distance did you find?",
+        "options": [
+          "\\(15.5\\,\\mathrm{m}\\)",
+          "\\(37.8\\,\\mathrm{m}\\)",
+          "\\(31.0\\,\\mathrm{m}\\)",
+          "\\(21.7\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(14.7\\times2.10=31.0\\,\\mathrm{m}\\)."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q15-kick.svg",
+    "main_question_timer_seconds": 240,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Kinematics: car accelerating over a distance",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "easy",
+    "rank_tier": null,
+    "stem": "A car accelerates uniformly along a straight road from \\(8.0\\,\\mathrm{m\\,s^{-1}}\\) to \\(20\\,\\mathrm{m\\,s^{-1}}\\) while travelling a distance of \\(150\\,\\mathrm{m}\\).\n\nCalculate\n\n(a) the acceleration of the car,\n\n(b) the time taken.",
+    "total_marks": 3,
+    "topic_tags": [
+      "kinematics",
+      "suvat",
+      "acceleration"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q16-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Value of v² − u²",
+        "prompt": "In \\(v^{2}=u^{2}+2as\\), what is \\(v^{2}-u^{2}\\)?",
+        "options": [
+          "\\(336\\,\\mathrm{m^{2}\\,s^{-2}}\\)",
+          "\\(144\\,\\mathrm{m^{2}\\,s^{-2}}\\)",
+          "\\(464\\,\\mathrm{m^{2}\\,s^{-2}}\\)",
+          "\\(400\\,\\mathrm{m^{2}\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 20,
+        "explanation": "\\(20^{2}-8.0^{2}=400-64=336\\)."
+      },
+      {
+        "id": "pb2-q16-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "(a) Acceleration",
+        "prompt": "What acceleration did you find?",
+        "options": [
+          "\\(2.24\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(1.33\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(0.080\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(1.12\\,\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(a=\\dfrac{336}{2\\times150}=1.12\\,\\mathrm{m\\,s^{-2}}\\)."
+      },
+      {
+        "id": "pb2-q16-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(b) Time",
+        "prompt": "What time did you find?",
+        "options": [
+          "\\(18.8\\,\\mathrm{s}\\)",
+          "\\(10.7\\,\\mathrm{s}\\)",
+          "\\(7.50\\,\\mathrm{s}\\)",
+          "\\(5.36\\,\\mathrm{s}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(t=\\dfrac{v-u}{a}=\\dfrac{12}{1.12}=10.7\\,\\mathrm{s}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 150,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Kinematics: a police car catching a speeding car",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A car travelling at a constant \\(15\\,\\mathrm{m\\,s^{-1}}\\) passes a police car that is at rest. At the instant the car passes, the police car starts to accelerate uniformly at \\(2.5\\,\\mathrm{m\\,s^{-2}}\\) in the same direction.\n\nCalculate\n\n(a) the time taken for the police car to catch up with the car,\n\n(b) the distance travelled by the police car in this time,\n\n(c) the speed of the police car when it catches up.",
+    "total_marks": 4,
+    "topic_tags": [
+      "kinematics",
+      "suvat",
+      "two bodies"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q17-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Equation for the police car",
+        "prompt": "What expression for the displacement of the police car after time \\(t\\) did you use?",
+        "options": [
+          "\\(s=2.5t^{2}\\)",
+          "\\(s=2.5t\\)",
+          "\\(s=1.25t^{2}\\)",
+          "\\(s=15t+1.25t^{2}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 20,
+        "explanation": "\\(s=ut+\\tfrac12at^{2}\\) with \\(u=0\\): \\(s=\\tfrac12(2.5)t^{2}=1.25t^{2}\\)."
+      },
+      {
+        "id": "pb2-q17-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "(a) Time",
+        "prompt": "What time did you find?",
+        "options": [
+          "\\(12\\,\\mathrm{s}\\)",
+          "\\(6.0\\,\\mathrm{s}\\)",
+          "\\(24\\,\\mathrm{s}\\)",
+          "\\(3.5\\,\\mathrm{s}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "Equal displacements: \\(15t=1.25t^{2}\\), so \\(t=12\\,\\mathrm{s}\\)."
+      },
+      {
+        "id": "pb2-q17-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(b) Distance",
+        "prompt": "What distance did you find?",
+        "options": [
+          "\\(90\\,\\mathrm{m}\\)",
+          "\\(180\\,\\mathrm{m}\\)",
+          "\\(360\\,\\mathrm{m}\\)",
+          "\\(150\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(15\\times12=180\\,\\mathrm{m}\\)."
+      },
+      {
+        "id": "pb2-q17-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(c) Speed",
+        "prompt": "What speed of the police car did you find?",
+        "options": [
+          "\\(15\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(60\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(25\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(30\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(v=at=2.5\\times12=30\\,\\mathrm{m\\,s^{-1}}\\). It is double the car's speed, as expected when starting from rest."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 240,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Kinematics: ball rolling off a table",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "hard",
+    "rank_tier": null,
+    "stem": "A ball rolls off the edge of a horizontal table \\(0.80\\,\\mathrm{m}\\) high. It lands on the floor \\(1.2\\,\\mathrm{m}\\) from the edge of the table, measured horizontally, as shown. Air resistance is negligible. Take \\(g=9.81\\,\\mathrm{m\\,s^{-2}}\\).\n\nCalculate\n\n(a) the time taken for the ball to reach the floor,\n\n(b) the speed of the ball as it leaves the table,\n\n(c) the speed of the ball as it hits the floor.",
+    "total_marks": 4,
+    "topic_tags": [
+      "kinematics",
+      "projectile",
+      "horizontal"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q18-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "(a) Time",
+        "prompt": "What time to reach the floor did you find?",
+        "options": [
+          "\\(0.286\\,\\mathrm{s}\\)",
+          "\\(0.404\\,\\mathrm{s}\\)",
+          "\\(0.163\\,\\mathrm{s}\\)",
+          "\\(0.0815\\,\\mathrm{s}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 30,
+        "explanation": "Vertically \\(u=0\\): \\(0.80=\\tfrac12(9.81)t^{2}\\), so \\(t=0.404\\,\\mathrm{s}\\)."
+      },
+      {
+        "id": "pb2-q18-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "(b) Speed leaving the table",
+        "prompt": "What speed leaving the table did you find?",
+        "options": [
+          "\\(4.20\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(1.50\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(2.97\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(0.485\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "Horizontally the speed is constant: \\(\\dfrac{1.2}{0.404}=2.97\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb2-q18-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "Vertical velocity at the floor",
+        "prompt": "What vertical velocity at the floor did you find?",
+        "options": [
+          "\\(2.97\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(7.85\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(1.98\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(3.96\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(v=gt=9.81\\times0.404=3.96\\,\\mathrm{m\\,s^{-1}}\\)."
+      },
+      {
+        "id": "pb2-q18-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(c) Impact speed",
+        "prompt": "What speed at the floor did you find?",
+        "options": [
+          "\\(4.95\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(6.93\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(3.96\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(2.62\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 30,
+        "explanation": "\\(\\sqrt{2.97^{2}+3.96^{2}}=4.95\\,\\mathrm{m\\,s^{-1}}\\)."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q18-table.svg",
+    "main_question_timer_seconds": 240,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Kinematics: v–t graph of a lift",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "The velocity–time graph shows the motion of a lift as it moves upwards between two floors of a building.\n\nUse the graph to determine\n\n(a) the deceleration of the lift as it comes to rest,\n\n(b) the distance between the two floors,\n\n(c) the average speed of the lift.",
+    "total_marks": 4,
+    "topic_tags": [
+      "kinematics",
+      "graphs",
+      "area",
+      "gradient"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q19-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "(a) Deceleration",
+        "prompt": "What deceleration did you find?",
+        "options": [
+          "\\(1.5\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(0.33\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(1.0\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(3.0\\,\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 2,
+        "timeLimitSeconds": 25,
+        "explanation": "The gradient of the last section: \\(\\dfrac{3.0}{11-8}=1.0\\,\\mathrm{m\\,s^{-2}}\\)."
+      },
+      {
+        "id": "pb2-q19-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "Distance while accelerating",
+        "prompt": "What distance did the lift move in the first \\(2.0\\,\\mathrm{s}\\)?",
+        "options": [
+          "\\(3.0\\,\\mathrm{m}\\)",
+          "\\(6.0\\,\\mathrm{m}\\)",
+          "\\(1.5\\,\\mathrm{m}\\)",
+          "\\(9.0\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 25,
+        "explanation": "Area of the triangle: \\(\\tfrac12\\times2.0\\times3.0=3.0\\,\\mathrm{m}\\)."
+      },
+      {
+        "id": "pb2-q19-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(b) Total distance",
+        "prompt": "What distance between the floors did you find?",
+        "options": [
+          "\\(33.0\\,\\mathrm{m}\\)",
+          "\\(25.5\\,\\mathrm{m}\\)",
+          "\\(18.0\\,\\mathrm{m}\\)",
+          "\\(30.0\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 30,
+        "explanation": "\\(3.0+(6.0\\times3.0)+\\tfrac12(3.0)(3.0)=3.0+18.0+4.5=25.5\\,\\mathrm{m}\\)."
+      },
+      {
+        "id": "pb2-q19-step-4",
+        "type": "mcq",
+        "index": 3,
+        "marks": 1,
+        "title": "(c) Average speed",
+        "prompt": "What average speed did you find?",
+        "options": [
+          "\\(3.0\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(1.5\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(3.2\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(2.3\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(\\dfrac{25.5}{11}=2.3\\,\\mathrm{m\\,s^{-1}}\\)."
+      }
+    ],
+    "image_url": "/question-diagrams/pb2-q19-lift-graph.svg",
+    "main_question_timer_seconds": 180,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  },
+  {
+    "title": "Kinematics: stone thrown down from a bridge",
+    "subject": "physics",
+    "chapter": "Chapter 2: Kinematics",
+    "level": "A1",
+    "difficulty": "medium",
+    "rank_tier": null,
+    "stem": "A stone is thrown vertically downwards from a bridge with a speed of \\(5.0\\,\\mathrm{m\\,s^{-1}}\\). It hits the water \\(3.0\\,\\mathrm{s}\\) later. Air resistance is negligible. Take \\(g=9.81\\,\\mathrm{m\\,s^{-2}}\\).\n\nCalculate\n\n(a) the height of the bridge above the water,\n\n(b) the speed of the stone as it hits the water.",
+    "total_marks": 3,
+    "topic_tags": [
+      "kinematics",
+      "suvat",
+      "vertical motion"
+    ],
+    "steps": [
+      {
+        "id": "pb2-q20-step-1",
+        "type": "mcq",
+        "index": 0,
+        "marks": 1,
+        "title": "Values of u and a",
+        "prompt": "Taking downwards as positive, what values of \\(u\\) and \\(a\\) did you use?",
+        "options": [
+          "\\(u=+5.0\\,\\mathrm{m\\,s^{-1}},\\;a=+9.81\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(u=0,\\;a=+9.81\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(u=-5.0\\,\\mathrm{m\\,s^{-1}},\\;a=+9.81\\,\\mathrm{m\\,s^{-2}}\\)",
+          "\\(u=+5.0\\,\\mathrm{m\\,s^{-1}},\\;a=-9.81\\,\\mathrm{m\\,s^{-2}}\\)"
+        ],
+        "correctAnswer": 0,
+        "timeLimitSeconds": 20,
+        "explanation": "The stone is thrown downwards, so \\(u=+5.0\\), and gravity acts downwards, so \\(a=+9.81\\)."
+      },
+      {
+        "id": "pb2-q20-step-2",
+        "type": "mcq",
+        "index": 1,
+        "marks": 1,
+        "title": "(a) Height",
+        "prompt": "What height did you find?",
+        "options": [
+          "\\(44.1\\,\\mathrm{m}\\)",
+          "\\(59.1\\,\\mathrm{m}\\)",
+          "\\(29.1\\,\\mathrm{m}\\)",
+          "\\(74.1\\,\\mathrm{m}\\)"
+        ],
+        "correctAnswer": 1,
+        "timeLimitSeconds": 30,
+        "explanation": "\\(s=ut+\\tfrac12at^{2}=5.0(3.0)+\\tfrac12(9.81)(3.0)^{2}=15.0+44.1=59.1\\,\\mathrm{m}\\)."
+      },
+      {
+        "id": "pb2-q20-step-3",
+        "type": "mcq",
+        "index": 2,
+        "marks": 1,
+        "title": "(b) Speed",
+        "prompt": "What speed at the water did you find?",
+        "options": [
+          "\\(29.4\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(24.4\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(39.4\\,\\mathrm{m\\,s^{-1}}\\)",
+          "\\(34.4\\,\\mathrm{m\\,s^{-1}}\\)"
+        ],
+        "correctAnswer": 3,
+        "timeLimitSeconds": 25,
+        "explanation": "\\(v=u+at=5.0+9.81\\times3.0=34.4\\,\\mathrm{m\\,s^{-1}}\\)."
+      }
+    ],
+    "image_url": null,
+    "main_question_timer_seconds": 180,
+    "graph": null,
+    "structure_smiles": null,
+    "is_enabled": false,
+    "is_done": false
+  }
+]

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="260" viewBox="0 0 520 260">
+<rect width="520" height="260" fill="#ffffff"/>
+<g fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+<line x1="120" y1="220" x2="420" y2="220" stroke-width="2"/><polygon points="420,220 409.59,223.56 409.59,216.44" fill="#000" stroke="none"/><text x="428" y="225" font-family="Arial, Helvetica, sans-serif" font-size="15" text-anchor="start" fill="#000" stroke="none">5.0 N</text><line x1="120" y1="220" x2="210" y2="64.12" stroke-width="2"/><polygon points="210,64.12 207.88,74.91 201.71,71.35" fill="#000" stroke="none"/><text x="220" y="60.12" font-family="Arial, Helvetica, sans-serif" font-size="15" text-anchor="start" fill="#000" stroke="none">3.0 N</text><path d="M 162 220 A 42 42 0 0 0 141 183.63" stroke-width="1"/><text x="170" y="190" font-family="Arial, Helvetica, sans-serif" font-size="15" text-anchor="start" fill="#000" stroke="none">60°</text><circle cx="120" cy="220" r="4" fill="#000"/><text x="108" y="240" font-family="Arial, Helvetica, sans-serif" font-size="15" text-anchor="middle" fill="#000" stroke="none">O</text>
+</g>
+</svg>
